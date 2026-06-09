@@ -213,7 +213,7 @@ frontend/
 │   │
 │   ├── assets/
 │   │   ├── images/
-│   │   ├── icons/
+│   │   ├── icons/                     ← Các bootstrap icon (dùng khi lucide không có)
 │   │   └── data/
 │   │
 │   ├── styles/

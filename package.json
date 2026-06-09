@@ -14,5 +14,8 @@
   },
   "devDependencies": {
     "concurrently": "^7.6.0"
+  },
+  "dependencies": {
+    "lucide-angular": "^1.0.0"
   }
 }

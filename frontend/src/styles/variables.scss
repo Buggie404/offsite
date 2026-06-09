@@ -93,4 +93,16 @@
   --divider-color: rgba(84, 74, 64, 0.30);   /* #544A40 @ 30% */
   --dot-grid-color: rgba(84, 74, 64, 0.08);  /* #544A40 @ 8% */
   --grain-opacity: 0.06;                      /* 5–8%, midpoint */
+
+  /* Breakpoints */
+  --screen-sm: 480px;    /* mobile large */
+  --screen-md: 768px;    /* tablet / mobile breakpoint từ type scale */
+  --screen-lg: 1024px;   /* desktop nhỏ */
+  --screen-xl: 1280px;   /* desktop standard */
+  --screen-2xl: 1440px;  /* desktop wide */
+
+  /* Container max-width */
+  --container-max: 1280px;
+  --container-padding-mobile: 16px;   /* = --space-3 */
+  --container-padding-desktop: 32px;  /* = --space-5 */
 }
