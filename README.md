@@ -218,14 +218,14 @@ npm run build
 
 ### For Developers
 
-**Backend Development?** → [`backend/README.md`](./backend/README.md)
+**Backend Development?** → [`backend/README.md`](./backend/BACKEND_README.md)
 - Tech stack, setup, folder structure
 - Running server, API endpoints
 - Database management
 - Authentication (JWT + OAuth)
 - Troubleshooting
 
-**Frontend Development?** → [`frontend/README.md`](./frontend/README.md)
+**Frontend Development?** → [`frontend/README.md`](./frontend/FRONTEND_README.md)
 - Tech stack, setup, folder structure
 - Running app, architecture (MVVM)
 - How to add features, API integration
