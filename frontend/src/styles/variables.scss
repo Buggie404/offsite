@@ -1,0 +1,96 @@
+:root {
+  /* Colors — Primary */
+  --color-cream: #FAF0EB;
+  --color-near-black: #1A1A1A;
+  --color-warm-brown: #544A40;
+  --color-forest-green: #375534;
+
+  /* Colors — Secondary */
+  --color-sage: #CFE1B9;
+  --color-latte: #C4A882;
+  --color-wheat: #E8D5B0;
+  --color-blush-pink: #EFB5D0;
+
+  /* Colors — State */
+  --state-success: #2D7A47;
+  --state-warning: #C69A00;
+  --state-error: #C0392B;
+
+  /* Typography — Font families */
+  --font-display: 'Russo One', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+
+  /* Typography — Type scale (desktop) */
+  --text-h1-size: 48px;        /* range 48–72px */
+  --text-h1-weight: 400;
+  --text-h1-line-height: 1.10;
+  --text-h1-tracking: -0.02em;
+
+  --text-h2-size: 32px;
+  --text-h2-weight: 600;
+  --text-h2-line-height: 1.20;
+  --text-h2-tracking: -0.01em;
+
+  --text-h3-size: 24px;
+  --text-h3-weight: 600;
+  --text-h3-line-height: 1.30;
+  --text-h3-tracking: 0;
+
+  --text-h4-size: 18px;
+  --text-h4-weight: 500;
+  --text-h4-line-height: 1.40;
+  --text-h4-tracking: 0;
+
+  --text-body-size: 16px;
+  --text-body-weight: 400;
+  --text-body-line-height: 1.60;
+  --text-body-tracking: 0;
+
+  --text-body-sm-size: 14px;
+  --text-body-sm-weight: 400;
+  --text-body-sm-line-height: 1.50;
+  --text-body-sm-tracking: 0;
+
+  --text-price-size: 18px;
+  --text-price-weight: 500;
+  --text-price-line-height: 1.20;
+  --text-price-tracking: 0.02em;
+
+  --text-label-size: 12px;
+  --text-label-weight: 400;
+  --text-label-line-height: 1.40;
+  --text-label-tracking: 0.04em;
+
+  --text-cta-size: 14px;
+  --text-cta-weight: 500;
+  --text-cta-line-height: 1.00;
+  --text-cta-tracking: 0.06em;
+
+  --text-nav-size: 13px;
+  --text-nav-weight: 400;
+  --text-nav-line-height: 1.00;
+  --text-nav-tracking: 0.08em;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+  --space-7: 64px;
+
+  /* Border Radius */
+  --radius-sharp: 0px;
+  --radius-sm: 4px;
+  --radius-input: 6px;
+  --radius-card: 8px;
+  --radius-pill: 9999px;
+  --radius-badge: 100px;
+
+  /* Dividers / Decorative */
+  --divider-color: rgba(84, 74, 64, 0.30);   /* #544A40 @ 30% */
+  --dot-grid-color: rgba(84, 74, 64, 0.08);  /* #544A40 @ 8% */
+  --grain-opacity: 0.06;                      /* 5–8%, midpoint */
+}
