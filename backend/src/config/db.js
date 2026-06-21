@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const mongoose = require('mongoose');
 
 let client = null;
 let db = null;
@@ -13,23 +14,26 @@ async function connectDB() {
   }
 
   try {
+    // Connect Mongoose
+    await mongoose.connect(uri);
+    console.log('Successfully connected to MongoDB via Mongoose');
+
     client = new MongoClient(uri);
     await client.connect();
-    
+
     // Select the database defined in connection URI or default
     db = client.db();
-    
+
     collections = {
-      userCollection: db.collection('users'),
-      productCollection: db.collection('products'),
+      userCollection: db.collection('Users'),
+      productCollection: db.collection('Products'),
       orderCollection: db.collection('orders'),
       cartCollection: db.collection('carts'),
-      couponCollection: db.collection('coupons'),
+      couponCollection: db.collection('Vouchers'),
       reviewCollection: db.collection('reviews'),
       recipeCollection: db.collection('recipes'),
-      blogCollection: db.collection('blogs'),
+      blogCollection: db.collection('Blogs'),
       communityPostCollection: db.collection('community_posts'),
-      giftShellCollection: db.collection('gift_shells')
     };
 
     console.log(`Successfully connected to MongoDB database: ${db.databaseName}`);

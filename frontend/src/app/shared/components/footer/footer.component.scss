@@ -1,0 +1,201 @@
+.footer {
+  background-color: var(--color-near-black);
+  color: var(--color-cream);
+  font-family: var(--font-body);
+}
+
+.footer-inner {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 64px var(--container-padding-desktop) 24px;
+
+  @media (max-width: 768px) {
+    padding: 48px var(--container-padding-mobile) 24px;
+  }
+}
+
+.footer-top {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: 64px;
+  padding-bottom: 56px;
+
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+  }
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+    gap: 40px;
+    padding-bottom: 40px;
+  }
+}
+
+/* Brand Column */
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+
+  .brand-link {
+    /* SVG canvas is 2000x700; we crop to the visible mark+wordmark range.
+       Saturn ring visible left edge is around canvas x≈260; content ends ~x=1520. */
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    width: 100%;
+    max-width: 280px;
+    aspect-ratio: 1140 / 440;
+    overflow: hidden;
+    position: relative;
+    background-color: var(--color-near-black);
+
+    .brand-logo {
+      position: absolute;
+      display: block;
+      /* Scale SVG so the visible content (1140 wide) fills wrapper width. */
+      width: calc(100% * 2000 / 1140);
+      height: auto;
+      /* Shift left so canvas x=380 aligns with wrapper x=0. */
+      left: calc(-100% * 380 / 1140);
+      /* Vertically center on the content band (y ≈ 130..570). */
+      top: calc(-100% * 130 / 440);
+      opacity: 0;
+      animation: fadeIn 0.3s ease-out 0.1s forwards;
+    }
+  }
+
+  @keyframes fadeIn {
+    to {
+      opacity: 1;
+    }
+  }
+
+  .brand-desc {
+    font-size: 14px;
+    line-height: 1.6;
+    color: rgba(250, 240, 235, 0.7);
+    max-width: 320px;
+    margin: 0;
+  }
+
+  .social-list {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    gap: 12px;
+
+    .social-link {
+      width: 40px;
+      height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(250, 240, 235, 0.25);
+      border-radius: 6px;
+      color: var(--color-cream);
+      text-decoration: none;
+      transition: background-color 0.25s ease,
+                  border-color 0.25s ease,
+                  color 0.25s ease,
+                  transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+      svg {
+        display: block;
+      }
+
+      &:hover {
+        background-color: var(--color-sage);
+        border-color: var(--color-sage);
+        color: var(--color-forest-green);
+        transform: translateY(-2px);
+      }
+    }
+  }
+}
+
+/* Link Columns */
+.footer-col {
+  display: flex;
+  flex-direction: column;
+
+  .col-title {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--color-cream);
+    margin: 0 0 24px 0;
+    text-transform: uppercase;
+  }
+
+  .col-links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    .col-link {
+      font-size: 14px;
+      color: rgba(250, 240, 235, 0.75);
+      text-decoration: none;
+      transition: color 0.25s ease, transform 0.2s ease;
+      display: inline-block;
+      width: fit-content;
+
+      &:hover {
+        color: var(--color-cream);
+        transform: translateX(2px);
+      }
+    }
+  }
+}
+
+/* Bottom Strip */
+.footer-bottom {
+  border-top: 1px solid rgba(250, 240, 235, 0.12);
+  padding-top: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+
+  .copyright {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: rgba(250, 240, 235, 0.55);
+    letter-spacing: 0.02em;
+  }
+
+  .secondary-links {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    gap: 24px;
+
+    .secondary-link {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: rgba(250, 240, 235, 0.55);
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      transition: color 0.25s ease;
+
+      &:hover {
+        color: var(--color-cream);
+      }
+    }
+  }
+
+  @media (max-width: 600px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+}

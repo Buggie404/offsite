@@ -1,0 +1,30 @@
+.app-main {
+  width: 100%;
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+app-footer {
+  flex-shrink: 0;
+}
+
+/* Custom scrollbar to feel premium and fit color palette */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-cream);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-latte);
+  border-radius: var(--radius-pill);
+  
+  &:hover {
+    background: var(--color-warm-brown);
+  }
+}

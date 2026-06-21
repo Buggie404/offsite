@@ -1,0 +1,57 @@
+export interface RecipeHeroImage {
+  url: string;
+  public_id: string;
+}
+
+export interface RecipeMetadata {
+  servings: number;
+  prepTime: number;
+  cookTime: number | null;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  tags: string[];
+}
+
+export interface RecipeIngredient {
+  name: string;
+  quantity?: number;
+  unit?: string;
+  optional: boolean;
+}
+
+export interface RecipeTool {
+  name: string;
+}
+
+export interface RecipeStep {
+  order: number;
+  title: string;
+  description: string;
+}
+
+export interface RecipeSource {
+  type: string;
+  author?: string;
+  communityPostId?: string | null;
+  communityPostTitle?: string | null;
+  creatorName?: string | null;
+  creatorAvatar?: string | null;
+}
+
+export interface Recipe {
+  _id: string;
+  recipe_id: string;
+  title: string;
+  slug: string;
+  description?: string;
+  heroImage: RecipeHeroImage;
+  metadata: RecipeMetadata;
+  ingredients: RecipeIngredient[];
+  tools: RecipeTool[];
+  steps: RecipeStep[];
+  relatedProducts: string[];
+  source: RecipeSource;
+  saves: number;
+  published: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

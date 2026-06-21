@@ -17,7 +17,9 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/auth/oauth', require('./routes/oauth.routes'));
 app.use('/api/products', require('./routes/products.routes'));
+app.use('/api/vouchers', require('./routes/vouchers.routes'));
 app.use('/api/orders', require('./routes/orders.routes'));
+app.use('/api/recipes', require('./routes/recipes.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 
 // Health check

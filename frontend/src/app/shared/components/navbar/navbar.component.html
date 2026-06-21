@@ -1,0 +1,282 @@
+<header class="header-container" [class.promobar-hidden]="!isPromobarVisible">
+  <!-- Promobar -->
+  <div class="promobar" *ngIf="isPromobarVisible">
+    <div class="promobar-content">
+      <span class="promobar-icon">✦</span>
+      <span class="promobar-text">
+        FREE SHIPPING FOR ORDERS OVER $200 · NEW DROP: HOJICHA ROASTED
+      </span>
+      <a href="#" class="shop-now-link">
+        SHOP NOW <span class="arrow">→</span>
+      </a>
+    </div>
+    <button class="promobar-close-btn" (click)="closePromobar()" aria-label="Close promotion banner">
+      <svg lucideX [size]="16"></svg>
+    </button>
+  </div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <!-- Logo -->
+    <a href="/" class="logo-link">
+      <img src="assets/images/logo-mark-dark.svg" alt="Offsite Logo" class="logo-img">
+    </a>
+
+    <!-- Desktop Navigation Links -->
+    <ul class="nav-links">
+      <!-- Mega Menu Link -->
+      <li class="nav-item-mega">
+        <a href="#" class="nav-link">PRODUCTS</a>
+        <div class="mega-menu">
+          <div class="mega-menu-inner">
+            <!-- Left Column -->
+            <div class="mega-col mega-col-left">
+              <ul class="promo-links">
+                <li><a href="#" class="promo-link">BEST SELLERS</a></li>
+                <li><a href="#" class="promo-link">NEW ARRIVALS</a></li>
+              </ul>
+            </div>
+            
+            <!-- Center Column -->
+            <div class="mega-col mega-col-center">
+              <span class="column-title">SHOP BY</span>
+              <div class="category-grid">
+                <a href="#" class="category-item">
+                  <div class="category-thumb-wrapper">
+                    <img src="assets/images/category-matcha.jpg" alt="Matcha Category" class="category-thumb">
+                  </div>
+                  <span class="category-name">MATCHA</span>
+                </a>
+                <a href="#" class="category-item">
+                  <div class="category-thumb-wrapper">
+                    <img src="assets/images/category-tools.jpg" alt="Tools Category" class="category-thumb">
+                  </div>
+                  <span class="category-name">TOOLS</span>
+                </a>
+                <a href="#" class="category-item">
+                  <div class="category-thumb-wrapper">
+                    <img src="assets/images/category-coffee.jpg" alt="Coffee Category" class="category-thumb">
+                  </div>
+                  <span class="category-name">COFFEE</span>
+                </a>
+                <a href="#" class="category-item">
+                  <div class="category-thumb-wrapper">
+                    <img src="assets/images/category-drinkwares.jpg" alt="Drinkwares Category" class="category-thumb">
+                  </div>
+                  <span class="category-name">DRINKWARES</span>
+                </a>
+                <a href="#" class="category-item">
+                  <div class="category-thumb-wrapper">
+                    <img src="assets/images/category-sets.jpg" alt="Sets & Bundles Category" class="category-thumb">
+                  </div>
+                  <span class="category-name">SETS & BUNDLES</span>
+                </a>
+              </div>
+            </div>
+            
+            <!-- Right Column -->
+            <div class="mega-col mega-col-right">
+              <div class="bundle-promo-card">
+                <span class="promo-subtitle">BUILD YOUR OWN BUNDLE</span>
+                <h3 class="promo-title">Your kit,<br>your rules.</h3>
+                <p class="promo-desc">Pick any 2 or 3 products — coffee, matcha, tools and drinkwares — and save.</p>
+                <a href="#" class="promo-cta-btn">
+                  <span>START BUILDING NOW</span>
+                  <span class="cta-arrow">→</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </li>
+      <li><a href="#" class="nav-link">JOURNAL</a></li>
+      <li><a href="#" class="nav-link">RECIPES</a></li>
+      <li><a href="#" class="nav-link">COMMUNITY</a></li>
+      
+      <!-- Hoverable Dropdown Link -->
+      <li class="nav-item-dropdown">
+        <a href="#" class="nav-link dropdown-toggle">ABOUT US</a>
+        <ul class="hover-dropdown-menu">
+          <li><a href="#" class="dropdown-item-link">About Us</a></li>
+          <li><a href="#" class="dropdown-item-link">Contact Us</a></li>
+          <li><a href="#" class="dropdown-item-link">Policies</a></li>
+        </ul>
+      </li>
+    </ul>
+
+    <!-- Actions & Mobile Menu Toggle -->
+    <div class="nav-actions">
+      <button class="action-btn search-btn" (click)="openSearch($event)" aria-label="Search">
+        <svg lucideSearch [size]="20"></svg>
+      </button>
+      
+      <button class="action-btn cart-btn" (click)="openCart($event)" aria-label="Shopping Cart">
+        <svg lucideShoppingCart [size]="20"></svg>
+        <span class="cart-badge">0</span>
+      </button>
+      
+      <!-- Profile Button Wrapper -->
+      <div class="profile-btn-wrapper" (mouseenter)="openProfileDropdown()" (mouseleave)="closeProfileDropdown()">
+        <button class="action-btn profile-btn" (click)="toggleProfileDropdown($event)" aria-label="User Profile">
+          <svg lucideUser [size]="20"></svg>
+        </button>
+        
+        <!-- Interactive Dropdown -->
+        <div class="profile-dropdown" [class.open]="isProfileDropdownOpen">
+          <ul class="dropdown-menu-list">
+            <li *ngIf="!isLoggedIn()">
+              <button class="dropdown-item" (click)="login()">
+                <span class="item-text">LOG IN / SIGN IN</span>
+                <svg lucideLogIn [size]="16" class="item-icon"></svg>
+              </button>
+            </li>
+            <li *ngIf="isLoggedIn()">
+              <button class="dropdown-item" (click)="logout()">
+                <span class="item-text">SIGN OUT</span>
+                <svg lucideLogOut [size]="16" class="item-icon"></svg>
+              </button>
+            </li>
+            <li>
+              <button class="dropdown-item">
+                <span class="item-text">ORDER TRACKING</span>
+                <svg lucideClipboardClock [size]="16" class="item-icon"></svg>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <button class="mobile-menu-toggle" (click)="toggleMobileMenu()" [attr.aria-label]="isMobileMenuOpen ? 'Close Menu' : 'Open Menu'">
+        <svg *ngIf="!isMobileMenuOpen" lucideMenu [size]="20"></svg>
+        <svg *ngIf="isMobileMenuOpen" lucideX [size]="20"></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Drawer Menu -->
+  <div class="mobile-drawer" [class.open]="isMobileMenuOpen">
+    <ul class="mobile-nav-links">
+      <li class="mobile-nav-item">
+        <button class="mobile-nav-link" (click)="toggleMobileProducts($event)" [attr.aria-expanded]="isMobileProductsOpen">
+          <span>PRODUCTS</span>
+          <svg lucideChevronDown [size]="18" class="submenu-arrow" [class.rotated]="isMobileProductsOpen"></svg>
+        </button>
+        <div class="mobile-submenu" [class.open]="isMobileProductsOpen">
+          <ul class="mobile-submenu-links">
+            <li><a href="#" class="mobile-submenu-link highlight" (click)="closeMobileMenu()">BEST SELLERS</a></li>
+            <li><a href="#" class="mobile-submenu-link highlight" (click)="closeMobileMenu()">NEW ARRIVALS</a></li>
+            <li class="mobile-submenu-divider"></li>
+            <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">MATCHA</a></li>
+            <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">TOOLS</a></li>
+            <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">COFFEE</a></li>
+            <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">DRINKWARES</a></li>
+            <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">SETS & BUNDLES</a></li>
+          </ul>
+          
+          <div class="mobile-submenu-promo">
+            <span class="promo-subtitle">BUILD YOUR OWN BUNDLE</span>
+            <h4 class="promo-title">Your kit, your rules.</h4>
+            <p class="promo-desc">Pick any 2 or 3 products — coffee, matcha, tools and drinkwares — and save.</p>
+            <a href="#" class="promo-cta-btn" (click)="closeMobileMenu()">
+              <span>START BUILDING NOW</span>
+              <span class="cta-arrow">→</span>
+            </a>
+          </div>
+        </div>
+      </li>
+      <li><a href="#" class="mobile-nav-link" (click)="closeMobileMenu()">JOURNAL</a></li>
+      <li><a href="#" class="mobile-nav-link" (click)="closeMobileMenu()">RECIPES</a></li>
+      <li><a href="#" class="mobile-nav-link" (click)="closeMobileMenu()">COMMUNITY</a></li>
+      <li class="mobile-nav-item">
+        <button class="mobile-nav-link" (click)="toggleMobileAbout($event)" [attr.aria-expanded]="isMobileAboutOpen">
+          <span>ABOUT US</span>
+          <svg lucideChevronDown [size]="18" class="submenu-arrow" [class.rotated]="isMobileAboutOpen"></svg>
+        </button>
+        <div class="mobile-submenu" [class.open]="isMobileAboutOpen">
+          <ul class="mobile-submenu-links">
+            <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">About Us</a></li>
+            <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">Contact Us</a></li>
+            <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">Policies</a></li>
+          </ul>
+        </div>
+      </li>
+    </ul>
+  </div>
+</header>
+
+<!-- Search Drawer -->
+<div class="search-drawer-overlay" [class.open]="isSearchOpen" (click)="closeSearch()"></div>
+<div class="search-drawer" [class.open]="isSearchOpen">
+  <!-- Header -->
+  <div class="search-header">
+    <h2 class="search-title">SEARCH</h2>
+    <button class="search-close-btn" (click)="closeSearch()" aria-label="Close search">
+      <svg lucideX [size]="20"></svg>
+    </button>
+  </div>
+  
+  <!-- Search Content -->
+  <div class="search-body">
+    <!-- Input wrapper -->
+    <div class="search-input-wrapper">
+      <svg lucideSearch [size]="18" class="search-input-icon"></svg>
+      <input 
+        #searchInput
+        type="text" 
+        class="search-input" 
+        placeholder="Searching" 
+        (keydown.enter)="performSearch()"
+      >
+    </div>
+    
+    <!-- Recommended Tags -->
+    <div class="recommended-section">
+      <span class="recommended-label">RECOMMENDED</span>
+      <div class="recommended-tags">
+        <button class="recommended-tag-btn" (click)="selectTag('Ceremonial Matcha')">Ceremonial Matcha</button>
+        <button class="recommended-tag-btn" (click)="selectTag('Cold Brew Kit')">Cold Brew Kit</button>
+        <button class="recommended-tag-btn" (click)="selectTag('Yirgacheffe')">Yirgacheffe</button>
+        <button class="recommended-tag-btn" (click)="selectTag('Gooseneck Kettle')">Gooseneck Kettle</button>
+        <button class="recommended-tag-btn" (click)="selectTag('Hojicha')">Hojicha</button>
+        <button class="recommended-tag-btn" (click)="selectTag('V60 Recipe')">V60 Recipe</button>
+        <button class="recommended-tag-btn" (click)="selectTag('Bamboo Whisk')">Bamboo Whisk</button>
+        <button class="recommended-tag-btn" (click)="selectTag('Decaf Espresso')">Decaf Espresso</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Footer -->
+  <div class="search-footer">
+    <span class="footer-text">
+      Press <span class="key-badge">↵</span> to search · <span class="key-badge">Esc</span> to close
+    </span>
+  </div>
+</div>
+
+<!-- Cart Drawer -->
+<div class="cart-drawer-overlay" [class.open]="isCartOpen" (click)="closeCart()"></div>
+<div class="cart-drawer" [class.open]="isCartOpen">
+  <!-- Header -->
+  <div class="cart-header">
+    <h2 class="cart-title">YOUR CART</h2>
+    <button class="cart-close-btn" (click)="closeCart()" aria-label="Close cart">
+      <svg lucideX [size]="20"></svg>
+    </button>
+  </div>
+
+  <!-- Empty State -->
+  <div class="cart-body">
+    <div class="cart-empty-state">
+      <div class="empty-icon-wrapper">
+        <span class="dot dot-tr"></span>
+        <span class="dot dot-bl"></span>
+        <div class="empty-icon-circle">
+          <svg lucideShoppingBag [size]="36"></svg>
+        </div>
+      </div>
+      <h3 class="empty-title">Your cart is empty</h3>
+      <p class="empty-desc">Looks like you haven't added<br>anything yet. Find your ritual.</p>
+      <button class="empty-cta-btn" (click)="closeCart()">RETURN TO SHOP</button>
+    </div>
+  </div>
+</div>

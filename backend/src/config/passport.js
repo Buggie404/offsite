@@ -21,27 +21,43 @@ function setupPassport(userCollection) {
           });
 
           if (!user) {
+            // Sinh user_id tuần tự kiểu USRXXXXX
+            const lastUser = await userCollection.findOne({}, { sort: { user_id: -1 } });
+            let nextNum = 1;
+            if (lastUser && lastUser.user_id) {
+              const match = lastUser.user_id.match(/USR(\d+)/);
+              if (match) {
+                nextNum = parseInt(match[1], 10) + 1;
+              }
+            }
+            const user_id = `USR${String(nextNum).padStart(5, '0')}`;
+
             // Nếu user mới → tạo
             const newUser = {
-              name: profile.displayName,
-              email: profile.emails?.[0]?.value || null,
-              avatar_url: profile.photos?.[0]?.value || null,
-              role: 'customer',
-              status: 'active',
+              user_id,
+              password_hash: null, // OAuth users không có password
               oauth_providers: [
                 {
                   provider: 'google',
                   provider_id: profile.id
                 }
               ],
-              password_hash: null, // OAuth users không có password
+              profile_name: profile.displayName,
+              role: 'customer',
+              status: 'active',
               addresses: [],
+              payment_methods: [],
               saved_products: [],
               saved_recipes: [],
               saved_posts: [],
               createdAt: new Date(),
               updatedAt: new Date()
             };
+
+            const email = profile.emails?.[0]?.value;
+            if (email) newUser.email = email;
+            const avatar_url = profile.photos?.[0]?.value;
+            if (avatar_url) newUser.avatar_url = avatar_url;
 
             const result = await userCollection.insertOne(newUser);
             user = { ...newUser, _id: result.insertedId };
@@ -72,26 +88,42 @@ function setupPassport(userCollection) {
           });
 
           if (!user) {
+            // Sinh user_id tuần tự kiểu USRXXXXX
+            const lastUser = await userCollection.findOne({}, { sort: { user_id: -1 } });
+            let nextNum = 1;
+            if (lastUser && lastUser.user_id) {
+              const match = lastUser.user_id.match(/USR(\d+)/);
+              if (match) {
+                nextNum = parseInt(match[1], 10) + 1;
+              }
+            }
+            const user_id = `USR${String(nextNum).padStart(5, '0')}`;
+
             const newUser = {
-              name: profile.displayName,
-              email: profile.emails?.[0]?.value || null,
-              avatar_url: profile.photos?.[0]?.value || null,
-              role: 'customer',
-              status: 'active',
+              user_id,
+              password_hash: null,
               oauth_providers: [
                 {
                   provider: 'facebook',
                   provider_id: profile.id
                 }
               ],
-              password_hash: null,
+              profile_name: profile.displayName,
+              role: 'customer',
+              status: 'active',
               addresses: [],
+              payment_methods: [],
               saved_products: [],
               saved_recipes: [],
               saved_posts: [],
               createdAt: new Date(),
               updatedAt: new Date()
             };
+
+            const email = profile.emails?.[0]?.value;
+            if (email) newUser.email = email;
+            const avatar_url = profile.photos?.[0]?.value;
+            if (avatar_url) newUser.avatar_url = avatar_url;
 
             const result = await userCollection.insertOne(newUser);
             user = { ...newUser, _id: result.insertedId };
