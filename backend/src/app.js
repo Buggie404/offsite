@@ -19,7 +19,10 @@ app.use('/api/auth/oauth', require('./routes/oauth.routes'));
 app.use('/api/products', require('./routes/products.routes'));
 app.use('/api/vouchers', require('./routes/vouchers.routes'));
 app.use('/api/orders', require('./routes/orders.routes'));
+app.use('/api/order-tracking', require('./routes/order-tracking.routes'));
 app.use('/api/recipes', require('./routes/recipes.routes'));
+app.use('/api/posts', require('./routes/posts.routes'));
+app.use('/api/comments', require('./routes/comments.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 
 // Health check

@@ -93,32 +93,50 @@ async function login(req, res) {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Vui lòng cung cấp email và password.' });
+      return res.status(400).json({ error: 'Vui lòng cung cấp email và password.', code: 'MISSING_FIELDS' });
+    }
+
+    // Chuẩn hoá email / phone: loại bỏ khoảng trắng ở đầu và cuối.
+    // Nếu là số điện thoại (không chứa ký tự '@'), loại bỏ hoàn toàn khoảng trắng bên trong.
+    let identifier = String(email).trim();
+    if (identifier && !identifier.includes('@')) {
+      identifier = identifier.replace(/\s+/g, '');
     }
 
     const { userCollection } = await getCollections();
     
-    // Tìm user bằng email
-    const user = await userCollection.findOne({ email });
+    // Tìm user bằng email hoặc phone (sau khi đã chuẩn hoá)
+    const user = await userCollection.findOne({
+      $or: [
+        { email: identifier },
+        { phone: identifier }
+      ]
+    });
+    
     if (!user) {
-      return res.status(401).json({ error: 'Email hoặc mật khẩu không chính xác.' });
+      return res.status(404).json({ error: 'Tài khoản không tồn tại trong hệ thống.', code: 'ACCOUNT_NOT_FOUND' });
     }
 
     // Nếu là tài khoản OAuth (không có password_hash)
     if (!user.password_hash) {
-      return res.status(400).json({ error: 'Tài khoản này được đăng ký thông qua mạng xã hội.' });
+      return res.status(400).json({ error: 'Tài khoản này được đăng ký thông qua mạng xã hội.', code: 'OAUTH_ACCOUNT' });
+    }
+
+    // Kiểm tra phân quyền: admin không được đăng nhập tại đây
+    if (user.role === 'admin') {
+      return res.status(403).json({ error: 'Tài khoản admin không được phép đăng nhập tại đây.', code: 'ADMIN_NOT_ALLOWED' });
     }
 
     // So sánh password plain với password_hash
     const isValid = await bcrypt.compare(password, user.password_hash);
     if (!isValid) {
-      return res.status(401).json({ error: 'Email hoặc mật khẩu không chính xác.' });
+      return res.status(401).json({ error: 'Mật khẩu không chính xác.', code: 'INCORRECT_PASSWORD' });
     }
 
     // Ký JWT Token
     const secret = process.env.JWT_SECRET || 'fallback-secret-key';
     const token = jwt.sign(
-      { user_id: user._id, email: user.email, role: user.role },
+      { user_id: user._id, email: user.email || '', role: user.role },
       secret,
       { expiresIn: '8h' }
     );
@@ -129,7 +147,8 @@ async function login(req, res) {
       user: {
         _id: user._id,
         user_id: user.user_id,
-        email: user.email,
+        email: user.email || '',
+        phone: user.phone || '',
         profile_name: user.profile_name,
         role: user.role
       }

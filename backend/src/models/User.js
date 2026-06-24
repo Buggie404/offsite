@@ -21,6 +21,15 @@ const paymentMethodSchema = new mongoose.Schema({
   is_default: { type: Boolean, default: false }
 });
 
+paymentMethodSchema.pre('validate', function(next) {
+  if (this.card_type === 'NAPAS') {
+    this.cvc = null;
+  } else {
+    this.issued_bank = null;
+  }
+  next();
+});
+
 const oauthProviderSchema = new mongoose.Schema({
   provider: { type: String, enum: ['google', 'facebook'], required: true },
   provider_id: { type: String, required: true }

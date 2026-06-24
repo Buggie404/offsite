@@ -27,13 +27,14 @@ async function connectDB() {
     collections = {
       userCollection: db.collection('Users'),
       productCollection: db.collection('Products'),
-      orderCollection: db.collection('orders'),
-      cartCollection: db.collection('carts'),
+      orderCollection: db.collection('Orders'),
+      cartCollection: db.collection('Carts'),
       couponCollection: db.collection('Vouchers'),
-      reviewCollection: db.collection('reviews'),
+      reviewCollection: db.collection('Reviews'),
       recipeCollection: db.collection('recipes'),
       blogCollection: db.collection('Blogs'),
-      communityPostCollection: db.collection('community_posts'),
+      postCollection: db.collection('Posts'),
+      commentCollection: db.collection('Comments'),
     };
 
     console.log(`Successfully connected to MongoDB database: ${db.databaseName}`);

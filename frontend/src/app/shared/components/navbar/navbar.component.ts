@@ -13,6 +13,7 @@ import {
   LucideChevronDown
 } from '@lucide/angular';
 import { AuthService } from '../../../core/auth.service';
+import { AuthModalService } from '../../../core/auth-modal.service';
 
 @Component({
   selector: 'app-navbar',
@@ -36,8 +37,9 @@ import { AuthService } from '../../../core/auth.service';
 export class NavbarComponent implements OnInit {
   private platformId = inject(PLATFORM_ID);
   private authService = inject(AuthService);
+  private authModalService = inject(AuthModalService);
   private elementRef = inject(ElementRef);
-  
+
   isPromobarVisible = true;
   isMobileMenuOpen = false;
   isProfileDropdownOpen = false;
@@ -98,7 +100,7 @@ export class NavbarComponent implements OnInit {
   }
 
   login(): void {
-    this.authService.login();
+    this.authModalService.open('login');
     this.isProfileDropdownOpen = false;
   }
 

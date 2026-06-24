@@ -36,7 +36,7 @@
                 <li><a href="#" class="promo-link">NEW ARRIVALS</a></li>
               </ul>
             </div>
-            
+
             <!-- Center Column -->
             <div class="mega-col mega-col-center">
               <span class="column-title">SHOP BY</span>
@@ -73,13 +73,14 @@
                 </a>
               </div>
             </div>
-            
+
             <!-- Right Column -->
             <div class="mega-col mega-col-right">
               <div class="bundle-promo-card">
                 <span class="promo-subtitle">BUILD YOUR OWN BUNDLE</span>
-                <h3 class="promo-title">Your kit,<br>your rules.</h3>
-                <p class="promo-desc">Pick any 2 or 3 products — coffee, matcha, tools and drinkwares — and save.</p>
+                <h3 class="promo-title">Your daily brew,<br>curated by you.</h3>
+                <p class="promo-desc">Mix and match any 2 or 3 items—whether you need a fresh bag of coffee, matcha, or
+                  daily drinkware. Building a custom set is always 20% less than buying them individually.</p>
                 <a href="#" class="promo-cta-btn">
                   <span>START BUILDING NOW</span>
                   <span class="cta-arrow">→</span>
@@ -92,7 +93,7 @@
       <li><a href="#" class="nav-link">JOURNAL</a></li>
       <li><a href="#" class="nav-link">RECIPES</a></li>
       <li><a href="#" class="nav-link">COMMUNITY</a></li>
-      
+
       <!-- Hoverable Dropdown Link -->
       <li class="nav-item-dropdown">
         <a href="#" class="nav-link dropdown-toggle">ABOUT US</a>
@@ -109,18 +110,18 @@
       <button class="action-btn search-btn" (click)="openSearch($event)" aria-label="Search">
         <svg lucideSearch [size]="20"></svg>
       </button>
-      
+
       <button class="action-btn cart-btn" (click)="openCart($event)" aria-label="Shopping Cart">
         <svg lucideShoppingCart [size]="20"></svg>
         <span class="cart-badge">0</span>
       </button>
-      
+
       <!-- Profile Button Wrapper -->
       <div class="profile-btn-wrapper" (mouseenter)="openProfileDropdown()" (mouseleave)="closeProfileDropdown()">
         <button class="action-btn profile-btn" (click)="toggleProfileDropdown($event)" aria-label="User Profile">
           <svg lucideUser [size]="20"></svg>
         </button>
-        
+
         <!-- Interactive Dropdown -->
         <div class="profile-dropdown" [class.open]="isProfileDropdownOpen">
           <ul class="dropdown-menu-list">
@@ -146,7 +147,8 @@
         </div>
       </div>
 
-      <button class="mobile-menu-toggle" (click)="toggleMobileMenu()" [attr.aria-label]="isMobileMenuOpen ? 'Close Menu' : 'Open Menu'">
+      <button class="mobile-menu-toggle" (click)="toggleMobileMenu()"
+        [attr.aria-label]="isMobileMenuOpen ? 'Close Menu' : 'Open Menu'">
         <svg *ngIf="!isMobileMenuOpen" lucideMenu [size]="20"></svg>
         <svg *ngIf="isMobileMenuOpen" lucideX [size]="20"></svg>
       </button>
@@ -157,7 +159,8 @@
   <div class="mobile-drawer" [class.open]="isMobileMenuOpen">
     <ul class="mobile-nav-links">
       <li class="mobile-nav-item">
-        <button class="mobile-nav-link" (click)="toggleMobileProducts($event)" [attr.aria-expanded]="isMobileProductsOpen">
+        <button class="mobile-nav-link" (click)="toggleMobileProducts($event)"
+          [attr.aria-expanded]="isMobileProductsOpen">
           <span>PRODUCTS</span>
           <svg lucideChevronDown [size]="18" class="submenu-arrow" [class.rotated]="isMobileProductsOpen"></svg>
         </button>
@@ -172,7 +175,7 @@
             <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">DRINKWARES</a></li>
             <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">SETS & BUNDLES</a></li>
           </ul>
-          
+
           <div class="mobile-submenu-promo">
             <span class="promo-subtitle">BUILD YOUR OWN BUNDLE</span>
             <h4 class="promo-title">Your kit, your rules.</h4>
@@ -214,21 +217,15 @@
       <svg lucideX [size]="20"></svg>
     </button>
   </div>
-  
+
   <!-- Search Content -->
   <div class="search-body">
     <!-- Input wrapper -->
     <div class="search-input-wrapper">
       <svg lucideSearch [size]="18" class="search-input-icon"></svg>
-      <input 
-        #searchInput
-        type="text" 
-        class="search-input" 
-        placeholder="Searching" 
-        (keydown.enter)="performSearch()"
-      >
+      <input #searchInput type="text" class="search-input" placeholder="Searching" (keydown.enter)="performSearch()">
     </div>
-    
+
     <!-- Recommended Tags -->
     <div class="recommended-section">
       <span class="recommended-label">RECOMMENDED</span>
@@ -244,7 +241,7 @@
       </div>
     </div>
   </div>
-  
+
   <!-- Footer -->
   <div class="search-footer">
     <span class="footer-text">
