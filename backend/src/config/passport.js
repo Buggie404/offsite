@@ -144,7 +144,7 @@ function setupPassport(userCollection) {
 
   passport.deserializeUser(async (id, done) => {
     try {
-      const user = await userCollection.findOne({ _id: ObjectId(id) });
+      const user = await userCollection.findOne({ _id: new ObjectId(id) });
       done(null, user);
     } catch (error) {
       done(error);

@@ -52,5 +52,24 @@ export class AuthService {
       localStorage.removeItem('user');
     }
   }
+
+  handleOAuthSuccess(token: string): void {
+    this.isAuthenticatedSignal.set(true);
+    if (isPlatformBrowser(this.platformId)) {
+      localStorage.setItem('token', token);
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const user = {
+          _id: payload.user_id,
+          user_id: payload.user_id,
+          email: payload.email,
+          role: payload.role
+        };
+        localStorage.setItem('user', JSON.stringify(user));
+      } catch (e) {
+        console.error('Failed to parse OAuth token:', e);
+      }
+    }
+  }
 }
 

@@ -373,6 +373,14 @@ export class AuthModalComponent {
   }
 
 
+  loginWithGoogle(): void {
+    window.location.href = '/api/auth/oauth/google';
+  }
+
+  loginWithFacebook(): void {
+    window.location.href = '/api/auth/oauth/facebook';
+  }
+
   @HostListener('document:keydown.escape')
   onEscapeKeydown(): void {
     if (this.isOpen()) {
