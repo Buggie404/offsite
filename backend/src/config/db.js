@@ -1,27 +1,38 @@
+const dns = require('dns');
 const { MongoClient } = require('mongodb');
 const mongoose = require('mongoose');
+
+// Node.js on Windows can fail mongodb+srv SRV lookups via the default resolver.
+// Prefer public DNS servers so Atlas SRV records resolve reliably.
+dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 
 let client = null;
 let db = null;
 let collections = null;
 
+function getMongoUri() {
+  return process.env.MONGODB_URI;
+}
+
 async function connectDB() {
   if (client) return db;
 
-  const uri = process.env.MONGODB_URI;
+  const uri = getMongoUri();
   if (!uri) {
     throw new Error('MONGODB_URI is not defined in .env file');
   }
 
+  const mongooseOptions = {
+    serverSelectionTimeoutMS: 15000,
+  };
+
   try {
-    // Connect Mongoose
-    await mongoose.connect(uri);
+    await mongoose.connect(uri, mongooseOptions);
     console.log('Successfully connected to MongoDB via Mongoose');
 
     client = new MongoClient(uri);
     await client.connect();
 
-    // Select the database defined in connection URI or default
     db = client.db();
 
     collections = {

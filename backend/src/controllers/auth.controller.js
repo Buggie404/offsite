@@ -158,6 +158,60 @@ async function login(req, res) {
   }
 }
 
+// Đăng nhập Admin (chỉ role admin)
+async function adminLogin(req, res) {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Vui lòng cung cấp email và password.', code: 'MISSING_FIELDS' });
+    }
+
+    const identifier = String(email).trim();
+    const { userCollection } = await getCollections();
+
+    const user = await userCollection.findOne({ email: identifier });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Tài khoản không tồn tại trong hệ thống.', code: 'ACCOUNT_NOT_FOUND' });
+    }
+
+    if (user.role !== 'admin') {
+      return res.status(403).json({ error: 'Tài khoản này không có quyền truy cập admin.', code: 'NOT_ADMIN' });
+    }
+
+    if (!user.password_hash) {
+      return res.status(400).json({ error: 'Tài khoản này không hỗ trợ đăng nhập bằng mật khẩu.', code: 'OAUTH_ACCOUNT' });
+    }
+
+    const isValid = await bcrypt.compare(password, user.password_hash);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Mật khẩu không chính xác.', code: 'INCORRECT_PASSWORD' });
+    }
+
+    const secret = process.env.JWT_SECRET || 'fallback-secret-key';
+    const token = jwt.sign(
+      { user_id: user._id, email: user.email || '', role: user.role },
+      secret,
+      { expiresIn: '8h' }
+    );
+
+    res.json({
+      message: 'Đăng nhập admin thành công',
+      token,
+      user: {
+        _id: user._id,
+        user_id: user.user_id,
+        email: user.email || '',
+        profile_name: user.profile_name,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 // Đăng xuất (Logout)
 async function logout(req, res) {
   res.json({ message: 'Đăng xuất thành công.' });
@@ -171,6 +225,7 @@ async function refreshToken(req, res) {
 module.exports = {
   register,
   login,
+  adminLogin,
   logout,
   refreshToken
 };

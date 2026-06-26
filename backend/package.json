@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "build": "echo 'No build needed for Node.js'"
+    "build": "echo 'No build needed for Node.js'",
+    "seed:admin": "node seed_admin.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

@@ -1,0 +1,129 @@
+<div class="login-page theme-light">
+  <aside class="brand-panel">
+    <div class="grain-overlay" aria-hidden="true"></div>
+    <div class="dot-grid" aria-hidden="true"></div>
+    <div class="geo-art" aria-hidden="true">
+      <div class="geo-ring geo-ring--1"></div>
+      <div class="geo-ring geo-ring--2"></div>
+      <div class="geo-arc"></div>
+      <div class="geo-diamond"></div>
+      <div class="geo-line geo-line--1"></div>
+      <div class="geo-line geo-line--2"></div>
+      <div class="geo-ring geo-ring--3"></div>
+      <div class="geo-ring geo-ring--4"></div>
+    </div>
+
+    <div class="brand-panel__inner">
+      <div class="brand-hero">
+        <div class="logo-lockup logo-lockup--hero">
+          <img
+            src="assets/images/abs_logo_dark.png"
+            alt=""
+            class="logo-mark-img"
+            width="56"
+            height="56"
+          />
+          <div class="logo-text">
+            <span class="wordmark wordmark--dark">Offsite</span>
+            <span class="slogan slogan--green">Your café, at home.</span>
+          </div>
+        </div>
+        <p class="brand-tagline">Admin Portal</p>
+        <p class="brand-desc">
+          Manage products, orders, and store content from one secure dashboard.
+        </p>
+      </div>
+    </div>
+  </aside>
+
+  <main class="form-panel">
+    <div class="form-container">
+      <header class="form-header">
+        <span class="admin-badge">
+          <svg lucideShieldCheck class="icon" aria-hidden="true" [size]="14"></svg>
+          Admin Access
+        </span>
+        <h1 class="form-title">Sign in</h1>
+        <p class="form-subtitle">Enter your admin credentials to continue.</p>
+      </header>
+
+      <form class="login-form" (ngSubmit)="onSubmit($event)">
+        @if (formError) {
+          <p class="form-error" role="alert">{{ formError }}</p>
+        }
+
+        <div class="field">
+          <label class="field-label" for="admin-email">Email</label>
+          <div class="input-wrap">
+            <svg lucideMail class="input-icon" aria-hidden="true" [size]="18"></svg>
+            <input
+              id="admin-email"
+              name="email"
+              type="email"
+              class="input"
+              [class.input-error]="emailError"
+              placeholder="admin@offsite.vn"
+              autocomplete="email"
+              required
+              [(ngModel)]="email"
+            />
+          </div>
+          @if (emailError) {
+            <p class="error-message" role="alert">{{ emailError }}</p>
+          }
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="admin-password">Password</label>
+          <div class="input-wrap">
+            <svg lucideLock class="input-icon" aria-hidden="true" [size]="18"></svg>
+            <input
+              id="admin-password"
+              name="password"
+              [type]="showPassword ? 'text' : 'password'"
+              class="input input--has-toggle"
+              [class.input-error]="passwordError"
+              placeholder="Enter your password"
+              autocomplete="current-password"
+              required
+              [(ngModel)]="password"
+            />
+            <button
+              type="button"
+              class="toggle-password"
+              [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+              (click)="togglePassword()"
+            >
+              @if (showPassword) {
+                <svg lucideEyeOff class="icon-eye" aria-hidden="true" [size]="18"></svg>
+              } @else {
+                <svg lucideEye class="icon-eye" aria-hidden="true" [size]="18"></svg>
+              }
+            </button>
+          </div>
+          @if (passwordError) {
+            <p class="error-message" role="alert">{{ passwordError }}</p>
+          }
+        </div>
+
+        <div class="form-row">
+          <label class="checkbox-label">
+            <input type="checkbox" name="remember" class="checkbox" [(ngModel)]="rememberMe" />
+            <span class="checkbox-box" aria-hidden="true"></span>
+            <span>Remember me</span>
+          </label>
+          <a href="#" class="link-forgot" (click)="$event.preventDefault()">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn-primary" [disabled]="isSubmitting">
+          <svg lucideLogIn aria-hidden="true" [size]="18"></svg>
+          {{ isSubmitting ? 'Signing in…' : 'Sign in' }}
+        </button>
+      </form>
+
+      <footer class="form-footer">
+        <p>© 2026 Offsite. Authorized personnel only.</p>
+      </footer>
+    </div>
+  </main>
+</div>

@@ -1,9 +1,12 @@
-<app-navbar></app-navbar>
+@if (!isAdminRoute()) {
+  <app-navbar></app-navbar>
+}
 
-<main class="app-main">
+<main class="app-main" [class.app-main--admin]="isAdminRoute()">
   <router-outlet></router-outlet>
 </main>
 
-<app-footer></app-footer>
-
-<app-auth-modal></app-auth-modal>
+@if (!isAdminRoute()) {
+  <app-footer></app-footer>
+  <app-auth-modal></app-auth-modal>
+}

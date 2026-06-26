@@ -5,6 +5,8 @@
   "private": true,
   "scripts": {
     "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "setup:env": "node -e \"const fs=require('fs');const src='backend/.env.example';const dest='backend/.env';if(!fs.existsSync(dest)){fs.copyFileSync(src,dest);console.log('Created backend/.env');}else{console.log('backend/.env already exists');}\"",
+    "seed:admin": "cd backend && npm run seed:admin",
     "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
     "start:backend": "cd backend && npm run dev",
     "start:frontend": "cd frontend && npm start",
