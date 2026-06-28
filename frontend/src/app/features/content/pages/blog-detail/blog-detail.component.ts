@@ -200,7 +200,7 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
 
   goBack(): void {
     if (isPlatformBrowser(this.platformId)) {
-      window.history.back();
+      this.router.navigate(['/journal']);
     }
   }
 
