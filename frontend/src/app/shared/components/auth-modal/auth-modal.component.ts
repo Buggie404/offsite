@@ -374,11 +374,11 @@ export class AuthModalComponent {
 
 
   loginWithGoogle(): void {
-    window.location.href = '/api/auth/oauth/google';
+    window.location.href = 'http://localhost:5000/api/auth/oauth/google';
   }
 
   loginWithFacebook(): void {
-    window.location.href = '/api/auth/oauth/facebook';
+    window.location.href = 'http://localhost:5000/api/auth/oauth/facebook';
   }
 
   @HostListener('document:keydown.escape')

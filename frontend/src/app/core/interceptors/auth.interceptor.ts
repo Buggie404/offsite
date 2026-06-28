@@ -9,10 +9,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
-  const isAdminApi = req.url.includes('/api/admin/') && !req.url.endsWith('/api/admin/login');
-  const token = isAdminApi
-    ? localStorage.getItem('admin_token')
-    : localStorage.getItem('token');
+  const token = localStorage.getItem('token');
 
   if (!token) {
     return next(req);
@@ -20,7 +17,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(
     req.clone({
-      setHeaders: { Authorization: `Bearer ${token}` }
+      setHeaders: {
+        Authorization: `Bearer ${token}`
+      }
     })
   );
 };

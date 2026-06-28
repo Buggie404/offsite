@@ -9,23 +9,21 @@ export class AuthService {
   private platformId = inject(PLATFORM_ID);
   private http = inject(HttpService);
 
-
   private isAuthenticatedSignal = signal<boolean>(false);
   readonly isAuthenticated = this.isAuthenticatedSignal.asReadonly();
 
-
   constructor() {
+    this.initAuthState();
+  }
+
+  initAuthState() {
     if (isPlatformBrowser(this.platformId)) {
       const token = localStorage.getItem('token');
       this.isAuthenticatedSignal.set(!!token);
     }
   }
 
-
-
-
   // LOGIN
-
 
   async login(emailOrPhone: string, password: string): Promise<any> {
     const response = await this.http.post('/auth/login', {
@@ -33,15 +31,10 @@ export class AuthService {
       password
     });
 
-
     this.setAuthState(response);
     return response;
   }
-
-
   // REGISTER
-
-
   async register(data: {
     name: string;
     email: string;
@@ -50,24 +43,16 @@ export class AuthService {
   }): Promise<any> {
     const response = await this.http.post('/auth/register', data);
 
-
     this.setAuthState(response);
     return response;
   }
 
-
-
-
   // GET PROFILE
-
-
   async getMe(): Promise<any> {
     return await this.http.get('/auth/profile');
   }
 
-
   // LOGOUT
-
 
   logout(): void {
     this.isAuthenticatedSignal.set(false);
@@ -80,21 +65,16 @@ export class AuthService {
     }
   }
 
-
   // OAUTH SUCCESS
-
 
   handleOAuthSuccess(token: string): void {
     this.isAuthenticatedSignal.set(true);
 
-
     if (isPlatformBrowser(this.platformId)) {
       localStorage.setItem('token', token);
 
-
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
-
 
         const user = {
           _id: payload.user_id,
@@ -103,7 +83,6 @@ export class AuthService {
           role: payload.role
         };
 
-
         localStorage.setItem('user', JSON.stringify(user));
       } catch (e) {
         console.error('Failed to parse OAuth token:', e);
@@ -111,23 +90,22 @@ export class AuthService {
     }
   }
 
-
   // PRIVATE
 
-
   private setAuthState(response: any) {
-    this.isAuthenticatedSignal.set(true);
-
-
     if (isPlatformBrowser(this.platformId)) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
-
 
       if (response.refreshToken) {
         localStorage.setItem('refreshToken', response.refreshToken);
       }
     }
+    this.isAuthenticatedSignal.set(true);
   }
 }
 

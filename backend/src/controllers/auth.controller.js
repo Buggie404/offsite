@@ -275,15 +275,31 @@ async function refreshToken(req, res) {
     const user = await userCollection.findOne({ _id: new ObjectId(payload.sub) });
     if (!user) return res.status(404).json({ error: 'Tài khoản không tồn tại.' });
 
-    const accessToken = jwt.sign(
-      { user_id: user._id, email: user.email || '', role: user.role },
-      ACCESS_SECRET,
-      { expiresIn: '8h' }
-    );
-    res.json({ accessToken });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  const accessToken = jwt.sign(
+    { user_id: user._id, email: user.email || '', role: user.role },
+    ACCESS_SECRET,
+    { expiresIn: '8h' }
+  );
+
+  const refreshToken = jwt.sign(
+    { user_id: user._id },
+    REFRESH_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  res.json({
+      token: accessToken,
+      refreshToken,
+      user: {
+        _id: user._id,
+        user_id: user.user_id,
+        email: user.email || '',
+        role: user.role
+      }
+    });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
 }
 
 // Lấy thông tin trang cá nhân (Get Profile)

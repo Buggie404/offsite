@@ -8,8 +8,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/home/pages/home.component').then(m => m.HomeComponent)
   },
   {
-    path: 'auth/success',
-    loadComponent: () => import('./features/auth/pages/oauth-success.component').then(m => m.OAuthSuccessComponent)
+    path: 'oauth-success',
+    loadComponent: () =>
+      import('./features/auth/pages/oauth-success.component')
+        .then(m => m.OAuthSuccessComponent)
   },
   {
     path: 'account',

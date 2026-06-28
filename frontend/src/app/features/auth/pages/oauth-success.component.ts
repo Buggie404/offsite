@@ -22,15 +22,20 @@ export class OAuthSuccessComponent implements OnInit {
   private platformId = inject(PLATFORM_ID);
 
   ngOnInit(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      this.route.queryParams.subscribe(params => {
-        const token = params['token'];
-        if (token) {
-          this.authService.handleOAuthSuccess(token);
-          this.authModalService.close();
-        }
-        this.router.navigate(['/']);
-      });
-    }
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    this.route.queryParams.subscribe(params => {
+      const token = params['token'];
+
+      if (!token) {
+        this.router.navigate(['/login']);
+        return;
+      }
+
+      this.authService.handleOAuthSuccess(token);
+      this.authModalService.close();
+
+      this.router.navigate(['/']);
+    });
   }
 }
