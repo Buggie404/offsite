@@ -35,6 +35,7 @@ export class ContentService {
     tag?: string;
     page?: number;
     limit?: number;
+    skip?: number;
   }): Observable<{ data: any[]; pagination: any }> {
     return this.http.get<{ data: any[]; pagination: any }>('/api/blogs', { params: filters });
   }

@@ -112,6 +112,25 @@
             <h4 *ngIf="block.type === 'heading' && block.level === 4" class="article-heading-h4">
               {{ block.text }}
             </h4>
+
+            <!-- Quote -->
+            <blockquote *ngIf="block.type === 'quote'" class="article-blockquote">
+              {{ block.text }}
+            </blockquote>
+
+            <!-- Image -->
+            <div *ngIf="block.type === 'image'" class="article-mid-image-wrapper">
+              <img [src]="block.url" [alt]="article.title" class="article-mid-image" (error)="onImgError($event)" />
+              <span *ngIf="block.caption" class="article-mid-image-caption">{{ block.caption }}</span>
+            </div>
+
+            <!-- Video -->
+            <div *ngIf="block.type === 'video'" class="article-video-wrapper">
+              <video controls playsinline class="content-video" style="width: 100%; max-height: 480px; border-radius: 16px; box-shadow: 0 4px 20px rgba(84, 74, 64, 0.08); background: #000; outline: none; display: block;">
+                <source [src]="block.url" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
           </ng-container>
         </div>
 
@@ -204,10 +223,10 @@
   <!-- Back to Journal CTA -->
   <section class="back-cta-section">
     <div class="back-cta-container">
-      <a routerLink="/journal" class="back-cta-btn">
+      <button class="back-cta-btn" (click)="goBack()" style="cursor: pointer; border: none;">
         <svg lucideArrowLeft [size]="18"></svg>
         BACK TO JOURNAL
-      </a>
+      </button>
     </div>
   </section>
 

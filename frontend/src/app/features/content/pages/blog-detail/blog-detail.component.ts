@@ -72,6 +72,7 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
   errorMessage = '';
   isBookmarked = false;
   showBackToTop = false;
+  categoryFilter: string | null = null;
   primaryTag: string | null = null;
   private scrollThreshold = 400;
 
@@ -89,6 +90,10 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.route.queryParams.pipe(takeUntil(this.destroy$)).subscribe(queryParams => {
+      this.categoryFilter = queryParams['category'] || null;
+    });
+
     this.route.params.pipe(takeUntil(this.destroy$)).subscribe(params => {
       const slug = params['slug'];
       if (slug) {
@@ -139,8 +144,8 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
 
         if (this.article.tags && this.article.tags.length > 0) {
           this.primaryTag = this.article.tags[0];
-          this.loadRelatedArticles(this.article.tags, this.article.id);
         }
+        this.loadRelatedArticles(this.article.category, this.article.id);
 
         this.isLoading = false;
         this.cdr.detectChanges();
@@ -154,43 +159,61 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
     });
   }
 
-  loadRelatedArticles(tags: string[], excludeId: string): void {
-    const primaryTag = tags[0];
-
+  loadRelatedArticles(category: string, excludeId: string): void {
     this.contentService.getBlogs({
-      tag: primaryTag,
-      limit: 4
+      category: category,
+      limit: 10
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (response) => {
-        const related = response.data
-          .filter((blog: any) => blog._id !== excludeId)
-          .slice(0, 3)
-          .map((blog: any) => {
-            const dateObj = new Date(blog.published_at || blog.created_at);
-            const month = dateObj.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-            const day = dateObj.toLocaleDateString('en-US', { day: '2-digit' });
+        const related = response.data.filter((blog: any) => blog._id !== excludeId);
 
-            return {
-              id: blog._id,
-              slug: blog.slug,
-              title: blog.title,
-              description: blog.excerpt || '',
-              image: blog.featured_image_url || 'assets/images/logo-mark-dark.svg',
-              category: blog.category,
-              readTime: `${blog.read_time_minutes} MIN READ`,
-              date: dateObj.toLocaleDateString('en-US', {
-                month: 'short',
-                day: '2-digit',
-                year: 'numeric'
-              }),
-              formattedMeta: `${month} ${day} - ${blog.read_time_minutes} MIN READ`,
-              bookmarked: false,
-              tags: blog.tags || []
-            };
+        const mapToRelatedArticle = (blog: any) => {
+          const dateObj = new Date(blog.published_at || blog.created_at);
+          const month = dateObj.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+          const day = dateObj.toLocaleDateString('en-US', { day: '2-digit' });
+
+          return {
+            id: blog._id,
+            slug: blog.slug,
+            title: blog.title,
+            description: blog.excerpt || '',
+            image: blog.featured_image_url || 'assets/images/logo-mark-dark.svg',
+            category: blog.category,
+            readTime: `${blog.read_time_minutes} MIN READ`,
+            date: dateObj.toLocaleDateString('en-US', {
+              month: 'short',
+              day: '2-digit',
+              year: 'numeric'
+            }),
+            formattedMeta: `${month} ${day} - ${blog.read_time_minutes} MIN READ`,
+            bookmarked: false,
+            tags: blog.tags || []
+          };
+        };
+
+        if (related.length < 3) {
+          // Fallback: Fetch general latest articles to fill the gap
+          this.contentService.getBlogs({
+            limit: 10
+          }).pipe(takeUntil(this.destroy$)).subscribe({
+            next: (fallbackResponse) => {
+              const extraArticles = fallbackResponse.data
+                .filter((blog: any) => blog._id !== excludeId && !related.some(r => r._id === blog._id));
+              
+              const combined = [...related, ...extraArticles].slice(0, 3);
+              this.relatedArticles = combined.map(mapToRelatedArticle);
+              this.cdr.detectChanges();
+            },
+            error: (err) => {
+              console.error('Error loading fallback related articles:', err);
+              this.relatedArticles = related.slice(0, 3).map(mapToRelatedArticle);
+              this.cdr.detectChanges();
+            }
           });
-
-        this.relatedArticles = related;
-        this.cdr.detectChanges();
+        } else {
+          this.relatedArticles = related.slice(0, 3).map(mapToRelatedArticle);
+          this.cdr.detectChanges();
+        }
       },
       error: (err) => {
         console.error('Error loading related articles:', err);
@@ -200,13 +223,21 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
 
   goBack(): void {
     if (isPlatformBrowser(this.platformId)) {
-      this.router.navigate(['/journal']);
+      const navigationExtras: any = {};
+      if (this.categoryFilter) {
+        navigationExtras.queryParams = { category: this.categoryFilter };
+      }
+      this.router.navigate(['/journal'], navigationExtras);
     }
   }
 
   navigateToArticle(slug: string): void {
     if (isPlatformBrowser(this.platformId)) {
-      this.router.navigate(['/journal', slug]);
+      const navigationExtras: any = {};
+      if (this.categoryFilter) {
+        navigationExtras.queryParams = { category: this.categoryFilter };
+      }
+      this.router.navigate(['/journal', slug], navigationExtras);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }

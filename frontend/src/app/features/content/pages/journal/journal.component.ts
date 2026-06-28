@@ -66,8 +66,19 @@ export class JournalComponent implements OnInit, OnDestroy {
   hasSearchPerformed = false;
 
   get pageLimit(): number {
+    if (this.currentPage === 1) {
+      const hasFeatured = (this.selectedCategory === 'ALL' && !this.searchQuery && this.selectedSort === 'NEWEST');
+      return hasFeatured ? 7 : 6;
+    }
+    return 6;
+  }
+
+  get pageSkip(): number {
+    if (this.currentPage === 1) {
+      return 0;
+    }
     const hasFeatured = (this.selectedCategory === 'ALL' && !this.searchQuery && this.selectedSort === 'NEWEST');
-    return hasFeatured ? 7 : 6;
+    return hasFeatured ? (7 + (this.currentPage - 2) * 6) : ((this.currentPage - 1) * 6);
   }
 
   featuredArticle: Article | undefined;
@@ -145,7 +156,8 @@ export class JournalComponent implements OnInit, OnDestroy {
       search: this.searchQuery,
       sort: this.selectedSort,
       page: this.currentPage,
-      limit: this.pageLimit
+      limit: this.pageLimit,
+      skip: this.pageSkip
     };
 
     this.contentService.getBlogs(filters).subscribe({
@@ -258,7 +270,9 @@ export class JournalComponent implements OnInit, OnDestroy {
     if (isPlatformBrowser(this.platformId)) {
       const slug = article.slug || article.id;
       console.log('Router navigate to:', '/journal/' + slug);
-      this.router.navigate(['/journal', slug]);
+      this.router.navigate(['/journal', slug], {
+        queryParams: { category: this.selectedCategory !== 'ALL' ? this.selectedCategory.toLowerCase() : null }
+      });
     }
   }
 

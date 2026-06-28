@@ -7,9 +7,10 @@ const blogAuthorSchema = new mongoose.Schema({
 }, { _id: false });
 
 const blogContentBlockSchema = new mongoose.Schema({
-  type: { type: String, required: true }, // e.g. 'paragraph', 'heading'
+  type: { type: String, required: true }, // e.g. 'paragraph', 'heading', 'video', 'image', 'quote'
   text: { type: String },
-  level: { type: Number } // e.g. 2, 3 for headings
+  level: { type: Number }, // e.g. 2, 3 for headings
+  url: { type: String } // e.g. image/video url
 }, { _id: false });
 
 const blogSchema = new mongoose.Schema({

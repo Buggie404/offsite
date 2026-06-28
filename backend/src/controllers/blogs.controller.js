@@ -37,7 +37,7 @@ async function getAllBlogs(req, res) {
     const sortOptions = {};
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 9;
-    const skip = (page - 1) * limit;
+    const skip = req.query.skip !== undefined ? parseInt(req.query.skip) : (page - 1) * limit;
 
     // Filter by Category
     if (req.query.category && req.query.category !== 'ALL') {
