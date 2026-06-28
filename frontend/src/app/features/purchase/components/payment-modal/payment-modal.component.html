@@ -1,0 +1,51 @@
+<div class="modal-backdrop" *ngIf="isOpen">
+  <!-- Modal 1: Confirm Your Order (no close button) -->
+  <div class="modal-container" *ngIf="status() === 'confirm-pending'" (click)="$event.stopPropagation()">
+    <div class="modal-body text-center">
+      <!-- Wavy Success Icon Badge -->
+      <div class="badge-wrapper">
+        <div class="scalloped-badge">
+          <svg lucideBadgeCheck [size]="64" class="badge-check-icon"></svg>
+        </div>
+      </div>
+
+      <!-- Title & Description -->
+      <h2 class="modal-title">Confirm Your Order</h2>
+      <p class="modal-subtitle">
+        You have selected Cash on Delivery. Please confirm your order details below. Your order will be placed automatically in...
+      </p>
+
+      <!-- Circular Countdown Timer -->
+      <div class="timer-container">
+        <svg class="timer-svg" viewBox="0 0 80 80">
+          <circle class="timer-bg" cx="40" cy="40" r="36" />
+          <circle class="timer-progress" cx="40" cy="40" r="36"
+                  [style.stroke-dashoffset]="strokeDashOffset" />
+        </svg>
+        <span class="timer-text">{{ countdown() }}s</span>
+      </div>
+
+      <!-- Error Message -->
+      <div *ngIf="errorMessage()" class="error-banner animate-fade-in">
+        {{ errorMessage() }}
+      </div>
+    </div>
+
+    <!-- Modal Footer Actions -->
+    <div class="modal-footer footer-grid">
+      <button type="button" class="btn btn-cancel" (click)="cancelOrder()" [disabled]="isLoadingCancel() || isLoadingConfirm()">
+        <span *ngIf="!isLoadingCancel()">CANCEL</span>
+        <span *ngIf="isLoadingCancel()" class="loader-dots">CANCELLING<span>.</span><span>.</span><span>.</span></span>
+      </button>
+      <button type="button" class="btn btn-confirm" (click)="confirmNow()" [disabled]="isLoadingCancel() || isLoadingConfirm()">
+        <span *ngIf="!isLoadingConfirm()">CONFIRM NOW</span>
+        <span *ngIf="isLoadingConfirm()" class="loader-dots">CONFIRMING<span>.</span><span>.</span><span>.</span></span>
+      </button>
+    </div>
+
+    <!-- Modal Footer Credit -->
+    <footer class="modal-credit-footer">
+      © Offsite 2026 · Ho Chi Minh City, Vietnam
+    </footer>
+  </div>
+</div>

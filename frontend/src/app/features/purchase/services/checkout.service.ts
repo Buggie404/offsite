@@ -156,9 +156,10 @@ export class CheckoutService {
   }
 
   async getUserProfile(): Promise<UserProfile> {
-    return await firstValueFrom(
-      this.http.get<UserProfile>('/api/auth/profile')
+    const res = await firstValueFrom(
+      this.http.get<{ user: UserProfile }>('/api/auth/profile')
     );
+    return res.user;
   }
 
   async addUserAddress(address: Omit<UserAddress, '_id'>): Promise<{ message: string; address: UserAddress }> {
@@ -194,6 +195,18 @@ export class CheckoutService {
   async submitOrder(payload: any): Promise<any> {
     return await firstValueFrom(
       this.http.post<any>('/api/orders', payload)
+    );
+  }
+
+  async confirmOrder(id: string, sessionId?: string | null): Promise<any> {
+    return await firstValueFrom(
+      this.http.put<any>(`/api/orders/${id}/confirm`, { session_id: sessionId })
+    );
+  }
+
+  async cancelOrder(id: string, sessionId?: string | null): Promise<any> {
+    return await firstValueFrom(
+      this.http.put<any>(`/api/orders/${id}/cancel`, { session_id: sessionId })
     );
   }
 }

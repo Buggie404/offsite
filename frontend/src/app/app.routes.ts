@@ -23,6 +23,14 @@ export const routes: Routes = [
     loadComponent: () => import('./features/purchase/pages/checkout/checkout.component').then(m => m.CheckoutComponent)
   },
   {
+    path: 'checkout/confirmed',
+    loadComponent: () => import('./features/purchase/pages/order-confirmed/order-confirmed.component').then(m => m.OrderConfirmedComponent)
+  },
+  {
+    path: 'checkout/canceled',
+    loadComponent: () => import('./features/purchase/pages/order-canceled/order-canceled.component').then(m => m.OrderCanceledComponent)
+  },
+  {
     path: 'admin',
     loadChildren: () => import('./admin/admin-module').then(m => m.AdminModule)
   },

@@ -8,14 +8,12 @@
       </a>
 
       <h2 class="section-title">DELIVERY INFORMATION</h2>
-      
+
       <!-- Profile Saved Addresses View -->
-      <div *ngIf="authService.isAuthenticated() && savedAddresses().length > 0; else addressFormTpl" class="saved-resources-list">
-        <div 
-          *ngFor="let addr of savedAddresses()" 
-          class="resource-card address-card" 
-          [class.selected]="selectedAddressId() === addr._id"
-          (click)="selectAddress(addr)">
+      <div *ngIf="authService.isAuthenticated() && savedAddresses().length > 0; else addressFormTpl"
+        class="saved-resources-list">
+        <div *ngFor="let addr of savedAddresses()" class="resource-card address-card"
+          [class.selected]="selectedAddressId() === addr._id" (click)="selectAddress(addr)">
           <div class="card-radio">
             <span class="radio-dot" [class.active]="selectedAddressId() === addr._id">
               <svg *ngIf="selectedAddressId() === addr._id" lucideCheck [size]="12"></svg>
@@ -33,15 +31,17 @@
             <div class="card-detail">{{ addr.detail_address }}, {{ addr.city }}</div>
           </div>
           <div class="card-actions">
-            <button type="button" class="action-btn edit-btn" (click)="openEditAddressModal(addr, $event)" aria-label="Edit address">
+            <button type="button" class="action-btn edit-btn" (click)="openEditAddressModal(addr, $event)"
+              aria-label="Edit address">
               <svg lucidePencil [size]="20"></svg>
             </button>
-            <button type="button" class="action-btn delete-btn" (click)="deleteAddress(addr, $event)" aria-label="Delete address">
+            <button type="button" class="action-btn delete-btn" (click)="deleteAddress(addr, $event)"
+              aria-label="Delete address">
               <svg lucideTrash2 [size]="20"></svg>
             </button>
           </div>
         </div>
-        
+
         <button type="button" class="add-resource-link" (click)="openAddAddressModal()">
           <svg lucidePlus [size]="16"></svg> ADD NEW ADDRESS
         </button>
@@ -54,14 +54,9 @@
             <div class="form-field">
               <label> RECIPIENT NAME <span class="required-star">*</span></label>
               <div class="input-wrapper">
-                <input
-                  type="text"
-                  placeholder="Recipient Name"
-                  [(ngModel)]="delivery.name"
-                  (blur)="onFieldBlur('name'); delivery.name = delivery.name.trimStart()"
-                  (input)="onFieldInput('name')"
-                  [class.has-error]="nameError()"
-                  [class.is-valid]="fieldStates()['name'] === 'valid'"
+                <input type="text" id="delivery-name" placeholder="Recipient Name" [(ngModel)]="delivery.name"
+                  (blur)="onFieldBlur('name'); delivery.name = delivery.name.trimStart()" (input)="onFieldInput('name')"
+                  [class.has-error]="nameError()" [class.is-valid]="fieldStates()['name'] === 'valid'"
                   [class.is-typing]="fieldStates()['name'] === 'typing'" />
                 <div class="status-indicator" [ngSwitch]="fieldStates()['name']">
                   <span *ngSwitchCase="'typing'" class="typing-dot"></span>
@@ -69,20 +64,13 @@
                   <svg *ngSwitchCase="'invalid'" lucideAlertCircle class="icon-invalid" [size]="16"></svg>
                 </div>
               </div>
-              <div *ngIf="nameError()" class="field-error animate-fade-in">
-                {{ nameError() }}
-              </div>
+              <div id="delivery-name-error" class="field-error animate-fade-in"></div>
             </div>
             <div class="form-field">
               <label>MOBILE NUMBER <span class="required-star">*</span></label>
               <div class="input-wrapper">
-                <input
-                  type="tel"
-                  placeholder="+1 xxx xxx xxxx"
-                  [(ngModel)]="delivery.mobile"
-                  (blur)="onFieldBlur('mobile')"
-                  (input)="onFieldInput('mobile')"
-                  [class.has-error]="mobileError()"
+                <input type="tel" id="delivery-mobile" placeholder="+1 xxx xxx xxxx" [(ngModel)]="delivery.mobile"
+                  (blur)="onFieldBlur('mobile')" (input)="onFieldInput('mobile')" [class.has-error]="mobileError()"
                   [class.is-valid]="fieldStates()['mobile'] === 'valid'"
                   [class.is-typing]="fieldStates()['mobile'] === 'typing'" />
                 <div class="status-indicator" [ngSwitch]="fieldStates()['mobile']">
@@ -91,20 +79,13 @@
                   <svg *ngSwitchCase="'invalid'" lucideAlertCircle class="icon-invalid" [size]="16"></svg>
                 </div>
               </div>
-              <div *ngIf="mobileError()" class="field-error animate-fade-in">
-                {{ mobileError() }}
-              </div>
+              <div id="delivery-mobile-error" class="field-error animate-fade-in"></div>
             </div>
             <div class="form-field">
               <label>EMAIL</label>
               <div class="input-wrapper">
-                <input
-                  type="email"
-                  placeholder="Email address"
-                  [(ngModel)]="delivery.email"
-                  (blur)="onFieldBlur('email')"
-                  (input)="onFieldInput('email')"
-                  [class.has-error]="emailError()"
+                <input type="email" id="delivery-email" placeholder="Email address" [(ngModel)]="delivery.email"
+                  (blur)="onFieldBlur('email')" (input)="onFieldInput('email')" [class.has-error]="emailError()"
                   [class.is-valid]="fieldStates()['email'] === 'valid'"
                   [class.is-typing]="fieldStates()['email'] === 'typing'" />
                 <div class="status-indicator" [ngSwitch]="fieldStates()['email']">
@@ -113,23 +94,15 @@
                   <svg *ngSwitchCase="'invalid'" lucideAlertCircle class="icon-invalid" [size]="16"></svg>
                 </div>
               </div>
-              <div *ngIf="emailError()" class="field-error animate-fade-in">
-                {{ emailError() }}
-              </div>
+              <div id="delivery-email-error" class="field-error animate-fade-in"></div>
             </div>
             <div class="form-field select-suggest-wrapper">
               <label>CITY / PROVINCE <span class="required-star">*</span></label>
               <div class="input-wrapper">
-                <input
-                  type="text"
-                  placeholder="Recipient City"
-                  [(ngModel)]="delivery.city"
-                  (blur)="onCityBlur()"
-                  (input)="onCityInput()"
-                  [class.has-error]="cityError()"
+                <input type="text" id="delivery-city" placeholder="Recipient City" [(ngModel)]="delivery.city" (blur)="onCityBlur()"
+                  (input)="onCityInput()" [class.has-error]="cityError()"
                   [class.is-valid]="fieldStates()['city'] === 'valid'"
-                  [class.is-typing]="fieldStates()['city'] === 'typing'"
-                  autocomplete="off" />
+                  [class.is-typing]="fieldStates()['city'] === 'typing'" autocomplete="off" />
                 <div class="status-indicator" [ngSwitch]="fieldStates()['city']">
                   <span *ngSwitchCase="'typing'" class="typing-dot"></span>
                   <svg *ngSwitchCase="'valid'" lucideCheck class="icon-valid" [size]="16"></svg>
@@ -137,27 +110,17 @@
                 </div>
               </div>
               <div *ngIf="showCitySuggestions && citySuggestions.length > 0" class="suggestions-panel">
-                <button
-                  type="button"
-                  *ngFor="let suggest of citySuggestions"
-                  (mousedown)="selectCity(suggest)">
+                <button type="button" *ngFor="let suggest of citySuggestions" (mousedown)="selectCity(suggest)">
                   {{ suggest }}
                 </button>
               </div>
-              <div *ngIf="cityError()" class="field-error animate-fade-in">
-                {{ cityError() }}
-              </div>
+              <div id="delivery-city-error" class="field-error animate-fade-in"></div>
             </div>
             <div class="form-field form-field--full">
               <label>ADDRESS <span class="required-star">*</span></label>
               <div class="input-wrapper">
-                <input
-                  type="text"
-                  placeholder="House Number Street, Ward"
-                  [(ngModel)]="delivery.address"
-                  (blur)="onFieldBlur('address')"
-                  (input)="onFieldInput('address')"
-                  [class.has-error]="addressError()"
+                <input type="text" id="delivery-address" placeholder="House Number Street, Ward" [(ngModel)]="delivery.address"
+                  (blur)="onFieldBlur('address')" (input)="onFieldInput('address')" [class.has-error]="addressError()"
                   [class.is-valid]="fieldStates()['address'] === 'valid'"
                   [class.is-typing]="fieldStates()['address'] === 'typing'" />
                 <div class="status-indicator" [ngSwitch]="fieldStates()['address']">
@@ -166,13 +129,12 @@
                   <svg *ngSwitchCase="'invalid'" lucideAlertCircle class="icon-invalid" [size]="16"></svg>
                 </div>
               </div>
-              <div *ngIf="addressError()" class="field-error animate-fade-in">
-                {{ addressError() }}
-              </div>
+              <div id="delivery-address-error" class="field-error animate-fade-in"></div>
             </div>
             <div class="form-field form-field--full">
               <label>NOTE (OPTIONAL)</label>
-              <textarea rows="3" placeholder="Delivery notes…" [(ngModel)]="delivery.note"></textarea>
+              <textarea id="delivery-note" rows="3" placeholder="Delivery notes (Maxium 500 words)…" [(ngModel)]="delivery.note"></textarea>
+              <div id="delivery-note-error" class="field-error animate-fade-in"></div>
             </div>
           </div>
         </div>
@@ -181,10 +143,7 @@
       <h2 class="section-title">SHIPPING METHOD</h2>
       <div class="panel">
         <div class="option-grid option-grid--2">
-          <button
-            type="button"
-            class="option-card"
-            [class.selected]="shippingMethod() === 'fast'"
+          <button type="button" class="option-card" [class.selected]="shippingMethod() === 'fast'"
             (click)="selectShipping('fast')">
             <div class="option-card__head">
               <span class="option-card__icon">
@@ -193,16 +152,13 @@
               <span class="option-card__title">Fast Delivery</span>
             </div>
             <div class="option-card__sub">Standard Courier - Free</div>
-            <div class="option-card__meta">2-3 days delivery</div>
+            <div class="option-card__meta">3-5 days delivery</div>
             <span class="option-card__radio">
               <svg *ngIf="shippingMethod() === 'fast'" lucideCheck [size]="14"></svg>
             </span>
           </button>
 
-          <button
-            type="button"
-            class="option-card"
-            [class.selected]="shippingMethod() === 'express'"
+          <button type="button" class="option-card" [class.selected]="shippingMethod() === 'express'"
             (click)="selectShipping('express')">
             <div class="option-card__head">
               <span class="option-card__icon">
@@ -222,10 +178,7 @@
       <h2 class="section-title">PAYMENT METHOD</h2>
       <div class="panel">
         <div class="option-grid option-grid--2">
-          <button
-            type="button"
-            class="option-card option-card--pay"
-            [class.selected]="paymentMethod() === 'cod'"
+          <button type="button" class="option-card option-card--pay" [class.selected]="paymentMethod() === 'cod'"
             (click)="selectPayment('cod')">
             <span class="pay-icon">
               <svg lucideBanknote [size]="20"></svg>
@@ -239,10 +192,7 @@
             </span>
           </button>
 
-          <button
-            type="button"
-            class="option-card option-card--pay"
-            [class.selected]="paymentMethod() === 'qr'"
+          <button type="button" class="option-card option-card--pay" [class.selected]="paymentMethod() === 'qr'"
             (click)="selectPayment('qr')">
             <span class="pay-icon">
               <svg lucideQrCode [size]="20"></svg>
@@ -255,12 +205,9 @@
               <svg *ngIf="paymentMethod() === 'qr'" lucideCheck [size]="14"></svg>
             </span>
           </button>
-
-          <button
-            type="button"
-            class="option-card option-card--pay"
-            [class.selected]="paymentMethod() === 'bank_transfer'"
-            (click)="selectPayment('bank_transfer')">
+ 
+          <button type="button" class="option-card option-card--pay" *ngIf="savedCards().length === 0"
+            [class.selected]="paymentMethod() === 'bank_transfer'" (click)="selectPayment('bank_transfer')">
             <span class="pay-icon">
               <svg lucideLandmark [size]="20"></svg>
             </span>
@@ -272,10 +219,8 @@
               <svg *ngIf="paymentMethod() === 'bank_transfer'" lucideCheck [size]="14"></svg>
             </span>
           </button>
-
-          <button
-            type="button"
-            class="option-card option-card--pay"
+ 
+          <button type="button" class="option-card option-card--pay" *ngIf="savedCards().length === 0"
             [class.selected]="paymentMethod() === 'card' && (!authService.isAuthenticated() || savedCards().length === 0)"
             (click)="selectPayment('card')">
             <span class="pay-icon">
@@ -286,16 +231,16 @@
               <div class="pay-caption">Visa, Mastercard, JCB</div>
             </div>
             <span class="option-card__radio">
-              <svg *ngIf="paymentMethod() === 'card' && (!authService.isAuthenticated() || savedCards().length === 0)" lucideCheck [size]="14"></svg>
+              <svg *ngIf="paymentMethod() === 'card' && (!authService.isAuthenticated() || savedCards().length === 0)"
+                lucideCheck [size]="14"></svg>
             </span>
           </button>
         </div>
 
         <!-- Saved Cards list for logged in users -->
-        <div *ngIf="authService.isAuthenticated() && savedCards().length > 0" class="saved-resources-list saved-cards-list">
-          <div 
-            *ngFor="let card of savedCards()" 
-            class="resource-card card-item"
+        <div *ngIf="authService.isAuthenticated() && savedCards().length > 0"
+          class="saved-resources-list saved-cards-list">
+          <div *ngFor="let card of savedCards()" class="resource-card card-item"
             [class.selected]="paymentMethod() === 'card' && selectedCardId() === card._id"
             [class.expired]="isCardExpired(card.expire_date)"
             (click)="selectPayment('card'); selectedCardId.set(card._id || null)">
@@ -304,30 +249,112 @@
                 <svg *ngIf="paymentMethod() === 'card' && selectedCardId() === card._id" lucideCheck [size]="12"></svg>
               </span>
             </div>
+ 
+            <div class="card-thumbnail">
+              <img [src]="getCardThumbnail(card)" [alt]="getCardBrand(card)" />
+            </div>
+ 
             <div class="card-content">
               <div class="card-header-row">
                 <span class="card-logo-name">{{ getCardLabel(card) }}</span>
-                <span class="badge badge-default" *ngIf="card.is_default">Default</span>
                 <span class="badge badge-expired" *ngIf="isCardExpired(card.expire_date)">Expired</span>
               </div>
               <div class="card-detail card-expiry">Expires {{ card.expire_date }}</div>
+              <div class="card-default-text" *ngIf="card.is_default">Default</div>
             </div>
             <div class="card-actions">
-              <button type="button" class="action-btn delete-btn" (click)="deleteCard(card, $event)" aria-label="Delete card">
+              <button type="button" class="action-btn delete-btn" (click)="deleteCard(card, $event)"
+                aria-label="Delete card">
                 <svg lucideTrash2 [size]="20"></svg>
               </button>
             </div>
           </div>
 
-          <div 
-            class="resource-card card-item add-card-trigger"
-            [class.selected]="false"
-            (click)="openAddCardModal()">
+          <div class="resource-card card-item add-card-trigger" [class.selected]="false" (click)="openAddCardModal()"
+            *ngIf="!showInlineCardForm()">
             <div class="card-radio">
               <span class="radio-dot"></span>
             </div>
             <div class="card-content">
               <span class="add-card-text">Add New Card</span>
+            </div>
+          </div>
+
+          <!-- Inline Add New Card Form -->
+          <div class="card-item-form-container" *ngIf="showInlineCardForm()">
+            <div class="form-header-row">
+              <div class="header-left">
+                <span class="card-icon-box">
+                  <svg lucideCreditCard [size]="18"></svg>
+                </span>
+                <span class="form-title-text">Add New Card</span>
+              </div>
+              <button type="button" class="save-card-btn-circle" (click)="saveCard()" aria-label="Save card">
+                <svg lucideCheck [size]="12"></svg>
+              </button>
+            </div>
+
+            <div class="form-tabs-control">
+              <button type="button" class="tab-btn" [class.active]="cardForm.card_type === 'credit'"
+                (click)="cardForm.card_type = 'credit'; clearCardErrors()">
+                CREDIT / DEBIT CARD
+              </button>
+              <button type="button" class="tab-btn" [class.active]="cardForm.card_type === 'NAPAS'"
+                (click)="cardForm.card_type = 'NAPAS'; clearCardErrors()">
+                BANKING TRANSFER
+              </button>
+            </div>
+
+            <div class="inline-form-fields">
+              <div class="inline-field">
+                <label>CARDHOLDER NAME</label>
+                <input type="text" [(ngModel)]="cardForm.cardholder_name" id="card-holder-name" placeholder="Full Name" (blur)="formatCardholderName()" />
+                <div id="card-holder-name-error" class="field-error animate-fade-in"></div>
+              </div>
+              <div class="inline-field">
+                <label>CARD NUMBER</label>
+                <div class="input-with-icon">
+                  <input type="text" [(ngModel)]="cardForm.card_number" id="card-num" placeholder="2345 3859 2952 5871" (blur)="formatCardNumber()" />
+                  <img *ngIf="inlineCardBrand === 'Visa'" src="assets/images/payment_visa.png" class="inline-brand-icon" />
+                  <img *ngIf="inlineCardBrand === 'Mastercard'" src="assets/images/payment_mastercard.png" class="inline-brand-icon" />
+                  <img *ngIf="inlineCardBrand === 'Napas'" src="assets/images/payment_napas.png" class="inline-brand-icon" />
+                </div>
+                <div id="card-num-error" class="field-error animate-fade-in"></div>
+              </div>
+              <div class="inline-row-fields">
+                <div class="inline-field">
+                  <label>EXPIRY DATE</label>
+                  <input type="text" [(ngModel)]="cardForm.expire_date" id="card-expiry" placeholder="MM / YY" />
+                  <div id="card-expiry-error" class="field-error animate-fade-in"></div>
+                </div>
+                <div class="inline-field">
+                  <label *ngIf="cardForm.card_type !== 'NAPAS'">CVV</label>
+                  <label *ngIf="cardForm.card_type === 'NAPAS'">ISSUED BANK</label>
+                  
+                  <input *ngIf="cardForm.card_type !== 'NAPAS'" type="text" [(ngModel)]="cardForm.cvc" id="card-cvc" placeholder="941" />
+                  <input *ngIf="cardForm.card_type === 'NAPAS'" type="text" [(ngModel)]="cardForm.issued_bank" id="card-bank" placeholder="Vietcombank" list="vietnam-banks" />
+                  
+                  <datalist id="vietnam-banks">
+                    <option value="Vietcombank">Vietcombank</option>
+                    <option value="BIDV">BIDV</option>
+                    <option value="Techcombank">Techcombank</option>
+                    <option value="VietinBank">VietinBank</option>
+                    <option value="Agribank">Agribank</option>
+                    <option value="MB Bank">MB Bank</option>
+                    <option value="VPBank">VPBank</option>
+                    <option value="ACB">ACB</option>
+                    <option value="Sacombank">Sacombank</option>
+                    <option value="TPBank">TPBank</option>
+                    <option value="VIB">VIB</option>
+                    <option value="SHB">SHB</option>
+                    <option value="MSB">MSB</option>
+                    <option value="SeABank">SeABank</option>
+                  </datalist>
+                  
+                  <div *ngIf="cardForm.card_type !== 'NAPAS'" id="card-cvc-error" class="field-error animate-fade-in"></div>
+                  <div *ngIf="cardForm.card_type === 'NAPAS'" id="card-bank-error" class="field-error animate-fade-in"></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -344,14 +371,9 @@
 
         <div class="summary-items">
           <ng-container *ngIf="!loading(); else loadingTpl">
-            <div
-              class="summary-item"
-              *ngFor="let item of items(); trackBy: trackByItem">
+            <div class="summary-item" *ngFor="let item of items(); trackBy: trackByItem">
               <div class="summary-item__media">
-                <img
-                  *ngIf="getItemImage(item); else noImg"
-                  [src]="getItemImage(item)"
-                  [alt]="item.product.name" />
+                <img *ngIf="getItemImage(item); else noImg" [src]="getItemImage(item)" [alt]="item.product.name" />
                 <ng-template #noImg>
                   <div class="thumb-fallback"></div>
                 </ng-template>
@@ -366,13 +388,9 @@
                 </div>
 
                 <div class="variant-select" *ngIf="item.product.variants.length > 1; else singleVariant">
-                  <select
-                    [ngModel]="item.variantSku"
-                    (ngModelChange)="changeVariant(item, $event)"
+                  <select [ngModel]="item.variantSku" (ngModelChange)="changeVariant(item, $event)"
                     [ngModelOptions]="{standalone: true}">
-                    <option
-                      *ngFor="let v of item.product.variants"
-                      [value]="v.sku">
+                    <option *ngFor="let v of item.product.variants" [value]="v.sku">
                       {{ (v.label || '').toUpperCase() }}
                     </option>
                   </select>
@@ -394,11 +412,7 @@
                       <svg lucidePlus [size]="12"></svg>
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    class="remove-btn"
-                    (click)="remove(item)"
-                    aria-label="Remove item">
+                  <button type="button" class="remove-btn" (click)="remove(item)" aria-label="Remove item">
                     <svg lucideTrash2 [size]="16"></svg>
                   </button>
                 </div>
@@ -438,20 +452,19 @@
           <span>${{ total() | number:'1.2-2' }}</span>
         </div>
 
-        <div *ngIf="motivationMessage() as msg" class="motivation-label" [class.motivation-label--eligible]="msg.type === 'eligible'">
+        <div *ngIf="motivationMessage() as msg" class="motivation-label"
+          [class.motivation-label--eligible]="msg.type === 'eligible'"
+          (click)="msg.type === 'eligible' ? applyMotivationVoucher() : null">
           <ng-container *ngIf="msg.type === 'eligible'">
-            Hurray!!! You can apply <strong>{{ msg.code }}</strong> voucher below for <strong>${{ msg.discount }}</strong> discount
+            Hurray!!! You can apply <strong>{{ msg.code }}</strong> voucher below for <strong>${{ msg.discount
+              }}</strong> discount
           </ng-container>
           <ng-container *ngIf="msg.type === 'motivate'">
             Spend <strong>${{ msg.needed }}</strong> more to get <strong>${{ msg.discount }}</strong> discount!
           </ng-container>
         </div>
 
-        <button
-          type="button"
-          class="confirm-btn"
-          [disabled]="isFormInvalid"
-          (click)="confirmOrder()">
+        <button type="button" class="confirm-btn" [disabled]="isFormInvalid" (click)="confirmOrder()">
           CONFIRM ORDER
         </button>
       </div>
@@ -460,10 +473,7 @@
         <label>DISCOUNT CODE</label>
 
         <ng-container *ngIf="appliedVoucher() as voucher; else discountInput">
-          <div
-            class="discount-applied"
-            (click)="removeVoucher()"
-            title="Click to remove">
+          <div class="discount-applied" (click)="removeVoucher()" title="Click to remove">
             <span class="discount-applied__label">
               <svg lucideTag [size]="16"></svg>
               PROMO APPLIED
@@ -474,18 +484,9 @@
 
         <ng-template #discountInput>
           <div class="discount-row">
-            <input
-              type="text"
-              placeholder="Enter code"
-              [class.has-error]="voucherError()"
-              [(ngModel)]="discountCode"
-              [ngModelOptions]="{standalone: true}"
-              (input)="voucherError.set(null)"
-              (keyup.enter)="applyDiscount()" />
-            <button
-              type="button"
-              (click)="applyDiscount()"
-              [disabled]="applyingVoucher()">
+            <input type="text" placeholder="Enter code" [class.has-error]="voucherError()" [(ngModel)]="discountCode"
+              [ngModelOptions]="{standalone: true}" (input)="voucherError.set(null)" (keyup.enter)="applyDiscount()" />
+            <button type="button" (click)="applyDiscount()" [disabled]="applyingVoucher()">
               {{ applyingVoucher() ? '...' : 'APPLY' }}
             </button>
           </div>
@@ -498,12 +499,10 @@
         <div *ngIf="suggestedVoucher() as suggestion" class="discount-suggestion">
           <ng-container *ngIf="appliedVoucher()?.code !== suggestion.voucher.code">
             <span class="suggestion-label">Suggested for you</span>
-            <button
-              type="button"
-              class="suggestion-badge"
-              (click)="applySuggestedVoucher(suggestion.voucher)">
+            <button type="button" class="suggestion-badge" (click)="applySuggestedVoucher(suggestion.voucher)">
               <span class="code">
-                <svg lucideTag [size]="12" style="margin-right: 4px; display: inline-block; vertical-align: middle;"></svg>
+                <svg lucideTag [size]="12"
+                  style="margin-right: 4px; display: inline-block; vertical-align: middle;"></svg>
                 {{ suggestion.voucher.code }}
               </span>
               <span class="save">Save ${{ suggestion.discount | number:'1.2-2' }}</span>
@@ -515,9 +514,7 @@
       <div class="complements" *ngIf="complements().length">
         <h3 class="section-title">COMPLEMENT YOUR CHOICE</h3>
         <div class="complement-list">
-          <div
-            class="complement-item"
-            *ngFor="let p of complements(); trackBy: trackByProduct">
+          <div class="complement-item" *ngFor="let p of complements(); trackBy: trackByProduct">
             <div class="complement-thumb">
               <img *ngIf="productThumb(p)" [src]="productThumb(p)" [alt]="p.name" />
             </div>
@@ -527,10 +524,7 @@
                 ${{ productStartingPrice(p) | number:'1.2-2' }}
               </div>
             </div>
-            <button
-              type="button"
-              class="add-btn"
-              (click)="addComplement(p)">
+            <button type="button" class="add-btn" (click)="addComplement(p)">
               Add <svg lucidePlus [size]="12"></svg>
             </button>
           </div>
@@ -541,65 +535,19 @@
 </div>
 
 <!-- ================= ADDRESS DIALOG MODAL ================= -->
-<app-address-modal
-  [isOpen]="showAddressModal()"
-  [address]="editingAddress()"
-  [isOnlyAddress]="isOnlyAddress()"
-  (save)="onAddressModalSave($event)"
-  (cancel)="onAddressModalCancel()">
+<app-address-modal [isOpen]="showAddressModal()" [address]="editingAddress()" [isOnlyAddress]="isOnlyAddress()"
+  (save)="onAddressModalSave($event)" (cancel)="onAddressModalCancel()">
 </app-address-modal>
 
-<!-- ================= CREDIT/DEBIT/NAPAS CARD MODAL ================= -->
-<div class="modal-backdrop animate-fade-in" *ngIf="showCardModal()">
-  <div class="modal-container">
-    <header class="modal-header">
-      <h3>ADD NEW PAYMENT CARD</h3>
-      <button type="button" class="close-btn" (click)="showCardModal.set(false)" aria-label="Close modal">&times;</button>
-    </header>
-    <div class="modal-body">
-      <div class="modal-form-grid">
-        <div class="form-field">
-          <label>CARD TYPE <span class="required-star">*</span></label>
-          <div class="select-wrapper">
-            <select [(ngModel)]="cardForm.card_type">
-              <option value="credit">Credit Card</option>
-              <option value="debit">Debit Card</option>
-              <option value="NAPAS">Napas Card</option>
-            </select>
-            <svg lucideChevronDown [size]="14" class="select-caret"></svg>
-          </div>
-        </div>
-        <div class="form-field">
-          <label>CARD NUMBER <span class="required-star">*</span></label>
-          <input type="text" [(ngModel)]="cardForm.card_number" placeholder="4111 2222 3333 4444" />
-        </div>
-        <div class="form-field">
-          <label>CARDHOLDER NAME <span class="required-star">*</span></label>
-          <input type="text" [(ngModel)]="cardForm.cardholder_name" placeholder="JOHN DOE" />
-        </div>
-        <div class="form-field">
-          <label>EXPIRY DATE <span class="required-star">*</span></label>
-          <input type="text" [(ngModel)]="cardForm.expire_date" placeholder="MM/YY" />
-        </div>
-        <div class="form-field" *ngIf="cardForm.card_type !== 'NAPAS'">
-          <label>CVC <span class="required-star">*</span></label>
-          <input type="text" [(ngModel)]="cardForm.cvc" placeholder="123" />
-        </div>
-        <div class="form-field" *ngIf="cardForm.card_type === 'NAPAS'">
-          <label>ISSUED BANK <span class="required-star">*</span></label>
-          <input type="text" [(ngModel)]="cardForm.issued_bank" placeholder="Vietcombank" />
-        </div>
-        <div class="form-field form-field--checkbox">
-          <label class="checkbox-label">
-            <input type="checkbox" [(ngModel)]="cardForm.is_default" />
-            <span>Set as default payment method</span>
-          </label>
-        </div>
-      </div>
-    </div>
-    <footer class="modal-footer">
-      <button type="button" class="btn btn-secondary" (click)="showCardModal.set(false)">CANCEL</button>
-      <button type="button" class="btn btn-primary" (click)="saveCard()">SAVE CARD</button>
-    </footer>
-  </div>
-</div>
+
+
+<!-- ================= PAYMENT CONFIRMATION/VERIFICATION MODAL ================= -->
+<app-payment-modal [isOpen]="showPaymentModal()" 
+                   [orderId]="pendingOrderId()" 
+                   [sessionId]="pendingOrderSessionId()" 
+                   [paymentMethod]="paymentMethod()"
+                   (confirmed)="onPaymentConfirmed($event)" 
+                   (canceled)="onPaymentCanceled()"
+                   (continueShopping)="onContinueShopping()" 
+                   (viewOrderDetails)="onViewOrderDetails()">
+</app-payment-modal>

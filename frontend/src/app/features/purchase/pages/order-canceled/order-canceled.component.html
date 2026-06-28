@@ -1,0 +1,239 @@
+<div class="confirmed-page-wrapper animate-fade-in" *ngIf="order()">
+  <div class="confirmed-container">
+    
+    <!-- ================= CANCELED BANNER ================= -->
+    <div class="canceled-banner">
+      <div class="banner-waves">
+        <div class="wave wave-1"></div>
+        <div class="wave wave-2"></div>
+        <div class="wave wave-3"></div>
+
+        <!-- Faint concentric waves on the left -->
+        <div class="left-waves">
+          <div class="l-wave l-wave-1"></div>
+          <div class="l-wave l-wave-2"></div>
+          <div class="l-wave l-wave-3"></div>
+        </div>
+
+        <!-- Scattered dots -->
+        <div class="pattern-dot dot-1"></div>
+        <div class="pattern-dot dot-2"></div>
+        <div class="pattern-dot dot-3"></div>
+        <div class="pattern-dot dot-4"></div>
+        <div class="pattern-dot dot-5"></div>
+        <div class="pattern-dot dot-6"></div>
+        <div class="pattern-dot dot-7"></div>
+        <div class="pattern-dot dot-8"></div>
+        <div class="pattern-dot dot-9"></div>
+        <div class="pattern-dot dot-10"></div>
+        <div class="pattern-dot dot-11"></div>
+        <div class="pattern-dot dot-12"></div>
+        <div class="pattern-dot dot-13"></div>
+        <div class="pattern-dot dot-14"></div>
+        <div class="pattern-dot dot-15"></div>
+      </div>
+      <div class="banner-content">
+        <!-- Circular Red X Badge -->
+        <div class="badge-icon-wrapper">
+          <svg lucideX [size]="28" class="badge-icon"></svg>
+        </div>
+        
+        <span class="payment-status-label font-mono">ORDER COMPLETED</span>
+        <h1 class="banner-title font-display">Canceled!</h1>
+        <p class="banner-subtitle">
+          <ng-container *ngIf="order().payment.method === 'cod'">
+            This order was canceled on {{ getOrderDateFormatted(order().updatedAt) }}. No charge was made to your payment method.
+          </ng-container>
+          <ng-container *ngIf="order().payment.method !== 'cod'">
+            This order was canceled on {{ getOrderDateFormatted(order().updatedAt) }}. A refund has been issued. Please allow 3–5 business days for your bank to process the refund.
+          </ng-container>
+        </p>
+      </div>
+    </div>
+
+    <!-- ================= META INFO ROW ================= -->
+    <div class="meta-row">
+      <!-- Order Number -->
+      <div class="meta-card">
+        <span class="meta-label">ORDER NUMBER</span>
+        <div class="meta-value-wrapper">
+          <span class="meta-value font-display">{{ order().order_id }}</span>
+          <button class="icon-btn-copy" (click)="copyOrderNumber(order().order_id)" title="Copy Order Number">
+            <svg lucideCopy [size]="14" *ngIf="!copiedOrderNum()"></svg>
+            <svg lucideCheck [size]="14" class="text-success" *ngIf="copiedOrderNum()"></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Order Date -->
+      <div class="meta-card">
+        <span class="meta-label">ORDER DATE</span>
+        <span class="meta-value font-body">{{ getOrderDateFormatted(order().createdAt) }}</span>
+      </div>
+
+      <!-- Delivered On -->
+      <div class="meta-card">
+        <span class="meta-label">EST. DELIVERY</span>
+        <span class="meta-value font-body">{{ getEstDeliveryRange(order().created_at || order().createdAt, order().shipping?.method || order().delivery_info.shipping_method) }}</span>
+      </div>
+
+      <!-- Charge -->
+      <div class="meta-card">
+        <span class="meta-label">CHARGE</span>
+        <span class="meta-value font-body text-muted">
+          {{ order().payment.method === 'cod' ? 'Not charged' : 'Refunded' }}
+        </span>
+      </div>
+    </div>
+
+    <!-- ================= CONTENT GRID ================= -->
+    <div class="content-grid">
+      <!-- Left Column -->
+      <main class="left-col">
+        
+        <!-- Tracking Alert Box -->
+        <div class="tracking-alert-box">
+          <div class="tracking-header">
+            <span class="dot-indicator red-dot"></span>
+            <span class="tracking-title font-mono">TRACKING</span>
+          </div>
+          <div class="alert-banner-inner">
+            <div class="alert-icon-wrap">
+              <svg lucideX [size]="14" class="inner-alert-x"></svg>
+            </div>
+            <div class="alert-text-wrap font-body">
+              <ng-container *ngIf="order().payment.method === 'cod'">
+                Order canceled on {{ getOrderDateFormatted(order().updatedAt) }}. No charge was made to your payment method.
+              </ng-container>
+              <ng-container *ngIf="order().payment.method !== 'cod'">
+                Order canceled on {{ getOrderDateFormatted(order().updatedAt) }}. A refund has been issued. Please allow 3–5 business days for your bank to process the refund.
+              </ng-container>
+            </div>
+          </div>
+        </div>
+
+        <!-- Items Ordered -->
+        <div class="panel items-panel">
+          <header class="panel-header dark-green-header">
+            <h2 class="panel-title font-body">ITEMS ORDERED</h2>
+            <span class="items-count-badge font-mono">{{ getItemCount() }} items</span>
+          </header>
+          
+          <div class="items-list">
+            <div class="order-item-row" *ngFor="let item of order().items">
+              <div class="item-thumb-wrapper">
+                <img [src]="productThumb(item)" [alt]="item.product_name" class="item-thumb-img" />
+              </div>
+              
+              <div class="item-meta-info">
+                <h3 class="item-name font-body">{{ item.product_name }}</h3>
+                <span class="item-specs font-body">
+                  {{ item.variant_name || 'Default variant' }}
+                </span>
+                <span class="item-qty font-mono">x{{ item.quantity }}</span>
+              </div>
+              
+              <div class="item-pricing font-mono">
+                ${{ (item.subtotal || item.unit_price * item.quantity) | number:'1.2-2' }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Deliver, Shipping, & Payment Info Panel -->
+        <div class="panel details-grid-card">
+          <div class="details-top">
+            <!-- Deliver To -->
+            <div class="detail-column">
+              <span class="detail-label">DELIVER TO</span>
+              <h3 class="recipient-name font-body">{{ order().delivery_info.recipient_name }}</h3>
+              <p class="recipient-address">
+                {{ order().delivery_info.address }}<br/>
+                {{ order().delivery_info.city }}, Vietnam
+              </p>
+            </div>
+
+            <!-- Shipping Method -->
+            <div class="detail-column">
+              <span class="detail-label">SHIPPING METHOD</span>
+              <h3 class="shipping-method-title font-body">
+                {{ order().delivery_info.shipping_method === 'express' ? 'Express Delivery' : 'Standard Delivery' }}
+              </h3>
+              <p class="shipping-method-desc">
+                {{ order().delivery_info.shipping_method === 'express' ? '1–2 business days' : '3–5 business days' }} · {{ order().shipping?.carrier || 'Giao Hang Nhanh' }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Payment Card info -->
+          <div class="details-bottom">
+            <div class="payment-card-logo" [class.cod-payment-logo]="order().payment.method === 'cod'">
+              <ng-container *ngIf="order().payment.method === 'cod'">
+                <svg lucideBanknote [size]="30" class="banknote-icon"></svg>
+              </ng-container>
+              <ng-container *ngIf="order().payment.method !== 'cod'">
+                <div class="chip-graphic"></div>
+              </ng-container>
+            </div>
+            <div class="payment-card-details">
+              <span class="card-brand-label">
+                {{ order().payment.method === 'cod' ? 'Cash on Delivery' : (order().payment.card_info?.brand === 'Napas' ? 'NAPAS Domestic Card' : order().payment.card_info?.brand || 'Credit Card') }}
+              </span>
+              <span class="card-masked font-mono">
+                <ng-container *ngIf="order().payment.method === 'cod'">
+                  Pay with cash upon delivery
+                </ng-container>
+                <ng-container *ngIf="order().payment.method !== 'cod'">
+                  •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ order().delivery_info.recipient_name | uppercase }}
+                </ng-container>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buy Again Footer Button -->
+        <footer class="page-actions-row">
+          <button routerLink="/shop/best-sellers" class="btn-buy-again font-body">
+            BUY AGAIN
+          </button>
+        </footer>
+
+      </main>
+
+      <!-- Right Column (Payment Summary) -->
+      <aside class="right-col">
+        <div class="panel summary-card">
+          <header class="summary-header">
+            <span class="summary-line-prefix">—</span>
+            <h2 class="summary-title font-body">PAYMENT SUMMARY</h2>
+          </header>
+          
+          <div class="summary-body">
+            <div class="summary-row">
+              <span>SUBTOTAL</span>
+              <span class="font-mono">${{ order().pricing.subtotal | number:'1.2-2' }}</span>
+            </div>
+            <div class="summary-row">
+              <span>SHIPPING</span>
+              <span class="font-mono text-success uppercase">
+                {{ order().pricing.shipping_cost === 0 ? 'FREE' : ('$' + (order().pricing.shipping_cost | number:'1.2-2')) }}
+              </span>
+            </div>
+            <div class="summary-row">
+              <span>DISCOUNT</span>
+              <span class="font-mono">-${{ (order().pricing.discount_amount || 0) | number:'1.2-2' }}</span>
+            </div>
+            
+            <div class="summary-divider"></div>
+            
+            <div class="summary-row total-row">
+              <span>TOTAL PAID</span>
+              <span class="total-price font-mono">${{ order().pricing.total | number:'1.2-2' }}</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+  </div>
+</div>

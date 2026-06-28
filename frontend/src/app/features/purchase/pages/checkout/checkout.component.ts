@@ -1,6 +1,7 @@
 import {
   Component,
   OnInit,
+  OnDestroy,
   computed,
   effect,
   inject,
@@ -8,7 +9,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import {
   LucideArrowLeft,
   LucideCheck,
@@ -38,8 +39,10 @@ import {
 import { Product, ProductVariant } from '../../../../shared/models/product.model';
 import { Voucher } from '../../../../shared/models/voucher.model';
 import { AuthService } from '../../../../core/auth.service';
+import { InlineValidator, FieldConfig } from '../../../../shared/utils/inline-validator';
 import { UserAddress, UserPaymentMethod, UserProfile } from '../../../../shared/models/user.model';
 import { AddressModalComponent } from '../../../../shared/components/address-modal/address-modal.component';
+import { PaymentModalComponent } from '../../components/payment-modal/payment-modal.component';
 
 @Component({
   selector: 'app-checkout',
@@ -64,14 +67,23 @@ import { AddressModalComponent } from '../../../../shared/components/address-mod
     LucidePackage,
     LucideAlertCircle,
     LucidePencil,
-    AddressModalComponent
+    AddressModalComponent,
+    PaymentModalComponent
   ],
   templateUrl: './checkout.component.html',
   styleUrl: './checkout.component.scss'
 })
-export class CheckoutComponent implements OnInit {
+export class CheckoutComponent implements OnInit, OnDestroy {
   private checkoutService = inject(CheckoutService);
   authService = inject(AuthService);
+  private router = inject(Router);
+
+  // Payment Verification Modal State
+  showPaymentModal = signal(false);
+  pendingOrder = signal<any>(null);
+  pendingOrderId = signal<string | null>(null);
+  pendingOrderDbId = signal<string | null>(null);
+  pendingOrderSessionId = signal<string | null>(null);
 
   items = signal<CheckoutItem[]>([]);
   complements = signal<Product[]>([]);
@@ -88,6 +100,7 @@ export class CheckoutComponent implements OnInit {
   // Modals visibility and editing states
   showAddressModal = signal(false);
   showCardModal = signal(false);
+  showInlineCardForm = signal(false);
   editingAddress = signal<UserAddress | null>(null);
 
   isOnlyAddress = computed(() => {
@@ -117,6 +130,8 @@ export class CheckoutComponent implements OnInit {
     is_default: false
   };
 
+  deliveryValidator: InlineValidator | null = null;
+  cardValidator: InlineValidator | null = null;
   delivery = {
     name: '',
     mobile: '',
@@ -254,6 +269,15 @@ export class CheckoutComponent implements OnInit {
     this.delivery.city = city;
     this.cityTouched = true;
     this.showCitySuggestions = false;
+
+    // Dispatch input event on the input element to update the InlineValidator
+    setTimeout(() => {
+      const inputEl = document.getElementById('delivery-city');
+      if (inputEl) {
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
     this.onFieldBlur('city');
   }
 
@@ -519,11 +543,167 @@ export class CheckoutComponent implements OnInit {
 
       // Load user profile if logged in
       await this.loadUserProfile();
+
+      // Expose helper and data on window for InlineValidator expression evaluation
+      (window as any).normalizeString = this.normalizeString.bind(this);
+      (window as any).REAL_CITIES = this.REAL_CITIES;
+
+      const deliveryConfigs: FieldConfig[] = [
+        {
+          field_id: 'delivery-name',
+          error_element_id: 'delivery-name-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'Name is required.'
+            }
+          ]
+        },
+        {
+          field_id: 'delivery-mobile',
+          error_element_id: 'delivery-mobile-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'Mobile number is required.'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '[^0-9 ]',
+              error_message: 'Mobile number must contain digits and spaces only.'
+            },
+            {
+              sequence: 3,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^(?!\\s*(?:\\d\\s*){10,11}$)',
+              error_message: 'Mobile number must be 10 to 11 digits.'
+            }
+          ]
+        },
+        {
+          field_id: 'delivery-email',
+          error_element_id: 'delivery-email-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'EMPTY_CHECK',
+              condition: "value === ''",
+              action: 'CLEAR_ERROR_AND_STOP'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^(?![a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$)',
+              error_message: 'Invalid email format.'
+            }
+          ]
+        },
+        {
+          field_id: 'delivery-city',
+          error_element_id: 'delivery-city-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'City is required.'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              condition: '!window.REAL_CITIES.has(window.normalizeString(value))',
+              error_message: 'City not exists.'
+            }
+          ]
+        },
+        {
+          field_id: 'delivery-address',
+          error_element_id: 'delivery-address-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'Address is required.'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^(?!\\d)',
+              error_message: 'Address must start with a house number.'
+            },
+            {
+              sequence: 3,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^(?!.*,)',
+              error_message: 'Address must include a comma to separate the street and ward.'
+            },
+            {
+              sequence: 4,
+              type: 'FORMAT_CHECK',
+              condition: 'value.split(",").map(p => p.trim()).length < 2 || !value.split(",").map(p => p.trim())[0] || !value.split(",").map(p => p.trim())[1]',
+              error_message: 'Address must contain street name and ward name.'
+            },
+            {
+              sequence: 5,
+              type: 'FORMAT_CHECK',
+              condition: 'value.split(",")[0] && value.split(",")[0].replace(/^\\d+[-/a-zA-Z\\d]*\\s*/, "").trim().length < 2',
+              error_message: 'Street name must be at least 2 characters long.'
+            },
+            {
+              sequence: 6,
+              type: 'FORMAT_CHECK',
+              condition: 'value.split(",")[1] && value.split(",")[1].trim().length < 2',
+              error_message: 'Ward name must be at least 2 characters long.'
+            }
+          ]
+        },
+        {
+          field_id: 'delivery-note',
+          error_element_id: 'delivery-note-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'EMPTY_CHECK',
+              condition: "value === ''",
+              action: 'CLEAR_ERROR_AND_STOP'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              condition: 'value.trim().split(/\\s+/).filter(Boolean).length > 500',
+              error_message: 'Note must not exceed 500 words.'
+            }
+          ]
+        }
+      ];
+
+      this.deliveryValidator = new InlineValidator(deliveryConfigs);
+      this.deliveryValidator.attach();
     } catch (err) {
       console.error('Failed to load checkout data:', err);
     } finally {
       this.loading.set(false);
     }
+  }
+
+  ngOnDestroy() {
+    if (this.deliveryValidator) {
+      this.deliveryValidator.detach();
+    }
+    if (this.cardValidator) {
+      this.cardValidator.detach();
+    }
+    delete (window as any).normalizeString;
+    delete (window as any).REAL_CITIES;
+    delete (window as any).getInlineCardType;
+    delete (window as any).validateCardNumberFormat;
+    delete (window as any).isCardExpiredCheck;
   }
 
   async loadUserProfile() {
@@ -561,6 +741,7 @@ export class CheckoutComponent implements OnInit {
           const defCard = cards.find((c: UserPaymentMethod) => c.is_default) || cards[0];
           if (defCard && defCard._id) {
             this.selectedCardId.set(defCard._id);
+            this.paymentMethod.set('card');
           }
         }
       } catch (err) {
@@ -630,8 +811,8 @@ export class CheckoutComponent implements OnInit {
 
       // Detect if default address changed
       const defaultAddr = addresses.find((a: UserAddress) => a.is_default);
-      const defaultChanged = (!oldDefaultAddr && defaultAddr) || 
-                             (oldDefaultAddr && defaultAddr && oldDefaultAddr._id !== defaultAddr._id);
+      const defaultChanged = (!oldDefaultAddr && defaultAddr) ||
+        (oldDefaultAddr && defaultAddr && oldDefaultAddr._id !== defaultAddr._id);
 
       const prevAddrId = this.selectedAddressId();
 
@@ -670,12 +851,17 @@ export class CheckoutComponent implements OnInit {
         const defaultCard = cards.find((c: UserPaymentMethod) => c.is_default && !this.isCardExpired(c.expire_date));
         if (defaultCard) {
           this.selectedCardId.set(defaultCard._id || null);
+          this.paymentMethod.set('card');
         } else {
           const activeCard = cards.find((c: UserPaymentMethod) => !this.isCardExpired(c.expire_date));
           if (activeCard) {
             this.selectedCardId.set(activeCard._id || null);
+            this.paymentMethod.set('card');
           } else {
             this.selectedCardId.set(null);
+            if (this.paymentMethod() === 'card' && cards.length === 0) {
+              this.paymentMethod.set('cod');
+            }
           }
         }
       }
@@ -732,6 +918,8 @@ export class CheckoutComponent implements OnInit {
   }
 
   openAddCardModal() {
+    this.paymentMethod.set('card');
+    this.selectedCardId.set(null);
     this.cardForm = {
       card_type: 'credit',
       card_number: '',
@@ -741,14 +929,221 @@ export class CheckoutComponent implements OnInit {
       issued_bank: '',
       is_default: this.savedCards().length === 0
     };
-    this.showCardModal.set(true);
+    this.showInlineCardForm.set(true);
+
+    // Set up helper functions on window for InlineValidator expression evaluation
+    (window as any).getInlineCardType = () => this.cardForm.card_type;
+    (window as any).validateCardNumberFormat = (value: string, type: string) => {
+      const digits = value.replace(/\s+/g, '');
+      if (type === 'NAPAS') {
+        if (!digits.startsWith('9704')) return true;
+        if (digits.length < 16 || digits.length > 19) return true;
+        return false;
+      } else {
+        const isVisa = digits.startsWith('4') && (digits.length === 13 || digits.length === 16);
+        const p2Val = parseInt(digits.slice(0, 2), 10);
+        const prefix4 = parseInt(digits.slice(0, 4), 10);
+        const isMaster = ((p2Val >= 51 && p2Val <= 55) || (prefix4 >= 2221 && prefix4 <= 2720)) && digits.length === 16;
+        if (!isVisa && !isMaster) return true;
+        return false;
+      }
+    };
+    (window as any).isCardExpiredCheck = (value: string) => {
+      const clean = value.trim();
+      const match = clean.match(/^(0[1-9]|1[0-2])\s*\/\s*(\d{2})$/);
+      if (!match) return true;
+      const expMonth = parseInt(match[1], 10);
+      const expYear = parseInt('20' + match[2], 10);
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      if (expYear < currentYear) return true;
+      if (expYear === currentYear && expMonth <= currentMonth) return true;
+      return false;
+    };
+    (window as any).isValidBank = (val: string) => {
+      const allowed = ['Vietcombank','BIDV','Techcombank','VietinBank','Agribank','MB Bank','VPBank','ACB','Sacombank','TPBank','VIB','SHB','MSB','SeABank'];
+      return allowed.includes(val.trim());
+    };
+
+    setTimeout(() => {
+      const cardConfigs: FieldConfig[] = [
+        {
+          field_id: 'card-holder-name',
+          error_element_id: 'card-holder-name-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'Cardholder name is required.'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              condition: 'value.trim().split(/\\s+/).filter(Boolean).length < 2',
+              error_message: 'Cardholder name must contain full name (at least 2 words).'
+            },
+            {
+              sequence: 3,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '[0-9]',
+              error_message: 'Cardholder name cannot contain numbers.'
+            }
+          ]
+        },
+        {
+          field_id: 'card-num',
+          error_element_id: 'card-num-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'Card number is required.'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '[^0-9\\s]',
+              error_message: 'Card number can only contain digits and spaces.'
+            },
+            {
+              sequence: 3,
+              type: 'FORMAT_CHECK',
+              condition: 'window.validateCardNumberFormat(value, window.getInlineCardType())',
+              error_message: 'Invalid card number format for the selected card type.'
+            }
+          ]
+        },
+        {
+          field_id: 'card-expiry',
+          error_element_id: 'card-expiry-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'Expiry date is required.'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              condition: '!/^(0[1-9]|1[0-2])\\s*\\/\\s*\\d{2}$/.test(value.trim())',
+              error_message: 'Expiry date must be in MM/YY format.'
+            },
+            {
+              sequence: 3,
+              type: 'FORMAT_CHECK',
+              condition: 'window.isCardExpiredCheck(value)',
+              error_message: 'Card has expired or expiry date is invalid.'
+            }
+          ]
+        },
+        {
+          field_id: 'card-cvc',
+          error_element_id: 'card-cvc-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              condition: 'window.getInlineCardType() !== "NAPAS" && value.trim() === ""',
+              error_message: 'CVV is required.'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              condition: 'window.getInlineCardType() !== "NAPAS" && !/^\\d{3}$/.test(value.trim())',
+              error_message: 'CVV must be exactly 3 digits.'
+            }
+          ]
+        },
+        {
+          field_id: 'card-bank',
+          error_element_id: 'card-bank-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              condition: 'window.getInlineCardType() === "NAPAS" && value.trim() === ""',
+              error_message: 'Issued bank is required.'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              condition: 'window.getInlineCardType() === "NAPAS" && !window.isValidBank(value)',
+              error_message: 'Invalid bank name. Please select from the list.'
+            }
+          ]
+        }
+      ];
+
+      this.cardValidator = new InlineValidator(cardConfigs);
+      this.cardValidator.attach();
+    }, 100);
+  }
+
+  cancelAddCard() {
+    this.showInlineCardForm.set(false);
+    if (this.cardValidator) {
+      this.cardValidator.detach();
+      this.cardValidator = null;
+    }
+  }
+
+  clearCardErrors() {
+    if (this.cardValidator) {
+      this.cardValidator.clearAll();
+    }
+    const type = this.cardForm.card_type;
+    this.cardForm = {
+      card_type: type,
+      card_number: '',
+      cardholder_name: '',
+      expire_date: '',
+      cvc: '',
+      issued_bank: '',
+      is_default: this.savedCards().length === 0
+    };
+  }
+
+  formatCardholderName() {
+    if (!this.cardForm.cardholder_name) return;
+    if (this.cardValidator && this.cardValidator.validateField('card-holder-name')) {
+      this.cardForm.cardholder_name = this.cardForm.cardholder_name
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    }
+  }
+
+  formatCardNumber() {
+    if (!this.cardForm.card_number) return;
+    if (this.cardValidator && this.cardValidator.validateField('card-num')) {
+      const clean = this.cardForm.card_number.replace(/\s+/g, '');
+      const formatted = clean.match(/.{1,4}/g)?.join(' ') || clean;
+      this.cardForm.card_number = formatted;
+    }
+  }
+
+  get inlineCardBrand(): string | null {
+    if (!this.cardForm) return null;
+    if (this.cardForm.card_type === 'NAPAS') return 'Napas';
+    const digits = this.cardForm.card_number.replace(/\s+/g, '');
+    if (digits.startsWith('4')) return 'Visa';
+    if (digits.startsWith('5') || digits.startsWith('2')) return 'Mastercard';
+    return null;
   }
 
   async saveCard() {
-    if (!this.cardForm.card_number.trim() || 
-        !this.cardForm.cardholder_name.trim() || 
-        !this.cardForm.expire_date.trim()) {
-      alert('Please fill out card details.');
+    if (this.cardValidator && !this.cardValidator.validateAll()) {
+      return;
+    }
+
+    if (!this.cardForm.card_number.trim() ||
+      !this.cardForm.cardholder_name.trim() ||
+      !this.cardForm.expire_date.trim()) {
       return;
     }
 
@@ -759,7 +1154,11 @@ export class CheckoutComponent implements OnInit {
         this.selectedCardId.set(res.payment_method._id);
       }
       await this.syncProfileAndSelections();
-      this.showCardModal.set(false);
+      this.showInlineCardForm.set(false);
+      if (this.cardValidator) {
+        this.cardValidator.detach();
+        this.cardValidator = null;
+      }
     } catch (err) {
       console.error('Failed to save card:', err);
       alert('Failed to save card.');
@@ -789,12 +1188,35 @@ export class CheckoutComponent implements OnInit {
     }
   }
 
+  getCardBrand(c: UserPaymentMethod): 'visa' | 'mastercard' | 'napas' {
+    if (c.card_type === 'NAPAS') {
+      return 'napas';
+    }
+    const num = (c.card_number || '').trim();
+    if (num.startsWith('4')) {
+      return 'visa';
+    }
+    const prefix2 = num.slice(0, 2);
+    const prefix4 = parseInt(num.slice(0, 4), 10);
+    const p2Val = parseInt(prefix2, 10);
+    
+    if ((p2Val >= 51 && p2Val <= 55) || (prefix4 >= 2221 && prefix4 <= 2720)) {
+      return 'mastercard';
+    }
+    return 'visa';
+  }
+
+  getCardThumbnail(c: UserPaymentMethod): string {
+    const brand = this.getCardBrand(c);
+    return `assets/images/payment_${brand}.png`;
+  }
+
   getCardLabel(c: UserPaymentMethod): string {
-    let typeName = 'Card';
-    if (c.card_type === 'NAPAS') typeName = 'Napas';
-    else if (c.card_number.startsWith('4')) typeName = 'Visa';
-    else if (c.card_number.startsWith('5')) typeName = 'Mastercard';
-    const last4 = c.card_number.slice(-4);
+    let typeName = 'Visa';
+    const brand = this.getCardBrand(c);
+    if (brand === 'napas') typeName = 'Napas';
+    else if (brand === 'mastercard') typeName = 'Mastercard';
+    const last4 = (c.card_number || '').slice(-4);
     return `${typeName} **${last4}`;
   }
 
@@ -865,6 +1287,7 @@ export class CheckoutComponent implements OnInit {
 
   selectPayment(id: PaymentMethod) {
     this.paymentMethod.set(id);
+    this.showInlineCardForm.set(false);
   }
 
   async applyDiscount() {
@@ -911,6 +1334,13 @@ export class CheckoutComponent implements OnInit {
     this.appliedVoucher.set(voucher);
     this.discountCode = '';
     this.voucherError.set(null);
+  }
+
+  applyMotivationVoucher() {
+    const suggestion = this.suggestedVoucher();
+    if (suggestion) {
+      this.applySuggestedVoucher(suggestion.voucher);
+    }
   }
 
   private validateVoucher(v: Voucher): string | null {
@@ -998,13 +1428,18 @@ export class CheckoutComponent implements OnInit {
   }
 
   async confirmOrder() {
-    this.onFieldBlur('name');
-    this.onFieldBlur('mobile');
-    this.onFieldBlur('email');
-    this.onFieldBlur('city');
-    this.onFieldBlur('address');
+    const isGuest = !this.authService.isAuthenticated();
+    const hasSavedAddresses = this.savedAddresses().length > 0;
+    const isGuestOrNoSaved = isGuest || !hasSavedAddresses;
 
-    if (this.isFormInvalid) {
+    let isFormValid = true;
+    if (isGuestOrNoSaved && this.deliveryValidator) {
+      isFormValid = this.deliveryValidator.validateAll();
+    } else {
+      isFormValid = !this.isFormInvalid;
+    }
+
+    if (!isFormValid) {
       alert('Please fill out the delivery form correctly.');
       return;
     }
@@ -1014,7 +1449,7 @@ export class CheckoutComponent implements OnInit {
       return;
     }
 
-    const isGuest = !this.authService.isAuthenticated();
+
 
     const backendItems = this.items().map(it => {
       const variant = this.getVariant(it);
@@ -1022,7 +1457,7 @@ export class CheckoutComponent implements OnInit {
         product_id: it.product._id,
         variant_id: variant.sku,
         product_name: it.product.name,
-        variant_name: variant.label || '',
+        variant_name: variant.label || 'Default',
         image: {
           url: variant.images?.[0]?.url || it.product.images?.[0]?.url || '',
           public_id: variant.images?.[0]?.public_id || it.product.images?.[0]?.public_id || 'default'
@@ -1037,13 +1472,39 @@ export class CheckoutComponent implements OnInit {
       method: this.paymentMethod()
     };
 
-    if (this.paymentMethod() === 'card') {
+    if (this.showInlineCardForm()) {
+      if (this.cardValidator && !this.cardValidator.validateAll()) {
+        alert('Please fill out the card details correctly.');
+        return;
+      }
+      
+      const cleanNum = this.cardForm.card_number.replace(/\s+/g, '');
+      let brand = 'Visa';
+      if (this.cardForm.card_type === 'NAPAS') brand = 'Napas';
+      else if (cleanNum.startsWith('5') || cleanNum.startsWith('2')) brand = 'Mastercard';
+
+      paymentPayload.method = 'card';
+      paymentPayload.card_info = {
+        brand: brand,
+        last4: cleanNum.slice(-4)
+      };
+      
+      paymentPayload.full_card_info = {
+        card_type: this.cardForm.card_type,
+        card_number: cleanNum,
+        cardholder_name: this.cardForm.cardholder_name,
+        expire_date: this.cardForm.expire_date,
+        cvc: this.cardForm.cvc,
+        issued_bank: this.cardForm.issued_bank,
+        is_default: this.savedCards().length === 0
+      };
+    } else if (this.paymentMethod() === 'card') {
       const selectedCard = this.savedCards().find(c => c._id === this.selectedCardId());
       if (selectedCard) {
         let brand = 'Visa';
         if (selectedCard.card_type === 'NAPAS') brand = 'Napas';
-        else if (selectedCard.card_number.startsWith('5')) brand = 'Mastercard';
-        
+        else if (selectedCard.card_number.startsWith('5') || selectedCard.card_number.startsWith('2')) brand = 'Mastercard';
+
         paymentPayload.card_info = {
           brand: brand,
           last4: selectedCard.card_number.slice(-4)
@@ -1085,13 +1546,60 @@ export class CheckoutComponent implements OnInit {
     try {
       this.loading.set(true);
       const res = await this.checkoutService.submitOrder(orderPayload);
-      alert(`Order confirmed successfully! Order ID: ${res.data.order_id}`);
-      this.items.set([]);
+      
+      if (this.paymentMethod() === 'cod') {
+        this.pendingOrder.set(res.data);
+        this.pendingOrderId.set(res.data.order_id);
+        this.pendingOrderDbId.set(res.data._id || res.data.order_id);
+        this.pendingOrderSessionId.set(orderPayload.session_id);
+        this.showPaymentModal.set(true);
+      } else {
+        this.items.set([]);
+        this.router.navigate(['/checkout/confirmed'], { state: { order: res.data } });
+      }
     } catch (err: any) {
       console.error('Failed to submit order:', err);
       alert(err.error?.error || 'Failed to place order. Please try again.');
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  onPaymentConfirmed(confirmedOrder: any): void {
+    this.items.set([]);
+    this.showPaymentModal.set(false);
+    this.router.navigate(['/checkout/confirmed'], { state: { order: confirmedOrder } });
+  }
+
+  onPaymentCanceled(): void {
+    this.showPaymentModal.set(false);
+    const orderObj = this.pendingOrder();
+    if (orderObj) {
+      const canceledOrder = {
+        ...orderObj,
+        order_status: 'canceled'
+      };
+      this.items.set([]);
+      this.router.navigate(['/checkout/canceled'], { state: { order: canceledOrder } });
+    }
+    this.pendingOrder.set(null);
+    this.pendingOrderId.set(null);
+    this.pendingOrderDbId.set(null);
+    this.pendingOrderSessionId.set(null);
+  }
+
+  onContinueShopping(): void {
+    this.showPaymentModal.set(false);
+    this.router.navigate(['/shop/best-sellers']);
+  }
+
+  onViewOrderDetails(): void {
+    this.showPaymentModal.set(false);
+    if (this.authService.isAuthenticated()) {
+      this.router.navigate(['/account'], { queryParams: { tab: 'orders' } });
+    } else {
+      alert(`Your order ID is: ${this.pendingOrderId()}. Please register/login to view complete order history.`);
+      this.router.navigate(['/']);
     }
   }
 }

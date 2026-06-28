@@ -5,6 +5,8 @@ const { authMiddleware } = require('../middleware/auth.middleware');
 const { optionalAuthMiddleware } = require('../middleware/optionalAuth.middleware');
 
 router.post('/', optionalAuthMiddleware, ordersController.createOrder);
+router.put('/:id/confirm', optionalAuthMiddleware, ordersController.confirmOrder);
+router.put('/:id/cancel', optionalAuthMiddleware, ordersController.cancelPendingOrder);
 router.get('/:id', authMiddleware, ordersController.getOrderById);
 router.get('/', authMiddleware, ordersController.getOrderHistory);
 

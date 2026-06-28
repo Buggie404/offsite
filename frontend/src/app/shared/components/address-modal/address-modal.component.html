@@ -12,14 +12,9 @@
       <div class="form-field">
         <label class="field-label">RECIPIENT NAME <span class="required-star">*</span></label>
         <div class="input-wrapper">
-          <input 
-            type="text" 
-            class="form-input" 
-            placeholder="Enter name" 
-            [(ngModel)]="form.recipient_name"
+          <input type="text" class="form-input" placeholder="Enter name" [(ngModel)]="form.recipient_name"
             (blur)="onFieldBlur('name'); form.recipient_name = form.recipient_name.trimStart()"
-            (input)="onFieldInput('name')"
-            [class.has-error]="nameError()"
+            (input)="onFieldInput('name')" [class.has-error]="nameError()"
             [class.is-valid]="fieldStates()['name'] === 'valid'"
             [class.is-typing]="fieldStates()['name'] === 'typing'" />
           <div class="status-indicator" [ngSwitch]="fieldStates()['name']">
@@ -37,14 +32,8 @@
       <div class="form-field">
         <label class="field-label">PHONE NUMBER <span class="required-star">*</span></label>
         <div class="input-wrapper">
-          <input 
-            type="tel" 
-            class="form-input" 
-            placeholder="e.g., 0123456789" 
-            [(ngModel)]="form.phone"
-            (blur)="onFieldBlur('mobile')"
-            (input)="onFieldInput('mobile')"
-            [class.has-error]="mobileError()"
+          <input type="tel" class="form-input" placeholder="e.g., 0123456789" [(ngModel)]="form.phone"
+            (blur)="onFieldBlur('mobile')" (input)="onFieldInput('mobile')" [class.has-error]="mobileError()"
             [class.is-valid]="fieldStates()['mobile'] === 'valid'"
             [class.is-typing]="fieldStates()['mobile'] === 'typing'" />
           <div class="status-indicator" [ngSwitch]="fieldStates()['mobile']">
@@ -62,16 +51,9 @@
       <div class="form-field select-suggest-wrapper">
         <label class="field-label">CITY / PROVINCE <span class="required-star">*</span></label>
         <div class="input-wrapper">
-          <input
-            type="text"
-            class="form-input"
-            placeholder="Recipient City"
-            [(ngModel)]="form.city"
-            (blur)="onCityBlur()"
-            (input)="onCityInput()"
-            [class.has-error]="cityError()"
-            [class.is-valid]="fieldStates()['city'] === 'valid'"
-            [class.is-typing]="fieldStates()['city'] === 'typing'"
+          <input type="text" class="form-input" placeholder="Recipient City" [(ngModel)]="form.city"
+            (blur)="onCityBlur()" (input)="onCityInput()" [class.has-error]="cityError()"
+            [class.is-valid]="fieldStates()['city'] === 'valid'" [class.is-typing]="fieldStates()['city'] === 'typing'"
             autocomplete="off" />
           <div class="status-indicator" [ngSwitch]="fieldStates()['city']">
             <span *ngSwitchCase="'typing'" class="typing-dot"></span>
@@ -80,10 +62,7 @@
           </div>
         </div>
         <div *ngIf="showCitySuggestions && citySuggestions.length > 0" class="suggestions-panel">
-          <button
-            type="button"
-            *ngFor="let suggest of citySuggestions"
-            (mousedown)="selectCity(suggest)">
+          <button type="button" *ngFor="let suggest of citySuggestions" (mousedown)="selectCity(suggest)">
             {{ suggest }}
           </button>
         </div>
@@ -96,15 +75,9 @@
       <div class="form-field">
         <label class="field-label">DETAILED ADDRESS <span class="required-star">*</span></label>
         <div class="input-wrapper">
-          <textarea 
-            class="form-textarea" 
-            placeholder="House Number Street, Ward" 
-            rows="3"
-            [(ngModel)]="form.detail_address"
-            (blur)="onFieldBlur('address')"
-            (input)="onFieldInput('address')"
-            [class.has-error]="addressError()"
-            [class.is-valid]="fieldStates()['address'] === 'valid'"
+          <textarea class="form-textarea" placeholder="House Number Street, Ward" rows="3"
+            [(ngModel)]="form.detail_address" (blur)="onFieldBlur('address')" (input)="onFieldInput('address')"
+            [class.has-error]="addressError()" [class.is-valid]="fieldStates()['address'] === 'valid'"
             [class.is-typing]="fieldStates()['address'] === 'typing'"></textarea>
           <div class="status-indicator status-indicator--textarea" [ngSwitch]="fieldStates()['address']">
             <span *ngSwitchCase="'typing'" class="typing-dot"></span>
@@ -121,24 +94,14 @@
       <div class="form-field">
         <label class="field-label">ADDRESS LABEL</label>
         <div class="label-button-group">
-          <button 
-            type="button" 
-            class="label-btn" 
-            [class.active]="form.label === 'home'" 
-            (click)="selectLabel('home')">
+          <button type="button" class="label-btn" [class.active]="form.label === 'home'" (click)="selectLabel('home')">
             HOME
           </button>
-          <button 
-            type="button" 
-            class="label-btn" 
-            [class.active]="form.label === 'office'" 
+          <button type="button" class="label-btn" [class.active]="form.label === 'office'"
             (click)="selectLabel('office')">
             OFFICE
           </button>
-          <button 
-            type="button" 
-            class="label-btn" 
-            [class.active]="form.label === 'other'" 
+          <button type="button" class="label-btn" [class.active]="form.label === 'other'"
             (click)="selectLabel('other')">
             OTHER
           </button>

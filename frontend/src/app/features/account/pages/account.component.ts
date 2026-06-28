@@ -2,7 +2,7 @@ import { Component, OnInit, inject, PLATFORM_ID, signal } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../../core/auth.service';
 import {
   LucideUser,
@@ -44,6 +44,7 @@ export class AccountComponent implements OnInit {
   private http = inject(HttpClient);
   private router = inject(Router);
   private fb = inject(FormBuilder);
+  private route = inject(ActivatedRoute);
 
   // Profile data signals
   user = signal<any>(null);
@@ -67,6 +68,11 @@ export class AccountComponent implements OnInit {
   ngOnInit(): void {
     this.initForms();
     this.fetchProfile();
+    this.route.queryParams.subscribe(params => {
+      if (params['tab']) {
+        this.activeTab.set(params['tab']);
+      }
+    });
   }
 
   private initForms(): void {

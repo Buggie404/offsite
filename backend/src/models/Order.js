@@ -194,8 +194,8 @@ orderSchema.pre('save', async function(next) {
       this.order_status = 'pending';
     }
   } else if (this.payment && this.payment.method === 'cod') {
-    if (this.isNew && this.order_status === 'pending') {
-      this.order_status = 'processing';
+    if (this.isNew && !this.order_status) {
+      this.order_status = 'pending';
     }
   }
 
