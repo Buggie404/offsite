@@ -234,6 +234,8 @@ async function getProfile(req, res) {
     if (!user) {
       return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
     }
+    user.addresses = user.addresses || [];
+    user.payment_methods = user.payment_methods || [];
     res.json({ user });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -346,6 +348,205 @@ async function changePassword(req, res) {
   }
 }
 
+async function addAddress(req, res) {
+  try {
+    const { recipient_name, phone, city, detail_address, label, is_default } = req.body;
+    if (!recipient_name || !phone || !city || !detail_address) {
+      return res.status(400).json({ error: 'Missing required address fields.' });
+    }
+
+    const { userCollection } = await getCollections();
+    const { ObjectId } = require('mongodb');
+    const userId = new ObjectId(req.user.user_id);
+
+    // Check current addresses
+    const user = await userCollection.findOne({ _id: userId });
+    const currentAddresses = user.addresses || [];
+
+    // Rule: If first address, it MUST be default
+    const shouldBeDefault = currentAddresses.length === 0 ? true : !!is_default;
+
+    const newAddressId = new ObjectId();
+    const newAddress = {
+      _id: newAddressId,
+      recipient_name,
+      phone,
+      city,
+      detail_address,
+      label: label || null,
+      is_default: shouldBeDefault
+    };
+
+    if (shouldBeDefault) {
+      await userCollection.updateOne(
+        { _id: userId },
+        { $set: { "addresses.$[].is_default": false } }
+      );
+    }
+
+    await userCollection.updateOne(
+      { _id: userId },
+      { $push: { addresses: newAddress } }
+    );
+
+    res.status(201).json({ message: 'Address added successfully', address: newAddress });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function updateAddress(req, res) {
+  try {
+    const { id } = req.params;
+    const { recipient_name, phone, city, detail_address, label, is_default } = req.body;
+
+    const { userCollection } = await getCollections();
+    const { ObjectId } = require('mongodb');
+    const userId = new ObjectId(req.user.user_id);
+    const addressId = new ObjectId(id);
+
+    const user = await userCollection.findOne({ _id: userId });
+    const currentAddresses = user.addresses || [];
+    const targetAddress = currentAddresses.find(a => a._id.toString() === id);
+
+    if (!targetAddress) {
+      return res.status(404).json({ error: 'Address not found' });
+    }
+
+    // Rule: If only 1 address exists, it MUST be default
+    let finalIsDefault = is_default;
+    if (currentAddresses.length === 1) {
+      finalIsDefault = true;
+    } else if (is_default === false && targetAddress.is_default) {
+      // User tries to unset default. Switch default to another address.
+      const otherAddress = currentAddresses.find(a => a._id.toString() !== id);
+      if (otherAddress) {
+        await userCollection.updateOne(
+          { _id: userId, "addresses._id": otherAddress._id },
+          { $set: { "addresses.$.is_default": true } }
+        );
+      }
+    } else if (is_default === true) {
+      await userCollection.updateOne(
+        { _id: userId },
+        { $set: { "addresses.$[].is_default": false } }
+      );
+    }
+
+    const updateFields = {};
+    if (recipient_name !== undefined) updateFields["addresses.$.recipient_name"] = recipient_name;
+    if (phone !== undefined) updateFields["addresses.$.phone"] = phone;
+    if (city !== undefined) updateFields["addresses.$.city"] = city;
+    if (detail_address !== undefined) updateFields["addresses.$.detail_address"] = detail_address;
+    if (label !== undefined) updateFields["addresses.$.label"] = label;
+    if (finalIsDefault !== undefined) updateFields["addresses.$.is_default"] = !!finalIsDefault;
+
+    await userCollection.updateOne(
+      { _id: userId, "addresses._id": addressId },
+      { $set: updateFields }
+    );
+
+    const updatedUser = await userCollection.findOne({ _id: userId });
+    const address = updatedUser.addresses.find(a => a._id.toString() === id);
+
+    res.json({ message: 'Address updated successfully', address });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function deleteAddress(req, res) {
+  try {
+    const { id } = req.params;
+    const { userCollection } = await getCollections();
+    const { ObjectId } = require('mongodb');
+    const userId = new ObjectId(req.user.user_id);
+    const addressId = new ObjectId(id);
+
+    await userCollection.updateOne(
+      { _id: userId },
+      { $pull: { addresses: { _id: addressId } } }
+    );
+
+    const updatedUser = await userCollection.findOne({ _id: userId });
+    const remaining = updatedUser.addresses || [];
+
+    if (remaining.length > 0) {
+      const hasDefault = remaining.some(a => a.is_default);
+      if (!hasDefault || remaining.length === 1) {
+        await userCollection.updateOne(
+          { _id: userId, "addresses._id": remaining[0]._id },
+          { $set: { "addresses.$.is_default": true } }
+        );
+      }
+    }
+
+    res.json({ message: 'Address deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function addPaymentMethod(req, res) {
+  try {
+    const { card_type, card_number, cardholder_name, expire_date, cvc, issued_bank, is_default } = req.body;
+    if (!card_type || !card_number || !cardholder_name || !expire_date) {
+      return res.status(400).json({ error: 'Missing required card fields.' });
+    }
+
+    const { userCollection } = await getCollections();
+    const { ObjectId } = require('mongodb');
+    const userId = new ObjectId(req.user.user_id);
+    const newCardId = new ObjectId();
+
+    const newCard = {
+      _id: newCardId,
+      card_type,
+      card_number,
+      cardholder_name,
+      expire_date,
+      cvc: card_type !== 'NAPAS' ? cvc : null,
+      issued_bank: card_type === 'NAPAS' ? issued_bank : null,
+      is_default: !!is_default
+    };
+
+    if (newCard.is_default) {
+      await userCollection.updateOne(
+        { _id: userId },
+        { $set: { "payment_methods.$[].is_default": false } }
+      );
+    }
+
+    await userCollection.updateOne(
+      { _id: userId },
+      { $push: { payment_methods: newCard } }
+    );
+
+    res.status(201).json({ message: 'Payment method added successfully', payment_method: newCard });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function deletePaymentMethod(req, res) {
+  try {
+    const { id } = req.params;
+    const { userCollection } = await getCollections();
+    const { ObjectId } = require('mongodb');
+    const userId = new ObjectId(req.user.user_id);
+    const cardId = new ObjectId(id);
+
+    await userCollection.updateOne(
+      { _id: userId },
+      { $pull: { payment_methods: { _id: cardId } } }
+    );
+
+    res.json({ message: 'Payment method deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -354,6 +555,11 @@ module.exports = {
   refreshToken,
   getProfile,
   updateProfile,
-  changePassword
+  changePassword,
+  addAddress,
+  updateAddress,
+  deleteAddress,
+  addPaymentMethod,
+  deletePaymentMethod
 };
 
