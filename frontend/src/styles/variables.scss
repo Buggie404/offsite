@@ -110,4 +110,28 @@
   --container-max: 1280px;
   --container-padding-mobile: 16px;   /* = --space-3 */
   --container-padding-desktop: 32px;  /* = --space-5 */
+
+  /* Admin dashboard */
+  --admin-sidebar-w: 248px;
+  --admin-header-h: 80px;
+  --admin-app-max-w: 1440px;
+  --admin-body-bg: #ece3de;
+  --admin-surface-sidebar: var(--color-sage-deep);
+  --admin-surface-header: #f7f0eb;
+  --admin-surface-card: #fffdf9;
+  --admin-divider: rgba(84, 74, 64, 0.2);
+  --admin-shadow-card: 0 2px 10px rgba(84, 74, 64, 0.07), 0 1px 3px rgba(84, 74, 64, 0.05);
+  --admin-shadow-sm: 0 1px 4px rgba(84, 74, 64, 0.06);
+
+  /* Order status badges */
+  --status-processing-bg: #e3f0ff;
+  --status-processing-text: #2563eb;
+  --status-shipping-bg: #f3e5ff;
+  --status-shipping-text: #6a1b9a;
+  --status-delivered-bg: var(--color-sage);
+  --status-delivered-text: var(--color-forest-green);
+  --status-refund-bg: rgba(84, 73, 63, 0.2);
+  --status-refund-text: #54493f;
+  --status-cancelled-bg: rgba(220, 38, 38, 0.2);
+  --status-cancelled-text: #dc2626;
 }

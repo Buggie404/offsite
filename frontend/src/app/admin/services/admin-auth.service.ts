@@ -26,7 +26,7 @@ export class AdminAuthService {
 
   constructor() {
     if (isPlatformBrowser(this.platformId)) {
-      this.isAuthenticatedSignal.set(!!localStorage.getItem(this.tokenKey));
+      this.isAuthenticatedSignal.set(this.isAdmin());
     }
   }
 
@@ -47,7 +47,34 @@ export class AdminAuthService {
   }
 
   isAdmin(): boolean {
-    return this.getUser()?.role === 'admin' && !!this.getToken();
+    const token = this.getToken();
+    const user = this.getUser();
+
+    if (!token || user?.role !== 'admin') {
+      return false;
+    }
+
+    if (!this.isTokenValid(token)) {
+      this.logout();
+      return false;
+    }
+
+    return true;
+  }
+
+  private isTokenValid(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1])) as { exp?: number; role?: string };
+      if (payload.role && payload.role !== 'admin') {
+        return false;
+      }
+      if (!payload.exp) {
+        return true;
+      }
+      return payload.exp * 1000 > Date.now();
+    } catch {
+      return false;
+    }
   }
 
   async login(email: string, password: string): Promise<{ token: string; user: AdminUser }> {

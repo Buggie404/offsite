@@ -1,0 +1,181 @@
+<header class="page-header">
+  <div class="page-header__left">
+    <h1>Orders</h1>
+    <p>Filter by status, date, or customer. Click an order to view details and take action.</p>
+  </div>
+  <div class="page-actions">
+    <button type="button" class="btn btn-primary" (click)="exportOrders()" [disabled]="!orders.length">
+      <svg lucideDownload aria-hidden="true" [size]="16"></svg>
+      Export
+    </button>
+  </div>
+</header>
+
+<section class="stats-grid" aria-label="Order statistics">
+  <article class="stat-card">
+    <p class="stat-card__label">Total Orders</p>
+    <p class="stat-card__value">{{ stats.total | number }}</p>
+    <p class="stat-card__meta">{{ statsPeriodLabel }}</p>
+  </article>
+  <article class="stat-card stat-card--accent">
+    <p class="stat-card__label">Processing</p>
+    <p class="stat-card__value">{{ stats.processing | number }}</p>
+    <p class="stat-card__meta">Needs fulfillment</p>
+  </article>
+  <article class="stat-card">
+    <p class="stat-card__label">Shipped</p>
+    <p class="stat-card__value">{{ stats.shipped | number }}</p>
+    <p class="stat-card__meta">In transit</p>
+  </article>
+  <article class="stat-card stat-card--attention">
+    <p class="stat-card__label">Needs Attention</p>
+    <p class="stat-card__value">{{ stats.needsAttention | number }}</p>
+    <p class="stat-card__meta">Issues or refunds</p>
+  </article>
+</section>
+
+<div class="filter-bar">
+  <div class="filter-bar__group">
+    <span class="filter-label">Status</span>
+    @for (filter of statusFilters; track filter.value) {
+      <button
+        type="button"
+        class="filter-pill"
+        [class.filter-pill--active]="activeStatus === filter.value"
+        (click)="setStatusFilter(filter.value)"
+      >
+        {{ filter.label }}
+      </button>
+    }
+  </div>
+
+  <div class="filter-bar__group filter-bar__group--date">
+    <span class="filter-label">Date</span>
+    <div class="date-filter">
+      <div class="select-wrap select-wrap--filter">
+        <select
+          class="filter-select"
+          aria-label="Filter by date range"
+          [value]="dateRange"
+          (change)="onDateChange($any($event.target).value)"
+        >
+          <option value="today">Today</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="custom">Custom range</option>
+        </select>
+        <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+      </div>
+
+      @if (showCustomRange) {
+        <div class="custom-range-panel" role="region" aria-label="Custom date range">
+          <div class="custom-range-panel__header">
+            <p class="custom-range-panel__title">Custom range</p>
+            <p class="custom-range-panel__hint">Choose a start and end date to filter orders.</p>
+          </div>
+
+          <div class="custom-range-panel__fields">
+            <div class="custom-range-field">
+              <label class="custom-range-field__label" for="custom-date-from">From</label>
+              <div class="custom-range-field__input-wrap">
+                <svg lucideCalendar class="custom-range-field__icon" aria-hidden="true" [size]="16"></svg>
+                <input
+                  id="custom-date-from"
+                  type="date"
+                  class="custom-range-field__input"
+                  [value]="customDateFrom"
+                  [max]="customDateTo || maxDate"
+                  (change)="onCustomDateFromChange($any($event.target).value)"
+                />
+              </div>
+            </div>
+
+            <span class="custom-range-panel__separator" aria-hidden="true">to</span>
+
+            <div class="custom-range-field">
+              <label class="custom-range-field__label" for="custom-date-to">To</label>
+              <div class="custom-range-field__input-wrap">
+                <svg lucideCalendar class="custom-range-field__icon" aria-hidden="true" [size]="16"></svg>
+                <input
+                  id="custom-date-to"
+                  type="date"
+                  class="custom-range-field__input"
+                  [value]="customDateTo"
+                  [min]="customDateFrom"
+                  [max]="maxDate"
+                  (change)="onCustomDateToChange($any($event.target).value)"
+                />
+              </div>
+            </div>
+          </div>
+
+          @if (customRangeError) {
+            <p class="custom-range-panel__error" role="alert">{{ customRangeError }}</p>
+          }
+
+          <div class="custom-range-panel__actions">
+            <button type="button" class="btn btn-outline" (click)="cancelCustomRange()">Cancel</button>
+            <button type="button" class="btn btn-primary" (click)="applyCustomRange()">Apply range</button>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+@if (loading) {
+  <p class="state-message">Loading orders…</p>
+} @else if (error) {
+  <p class="state-message state-message--error" role="alert">{{ error }}</p>
+} @else if (!orders.length) {
+  <p class="state-message">No orders found for the selected filters.</p>
+} @else {
+  <section class="data-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Order ID</th>
+          <th>Customer</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Total</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (order of orders; track order._id) {
+          <tr>
+            <td>
+              <a [routerLink]="['/admin/orders', order.order_id]" class="data-table__link">
+                #{{ order.order_id }}
+              </a>
+            </td>
+            <td>
+              <div>{{ order.customer_name }}</div>
+              <div class="data-table__muted">{{ order.customer_email }}</div>
+            </td>
+            <td class="data-table__muted">{{ formatDate(order.created_at) }}</td>
+            <td>
+              <span class="status-badge" [ngClass]="statusClass(order.order_status)">
+                {{ statusLabel(order.order_status) }}
+              </span>
+            </td>
+            <td class="data-table__price">{{ formatPrice(order.total, order.currency) }}</td>
+            <td>
+              <div class="table-actions">
+                <a
+                  [routerLink]="['/admin/orders', order.order_id]"
+                  class="icon-btn"
+                  [attr.aria-label]="'View order ' + order.order_id"
+                >
+                  <svg lucideEye aria-hidden="true" [size]="16"></svg>
+                </a>
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </section>
+}

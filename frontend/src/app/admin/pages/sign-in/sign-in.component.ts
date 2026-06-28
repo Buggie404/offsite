@@ -66,7 +66,7 @@ export class AdminSignInComponent {
     this.isSubmitting = true;
     try {
       await this.adminAuth.login(trimmedEmail, this.password);
-      await this.router.navigate(['/admin']);
+      await this.router.navigateByUrl('/admin/orders', { replaceUrl: true });
     } catch (err: any) {
       const serverError = err?.error;
       const errorCode = serverError?.code;

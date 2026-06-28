@@ -1,0 +1,66 @@
+<div class="admin-app">
+  <aside class="admin-sidebar">
+    <nav class="sidebar-nav" aria-label="Admin navigation">
+      <span class="sidebar-nav__label">Order Management</span>
+      <a
+        routerLink="/admin/orders"
+        class="sidebar-link"
+        [class.sidebar-link--active]="ordersLinkActive"
+      >
+        <svg lucidePackage aria-hidden="true" [size]="18"></svg>
+        Orders
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button type="button" class="sidebar-sign-out" (click)="signOut()">
+        <svg lucideLogOut aria-hidden="true" [size]="16"></svg>
+        Sign out
+      </button>
+      <p>Offsite Admin · v1.0</p>
+    </div>
+  </aside>
+
+  <div class="admin-main">
+    <header class="admin-header">
+      <a routerLink="/admin/orders" class="logo-lockup--header" aria-label="Offsite Admin home">
+        <img
+          src="assets/images/abs-logo-dark.png"
+          alt=""
+          class="logo-mark-img"
+          width="40"
+          height="40"
+        />
+        <div class="logo-text">
+          <span class="wordmark">Offsite</span>
+          <span class="slogan">Your café, at home.</span>
+        </div>
+      </a>
+
+      <div class="header-search">
+        <svg lucideSearch class="header-search__icon" aria-hidden="true" [size]="18"></svg>
+        <input
+          type="search"
+          class="header-search__input"
+          placeholder="Search orders, customers, order ID…"
+          aria-label="Search orders"
+          [value]="searchQuery"
+          (input)="onSearchInput($any($event.target).value)"
+        />
+      </div>
+
+      <div class="header-actions">
+        <button type="button" class="btn btn-ghost" aria-label="Notifications">
+          <svg lucideBell aria-hidden="true" [size]="18"></svg>
+        </button>
+        <div class="header-avatar" [attr.aria-label]="'Signed in as ' + avatarInitials">
+          {{ avatarInitials }}
+        </div>
+      </div>
+    </header>
+
+    <main class="admin-content">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>
