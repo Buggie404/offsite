@@ -1,0 +1,90 @@
+<!-- ─────────────────────────────────────────────────────────────
+     components/recipe-section/recipe-section.component.html
+───────────────────────────────────────────────────────────── -->
+
+<section class="brew-section">
+
+  <!-- Background geometric decorations -->
+  <div class="geo geo--circle" aria-hidden="true"></div>
+  <div class="geo geo--square" aria-hidden="true"></div>
+
+  <div class="brew-container">
+
+    <!-- ── HEADING ─────────────────────────────────────────── -->
+    <div class="heading-block">
+      <h2 class="heading-block__title">Brew It Yourself</h2>
+      <hr class="heading-block__divider" />
+    </div>
+
+    <!-- ── LOADING STATE ───────────────────────────────────── -->
+    <div *ngIf="isLoading" class="loading-row">
+      <div class="skeleton-card" *ngFor="let i of [1,2,3]">
+        <div class="skeleton-card__image"></div>
+        <div class="skeleton-card__body">
+          <div class="skeleton-line skeleton-line--short"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line skeleton-line--long"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CARD GRID ────────────────────────────────────────── -->
+    <div *ngIf="!isLoading" class="card-grid">
+
+      <article
+        class="recipe-card"
+        *ngFor="let recipe of recipes; let i = index"
+      >
+        <!-- Image area -->
+        <div class="recipe-card__image-wrapper">
+          <span class="badge" [style.background]="getBadgeColor(recipe)">
+            {{ getBadgeLabel(recipe) }}
+          </span>
+          <div class="recipe-card__image">
+            <img
+              [src]="recipe.heroImage.url"
+              [alt]="recipe.title"
+              loading="lazy"
+              onerror="this.style.display='none'"
+            />
+          </div>
+        </div>
+
+        <!-- Card body -->
+        <div class="recipe-card__body">
+          <h3 class="recipe-card__title">{{ recipe.title }}</h3>
+          <hr class="recipe-card__divider" />
+
+          <!-- Meta: time + difficulty -->
+          <div class="recipe-card__meta">
+            <span class="meta-item">
+              <!-- Clock icon -->
+              <svg class="meta-item__icon" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/>
+                <path d="M7 4V7.5L9.5 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
+              {{ recipe.metadata.prepTime }} Mins
+            </span>
+            <span class="meta-item">
+              <!-- Star icon -->
+              <svg class="meta-item__icon" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M7 1.5l1.5 3 3.3.5-2.4 2.3.6 3.2L7 9l-3 1.5.6-3.2L2.2 5l3.3-.5L7 1.5Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+              </svg>
+              {{ getDifficultyLabel(recipe) }}
+            </span>
+          </div>
+
+          <!-- Description -->
+          <p class="recipe-card__desc">{{ recipe.description }}</p>
+
+          <!-- CTA -->
+          <a [href]="'/recipes/' + recipe.slug" class="recipe-card__cta">
+            <span>View Recipe</span>
+            <span class="recipe-card__cta-arrow" aria-hidden="true">→</span>
+          </a>
+        </div>
+      </article>
+
+    </div><!-- /.card-grid -->
+  </div><!-- /.brew-container -->
+</section>

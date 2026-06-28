@@ -1,0 +1,60 @@
+<section class="collection-section">
+
+  <!-- ── HEADER ── -->
+  <div class="section-header">
+    <div class="eyebrow-row">
+      <div class="eyebrow-divider"></div>
+      <span class="eyebrow-label">Browse by Collection</span>
+    </div>
+    <h2 class="section-heading">Find your ritual</h2>
+  </div>
+
+  <!-- ── COLLECTIONS GRID ── -->
+  <div class="collections-grid">
+
+    <!-- ROW 1: Large cards (Matcha + Coffee) -->
+    <div class="row-large">
+      <div
+        *ngFor="let item of largeCollections"
+        class="card card-large"
+        [class]="'card card-large ' + item.id"
+      >
+        <div class="card-content">
+          <h3 class="card-title">{{ item.name }}</h3>
+          <p class="card-desc">{{ item.description }}</p>
+        </div>
+
+        <div class="card-img">
+          <img [src]="item.image" [alt]="item.imageAlt" />
+        </div>
+
+        <div class="card-footer">
+          <span class="card-count">{{ formatCount(item.productCount, item.productLabel) }}</span>
+          <button class="btn-shop" (click)="onShopNow(item.id)">Shop Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 2: Small cards (Tools + Drinkware + Bundles) -->
+    <div class="row-small">
+      <div
+        *ngFor="let item of smallCollections"
+        class="card card-small"
+        [class]="'card card-small ' + item.id"
+      >
+        <span class="card-title">{{ item.name }}</span>
+
+        <div class="card-img">
+          <img [src]="item.image" [alt]="item.imageAlt" />
+        </div>
+
+        <div class="card-footer">
+          <span class="card-count">{{ formatCount(item.productCount, item.productLabel) }}</span>
+          <button class="link-explore" (click)="onExplore(item.id)">Explore</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</section>

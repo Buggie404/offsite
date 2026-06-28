@@ -1,0 +1,267 @@
+// ============================================================
+// COLLECTION SECTION — Offsite brand tokens
+// ============================================================
+// Màu sẽ được đưa vào styles/variables.scss sau (phase 3),
+// hiện tại khai báo local để component self-contained.
+
+$cream:       #FAF0EB;
+$forest:      #375534;
+$warm-dark:   #1A1A1A;
+$warm-mid:    #544A40;
+$wheat:       #E8D5B0;
+
+// ============================================================
+// SECTION WRAPPER
+// ============================================================
+.collection-section {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 80px 64px;
+  background: $cream;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+// ============================================================
+// HEADER
+// ============================================================
+.section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 14.81px;
+}
+
+.eyebrow-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.eyebrow-divider {
+  width: 32px;
+  height: 1px;
+  background: $warm-mid;
+  flex-shrink: 0;
+}
+
+.eyebrow-label {
+  font-family: 'DM Mono', monospace;
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 15px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: $warm-mid;
+}
+
+.section-heading {
+  font-family: 'Russo One', sans-serif;
+  font-weight: 400;
+  font-size: 48px;
+  line-height: 58px;
+  color: $forest;
+}
+
+// ============================================================
+// GRID LAYOUT
+// ============================================================
+.collections-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.row-large {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.row-small {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 24px;
+  padding-top: 24px;
+}
+
+// ============================================================
+// BASE CARD
+// ============================================================
+.card {
+  position: relative;
+  overflow: hidden;
+  border: 2px solid $wheat;
+  background: transparent;
+}
+
+// ============================================================
+// LARGE CARDS
+// ============================================================
+.card-large {
+  height: 602px;
+
+  .card-content {
+    position: absolute;
+    left: 33px;
+    right: 33px;
+    top: 14.61px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .card-title {
+    font-family: 'Russo One', sans-serif;
+    font-weight: 400;
+    font-size: 48px;
+    line-height: 58px;
+    padding-top: 5px;
+    color: $forest;
+  }
+
+  .card-desc {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    font-size: 16px;
+    line-height: 26px;
+    color: $warm-dark;
+    max-width: 384px;
+    margin-top: 0;
+  }
+
+  .card-img {
+    position: absolute;
+    left: 50%;
+    top: 140px;
+    width: 680px;
+    height: 460px;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    img {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+  }
+
+  .card-footer {
+    position: absolute;
+    left: 33px;
+    right: 33px;
+    bottom: 32px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+}
+
+// ============================================================
+// SMALL CARDS
+// ============================================================
+.card-small {
+  height: 400px;
+
+  .card-title {
+    position: absolute;
+    left: 25px;
+    top: 24px;
+    font-family: 'Russo One', sans-serif;
+    font-weight: 400;
+    font-size: 24px;
+    line-height: 32px;
+    color: $forest;
+  }
+
+  .card-img {
+    position: absolute;
+    left: 50%;
+    top: 80px;
+    width: 360px;
+    height: 280px;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    img {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+  }
+
+  .card-footer {
+    position: absolute;
+    left: 25px;
+    right: 25.33px;
+    bottom: 24px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+// ============================================================
+// SHARED FOOTER ELEMENTS
+// ============================================================
+.card-count {
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.7px;
+  color: $warm-dark;
+}
+
+.btn-shop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 32px;
+  height: 44px;
+  background: $forest;
+  border-radius: 999px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: $cream;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: darken($forest, 5%);
+  }
+}
+
+.link-explore {
+  font-family: 'DM Mono', monospace;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  color: $forest;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+
+  &:hover {
+    opacity: 0.75;
+  }
+}
