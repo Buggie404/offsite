@@ -1,28 +1,75 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { getCollections } = require('../config/db');
+const ACCESS_SECRET   = process.env.JWT_SECRET         || 'access_secret_dev';
+const REFRESH_SECRET  = process.env.JWT_REFRESH_SECRET  || 'refresh_secret_dev';
+const { ObjectId } = require('mongodb');
+
+// Chuẩn hóa
+function normalizeIdentity(value, isEmail = false) {
+  if (!value) return null;
+  let v = String(value).trim();
+  if (!isEmail) v = v.replace(/\s+/g, '');
+  return v;
+}
+
+function findUser(userCollection, email, phone) {
+  const query = {
+    $or: [
+      email ? { email } : null,
+      phone ? { phone } : null
+    ].filter(Boolean)
+  };
+  return userCollection.findOne(query);
+}
+
+function generateOTP() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 // Đăng ký tài khoản mới (Register)
 async function register(req, res) {
   try {
-    const { email, password, name, profile_name } = req.body;
+    const { email, phone, password, name, profile_name } = req.body;
     const displayName = profile_name || name;
-    
-    // Validation cơ bản
-    if (!email || !password || !displayName) {
-      return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin: email, password, profile_name.' });
+   
+    // phải có password + displayName + ít nhất email OR phone
+    if (!password || !displayName || (!email && !phone)) {
+      return res.status(400).json({
+        error: 'Phải có password + tên + email hoặc số điện thoại'
+      });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Mật khẩu phải chứa ít nhất 8 ký tự.' });
+    // Password
+    if (!password || password.length < 8 || password.length > 15) {
+      return res.status(400).json({
+        error: 'Mật khẩu phải từ 8 đến 15 kí tự'
+      });
+    }
+
+    if (/\s/.test(password)) {
+      return res.status(400).json({
+        error: 'Mật khẩu không được chứa khoảng trắng'
+      });
     }
 
     const { userCollection } = await getCollections();
-    
-    // Kiểm tra trùng email
-    const existing = await userCollection.findOne({ email });
+   
+    // Kiểm tra trùng email và phone
+    let existing = null;
+
+    if (email) {
+      existing = await userCollection.findOne({ email: email.trim().toLowerCase() });
+    }
+
+    if (!existing && phone) {
+      existing = await userCollection.findOne({ phone: phone.trim() });
+    }
+
     if (existing) {
-      return res.status(409).json({ error: 'Email đã tồn tại trong hệ thống.' });
+      return res.status(409).json({
+        error: 'Email hoặc số điện thoại đã tồn tại'
+      });
     }
 
     // Sinh user_id tuần tự kiểu USRXXXXX
@@ -64,10 +111,9 @@ async function register(req, res) {
     const result = await userCollection.insertOne(newUser);
 
     // Ký JWT Token (Payload: user_id tương ứng với _id trong DB để đồng bộ với middleware cũ)
-    const secret = process.env.JWT_SECRET || 'fallback-secret-key';
     const token = jwt.sign(
       { user_id: result.insertedId, email, role: newUser.role },
-      secret,
+      ACCESS_SECRET,
       { expiresIn: '8h' }
     );
 
@@ -92,6 +138,7 @@ async function login(req, res) {
   try {
     const { email, password } = req.body;
 
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Vui lòng cung cấp email và password.', code: 'MISSING_FIELDS' });
     }
@@ -104,15 +151,14 @@ async function login(req, res) {
     }
 
     const { userCollection } = await getCollections();
-    
+   
     // Tìm user bằng email hoặc phone (sau khi đã chuẩn hoá)
     const user = await userCollection.findOne({
       $or: [
         { email: identifier },
         { phone: identifier }
       ]
-    });
-    
+    });   
     if (!user) {
       return res.status(404).json({ error: 'Tài khoản không tồn tại trong hệ thống.', code: 'ACCOUNT_NOT_FOUND' });
     }
@@ -133,11 +179,10 @@ async function login(req, res) {
       return res.status(401).json({ error: 'Mật khẩu không chính xác.', code: 'INCORRECT_PASSWORD' });
     }
 
-    // Ký JWT Token
-    const secret = process.env.JWT_SECRET || 'fallback-secret-key';
+    // Ký JWT Token    
     const token = jwt.sign(
       { user_id: user._id, email: user.email || '', role: user.role },
-      secret,
+      ACCESS_SECRET,
       { expiresIn: '8h' }
     );
 
@@ -189,10 +234,9 @@ async function adminLogin(req, res) {
       return res.status(401).json({ error: 'Mật khẩu không chính xác.', code: 'INCORRECT_PASSWORD' });
     }
 
-    const secret = process.env.JWT_SECRET || 'fallback-secret-key';
     const token = jwt.sign(
       { user_id: user._id, email: user.email || '', role: user.role },
-      secret,
+      ACCESS_SECRET,
       { expiresIn: '8h' }
     );
 
@@ -219,7 +263,27 @@ async function logout(req, res) {
 
 // Refresh Token placeholder
 async function refreshToken(req, res) {
-  res.json({ message: 'Tính năng Refresh Token đang phát triển.' });
+  try {
+    const { refreshToken: token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Thiếu refreshToken.' });
+
+    let payload;
+    try { payload = jwt.verify(token, REFRESH_SECRET); }
+    catch { return res.status(401).json({ error: 'refreshToken không hợp lệ hoặc hết hạn.' }); }
+
+    const { userCollection } = await getCollections();
+    const user = await userCollection.findOne({ _id: new ObjectId(payload.sub) });
+    if (!user) return res.status(404).json({ error: 'Tài khoản không tồn tại.' });
+
+    const accessToken = jwt.sign(
+      { user_id: user._id, email: user.email || '', role: user.role },
+      ACCESS_SECRET,
+      { expiresIn: '8h' }
+    );
+    res.json({ accessToken });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 }
 
 // Lấy thông tin trang cá nhân (Get Profile)
@@ -234,8 +298,6 @@ async function getProfile(req, res) {
     if (!user) {
       return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
     }
-    user.addresses = user.addresses || [];
-    user.payment_methods = user.payment_methods || [];
     res.json({ user });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -313,8 +375,8 @@ async function changePassword(req, res) {
       return res.status(400).json({ error: 'Vui lòng cung cấp mật khẩu cũ và mật khẩu mới.' });
     }
 
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'Mật khẩu mới phải có ít nhất 8 ký tự.' });
+    if (newPassword.length < 8 || newPassword.length > 15 || /\s/.test(newPassword)) {
+      return res.status(400).json({ error: 'Mật khẩu phải từ 8 đến 15 kí tự.' });
     }
 
     const { userCollection } = await getCollections();
@@ -331,8 +393,7 @@ async function changePassword(req, res) {
         return res.status(401).json({ error: 'Mật khẩu cũ không chính xác.' });
       }
     } else {
-      return res.status(400).json({ error: 'Tài khoản này đăng nhập qua MXH và chưa tạo mật khẩu.' });
-    }
+      return res.status(400).json({ error: 'Tài khoản này đăng nhập qua MXH và chưa tạo mật khẩu.' });  }
 
     const saltRounds = 10;
     const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
@@ -343,6 +404,101 @@ async function changePassword(req, res) {
     );
 
     res.json({ message: 'Đổi mật khẩu thành công.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Forgot + Refresh
+async function forgotPassword(req, res) {
+  try {
+    let { identifier } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ error: 'Vui lòng nhập email hoặc số điện thoại.' });
+    }
+
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier.trim());
+    identifier = normalizeIdentity(identifier, isEmail);
+
+
+    const { userCollection, otpCollection } = await getCollections();
+    const user = await findUser(userCollection, identifier, identifier);
+
+
+    // Luôn trả 200 để không lộ user có tồn tại hay không
+    if (!user) {
+      return res.json({ message: 'Nếu tài khoản tồn tại, bạn sẽ nhận được mã OTP.' });
+    }
+
+    // Xoá OTP cũ nếu có
+    await otpCollection.deleteMany({ user_id: user._id });
+
+    const otp = generateOTP();
+    await otpCollection.insertOne({
+      user_id  : user._id,
+      otp,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 phút
+      createdAt: new Date()
+    });
+
+    // MOCK: log ra console thay vì gửi thật
+    console.log(`\n[MOCK OTP] ${identifier} → ${otp}\n`);
+
+
+    res.json({
+      message : 'Mã OTP đã được gửi.',
+      __mock  : process.env.NODE_ENV !== 'production' ? otp : undefined
+    });
+
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function resetPassword(req, res) {
+  try {
+    let { identifier, otp, newPassword } = req.body;
+    if (!identifier || !otp || !newPassword) {
+      return res.status(400).json({ error: 'Thiếu identifier, otp hoặc newPassword.' });
+    }
+
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier.trim());
+    identifier = normalizeIdentity(identifier, isEmail);
+
+
+    if (newPassword.length < 8 || newPassword.length > 15 || /\s/.test(newPassword)) {
+      return res.status(400).json({ error: 'Mật khẩu từ 8 đến 15 kí tự, không chứa khoảng trắng.' });
+    }
+
+    const { userCollection, otpCollection } = await getCollections();
+    const user = await findUser(userCollection, identifier, identifier);
+    if (!user) return res.status(404).json({ error: 'Tài khoản không tồn tại.' });
+
+    const otpRecord = await otpCollection.findOne({ user_id: user._id });
+    if (!otpRecord) {
+      return res.status(400).json({ error: 'Không tìm thấy yêu cầu đặt lại mật khẩu.' });    }
+
+
+    if (new Date() > new Date(otpRecord.expiresAt)) {
+      await otpCollection.deleteOne({ _id: otpRecord._id });
+      return res.status(400).json({ error: 'Mã OTP đã hết hạn.' });
+    }
+
+    if (otpRecord.otp !== String(otp).trim()) {
+      return res.status(400).json({ error: 'Mã OTP không chính xác.' });
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, 10);
+    await userCollection.updateOne(
+      { _id: user._id },
+      { $set: { password_hash, updatedAt: new Date() } }
+    );
+    await otpCollection.deleteOne({ _id: otpRecord._id });
+
+
+    res.json({ message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.' });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -556,6 +712,8 @@ module.exports = {
   getProfile,
   updateProfile,
   changePassword,
+  forgotPassword,  
+  resetPassword,
   addAddress,
   updateAddress,
   deleteAddress,
