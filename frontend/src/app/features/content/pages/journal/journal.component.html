@@ -1,0 +1,187 @@
+<div class="journal-page-wrapper">
+  <!-- Journal Hero Header Banner -->
+  <section class="journal-hero">
+    <!-- Geometric decorative shapes matching the mockup background -->
+    <div class="shape shape-circle-1"></div>
+    <div class="shape shape-circle-2"></div>
+    <div class="shape shape-diamond-left"></div>
+    <div class="shape shape-diamond-right-1"></div>
+    <div class="shape shape-diamond-right-2"></div>
+
+    <div class="hero-content">
+      <h1 class="hero-title">JOURNAL</h1>
+      <p class="hero-subtitle">
+        Stories, brewing guides, and musings from the world of artisanal coffee and mindful living.
+      </p>
+    </div>
+  </section>
+
+  <!-- Controls: Filters, Search, Sort -->
+  <section class="controls-section">
+    <div class="controls-container">
+      <!-- Category Tabs and Active Tag Indicator -->
+      <div class="category-tabs-wrapper">
+        <div class="category-tabs">
+          <button
+            *ngFor="let cat of categories"
+            class="category-btn"
+            [class.active]="selectedCategory === cat"
+            (click)="selectCategory(cat)">
+            {{ cat }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Search & Sort Box -->
+      <div class="search-sort-group">
+        <!-- Search bar -->
+        <div class="search-box-wrapper">
+          <svg lucideSearch [size]="18" class="search-icon"></svg>
+          <input
+            type="text"
+            class="search-input"
+            placeholder="Search blogs..."
+            [value]="searchQuery"
+            (input)="onSearchInput($event)" />
+          <button
+            *ngIf="searchQuery"
+            class="search-clear-btn"
+            (click)="clearSearch()"
+            aria-label="Clear search">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" class="search-clear-icon">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Sort dropdown -->
+        <div class="sort-dropdown-wrapper">
+          <button class="sort-dropdown-btn" (click)="toggleSortDropdown()">
+            <span>SORT: {{ getSortLabel() }}</span>
+            <svg lucideChevronDown [size]="16" class="chevron-icon" [class.open]="isSortDropdownOpen"></svg>
+          </button>
+
+          <div class="sort-menu" *ngIf="isSortDropdownOpen">
+            <button class="sort-item" (click)="selectSort('NEWEST')">NEWEST</button>
+            <button class="sort-item" (click)="selectSort('OLDEST')">OLDEST</button>
+            <button class="sort-item" (click)="selectSort('SHORTEST_READ')">SHORTEST READ</button>
+            <button class="sort-item" (click)="selectSort('LONGEST_READ')">LONGEST READ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content: Articles -->
+  <main class="articles-container">
+    <!-- Real Content -->
+    <ng-container>
+      <!-- Featured Article (spans full width, 2 columns) -->
+      <section class="featured-section" *ngIf="featuredArticle as featured">
+        <div class="featured-card" (click)="navigateToArticle(featured)">
+          <!-- Featured Image -->
+          <div class="featured-img-wrapper">
+            <img [src]="featured.image" [alt]="featured.title" class="featured-img" (error)="onImgError($event)" />
+          </div>
+
+          <!-- Featured Content -->
+          <div class="featured-info">
+            <!-- Top row category & read time & bookmark -->
+            <div class="featured-header">
+              <div class="badge-group">
+                <span class="category-badge" [ngClass]="featured.category.toLowerCase().replace(' ', '-')">{{ featured.category }}</span>
+                <span class="read-time">{{ featured.readTime }}</span>
+              </div>
+              <button
+                class="bookmark-btn"
+                [class.bookmarked]="featured.bookmarked"
+                (click)="toggleBookmark(featured, $event)"
+                aria-label="Bookmark article">
+                <svg lucideBookmark [size]="18" [class.filled]="featured.bookmarked"></svg>
+              </button>
+            </div>
+
+            <h2 class="featured-title">{{ featured.title }}</h2>
+            <p class="featured-desc">{{ featured.description }}</p>
+
+            <!-- Footer author info & read button -->
+            <div class="featured-footer">
+              <div class="author-info" *ngIf="featured.authorName">
+                <div class="author-img-wrapper">
+                  <img [src]="featured.authorImage" alt="Author avatar" class="author-img" [class.logo-avatar]="featured.authorImage?.includes('logo-mark')" (error)="onImgError($event)" />
+                </div>
+                <div class="author-meta">
+                  <span class="author-name">{{ featured.authorName }}</span>
+                  <span class="publish-date">{{ featured.date }}</span>
+                </div>
+              </div>
+              <a [routerLink]="['/journal', featured.slug || featured.id]" class="read-article-btn">
+                READ ARTICLE
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Articles Grid (3 columns) -->
+      <section class="grid-section" *ngIf="gridArticles.length > 0">
+        <div class="articles-grid">
+          <article class="article-card" *ngFor="let article of gridArticles" (click)="navigateToArticle(article)">
+            <!-- Card Image & Badges -->
+            <div class="card-img-wrapper">
+              <img [src]="article.image" [alt]="article.title" class="card-img" (error)="onImgError($event)" />
+              <span class="card-category-badge" [ngClass]="article.category.toLowerCase().replace(' ', '-')">{{ article.category }}</span>
+              <button
+                class="card-bookmark-btn"
+                [class.bookmarked]="article.bookmarked"
+                (click)="toggleBookmark(article, $event)"
+                aria-label="Bookmark article">
+                <svg lucideBookmark [size]="16" [class.filled]="article.bookmarked"></svg>
+              </button>
+            </div>
+
+            <!-- Card Content -->
+            <div class="card-content">
+              <h3 class="card-title">{{ article.title }}</h3>
+              <p class="card-desc">{{ article.description }}</p>
+
+              <div class="card-footer">
+                <span class="card-meta">{{ article.formattedMeta }}</span>
+                <span class="arrow-icon">
+                  <svg lucideArrowRight [size]="18"></svg>
+                </span>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <!-- Load More Button -->
+        <div class="load-more-container" *ngIf="hasMore">
+          <button class="load-more-btn" (click)="loadMore()">LOAD MORE POSTS</button>
+        </div>
+      </section>
+
+      <!-- Empty State (only show when searching/filtering with no results) -->
+      <div class="empty-state" *ngIf="showEmptyState">
+        <div class="empty-state-icon">
+          <svg lucideSearch [size]="48"></svg>
+        </div>
+        <h3 class="empty-state-title">No results found</h3>
+        <p class="empty-state-message">
+          We couldn't find any articles matching your search.
+        </p>
+        <button class="empty-state-btn" (click)="clearSearch()">
+          Clear search
+        </button>
+      </div>
+    </ng-container>
+  </main>
+  <button
+    *ngIf="showBackToTop"
+    class="back-to-top-btn"
+    (click)="scrollToTop()"
+    aria-label="Back to top">
+    <svg lucideArrowUp [size]="20"></svg>
+  </button>
+</div>

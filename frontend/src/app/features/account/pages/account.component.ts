@@ -2,7 +2,7 @@ import { Component, OnInit, inject, PLATFORM_ID, signal } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth.service';
 import {
   LucideUser,
@@ -23,6 +23,7 @@ import {
   imports: [
     CommonModule,
     ReactiveFormsModule,
+    RouterLink,
     LucideUser,
     LucideShoppingBag,
     LucideHeart,
@@ -71,6 +72,7 @@ export class AccountComponent implements OnInit {
   private initForms(): void {
     this.profileForm = this.fb.group({
       profile_name: ['', [Validators.required, Validators.minLength(2)]],
+      community_name: [''],
       email: ['', [Validators.required, Validators.email]],
       phone: ['', [Validators.pattern(/^[0-9]{10,11}$/)]]
     });
@@ -100,6 +102,7 @@ export class AccountComponent implements OnInit {
           
           this.profileForm.patchValue({
             profile_name: response.user.profile_name || '',
+            community_name: response.user.community_name || '',
             email: response.user.email || '',
             phone: response.user.phone || ''
           });
@@ -150,6 +153,7 @@ export class AccountComponent implements OnInit {
     if (this.user()) {
       this.profileForm.patchValue({
         profile_name: this.user().profile_name || '',
+        community_name: this.user().community_name || '',
         email: this.user().email || '',
         phone: this.user().phone || ''
       });

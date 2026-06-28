@@ -42,5 +42,17 @@ export const routes: Routes = [
   {
     path: 'policies',
     loadComponent: () => import('./features/content/pages/policy/policy.component').then(m => m.PolicyComponent)
+  },
+  {
+    path: 'journal',
+    loadComponent: () => import('./features/content/pages/journal/journal.component').then(m => m.JournalComponent),
+    resolve: {
+      // Preload data on route activation (client-side only)
+    }
+  },
+  {
+    path: 'journal/:slug',
+    loadComponent: () => import('./features/content/pages/blog-detail/blog-detail.component').then(m => m.BlogDetailComponent)
   }
 ];
+

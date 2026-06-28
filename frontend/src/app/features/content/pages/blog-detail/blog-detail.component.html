@@ -1,0 +1,218 @@
+<div class="blog-detail-wrapper">
+  <!-- Loading State -->
+  <div class="loading-container" *ngIf="isLoading">
+    <div class="skeleton-hero"></div>
+    <div class="skeleton-content">
+      <div class="skeleton-title"></div>
+      <div class="skeleton-meta"></div>
+      <div class="skeleton-body">
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line short"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line medium"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error State -->
+  <div class="error-container" *ngIf="!isLoading && errorMessage">
+    <div class="error-icon">
+      <svg lucideAlertCircle [size]="48"></svg>
+    </div>
+    <h3 class="error-title">Unable to load article</h3>
+    <p class="error-message">{{ errorMessage }}</p>
+    <button class="error-btn" (click)="goBack()">
+      <svg lucideArrowLeft [size]="16"></svg>
+      Go Back
+    </button>
+  </div>
+
+  <!-- Article Content -->
+  <article class="article-content" *ngIf="!isLoading && !errorMessage && article">
+    <!-- Back Navigation -->
+    <div class="back-nav">
+      <div class="back-nav-container">
+        <button class="back-btn" (click)="goBack()">
+          <svg lucideArrowLeft [size]="18"></svg>
+          Back to Journal
+        </button>
+      </div>
+    </div>
+
+    <!-- Article Header Info -->
+    <div class="article-header">
+      <div class="article-header-container">
+        <!-- Category & Meta Badges -->
+        <div class="article-badges">
+          <span class="category-badge" [ngClass]="getCategoryClass(article.category)">
+            {{ article.category }}
+          </span>
+          <span class="meta-badge">
+            <svg lucideClock [size]="14"></svg>
+            {{ article.readTime }}
+          </span>
+        </div>
+
+        <!-- Title -->
+        <h1 class="article-title">{{ article.title }}</h1>
+
+        <!-- Author & Date -->
+        <div class="article-meta">
+          <div class="author-info">
+            <div class="author-avatar-wrapper">
+              <img [src]="article.authorImage" alt="Author" class="author-avatar" 
+                   [class.logo-avatar]="article.authorImage?.includes('logo-mark')" 
+                   (error)="onImgError($event)" />
+            </div>
+            <div class="author-details">
+              <span class="author-name">{{ article.authorName }}</span>
+              <span class="publish-date">
+                <svg lucideCalendar [size]="12"></svg>
+                {{ article.date }}
+              </span>
+            </div>
+          </div>
+
+          <button class="bookmark-btn" [class.active]="isBookmarked" (click)="toggleBookmark()">
+            <svg lucideBookmark [size]="18" [class.filled]="isBookmarked"></svg>
+            {{ isBookmarked ? 'Saved' : 'Save' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero Section -->
+    <header class="article-hero">
+      <div class="hero-image-wrapper">
+        <img [src]="article.image" [alt]="article.title" class="hero-image" (error)="onImgError($event)" />
+      </div>
+    </header>
+
+    <!-- Article Body -->
+    <div class="article-body">
+      <div class="article-body-container">
+        <!-- Excerpt / Lead -->
+        <p class="article-excerpt" *ngIf="article.description">{{ article.description }}</p>
+
+        <!-- Dynamic Content Blocks -->
+        <div class="article-content-blocks" *ngIf="article.content && article.content.length > 0">
+          <ng-container *ngFor="let block of article.content; let idx = index">
+            <!-- Paragraph -->
+            <p *ngIf="block.type === 'paragraph'" class="article-paragraph">
+              {{ block.text }}
+            </p>
+
+            <!-- Headings -->
+            <h2 *ngIf="block.type === 'heading' && block.level === 2" class="article-heading-h2">
+              {{ block.text }}
+            </h2>
+            <h3 *ngIf="block.type === 'heading' && block.level === 3" class="article-heading-h3">
+              {{ block.text }}
+            </h3>
+            <h4 *ngIf="block.type === 'heading' && block.level === 4" class="article-heading-h4">
+              {{ block.text }}
+            </h4>
+          </ng-container>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Tags & Share Row Section -->
+    <div class="tags-share-section" *ngIf="article.tags && article.tags.length > 0">
+      <div class="tags-share-container">
+        <!-- Tags on left -->
+        <div class="article-tags-left">
+          <span class="tag-badge" *ngFor="let tag of article.tags"
+                [ngClass]="article.category.toLowerCase().replace(' ', '-')"
+                [class.primary-tag]="tag === primaryTag">#{{ tag | uppercase }}</span>
+        </div>
+
+        <!-- Share on right -->
+        <div class="share-group-right">
+          <span class="share-label">SHARE</span>
+          <div class="share-buttons">
+            <button class="share-btn" title="Share on Facebook">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+              </svg>
+            </button>
+            <button class="share-btn" title="Share on Twitter">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/>
+              </svg>
+            </button>
+            <button class="share-btn" title="Copy link">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path fill="currentColor" d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- More Stories Section -->
+  <section class="more-stories-section" *ngIf="!isLoading && relatedArticles.length > 0">
+    <div class="more-stories-container">
+      <div class="section-header">
+        <h2 class="section-title">MORE STORIES FROM THE JOURNAL</h2>
+        <a [routerLink]="['/journal']" [queryParams]="{ category: article?.category }" class="view-all-link">
+          <span>VIEW ALL</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </a>
+      </div>
+
+      <div class="related-articles-grid">
+        <article class="related-card article-card" *ngFor="let related of relatedArticles" (click)="navigateToArticle(related.slug)">
+          <div class="card-img-wrapper">
+            <img [src]="related.image" [alt]="related.title" class="card-img" (error)="onImgError($event)" />
+            <span class="card-category-badge" [ngClass]="getCategoryClass(related.category)">
+              {{ related.category }}
+            </span>
+            <button
+              class="card-bookmark-btn"
+              [class.bookmarked]="related.bookmarked"
+              (click)="toggleRelatedBookmark(related, $event)"
+              aria-label="Bookmark article">
+              <svg lucideBookmark [size]="16" [class.filled]="related.bookmarked"></svg>
+            </button>
+          </div>
+          <div class="card-content">
+            <h3 class="card-title">{{ related.title }}</h3>
+            <p class="card-desc">{{ related.description }}</p>
+            <div class="card-footer">
+              <span class="card-meta">{{ related.formattedMeta }}</span>
+              <span class="arrow-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+              </span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Back to Journal CTA -->
+  <section class="back-cta-section">
+    <div class="back-cta-container">
+      <a routerLink="/journal" class="back-cta-btn">
+        <svg lucideArrowLeft [size]="18"></svg>
+        BACK TO JOURNAL
+      </a>
+    </div>
+  </section>
+
+  <!-- Back to Top Button -->
+  <button *ngIf="showBackToTop" class="back-to-top-btn" (click)="scrollToTop()" aria-label="Back to top">
+    <svg lucideArrowLeft [size]="20" style="transform: rotate(90deg);"></svg>
+  </button>
+</div>

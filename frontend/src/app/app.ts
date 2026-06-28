@@ -5,10 +5,11 @@ import { filter, map, startWith } from 'rxjs';
 import { NavbarComponent } from './shared/components/navbar/navbar.component';
 import { FooterComponent } from './shared/components/footer/footer.component';
 import { AuthModalComponent } from './shared/components/auth-modal/auth-modal.component';
+import { AuthPromptModalComponent } from './shared/components/auth-prompt-modal/auth-prompt-modal.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, NavbarComponent, FooterComponent, AuthModalComponent],
+  imports: [RouterOutlet, NavbarComponent, FooterComponent, AuthModalComponent, AuthPromptModalComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })

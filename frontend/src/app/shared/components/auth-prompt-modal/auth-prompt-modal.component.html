@@ -1,0 +1,28 @@
+<!-- Auth Prompt Modal -->
+<div class="auth-modal-overlay" [class.open]="checkOpen()" (click)="closeModal()"></div>
+<div class="auth-modal-wrapper" [class.open]="checkOpen()">
+  <div class="auth-modal-card">
+    <div class="auth-modal-header">
+      <img src="assets/images/logo-full-dark.svg" alt="Offsite" class="auth-header-logo" />
+      <button class="auth-close-btn" (click)="closeModal()" aria-label="Close modal">
+        <svg lucideX [size]="22" color="#fff"></svg>
+      </button>
+    </div>
+
+    <div class="auth-modal-body">
+      <h2 class="auth-title">UNLOCK FULL EXPERIENCE</h2>
+      <p class="auth-subtitle">
+        JOIN OUR COMMUNITY TO CURATE YOUR PERSONAL COLLECTION OF ARTISANAL RITUALS AND RECIPES.
+      </p>
+
+      <div class="auth-actions">
+        <button class="auth-login-btn" (click)="openLoginModal()">
+          LOG IN
+        </button>
+        <button class="auth-later-btn" (click)="closeModal()">
+          LATER
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

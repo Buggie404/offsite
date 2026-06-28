@@ -31,4 +31,11 @@ const blogSchema = new mongoose.Schema({
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
 
+blogSchema.index({ category: 1, published_at: -1 });
+blogSchema.index({ tags: 1, published_at: -1 });
+blogSchema.index({ published_at: -1 });
+blogSchema.index({ slug: 1 }, { unique: true });
+blogSchema.index({ title: 'text', excerpt: 'text', tags: 'text' });
+
 module.exports = mongoose.model('Blog', blogSchema);
+

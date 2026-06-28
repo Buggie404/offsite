@@ -23,4 +23,27 @@ export class ContentService {
   getRecipe(slugOrId: string): Observable<Recipe> {
     return this.http.get<Recipe>(`${this.apiUrl}/${slugOrId}`);
   }
+
+  /**
+   * Fetch all blogs from the database.
+   * Returns paginated response with { data, pagination }
+   */
+  getBlogs(filters?: { 
+    category?: string; 
+    search?: string; 
+    sort?: string; 
+    tag?: string;
+    page?: number;
+    limit?: number;
+  }): Observable<{ data: any[]; pagination: any }> {
+    return this.http.get<{ data: any[]; pagination: any }>('/api/blogs', { params: filters });
+  }
+
+  /**
+   * Fetch a single blog by its slug
+   */
+  getBlogBySlug(slug: string): Observable<any> {
+    return this.http.get<any>(`/api/blogs/${slug}`);
+  }
+
 }

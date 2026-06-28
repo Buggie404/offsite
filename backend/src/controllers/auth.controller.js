@@ -324,7 +324,7 @@ async function getProfile(req, res) {
 async function updateProfile(req, res) {
   try {
     const { ObjectId } = require('mongodb');
-    const { profile_name, email, phone } = req.body;
+    const { profile_name, email, phone, community_name } = req.body;
 
     if (!profile_name) {
       return res.status(400).json({ error: 'Họ và tên không được để trống.' });
@@ -355,12 +355,24 @@ async function updateProfile(req, res) {
       }
     }
 
+    // Kiểm tra trùng community_name
+    if (community_name) {
+      const communityUser = await userCollection.findOne({
+        community_name: community_name.trim(),
+        _id: { $ne: userId }
+      });
+      if (communityUser) {
+        return res.status(409).json({ error: 'Tên cộng đồng đã được sử dụng bởi tài khoản khác.' });
+      }
+    }
+
     const updateFields = {
       profile_name: profile_name.trim(),
       updatedAt: new Date()
     };
     if (email) updateFields.email = email.trim();
     if (phone) updateFields.phone = phone.trim();
+    if (community_name !== undefined) updateFields.community_name = community_name ? community_name.trim() : null;
 
     await userCollection.updateOne(
       { _id: userId },
