@@ -1,0 +1,198 @@
+<div class="policy-container">
+  <div class="policy-layout">
+    <!-- Left Sidebar: Sticky Policy Directory -->
+    <aside class="policy-sidebar">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">POLICY DIRECTORY</h2>
+        <p class="sidebar-subtitle">Legal & Operations</p>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button
+          *ngFor="let sec of sections"
+          class="nav-item"
+          [class.active]="activeSection === sec.id"
+          (click)="scrollToSection(sec.id)"
+        >
+          <span class="nav-icon-wrapper">
+            <svg *ngIf="sec.icon === 'package'" lucidePackage [size]="18" class="nav-icon"></svg>
+            <svg *ngIf="sec.icon === 'refresh'" lucideRefreshCw [size]="18" class="nav-icon"></svg>
+            <svg *ngIf="sec.icon === 'lock'" lucideLock [size]="18" class="nav-icon"></svg>
+            <svg *ngIf="sec.icon === 'heart'" lucideHeart [size]="18" class="nav-icon"></svg>
+          </span>
+          <span class="nav-label">{{ sec.label }}</span>
+        </button>
+      </nav>
+    </aside>
+
+    <!-- Right Content Panel -->
+    <main class="policy-content-panel">
+      <h1 class="main-title">POLICIES</h1>
+
+      <!-- 1. Shipping Policy -->
+      <section id="shipping" class="policy-section" [class.highlighted]="activeSection === 'shipping'">
+        <h2 class="section-title">
+          <svg lucidePackage [size]="24" class="section-title-icon"></svg>
+          1. Shipping Policy
+        </h2>
+        
+        <div class="policy-subsection">
+          <h3 class="subsection-title">Standard Shipping Times</h3>
+          <p class="subsection-text">
+            We process all orders within 1-2 business days. Standard shipping within the continental US typically takes 3-5 business days. You will receive a tracking number via email once your order has dispatched.
+          </p>
+        </div>
+
+        <div class="policy-subsection">
+          <h3 class="subsection-title">Shipping Rates</h3>
+          <p class="subsection-text">
+            We offer free standard shipping on all orders over $150. For orders under $150, a flat rate of $9.95 applies for standard shipping. Expedited options are available at checkout.
+          </p>
+        </div>
+
+        <div class="policy-subsection">
+          <h3 class="subsection-title">International Shipping</h3>
+          <p class="subsection-text">
+            We currently ship to select international destinations. International shipping rates are calculated at checkout based on weight and destination. Please note that customs duties and taxes are the responsibility of the recipient.
+          </p>
+        </div>
+      </section>
+
+      <hr class="policy-divider">
+
+      <!-- 2. Returns & Exchanges -->
+      <section id="returns" class="policy-section" [class.highlighted]="activeSection === 'returns'">
+        <h2 class="section-title">
+          <svg lucideRefreshCw [size]="24" class="section-title-icon"></svg>
+          2. Returns & Exchanges
+        </h2>
+        
+        <div class="policy-subsection">
+          <h3 class="subsection-title">30-Day Return Window</h3>
+          <p class="subsection-text">
+            If you are not completely satisfied with your purchase, you may return it within 30 days of the delivery date for a full refund or exchange. Items must be initiated for return within this timeframe.
+          </p>
+        </div>
+
+        <div class="policy-subsection">
+          <h3 class="subsection-title">Condition of Items</h3>
+          <p class="subsection-text">
+            To be eligible for a return, items must be in their original, unworn, and unwashed condition, with all tags attached. We reserve the right to refuse returns that do not meet these criteria.
+          </p>
+        </div>
+
+        <div class="policy-subsection">
+          <h3 class="subsection-title">Return Process</h3>
+          <p class="subsection-text">
+            Visit our returns portal to generate a pre-paid return label. A $5 restocking fee will be deducted from your refund for return shipping. Exchanges are always free.
+          </p>
+        </div>
+      </section>
+
+      <hr class="policy-divider">
+
+      <!-- 3. Privacy Policy -->
+      <section id="privacy" class="policy-section" [class.highlighted]="activeSection === 'privacy'">
+        <h2 class="section-title">
+          <svg lucideLock [size]="24" class="section-title-icon"></svg>
+          3. Privacy Policy
+        </h2>
+        
+        <div class="policy-subsection">
+          <h3 class="subsection-title">Data Collection</h3>
+          <p class="subsection-text">
+            We collect information you provide directly to us, such as when you create an account, place an order, or contact customer support. This may include your name, email, shipping address, and payment details.
+          </p>
+        </div>
+
+        <div class="policy-subsection">
+          <h3 class="subsection-title">Usage of Information</h3>
+          <p class="subsection-text">
+            We use the information we collect to process your transactions, communicate with you about your order, improve our services, and send promotional communications if you have opted in.
+          </p>
+        </div>
+
+        <div class="policy-subsection">
+          <h3 class="subsection-title">Data Protection</h3>
+          <p class="subsection-text">
+            We implement appropriate technical and organizational security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.
+          </p>
+        </div>
+      </section>
+
+      <hr class="policy-divider">
+
+      <!-- 4. Terms of Service -->
+      <section id="terms" class="policy-section" [class.highlighted]="activeSection === 'terms'">
+        <h2 class="section-title">
+          <svg lucideHeart [size]="24" class="section-title-icon"></svg>
+          4. Terms of Service
+        </h2>
+        
+        <div class="policy-subsection">
+          <h3 class="subsection-title">User Responsibilities</h3>
+          <p class="subsection-text">
+            By using our website, you agree to provide accurate and current information and to maintain the security of your account credentials. You are responsible for all activities that occur under your account.
+          </p>
+        </div>
+
+        <div class="policy-subsection">
+          <h3 class="subsection-title">Intellectual Property</h3>
+          <p class="subsection-text">
+            All content on this website, including text, graphics, logos, and images, is the property of Offsite or its content suppliers and is protected by intellectual property laws. Unauthorized use is prohibited.
+          </p>
+        </div>
+
+        <div class="policy-subsection">
+          <h3 class="subsection-title">Limitation of Liability</h3>
+          <p class="subsection-text">
+            Offsite shall not be liable for any indirect, incidental, special, or consequential damages resulting from the use or inability to use our services or products.
+          </p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Bottom Trust Badges -->
+  <div class="trust-badges-container">
+    <div class="trust-badge-item">
+      <div class="badge-icon-wrapper">
+        <svg lucideShieldCheck [size]="20"></svg>
+      </div>
+      <div class="badge-text-group">
+        <span class="badge-title">Authentic Products</span>
+        <span class="badge-desc">Genuine & Certified</span>
+      </div>
+    </div>
+
+    <div class="trust-badge-item">
+      <div class="badge-icon-wrapper">
+        <svg lucideRotateCcw [size]="20"></svg>
+      </div>
+      <div class="badge-text-group">
+        <span class="badge-title">30-day Returns</span>
+        <span class="badge-desc">Hassle-free process</span>
+      </div>
+    </div>
+
+    <div class="trust-badge-item">
+      <div class="badge-icon-wrapper">
+        <svg lucideSparkles [size]="20"></svg>
+      </div>
+      <div class="badge-text-group">
+        <span class="badge-title">100% Commitment</span>
+        <span class="badge-desc">Quality guaranteed</span>
+      </div>
+    </div>
+
+    <div class="trust-badge-item">
+      <div class="badge-icon-wrapper">
+        <svg lucideTruck [size]="20"></svg>
+      </div>
+      <div class="badge-text-group">
+        <span class="badge-title">Free Shipping</span>
+        <span class="badge-desc">On orders over $150</span>
+      </div>
+    </div>
+  </div>
+</div>

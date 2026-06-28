@@ -222,11 +222,138 @@ async function refreshToken(req, res) {
   res.json({ message: 'Tính năng Refresh Token đang phát triển.' });
 }
 
+// Lấy thông tin trang cá nhân (Get Profile)
+async function getProfile(req, res) {
+  try {
+    const { ObjectId } = require('mongodb');
+    const { userCollection } = await getCollections();
+    const user = await userCollection.findOne(
+      { _id: new ObjectId(req.user.user_id) },
+      { projection: { password_hash: 0 } }
+    );
+    if (!user) {
+      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+    }
+    res.json({ user });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Cập nhật trang cá nhân (Update Profile)
+async function updateProfile(req, res) {
+  try {
+    const { ObjectId } = require('mongodb');
+    const { profile_name, email, phone } = req.body;
+
+    if (!profile_name) {
+      return res.status(400).json({ error: 'Họ và tên không được để trống.' });
+    }
+
+    const { userCollection } = await getCollections();
+    const userId = new ObjectId(req.user.user_id);
+
+    // Kiểm tra trùng email
+    if (email) {
+      const emailUser = await userCollection.findOne({
+        email: email.trim(),
+        _id: { $ne: userId }
+      });
+      if (emailUser) {
+        return res.status(409).json({ error: 'Email đã được sử dụng bởi tài khoản khác.' });
+      }
+    }
+
+    // Kiểm tra trùng số điện thoại
+    if (phone) {
+      const phoneUser = await userCollection.findOne({
+        phone: phone.trim(),
+        _id: { $ne: userId }
+      });
+      if (phoneUser) {
+        return res.status(409).json({ error: 'Số điện thoại đã được sử dụng bởi tài khoản khác.' });
+      }
+    }
+
+    const updateFields = {
+      profile_name: profile_name.trim(),
+      updatedAt: new Date()
+    };
+    if (email) updateFields.email = email.trim();
+    if (phone) updateFields.phone = phone.trim();
+
+    await userCollection.updateOne(
+      { _id: userId },
+      { $set: updateFields }
+    );
+
+    const updatedUser = await userCollection.findOne(
+      { _id: userId },
+      { projection: { password_hash: 0 } }
+    );
+
+    res.json({
+      message: 'Cập nhật thông tin thành công.',
+      user: updatedUser
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Đổi mật khẩu (Change Password)
+async function changePassword(req, res) {
+  try {
+    const { ObjectId } = require('mongodb');
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: 'Vui lòng cung cấp mật khẩu cũ và mật khẩu mới.' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Mật khẩu mới phải có ít nhất 8 ký tự.' });
+    }
+
+    const { userCollection } = await getCollections();
+    const userId = new ObjectId(req.user.user_id);
+    const user = await userCollection.findOne({ _id: userId });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+    }
+
+    if (user.password_hash) {
+      const isValid = await bcrypt.compare(oldPassword, user.password_hash);
+      if (!isValid) {
+        return res.status(401).json({ error: 'Mật khẩu cũ không chính xác.' });
+      }
+    } else {
+      return res.status(400).json({ error: 'Tài khoản này đăng nhập qua MXH và chưa tạo mật khẩu.' });
+    }
+
+    const saltRounds = 10;
+    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    await userCollection.updateOne(
+      { _id: userId },
+      { $set: { password_hash: hashedNewPassword, updatedAt: new Date() } }
+    );
+
+    res.json({ message: 'Đổi mật khẩu thành công.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 module.exports = {
   register,
   login,
   adminLogin,
   logout,
-  refreshToken
+  refreshToken,
+  getProfile,
+  updateProfile,
+  changePassword
 };
 

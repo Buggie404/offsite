@@ -63,9 +63,9 @@
       <div class="footer-col">
         <h3 class="col-title">SUPPORT</h3>
         <ul class="col-links">
-          <li><a href="#" class="col-link">About Us</a></li>
-          <li><a href="#" class="col-link">Contact Us</a></li>
-          <li><a href="#" class="col-link">Shipping</a></li>
+          <li><a routerLink="/about-us" class="col-link">About Us</a></li>
+          <li><a routerLink="/contact-us" class="col-link">Contact Us</a></li>
+          <li><a routerLink="/policies" fragment="shipping" class="col-link">Shipping</a></li>
         </ul>
       </div>
     </div>
@@ -74,8 +74,8 @@
     <div class="footer-bottom">
       <span class="copyright">&copy; Offsite {{ currentYear }} &middot; Ho Chi Minh City, Vietnam</span>
       <ul class="secondary-links">
-        <li><a href="#" class="secondary-link">Privacy Policy</a></li>
-        <li><a href="#" class="secondary-link">Terms of Use</a></li>
+        <li><a routerLink="/policies" fragment="privacy" class="secondary-link">Privacy Policy</a></li>
+        <li><a routerLink="/policies" fragment="terms" class="secondary-link">Terms of Use</a></li>
       </ul>
     </div>
   </div>

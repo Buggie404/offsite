@@ -207,6 +207,12 @@
         transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
           opacity 0.25s ease;
 
+        &.visible {
+          opacity: 1;
+          pointer-events: auto;
+          transform: translateX(-50%) translateY(0);
+        }
+
         &::before {
           content: '';
           position: absolute;
@@ -235,6 +241,15 @@
       }
 
       &:hover {
+        .hover-dropdown-menu {
+          opacity: 1;
+          pointer-events: auto;
+          transform: translateX(-50%) translateY(0);
+        }
+      }
+
+      /* For Angular-controlled visibility */
+      &.has-dropdown-open {
         .hover-dropdown-menu {
           opacity: 1;
           pointer-events: auto;

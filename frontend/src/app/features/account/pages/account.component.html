@@ -1,0 +1,271 @@
+<div class="account-page-wrapper">
+  <!-- Loading State -->
+  <div class="loading-overlay" *ngIf="isLoading()">
+    <svg lucideLoader [size]="48" class="spin-icon"></svg>
+    <p>Loading profile information...</p>
+  </div>
+
+  <div class="account-container" *ngIf="!isLoading() && user()">
+    <!-- Sidebar Overlay Backdrop for Mobile -->
+    <div class="sidebar-overlay" [class.open]="isSidebarOpen()" (click)="closeSidebar()"></div>
+
+    <!-- Left Sidebar Panel -->
+    <aside class="sidebar-panel" [class.open]="isSidebarOpen()">
+      <button class="sidebar-close-btn" (click)="closeSidebar()" aria-label="Close sidebar">
+        <svg lucideX [size]="20"></svg>
+      </button>
+
+      <div class="sidebar-header">
+        <div class="avatar-circle">
+          <svg lucideUser [size]="48" class="avatar-icon"></svg>
+        </div>
+        <h2 class="username">{{ user().profile_name }}</h2>
+        <span class="user-status-text">Active Member</span>
+        <button class="btn-outline-small" (click)="openEditModal()">EDIT PROFILE</button>
+      </div>
+
+      <nav class="sidebar-menu">
+        <button class="menu-item" [class.active]="activeTab() === 'profile'" (click)="switchTab('profile')">
+          <svg lucideUser [size]="18" class="menu-icon"></svg>
+          <span>Profile</span>
+        </button>
+        <button class="menu-item" [class.active]="activeTab() === 'orders'" (click)="switchTab('orders')">
+          <svg lucideShoppingBag [size]="18" class="menu-icon"></svg>
+          <span>Orders</span>
+        </button>
+        <button class="menu-item" [class.active]="activeTab() === 'saved'" (click)="switchTab('saved')">
+          <svg lucideHeart [size]="18" class="menu-icon"></svg>
+          <span>Saved</span>
+        </button>
+        <button class="menu-item" [class.active]="activeTab() === 'address'" (click)="switchTab('address')">
+          <svg lucideMapPin [size]="18" class="menu-icon"></svg>
+          <span>Address</span>
+        </button>
+        <button class="menu-item" [class.active]="activeTab() === 'payment'" (click)="switchTab('payment')">
+          <svg lucideCreditCard [size]="18" class="menu-icon"></svg>
+          <span>Payment</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="menu-item logout-btn" (click)="signOut()">
+          <svg lucideLogOut [size]="18" class="menu-icon"></svg>
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Right Content Area -->
+    <main class="content-panel">
+      <!-- Title Header with Mobile Sidebar Toggle -->
+      <div class="content-header">
+        <button class="sidebar-toggle-btn" (click)="toggleSidebar()" aria-label="Open sidebar menu">
+          <svg lucideMenu [size]="24"></svg>
+        </button>
+        <h1 class="page-title">{{ activeTab() === 'profile' ? 'Profile Information' : (activeTab() | titlecase) }}</h1>
+      </div>
+
+      <!-- Profile Tab -->
+      <div class="tab-content" *ngIf="activeTab() === 'profile'">
+        <div class="profile-info-card">
+          <div class="card-body">
+            <!-- Left side: Large avatar -->
+            <div class="card-avatar-wrapper">
+              <div class="card-avatar-circle">
+                <svg lucideUser [size]="80" class="avatar-icon"></svg>
+              </div>
+            </div>
+
+            <!-- Right side: Info fields -->
+            <div class="card-info-grid">
+              <div class="info-field">
+                <span class="field-label">NAME</span>
+                <span class="field-value">{{ user().profile_name }}</span>
+              </div>
+
+              <div class="info-field">
+                <span class="field-label">STATUS</span>
+                <div class="status-badge">
+                  <span class="status-dot"></span>
+                  <span>Active</span>
+                </div>
+              </div>
+
+              <div class="info-field">
+                <span class="field-label">EMAIL</span>
+                <div class="verified-wrapper">
+                  <span class="field-value">{{ user().email }}</span>
+                  <span class="verified-badge" title="Verified">
+                    <svg viewBox="0 0 24 24" class="check-icon">
+                      <path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                  </span>
+                </div>
+              </div>
+
+              <div class="info-field">
+                <span class="field-label">PHONE</span>
+                <div class="verified-wrapper">
+                  <span class="field-value">{{ user().phone || 'Not provided' }}</span>
+                  <span class="verified-badge" *ngIf="user().phone" title="Verified">
+                    <svg viewBox="0 0 24 24" class="check-icon">
+                      <path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                  </span>
+                </div>
+              </div>
+
+              <div class="info-field full-width">
+                <span class="field-label">JOINED DATE</span>
+                <span class="field-value">{{ (user().createdAt | date: 'MMMM d, y') || 'May 1, 2025' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-divider"></div>
+
+          <div class="card-footer">
+            <button class="btn-primary" (click)="openEditModal()">EDIT PROFILE</button>
+            <button class="btn-outline" (click)="openPasswordModal()">CHANGE PASSWORD</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Placeholder tabs -->
+      <div class="tab-content placeholder-tab" *ngIf="activeTab() !== 'profile'">
+        <div class="profile-info-card empty-state-card">
+          <svg lucideShoppingBag [size]="48" class="empty-icon" *ngIf="activeTab() === 'orders'"></svg>
+          <svg lucideHeart [size]="48" class="empty-icon" *ngIf="activeTab() === 'saved'"></svg>
+          <svg lucideMapPin [size]="48" class="empty-icon" *ngIf="activeTab() === 'address'"></svg>
+          <svg lucideCreditCard [size]="48" class="empty-icon" *ngIf="activeTab() === 'payment'"></svg>
+          
+          <h3>No Data Available</h3>
+          <p>There is currently no {{ activeTab() }} information stored for this account.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Edit Profile Modal -->
+  <div class="modal-overlay" *ngIf="showEditModal()" (click)="closeEditModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Edit Profile</h2>
+        <button class="close-btn" (click)="closeEditModal()">
+          <svg lucideX [size]="20"></svg>
+        </button>
+      </div>
+
+      <form [formGroup]="profileForm" (ngSubmit)="onUpdateProfile()">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="profile_name">Full Name *</label>
+            <input type="text" id="profile_name" formControlName="profile_name" placeholder="Steve Jobs">
+            <span class="error-text" *ngIf="profileForm.get('profile_name')?.touched && profileForm.get('profile_name')?.errors?.['required']">
+              Full name is required.
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label for="email">Email *</label>
+            <input type="email" id="email" formControlName="email" placeholder="example@gmail.com">
+            <span class="error-text" *ngIf="profileForm.get('email')?.touched && profileForm.get('email')?.errors?.['required']">
+              Email is required.
+            </span>
+            <span class="error-text" *ngIf="profileForm.get('email')?.touched && profileForm.get('email')?.errors?.['email']">
+              Invalid email format.
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label for="phone">Phone Number</label>
+            <input type="text" id="phone" formControlName="phone" placeholder="0123456789">
+            <span class="error-text" *ngIf="profileForm.get('phone')?.touched && profileForm.get('phone')?.errors?.['pattern']">
+              Phone number must be between 10 to 11 digits.
+            </span>
+          </div>
+
+          <!-- Alert Messages -->
+          <div class="alert alert-error" *ngIf="errorMessage()">
+            <span>{{ errorMessage() }}</span>
+          </div>
+          <div class="alert alert-success" *ngIf="successMessage()">
+            <svg lucideCheck [size]="16"></svg>
+            <span>{{ successMessage() }}</span>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-outline" (click)="closeEditModal()">CANCEL</button>
+          <button type="submit" class="btn-primary" [disabled]="profileForm.invalid || isSubmitting()">
+            <svg lucideLoader [size]="16" class="spin-icon" *ngIf="isSubmitting()"></svg>
+            SAVE CHANGES
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Change Password Modal -->
+  <div class="modal-overlay" *ngIf="showPasswordModal()" (click)="closePasswordModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Change Password</h2>
+        <button class="close-btn" (click)="closePasswordModal()">
+          <svg lucideX [size]="20"></svg>
+        </button>
+      </div>
+
+      <form [formGroup]="passwordForm" (ngSubmit)="onChangePassword()">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="oldPassword">Old Password *</label>
+            <input type="password" id="oldPassword" formControlName="oldPassword" placeholder="••••••••">
+            <span class="error-text" *ngIf="passwordForm.get('oldPassword')?.touched && passwordForm.get('oldPassword')?.errors?.['required']">
+              Old password is required.
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label for="newPassword">New Password *</label>
+            <input type="password" id="newPassword" formControlName="newPassword" placeholder="••••••••">
+            <span class="error-text" *ngIf="passwordForm.get('newPassword')?.touched && passwordForm.get('newPassword')?.errors?.['required']">
+              New password is required.
+            </span>
+            <span class="error-text" *ngIf="passwordForm.get('newPassword')?.touched && passwordForm.get('newPassword')?.errors?.['minlength']">
+              Password must be at least 8 characters long.
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label for="confirmPassword">Confirm New Password *</label>
+            <input type="password" id="confirmPassword" formControlName="confirmPassword" placeholder="••••••••">
+            <span class="error-text" *ngIf="passwordForm.get('confirmPassword')?.touched && passwordForm.get('confirmPassword')?.errors?.['required']">
+              Confirm password is required.
+            </span>
+            <span class="error-text" *ngIf="passwordForm.touched && passwordForm.errors?.['mismatch']">
+              Passwords do not match.
+            </span>
+          </div>
+
+          <!-- Alert Messages -->
+          <div class="alert alert-error" *ngIf="errorMessage()">
+            <span>{{ errorMessage() }}</span>
+          </div>
+          <div class="alert alert-success" *ngIf="successMessage()">
+            <svg lucideCheck [size]="16"></svg>
+            <span>{{ successMessage() }}</span>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-outline" (click)="closePasswordModal()">CANCEL</button>
+          <button type="submit" class="btn-primary" [disabled]="passwordForm.invalid || isSubmitting()">
+            <svg lucideLoader [size]="16" class="spin-icon" *ngIf="isSubmitting()"></svg>
+            UPDATE PASSWORD
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

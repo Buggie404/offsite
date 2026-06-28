@@ -1,0 +1,315 @@
+.policy-container {
+  background-color: var(--color-cream);
+  min-height: 100vh;
+  padding: var(--space-6) 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+.policy-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--space-6);
+  max-width: var(--container-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 var(--container-padding-desktop);
+  align-items: start;
+}
+
+/* Sidebar - Sticky Directory */
+.policy-sidebar {
+  position: sticky;
+  top: 135px; // sticky offset below the desktop header + promobar
+  align-self: start; // locks boundaries to content height, allowing it to slide inside grid cell
+  background-color: #D2E4C4; // Sage green mockup color
+  border-radius: 12px;
+  padding: var(--space-5);
+  box-shadow: 0 4px 20px rgba(84, 74, 64, 0.05);
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+.sidebar-header {
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid rgba(42, 68, 46, 0.15);
+  padding-bottom: var(--space-3);
+}
+
+.sidebar-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: #2A442E; // Dark forest green
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.sidebar-subtitle {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(42, 68, 46, 0.7);
+  margin: var(--space-1) 0 0 0;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: var(--space-3) var(--space-4);
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-warm-brown);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+
+  .nav-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s ease;
+    color: var(--color-warm-brown);
+  }
+
+  &:hover:not(.active) {
+    background-color: rgba(42, 68, 46, 0.08);
+    transform: translateX(4px);
+
+    .nav-icon {
+      transform: scale(1.1);
+    }
+  }
+
+  &.active {
+    background-color: #2A442E;
+    color: var(--color-white);
+    box-shadow: 0 4px 12px rgba(42, 68, 46, 0.2);
+
+    .nav-icon {
+      color: var(--color-white);
+    }
+  }
+}
+
+/* Right Content Panel */
+.policy-content-panel {
+  background-color: var(--color-white);
+  border-radius: 12px;
+  padding: var(--space-6) var(--space-6) var(--space-6) var(--space-6);
+  box-shadow: 0 4px 20px rgba(84, 74, 64, 0.03);
+  min-height: 500px;
+}
+
+.main-title {
+  font-family: var(--font-display);
+  font-size: 40px;
+  color: #2A442E;
+  margin: 0 0 var(--space-5) 0;
+  letter-spacing: -0.01em;
+}
+
+.policy-section {
+  padding: var(--space-4) 0;
+  scroll-margin-top: 150px; // ensure headers are visible when scrolled into view
+  transition: all 0.4s ease;
+
+  &.highlighted {
+    // Subtle focus animation/state for active section content
+    .section-title {
+      color: var(--color-forest-green);
+      transform: translateX(2px);
+    }
+  }
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--color-warm-brown);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4) 0;
+  transition: all 0.3s ease;
+
+  .section-title-icon {
+    color: #7A9A68;
+  }
+}
+
+.policy-subsection {
+  margin-bottom: var(--space-4);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.subsection-title {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-near-black);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.subsection-text {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-warm-brown);
+  margin: 0;
+}
+
+.policy-divider {
+  border: none;
+  border-top: 1px solid rgba(84, 74, 64, 0.15);
+  margin: var(--space-4) 0;
+}
+
+/* Bottom Trust Badges */
+.trust-badges-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  max-width: var(--container-max);
+  width: 100%;
+  margin: var(--space-6) auto 0 auto;
+  padding: var(--space-5) var(--container-padding-desktop);
+  border-top: 1px solid rgba(84, 74, 64, 0.15);
+}
+
+.trust-badge-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+}
+
+.badge-icon-wrapper {
+  background-color: rgba(122, 154, 104, 0.15);
+  color: #2A442E;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.badge-text-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.badge-title {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-near-black);
+}
+
+.badge-desc {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-warm-brown);
+  margin-top: 2px;
+}
+
+/* Responsiveness */
+@media (max-width: 1024px) {
+  .policy-layout {
+    grid-template-columns: 240px 1fr;
+    gap: var(--space-4);
+  }
+
+  .trust-badges-container {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-4);
+  }
+}
+
+@media (max-width: 768px) {
+  .policy-layout {
+    display: block;
+    padding: 0 var(--container-padding-mobile);
+  }
+
+  .policy-sidebar {
+    position: sticky;
+    top: 120px; // sticks to mobile header + promobar, ensuring it stays on screen
+    z-index: 99; // stay below mobile drawer but above content
+    width: 100%;
+    margin-bottom: var(--space-3);
+    padding: var(--space-3);
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(84, 74, 64, 0.08);
+  }
+
+  .sidebar-header {
+    display: none; // hide headers on mobile for space
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: var(--space-2);
+    padding-bottom: var(--space-1);
+    -webkit-overflow-scrolling: touch;
+    
+    // Hide scrollbar but keep functionality
+    &::-webkit-scrollbar {
+      display: none;
+    }
+    scrollbar-width: none;
+  }
+
+  .nav-item {
+    width: auto;
+    padding: var(--space-2) var(--space-3);
+    white-space: nowrap;
+    font-size: 13px;
+
+    &:hover:not(.active) {
+      transform: none;
+    }
+  }
+
+  .policy-content-panel {
+    padding: var(--space-4);
+  }
+
+  .main-title {
+    font-size: 30px;
+    margin-bottom: var(--space-4);
+  }
+
+  .trust-badges-container {
+    padding: var(--space-4) var(--container-padding-mobile);
+  }
+}
+
+@media (max-width: 480px) {
+  .trust-badges-container {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+}

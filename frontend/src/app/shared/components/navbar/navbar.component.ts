@@ -1,5 +1,7 @@
 import { Component, OnInit, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { Router, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
 import {
   LucideSearch,
   LucideShoppingCart,
@@ -20,6 +22,7 @@ import { AuthModalService } from '../../../core/auth-modal.service';
   standalone: true,
   imports: [
     CommonModule,
+    RouterLink,
     LucideSearch,
     LucideShoppingCart,
     LucideShoppingBag,
@@ -39,6 +42,7 @@ export class NavbarComponent implements OnInit {
   private authService = inject(AuthService);
   private authModalService = inject(AuthModalService);
   private elementRef = inject(ElementRef);
+  private router = inject(Router);
 
   isPromobarVisible = true;
   isMobileMenuOpen = false;
@@ -47,6 +51,7 @@ export class NavbarComponent implements OnInit {
   isMobileAboutOpen = false;
   isSearchOpen = false;
   isCartOpen = false;
+  isAboutDropdownOpen = false;
 
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
 
@@ -60,6 +65,17 @@ export class NavbarComponent implements OnInit {
         this.isPromobarVisible = false;
       }
     }
+
+    // Close all dropdowns when route changes
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd)
+    ).subscribe(() => {
+      this.isProfileDropdownOpen = false;
+      this.isMobileMenuOpen = false;
+      this.isMobileProductsOpen = false;
+      this.isMobileAboutOpen = false;
+      this.isAboutDropdownOpen = false;
+    });
   }
 
   closePromobar(): void {
@@ -134,7 +150,19 @@ export class NavbarComponent implements OnInit {
   toggleProfileDropdown(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
-    this.isProfileDropdownOpen = !this.isProfileDropdownOpen;
+    if (this.isLoggedIn()) {
+      this.router.navigate(['/account']);
+      this.isProfileDropdownOpen = false;
+    } else {
+      this.login();
+    }
+  }
+
+  goToProfile(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.router.navigate(['/account']);
+    this.isProfileDropdownOpen = false;
   }
 
   openSearch(event?: Event): void {

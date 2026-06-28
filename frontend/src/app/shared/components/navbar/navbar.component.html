@@ -95,12 +95,15 @@
       <li><a href="#" class="nav-link">COMMUNITY</a></li>
 
       <!-- Hoverable Dropdown Link -->
-      <li class="nav-item-dropdown">
-        <a href="#" class="nav-link dropdown-toggle">ABOUT US</a>
-        <ul class="hover-dropdown-menu">
-          <li><a href="#" class="dropdown-item-link">About Us</a></li>
-          <li><a href="#" class="dropdown-item-link">Contact Us</a></li>
-          <li><a href="#" class="dropdown-item-link">Policies</a></li>
+      <li class="nav-item-dropdown"
+          [class.has-dropdown-open]="isAboutDropdownOpen"
+          (mouseenter)="isAboutDropdownOpen = true"
+          (mouseleave)="isAboutDropdownOpen = false">
+        <a routerLink="/about-us" routerLinkActive="active" class="nav-link dropdown-toggle">ABOUT US</a>
+        <ul class="hover-dropdown-menu" [class.visible]="isAboutDropdownOpen">
+          <li><a routerLink="/about-us" routerLinkActive="active" class="dropdown-item-link">About Us</a></li>
+          <li><a routerLink="/contact-us" routerLinkActive="active" class="dropdown-item-link">Contact Us</a></li>
+          <li><a routerLink="/policies" routerLinkActive="active" class="dropdown-item-link">Policies</a></li>
         </ul>
       </li>
     </ul>
@@ -197,9 +200,9 @@
         </button>
         <div class="mobile-submenu" [class.open]="isMobileAboutOpen">
           <ul class="mobile-submenu-links">
-            <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">About Us</a></li>
-            <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">Contact Us</a></li>
-            <li><a href="#" class="mobile-submenu-link" (click)="closeMobileMenu()">Policies</a></li>
+            <li><a routerLink="/about-us" class="mobile-submenu-link" (click)="closeMobileMenu()">About Us</a></li>
+            <li><a routerLink="/contact-us" class="mobile-submenu-link" (click)="closeMobileMenu()">Contact Us</a></li>
+            <li><a routerLink="/policies" class="mobile-submenu-link" (click)="closeMobileMenu()">Policies</a></li>
           </ul>
         </div>
       </li>
