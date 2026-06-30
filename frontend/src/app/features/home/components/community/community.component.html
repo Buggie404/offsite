@@ -1,0 +1,37 @@
+<section class="community-section">
+  <div class="container">
+    <div class="community-header">
+      <h2>You make it look good.</h2>
+    </div>
+
+    <div class="community-grid">
+      <div class="community-card" *ngFor="let card of cards" [style.background-color]="card.bgColor">
+        <div class="card-image">
+          <img [src]="card.image" [alt]="'Post by ' + card.community_name"
+            (error)="card.image = 'https://images.unsplash.com/photo-1515823662972-da6a2e4d3002?q=80&w=400&auto=format&fit=crop'">
+        </div>
+        <div class="card-content">
+          <p class="username">{{ card.community_name }}</p>
+          <p class="description">{{ card.preview }}</p>
+          <div class="likes">
+            <!-- Inline SVG heart – không cần Lucide dependency -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+              class="heart-icon">
+              <path
+                d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+            <span>{{ card.likes }} likes</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Banner CTA – "SHARE YOUR BREW" chưa link đến đâu, sẽ nối với trang community sau -->
+  <div class="container">
+    <div class="community-banner">
+      <h3>Join the movement</h3>
+      <button class="btn-primary">SHARE YOUR BREW</button>
+    </div>
+  </div>
+</section>

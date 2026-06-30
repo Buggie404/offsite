@@ -74,14 +74,18 @@ $wheat:       #E8D5B0;
 }
 
 .row-large {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 24px;
 }
 
 .row-small {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 24px;
   padding-top: 24px;
 }
@@ -101,6 +105,8 @@ $wheat:       #E8D5B0;
 // ============================================================
 .card-large {
   height: 602px;
+  flex: 1 1 400px;
+  min-width: 300px;
 
   .card-content {
     position: absolute;
@@ -135,7 +141,8 @@ $wheat:       #E8D5B0;
     position: absolute;
     left: 50%;
     top: 140px;
-    width: 680px;
+    width: 100%;
+    max-width: 680px;
     height: 460px;
     transform: translateX(-50%);
     display: flex;
@@ -168,6 +175,8 @@ $wheat:       #E8D5B0;
 // ============================================================
 .card-small {
   height: 400px;
+  flex: 1 1 280px;
+  min-width: 260px;
 
   .card-title {
     position: absolute;
@@ -184,7 +193,8 @@ $wheat:       #E8D5B0;
     position: absolute;
     left: 50%;
     top: 80px;
-    width: 360px;
+    width: 100%;
+    max-width: 360px;
     height: 280px;
     transform: translateX(-50%);
     display: flex;

@@ -5,8 +5,8 @@ const mongoose = require('mongoose');
 // Get all posts (feed)
 async function getAllPosts(req, res) {
   try {
-    const { page = 1, limit = 10, post_type, recipe_id, user_id } = req.query;
-    
+    const { page = 1, limit = 10, post_type, recipe_id, user_id, sort } = req.query;
+
     const query = {};
     if (post_type) query.post_type = post_type;
     if (recipe_id) query.recipe_id = recipe_id;
@@ -15,8 +15,13 @@ async function getAllPosts(req, res) {
     const skipCount = (parseInt(page, 10) - 1) * parseInt(limit, 10);
     const limitCount = parseInt(limit, 10);
 
+    // sort=like_count → nhiều like nhất trước; mặc định mới nhất trước
+    const sortOption = sort === 'like_count'
+      ? { like_count: -1 }
+      : { created_at: -1 };
+
     const posts = await Post.find(query)
-      .sort({ created_at: -1 })
+      .sort(sortOption)
       .skip(skipCount)
       .limit(limitCount);
 

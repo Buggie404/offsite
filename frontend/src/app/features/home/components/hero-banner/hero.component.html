@@ -1,0 +1,36 @@
+<!-- ─────────────────────────────────────────────────────────────
+     components/hero/hero.component.html
+───────────────────────────────────────────────────────────── -->
+
+<section class="hero">
+
+  <!-- ── LEFT: text content ───────────────────────────────── -->
+  <div class="hero__content">
+
+    <h1 class="hero__heading">
+      {{ heading }} <span class="hero__heading-accent">{{ headingAccent }}</span>
+    </h1>
+
+    <p class="hero__body">{{ body }}</p>
+
+    <div class="hero__cta">
+      <a href="/shop" class="btn btn--dark">{{ ctaPrimary }}</a>
+      <a href="/quiz" class="btn btn--outline">{{ ctaSecondary }}</a>
+    </div>
+
+  </div>
+
+  <!-- ── RIGHT: image (arch shape) ────────────────────────── -->
+  <div class="hero__image-wrap">
+    <img
+      *ngIf="heroImage"
+      [src]="heroImage"
+      alt="Offsite home café setup"
+    />
+    <!-- Placeholder hiển thị khi chưa có ảnh -->
+    <span *ngIf="!heroImage" class="hero__image-placeholder">
+      Photo goes here
+    </span>
+  </div>
+
+</section>

@@ -1,0 +1,211 @@
+// ================================================================
+// Section — BrandStory
+// Figma frame: 1440 × 567 px
+// Fonts: DM Mono (eyebrow, CTA), Russo One (heading), DM Sans (body)
+// ================================================================
+
+// ── Design tokens ──────────────────────────────────────────────
+$color-bg:           #faf0eb;
+$color-green:        #375534;
+$color-heading:      #1a1a1a;
+$color-body:         #544a40;
+
+$font-mono:          'DM Mono', monospace;
+$font-display:       'Russo One', sans-serif;
+$font-sans:          'DM Sans', sans-serif;
+
+// Figma padding values (right panel): 80px top/bottom, 64px left/right
+$panel-pad-v:        80px;
+$panel-pad-h:        64px;
+
+// ── Section wrapper ────────────────────────────────────────────
+.brand-story {
+  display:          flex;
+  flex-direction:   row;
+  width:            100%;
+  max-width:        1440px;
+  margin:           0 auto;
+  min-height:       567px;
+  background-color: $color-bg;
+  overflow:         hidden;
+}
+
+// ── Left panel — image ─────────────────────────────────────────
+.brand-story__image-panel {
+  flex:             0 0 50%;
+  width:            50%;
+  position:         relative;
+  background-color: $color-bg;
+}
+
+.brand-story__image-wrap {
+  width:            100%;
+  height:           100%;
+  display:          flex;
+  align-items:      center;
+  justify-content:  center;
+}
+
+.brand-story__image {
+  width:            100%;
+  height:           100%;
+  object-fit:       cover;
+  display:          block;
+}
+
+// Placeholder — same warm tone as bg, slightly darkened
+.brand-story__image-placeholder {
+  width:            100%;
+  height:           100%;
+  min-height:       567px;
+  background-color: darken($color-bg, 6%);
+}
+
+// ── Right panel — content ──────────────────────────────────────
+.brand-story__content-panel {
+  flex:             0 0 50%;
+  width:            50%;
+  display:          flex;
+  align-items:      center;       // vertical center (matches Figma justify:CENTER)
+  background-color: $color-bg;
+  padding:          $panel-pad-v $panel-pad-h;
+}
+
+.brand-story__content {
+  display:          flex;
+  flex-direction:   column;
+  gap:              0;
+  width:            100%;
+  max-width:        592px;        // Figma inner content width
+}
+
+// ── Eyebrow ────────────────────────────────────────────────────
+// Figma: "Margin" pad-bottom:20px → gap between eyebrow and heading
+.brand-story__eyebrow {
+  display:          flex;
+  flex-direction:   row;
+  align-items:      center;
+  gap:              12px;
+  margin-bottom:    20px;
+}
+
+.brand-story__eyebrow-divider {
+  display:          block;
+  width:            32px;
+  height:           1px;
+  background-color: $color-green;
+  flex-shrink:      0;
+}
+
+.brand-story__eyebrow-label {
+  font-family:      $font-mono;
+  font-size:        10px;
+  font-weight:      400;
+  color:            $color-green;
+  letter-spacing:   0.08em;
+  text-transform:   uppercase;
+  line-height:      1.5;
+}
+
+// ── Heading ────────────────────────────────────────────────────
+// Figma: Russo One 44px, color #1a1a1a
+// "Heading 2:margin" has no explicit bottom value in node tree,
+// but visually separates from body — use 24px to match Figma rhythm.
+.brand-story__heading {
+  font-family:      $font-display;
+  font-size:        44px;
+  font-weight:      400;          // Russo One has built-in weight
+  color:            $color-heading;
+  line-height:      1.15;
+  margin:           0 0 24px 0;
+  padding:          0;
+}
+
+// ── Body copy ──────────────────────────────────────────────────
+// Figma: "Margin" pad-bottom:40px → gap between body and CTA
+.brand-story__body {
+  font-family:      $font-sans;
+  font-size:        16px;
+  font-weight:      400;
+  color:            $color-body;
+  line-height:      1.625;        // ~26px, comfortable reading
+  margin:           0 0 40px 0;
+  padding:          0;
+}
+
+// ── CTA link ───────────────────────────────────────────────────
+// Figma: "Link" 144×18, border-bottom 1px #375534
+// Arrow sits inline to the right of label
+.brand-story__cta {
+  display:          inline-flex;
+  flex-direction:   row;
+  align-items:      center;
+  gap:              8px;
+  text-decoration:  none;
+  border-bottom:    1px solid $color-green;
+  padding-bottom:   2px;
+  width:            fit-content;
+  transition:       opacity 0.2s ease;
+
+  &:hover {
+    opacity:        0.7;
+  }
+
+  &:focus-visible {
+    outline:        2px solid $color-green;
+    outline-offset: 4px;
+    border-radius:  2px;
+  }
+}
+
+.brand-story__cta-label {
+  font-family:      $font-mono;
+  font-size:        13px;
+  font-weight:      500;
+  color:            $color-green;
+  letter-spacing:   0.06em;
+  text-transform:   uppercase;
+  white-space:      nowrap;
+}
+
+.brand-story__cta-arrow {
+  display:          flex;
+  align-items:      center;
+  flex-shrink:      0;
+}
+
+// ── Responsive ─────────────────────────────────────────────────
+@media (max-width: 1024px) {
+  .brand-story {
+    flex-direction: column;
+    min-height:     unset;
+  }
+
+  .brand-story__image-panel,
+  .brand-story__content-panel {
+    flex:           unset;
+    width:          100%;
+  }
+
+  .brand-story__image-placeholder {
+    min-height:     300px;
+  }
+
+  .brand-story__content-panel {
+    padding:        48px 40px;
+  }
+
+  .brand-story__heading {
+    font-size:      34px;
+  }
+}
+
+@media (max-width: 600px) {
+  .brand-story__content-panel {
+    padding:        40px 24px;
+  }
+
+  .brand-story__heading {
+    font-size:      28px;
+  }
+}

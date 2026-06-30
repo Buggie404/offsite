@@ -1,0 +1,66 @@
+<!-- ============================================================
+     Section — BrandStory
+     Frame: 1440 × 567 px (desktop Figma frame)
+     Layout: left = image panel (50 %), right = content panel (50 %)
+     ============================================================ -->
+<section class="brand-story">
+
+  <!-- ── Left panel: hero image ── -->
+  <div class="brand-story__image-panel">
+    <div class="brand-story__image-wrap">
+      <img
+        *ngIf="heroImage; else imagePlaceholder"
+        [src]="heroImage"
+        alt="Offsite matcha and coffee products"
+        class="brand-story__image"
+      />
+      <ng-template #imagePlaceholder>
+        <!-- Placeholder — swap with <img> once asset is ready -->
+        <div class="brand-story__image-placeholder" aria-hidden="true"></div>
+      </ng-template>
+    </div>
+  </div>
+
+  <!-- ── Right panel: content ── -->
+  <div class="brand-story__content-panel">
+    <div class="brand-story__content">
+
+      <!-- Eyebrow row: divider + label -->
+      <div class="brand-story__eyebrow">
+        <span class="brand-story__eyebrow-divider" aria-hidden="true"></span>
+        <span class="brand-story__eyebrow-label">{{ eyebrow }}</span>
+      </div>
+
+      <!-- Heading -->
+      <h2 class="brand-story__heading">{{ heading }}</h2>
+
+      <!-- Body copy -->
+      <p class="brand-story__body">{{ body }}</p>
+
+      <!-- CTA link -->
+      <a [href]="ctaLink" class="brand-story__cta">
+        <span class="brand-story__cta-label">{{ ctaLabel }}</span>
+        <!-- Arrow icon (lucide/move-right equivalent — inline SVG) -->
+        <span class="brand-story__cta-arrow" aria-hidden="true">
+          <svg
+            width="16"
+            height="12"
+            viewBox="0 0 16 12"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M1 6H15M15 6L10 1M15 6L10 11"
+              stroke="#375534"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </span>
+      </a>
+
+    </div>
+  </div>
+
+</section>
