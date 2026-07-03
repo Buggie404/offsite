@@ -46,7 +46,8 @@ async function seedAdmin() {
         payment_methods: [],
         saved_products: [],
         saved_recipes: [],
-        saved_posts: []
+        saved_posts: [],
+        saved_blogs: []
       });
       console.log(`Created admin account: ${ADMIN_EMAIL}`);
     }

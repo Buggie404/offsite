@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { getCollections } = require('../config/db');
-const ACCESS_SECRET   = process.env.JWT_SECRET         || 'access_secret_dev';
+const ACCESS_SECRET   = process.env.JWT_SECRET         || 'fallback-secret-key';
 const REFRESH_SECRET  = process.env.JWT_REFRESH_SECRET  || 'refresh_secret_dev';
 const { ObjectId } = require('mongodb');
 
@@ -97,6 +97,7 @@ async function register(req, res) {
       saved_products: [],
       saved_recipes: [],
       saved_posts: [],
+      saved_blogs: [],
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -371,6 +372,7 @@ async function updateProfile(req, res) {
     if (email) updateFields.email = email.trim();
     if (phone) updateFields.phone = phone.trim();
     if (community_name !== undefined) updateFields.community_name = community_name ? community_name.trim() : null;
+    if (req.body.avatar_url !== undefined) updateFields.avatar_url = req.body.avatar_url;
 
     await userCollection.updateOne(
       { _id: userId },
@@ -729,6 +731,168 @@ async function deletePaymentMethod(req, res) {
   }
 }
 
+// Toggle saved product
+async function toggleSavedProduct(req, res) {
+  try {
+    const { productId } = req.body;
+    if (!productId) return res.status(400).json({ error: 'Missing productId' });
+    const User = require('../models/User');
+    const user = await User.findById(req.user.user_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const prodIdStr = String(productId);
+    const index = user.saved_products.findIndex(sp => sp.product_id === prodIdStr);
+    let saved = false;
+    if (index > -1) {
+      user.saved_products.splice(index, 1);
+    } else {
+      user.saved_products.push({ product_id: prodIdStr, saved_at: new Date() });
+      saved = true;
+    }
+    await user.save();
+    res.json({ message: saved ? 'Product saved' : 'Product unsaved', saved });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Toggle saved recipe
+async function toggleSavedRecipe(req, res) {
+  try {
+    const { recipeId } = req.body;
+    if (!recipeId) return res.status(400).json({ error: 'Missing recipeId' });
+    const User = require('../models/User');
+    const user = await User.findById(req.user.user_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const recipeIdStr = String(recipeId);
+    const index = user.saved_recipes.findIndex(sr => sr.recipe_id === recipeIdStr);
+    let saved = false;
+    if (index > -1) {
+      user.saved_recipes.splice(index, 1);
+    } else {
+      user.saved_recipes.push({ recipe_id: recipeIdStr, saved_at: new Date() });
+      saved = true;
+    }
+    await user.save();
+
+    const Recipe = require('../models/Recipe');
+    await Recipe.updateOne(
+      { recipe_id: recipeIdStr },
+      { $inc: { saves: saved ? 1 : -1 } }
+    );
+
+    res.json({ message: saved ? 'Recipe saved' : 'Recipe unsaved', saved });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Toggle saved blog
+async function toggleSavedBlog(req, res) {
+  try {
+    const { blogId } = req.body;
+    if (!blogId) return res.status(400).json({ error: 'Missing blogId' });
+    const User = require('../models/User');
+    const user = await User.findById(req.user.user_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const blogIdStr = String(blogId);
+    const index = user.saved_blogs.findIndex(sb => sb.blog_id === blogIdStr);
+    let saved = false;
+    if (index > -1) {
+      user.saved_blogs.splice(index, 1);
+    } else {
+      user.saved_blogs.push({ blog_id: blogIdStr, saved_at: new Date() });
+      saved = true;
+    }
+    await user.save();
+    res.json({ message: saved ? 'Blog saved' : 'Blog unsaved', saved });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Toggle saved post
+async function toggleSavedPost(req, res) {
+  try {
+    const { postId } = req.body;
+    if (!postId) return res.status(400).json({ error: 'Missing postId' });
+    const User = require('../models/User');
+    const user = await User.findById(req.user.user_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const postIdStr = String(postId);
+    const index = user.saved_posts.findIndex(sp => sp.post_id === postIdStr);
+    let saved = false;
+    if (index > -1) {
+      user.saved_posts.splice(index, 1);
+    } else {
+      user.saved_posts.push({ post_id: postIdStr, saved_at: new Date() });
+      saved = true;
+    }
+    await user.save();
+    res.json({ message: saved ? 'Post saved' : 'Post unsaved', saved });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Get all saved items populated
+async function getSavedItems(req, res) {
+  try {
+    const mongoose = require('mongoose');
+    const User = require('../models/User');
+    const Product = require('../models/Product');
+    const Recipe = require('../models/Recipe');
+    const Post = require('../models/Post');
+    const Blog = require('../models/Blog');
+
+    const user = await User.findById(req.user.user_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Populate Products
+    const productIds = user.saved_products.map(sp => parseInt(sp.product_id)).filter(id => !isNaN(id));
+    const products = await Product.find({ product_id: { $in: productIds } });
+
+    // Populate Recipes
+    const recipeIds = user.saved_recipes.map(sr => sr.recipe_id);
+    const recipes = await Recipe.find({ recipe_id: { $in: recipeIds } });
+
+    // Populate Posts
+    const postIds = user.saved_posts.map(sp => sp.post_id);
+    const posts = await Post.find({ post_id: { $in: postIds } });
+
+    // Populate Blogs
+    const blogIds = user.saved_blogs.map(sb => sb.blog_id).filter(id => mongoose.Types.ObjectId.isValid(id));
+    const blogs = await Blog.find({ _id: { $in: blogIds } });
+
+    res.json({
+      saved_products: user.saved_products.map(sp => {
+        const prod = products.find(p => String(p.product_id) === sp.product_id);
+        return { saved_at: sp.saved_at, product: prod || null };
+      }).filter(item => item.product !== null),
+
+      saved_recipes: user.saved_recipes.map(sr => {
+        const rec = recipes.find(r => r.recipe_id === sr.recipe_id);
+        return { saved_at: sr.saved_at, recipe: rec || null };
+      }).filter(item => item.recipe !== null),
+
+      saved_posts: user.saved_posts.map(sp => {
+        const pst = posts.find(p => p.post_id === sp.post_id);
+        return { saved_at: sp.saved_at, post: pst || null };
+      }).filter(item => item.post !== null),
+
+      saved_blogs: user.saved_blogs.map(sb => {
+        const blg = blogs.find(b => String(b._id) === sb.blog_id);
+        return { saved_at: sb.saved_at, blog: blg || null };
+      }).filter(item => item.blog !== null)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -744,6 +908,11 @@ module.exports = {
   updateAddress,
   deleteAddress,
   addPaymentMethod,
-  deletePaymentMethod
+  deletePaymentMethod,
+  toggleSavedProduct,
+  toggleSavedRecipe,
+  toggleSavedBlog,
+  toggleSavedPost,
+  getSavedItems
 };
 

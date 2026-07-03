@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, signal, computed, NgZone, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -11,6 +11,7 @@ import { ReviewModalComponent } from '../../purchase/components/review-modal/rev
 import { AddressModalComponent } from '../../../shared/components/address-modal/address-modal.component';
 import { DeleteAddressModalComponent } from '../../../shared/components/delete-address-modal/delete-address-modal.component';
 import { InlineValidator, FieldConfig } from '../../../shared/utils/inline-validator';
+import { ToastService } from '../../../shared/services/toast.service';
 
 const VIETNAM_BANK_LIST = ['Vietcombank', 'BIDV', 'Techcombank', 'VietinBank', 'Agribank', 'MB Bank', 'VPBank', 'ACB', 'Sacombank', 'TPBank', 'VIB', 'SHB', 'MSB', 'SeABank'];
 import {
@@ -32,7 +33,18 @@ import {
   LucideChevronLeft,
   LucideChevronRight,
   LucideTrash2,
-  LucidePencil
+  LucidePencil,
+  LucideChevronDown,
+  LucideChevronUp,
+  LucideArrowRight,
+  LucideCoffee,
+  LucideClock,
+  LucideChefHat,
+  LucideDroplet,
+  LucideChevronsUpDown,
+  LucideChevronsDownUp,
+  LucideEye,
+  LucideEyeOff
 } from '@lucide/angular';
 
 @Component({
@@ -64,7 +76,18 @@ import {
     LucidePencil,
     ReviewModalComponent,
     AddressModalComponent,
-    DeleteAddressModalComponent
+    DeleteAddressModalComponent,
+    LucideChevronDown,
+    LucideChevronUp,
+    LucideArrowRight,
+    LucideCoffee,
+    LucideClock,
+    LucideChefHat,
+    LucideDroplet,
+    LucideChevronsUpDown,
+    LucideChevronsDownUp,
+    LucideEye,
+    LucideEyeOff
   ],
   templateUrl: './account.component.html',
   styleUrl: './account.component.scss'
@@ -78,17 +101,54 @@ export class AccountComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private checkoutService = inject(CheckoutService);
   private cartService = inject(CartService);
+  private zone = inject(NgZone);
+  private cdr = inject(ChangeDetectorRef);
+  private toastService = inject(ToastService);
 
   // Profile data signals
   user = signal<any>(null);
   isLoading = signal<boolean>(true);
   isSubmitting = signal<boolean>(false);
+  avatarPreview = signal<string>('');
+
+  // Saved items signals
+  savedProducts = signal<any[]>([]);
+  savedRecipes = signal<any[]>([]);
+  savedPosts = signal<any[]>([]);
+  savedBlogs = signal<any[]>([]);
+  isSavedLoading = signal<boolean>(false);
+  visibleLimits = signal<Record<string, number>>({
+    products: 3,
+    recipes: 3,
+    posts: 3,
+    blogs: 3
+  });
+
+  // Collapsible sections
+  sectionsExpanded = signal<any>({
+    products: true,
+    recipes: true,
+    posts: true,
+    blogs: true
+  });
+
+  // Selected arrays for checkboxes
+  selectedProducts = signal<string[]>([]);
+  selectedRecipes = signal<string[]>([]);
+  selectedPosts = signal<string[]>([]);
+  selectedBlogs = signal<string[]>([]);
 
   // Tab & Modal State
   activeTab = signal<string>('profile');
+  savedMinHeight = signal<string>('auto');
   showEditModal = signal<boolean>(false);
   showPasswordModal = signal<boolean>(false);
+  showOldPassword = signal<boolean>(false);
+  showNewPassword = signal<boolean>(false);
+  showConfirmPassword = signal<boolean>(false);
   isSidebarOpen = signal<boolean>(false);
+  showDeleteSelectedModal = signal<boolean>(false);
+  deleteSelectedSection = signal<string>('');
 
   // Address Modal State
   showAddressModal = signal<boolean>(false);
@@ -271,6 +331,21 @@ export class AccountComponent implements OnInit, OnDestroy {
     this.route.queryParams.subscribe(params => {
       if (params['tab']) {
         this.activeTab.set(params['tab']);
+        if (params['tab'] === 'saved') {
+          if (typeof window !== 'undefined') {
+            const lastScrollY = sessionStorage.getItem('lastScrollY');
+            if (lastScrollY) {
+              const y = parseInt(lastScrollY, 10);
+              this.savedMinHeight.set((y + window.innerHeight) + 'px');
+              window.scrollTo(0, y);
+            }
+          }
+          this.fetchSavedItems();
+        }
+      } else {
+        if (this.activeTab() === 'saved') {
+          this.fetchSavedItems();
+        }
       }
     });
 
@@ -315,6 +390,10 @@ export class AccountComponent implements OnInit, OnDestroy {
       this.cardValidator.detach();
       this.cardValidator = null;
     }
+    if (this.profileValidator) {
+      this.profileValidator.detach();
+      this.profileValidator = null;
+    }
     if (typeof window !== 'undefined') {
       delete (window as any).getAccountCardType;
       delete (window as any).validateAccountCardNumberFormat;
@@ -326,9 +405,16 @@ export class AccountComponent implements OnInit, OnDestroy {
   private initForms(): void {
     this.profileForm = this.fb.group({
       profile_name: ['', [Validators.required, Validators.minLength(2)]],
-      community_name: [''],
+      community_name: ['', [Validators.minLength(2)]],
       email: ['', [Validators.required, Validators.email]],
-      phone: ['', [Validators.pattern(/^[0-9]{10,11}$/)]]
+      phone: ['', [Validators.required, Validators.pattern(/^[0-9]{10,11}$/)]],
+      avatar_url: ['']
+    });
+
+    this.profileForm.valueChanges.subscribe(() => {
+      if (this.errorMessage()) {
+        this.errorMessage.set('');
+      }
     });
 
     this.passwordForm = this.fb.group({
@@ -336,6 +422,176 @@ export class AccountComponent implements OnInit, OnDestroy {
       newPassword: ['', [Validators.required, Validators.minLength(8)]],
       confirmPassword: ['', [Validators.required]]
     }, { validators: this.passwordMatchValidator });
+  }
+
+  profileValidator: InlineValidator | null = null;
+
+  setupProfileValidator(): void {
+    setTimeout(() => {
+      const profileConfigs: FieldConfig[] = [
+        {
+          field_id: 'profile_name',
+          error_element_id: 'profile_name-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'Name is required.'
+            },
+            {
+              sequence: 2,
+              type: 'LENGTH_CHECK',
+              min_length: 2,
+              error_message: 'Name must be at least 2 characters long.'
+            }
+          ]
+        },
+        {
+          field_id: 'community_name',
+          error_element_id: 'community_name-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'EMPTY_CHECK'
+            },
+            {
+              sequence: 2,
+              type: 'LENGTH_CHECK',
+              min_length: 2,
+              error_message: 'Community name must be at least 2 characters long.'
+            }
+          ]
+        },
+        {
+          field_id: 'email',
+          error_element_id: 'email-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'Email is required.'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              condition: '!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/.test(value.trim())',
+              error_message: 'Invalid email format.'
+            }
+          ]
+        },
+        {
+          field_id: 'phone',
+          error_element_id: 'phone-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'Phone number is required.'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              condition: '!/^[0-9]{10,11}$/.test(value.trim())',
+              error_message: 'Phone number must be 10-11 digits.'
+            }
+          ]
+        }
+      ];
+
+      if (this.profileValidator) {
+        this.profileValidator.detach();
+      }
+      this.profileValidator = new InlineValidator(profileConfigs);
+      this.profileValidator.attach();
+    }, 100);
+  }
+
+
+
+  getFieldError(field: string): string | null {
+    const control = this.profileForm.get(field);
+    if (!control || !(control.dirty || control.touched)) {
+      return null;
+    }
+
+    if (control.invalid) {
+      if (control.errors?.['required']) {
+        if (field === 'profile_name') return 'Name is required';
+        if (field === 'email') return 'Email is required';
+        if (field === 'phone') return 'Phone number is required';
+      }
+      if (control.errors?.['minlength']) {
+        if (field === 'profile_name') return 'Name must be at least 2 characters long';
+        if (field === 'community_name') return 'Community name must be at least 2 characters long';
+      }
+      if (control.errors?.['email']) {
+        return 'Invalid email format';
+      }
+      if (control.errors?.['pattern']) {
+        if (field === 'phone') return 'Phone number must be 10-11 digits';
+      }
+      return 'Invalid input';
+    }
+
+    // Check backend errors
+    const errorMsg = this.errorMessage();
+    if (errorMsg) {
+      if (field === 'email' && (errorMsg.includes('email') || errorMsg.includes('Email') || errorMsg.includes('thư điện tử'))) {
+        return 'Email already in use';
+      }
+      if (field === 'phone' && (errorMsg.includes('phone') || errorMsg.includes('Phone') || errorMsg.includes('số điện thoại') || errorMsg.includes('Số điện thoại'))) {
+        return 'Phone number already in use';
+      }
+      if (field === 'community_name' && (errorMsg.includes('community') || errorMsg.includes('Community') || errorMsg.includes('cộng đồng') || errorMsg.includes('Cộng đồng'))) {
+        return 'Community name already in use';
+      }
+    }
+
+    return null;
+  }
+
+  hasFieldError(field: string): boolean {
+    return this.getFieldError(field) !== null;
+  }
+
+  hasFieldSuccess(field: string): boolean {
+    const control = this.profileForm.get(field);
+    if (!control || !(control.dirty || control.touched)) {
+      return false;
+    }
+    
+    // For optional fields, only show success if they have entered a value
+    if (field === 'community_name') {
+      if (!control.value || control.value.trim() === '') {
+        return false;
+      }
+    }
+
+    if (typeof document !== 'undefined') {
+      const inputEl = document.getElementById(field);
+      if (inputEl && inputEl.classList.contains('invalid')) {
+        return false;
+      }
+    }
+
+    // If there is any field-specific backend error, it's not a success
+    const errorMsg = this.errorMessage();
+    if (errorMsg) {
+      if (field === 'email' && (errorMsg.includes('email') || errorMsg.includes('Email') || errorMsg.includes('thư điện tử'))) {
+        return false;
+      }
+      if (field === 'phone' && (errorMsg.includes('phone') || errorMsg.includes('Phone') || errorMsg.includes('số điện thoại') || errorMsg.includes('Số điện thoại'))) {
+        return false;
+      }
+      if (field === 'community_name' && (errorMsg.includes('community') || errorMsg.includes('Community') || errorMsg.includes('cộng đồng') || errorMsg.includes('Cộng đồng'))) {
+        return false;
+      }
+    }
+
+    return control.valid;
   }
 
   private passwordMatchValidator(g: FormGroup) {
@@ -377,6 +633,342 @@ export class AccountComponent implements OnInit, OnDestroy {
     this.activeTab.set(tab);
     this.closeSidebar();
     this.scrollToContent();
+    
+    // Sync tab to query parameters so back button restores it
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: tab },
+      queryParamsHandling: 'merge'
+    });
+
+    if (tab === 'saved') {
+      this.fetchSavedItems();
+    }
+  }
+
+  saveScrollAnchor(type: string, id: string | number): void {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('lastSavedAnchor', `${type}-${id}`);
+      sessionStorage.setItem('lastScrollY', window.scrollY.toString());
+    }
+  }
+
+  fetchSavedItems(showOverlay = true): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    if (showOverlay) {
+      this.isSavedLoading.set(true);
+    }
+    this.http.get<any>('/api/auth/saved-items').subscribe({
+      next: (res) => {
+        this.savedProducts.set(res.saved_products || []);
+        this.savedRecipes.set(res.saved_recipes || []);
+        this.savedPosts.set(res.saved_posts || []);
+        this.savedBlogs.set(res.saved_blogs || []);
+        if (showOverlay) {
+          this.isSavedLoading.set(false);
+        }
+
+        // Reset limits and selections only on full reload overlay
+        if (showOverlay) {
+          this.visibleLimits.set({
+            products: 3,
+            recipes: 3,
+            posts: 3,
+            blogs: 3
+          });
+
+          this.selectedProducts.set([]);
+          this.selectedRecipes.set([]);
+          this.selectedPosts.set([]);
+          this.selectedBlogs.set([]);
+        }
+
+        // Restore scroll position to the exact previous coordinates instantly
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            const lastScrollY = sessionStorage.getItem('lastScrollY');
+            if (lastScrollY) {
+              window.scrollTo(0, parseInt(lastScrollY, 10));
+              sessionStorage.removeItem('lastScrollY');
+              sessionStorage.removeItem('lastSavedAnchor');
+            } else {
+              const anchorId = sessionStorage.getItem('lastSavedAnchor');
+              if (anchorId) {
+                const element = document.getElementById(anchorId);
+                if (element) {
+                  element.scrollIntoView({ behavior: 'auto', block: 'center' });
+                }
+                sessionStorage.removeItem('lastSavedAnchor');
+              }
+            }
+            // Reset min-height back to auto now that real content is rendered
+            setTimeout(() => {
+              this.savedMinHeight.set('auto');
+            }, 50);
+          }
+        }, 100);
+      },
+      error: (err) => {
+        console.error('Failed to fetch saved items:', err);
+        if (showOverlay) {
+          this.isSavedLoading.set(false);
+        }
+      }
+    });
+  }
+
+  toggleSection(section: string): void {
+    const current = this.sectionsExpanded();
+    this.sectionsExpanded.set({
+      ...current,
+      [section]: !current[section]
+    });
+  }
+
+  toggleCollapseAll(): void {
+    const current = this.sectionsExpanded();
+    const anyExpanded = Object.values(current).some(v => v);
+    this.sectionsExpanded.set({
+      products: !anyExpanded,
+      recipes: !anyExpanded,
+      posts: !anyExpanded,
+      blogs: !anyExpanded
+    });
+  }
+
+  isAllExpanded(): boolean {
+    const current = this.sectionsExpanded();
+    return Object.values(current).every(v => v);
+  }
+
+  toggleSelection(section: string, id: string): void {
+    if (section === 'products') {
+      const current = this.selectedProducts();
+      this.selectedProducts.set(current.includes(id) ? current.filter(x => x !== id) : [...current, id]);
+    } else if (section === 'recipes') {
+      const current = this.selectedRecipes();
+      this.selectedRecipes.set(current.includes(id) ? current.filter(x => x !== id) : [...current, id]);
+    } else if (section === 'posts') {
+      const current = this.selectedPosts();
+      this.selectedPosts.set(current.includes(id) ? current.filter(x => x !== id) : [...current, id]);
+    } else if (section === 'blogs') {
+      const current = this.selectedBlogs();
+      this.selectedBlogs.set(current.includes(id) ? current.filter(x => x !== id) : [...current, id]);
+    }
+  }
+
+  isItemSelected(section: string, id: string): boolean {
+    if (section === 'products') return this.selectedProducts().includes(id);
+    if (section === 'recipes') return this.selectedRecipes().includes(id);
+    if (section === 'posts') return this.selectedPosts().includes(id);
+    if (section === 'blogs') return this.selectedBlogs().includes(id);
+    return false;
+  }
+
+  isAllSelected(section: string): boolean {
+    if (section === 'products') {
+      const total = this.savedProducts().length;
+      return total > 0 && this.selectedProducts().length === total;
+    }
+    if (section === 'recipes') {
+      const total = this.savedRecipes().length;
+      return total > 0 && this.selectedRecipes().length === total;
+    }
+    if (section === 'posts') {
+      const total = this.savedPosts().length;
+      return total > 0 && this.selectedPosts().length === total;
+    }
+    if (section === 'blogs') {
+      const total = this.savedBlogs().length;
+      return total > 0 && this.selectedBlogs().length === total;
+    }
+    return false;
+  }
+
+  toggleSelectAll(section: string): void {
+    if (section === 'products') {
+      if (this.isAllSelected(section)) {
+        this.selectedProducts.set([]);
+      } else {
+        this.selectedProducts.set(this.savedProducts().map(item => item.product.product_id.toString()));
+      }
+    } else if (section === 'recipes') {
+      if (this.isAllSelected(section)) {
+        this.selectedRecipes.set([]);
+      } else {
+        this.selectedRecipes.set(this.savedRecipes().map(item => item.recipe.recipe_id));
+      }
+    } else if (section === 'posts') {
+      if (this.isAllSelected(section)) {
+        this.selectedPosts.set([]);
+      } else {
+        this.selectedPosts.set(this.savedPosts().map(item => item.post.post_id));
+      }
+    } else if (section === 'blogs') {
+      if (this.isAllSelected(section)) {
+        this.selectedBlogs.set([]);
+      } else {
+        this.selectedBlogs.set(this.savedBlogs().map(item => item.blog._id));
+      }
+    }
+  }
+
+  removeItem(section: string, id: string): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    let endpoint = '';
+    let body = {};
+    if (section === 'products') {
+      endpoint = '/api/auth/saved-products';
+      body = { productId: id };
+    } else if (section === 'recipes') {
+      endpoint = '/api/auth/saved-recipes';
+      body = { recipeId: id };
+    } else if (section === 'posts') {
+      endpoint = '/api/auth/saved-posts';
+      body = { postId: id };
+    } else if (section === 'blogs') {
+      endpoint = '/api/auth/saved-blogs';
+      body = { blogId: id };
+    }
+
+    if (endpoint) {
+      // Optimistically update signals for smooth/instant removal
+      const previousProducts = this.savedProducts();
+      const previousRecipes = this.savedRecipes();
+      const previousPosts = this.savedPosts();
+      const previousBlogs = this.savedBlogs();
+
+      if (section === 'products') {
+        this.savedProducts.set(previousProducts.filter(item => item.product.product_id.toString() !== id));
+        this.selectedProducts.set(this.selectedProducts().filter(x => x !== id));
+      } else if (section === 'recipes') {
+        this.savedRecipes.set(previousRecipes.filter(item => item.recipe.recipe_id !== id));
+        this.selectedRecipes.set(this.selectedRecipes().filter(x => x !== id));
+      } else if (section === 'posts') {
+        this.savedPosts.set(previousPosts.filter(item => item.post.post_id !== id));
+        this.selectedPosts.set(this.selectedPosts().filter(x => x !== id));
+      } else if (section === 'blogs') {
+        this.savedBlogs.set(previousBlogs.filter(item => item.blog._id !== id));
+        this.selectedBlogs.set(this.selectedBlogs().filter(x => x !== id));
+      }
+
+      this.http.post(endpoint, body).subscribe({
+        next: () => this.fetchSavedItems(false),
+        error: (err) => {
+          console.error(`Failed to remove item from ${section}:`, err);
+          // Revert optimistic updates
+          this.savedProducts.set(previousProducts);
+          this.savedRecipes.set(previousRecipes);
+          this.savedPosts.set(previousPosts);
+          this.savedBlogs.set(previousBlogs);
+          this.fetchSavedItems(true);
+        }
+      });
+    }
+  }
+
+  deleteSelected(section: string): void {
+    let selectedIds: string[] = [];
+    if (section === 'products') selectedIds = this.selectedProducts();
+    if (section === 'recipes') selectedIds = this.selectedRecipes();
+    if (section === 'posts') selectedIds = this.selectedPosts();
+    if (section === 'blogs') selectedIds = this.selectedBlogs();
+
+    if (selectedIds.length === 0) return;
+
+    this.deleteSelectedSection.set(section);
+    this.showDeleteSelectedModal.set(true);
+  }
+
+  confirmDeleteSelected(): void {
+    const section = this.deleteSelectedSection();
+    if (!section) return;
+
+    if (!isPlatformBrowser(this.platformId)) return;
+    let selectedIds: string[] = [];
+    if (section === 'products') selectedIds = this.selectedProducts();
+    if (section === 'recipes') selectedIds = this.selectedRecipes();
+    if (section === 'posts') selectedIds = this.selectedPosts();
+    if (section === 'blogs') selectedIds = this.selectedBlogs();
+
+    if (selectedIds.length === 0) {
+      this.closeDeleteSelectedModal();
+      return;
+    }
+
+    const endpointMap: { [key: string]: string } = {
+      products: '/api/auth/saved-products',
+      recipes: '/api/auth/saved-recipes',
+      posts: '/api/auth/saved-posts',
+      blogs: '/api/auth/saved-blogs'
+    };
+    const keyMap: { [key: string]: string } = {
+      products: 'productId',
+      recipes: 'recipeId',
+      posts: 'postId',
+      blogs: 'blogId'
+    };
+
+    const endpoint = endpointMap[section];
+    const key = keyMap[section];
+
+    // Optimistically update signals for smooth/instant removal
+    const previousProducts = this.savedProducts();
+    const previousRecipes = this.savedRecipes();
+    const previousPosts = this.savedPosts();
+    const previousBlogs = this.savedBlogs();
+
+    if (section === 'products') {
+      this.savedProducts.set(previousProducts.filter(item => !selectedIds.includes(item.product.product_id.toString())));
+      this.selectedProducts.set([]);
+    } else if (section === 'recipes') {
+      this.savedRecipes.set(previousRecipes.filter(item => !selectedIds.includes(item.recipe.recipe_id)));
+      this.selectedRecipes.set([]);
+    } else if (section === 'posts') {
+      this.savedPosts.set(previousPosts.filter(item => !selectedIds.includes(item.post.post_id)));
+      this.selectedPosts.set([]);
+    } else if (section === 'blogs') {
+      this.savedBlogs.set(previousBlogs.filter(item => !selectedIds.includes(item.blog._id)));
+      this.selectedBlogs.set([]);
+    }
+
+    const requests = selectedIds.map(id => this.http.post(endpoint, { [key]: id }));
+    const promises = requests.map(req => req.toPromise());
+    
+    this.closeDeleteSelectedModal();
+
+    Promise.all(promises).then(() => {
+      this.fetchSavedItems(false);
+    }).catch(err => {
+      console.error(`Failed to delete selected items from ${section}:`, err);
+      // Revert optimistic updates
+      this.savedProducts.set(previousProducts);
+      this.savedRecipes.set(previousRecipes);
+      this.savedPosts.set(previousPosts);
+      this.savedBlogs.set(previousBlogs);
+      this.fetchSavedItems(true);
+    });
+  }
+
+  closeDeleteSelectedModal(): void {
+    this.showDeleteSelectedModal.set(false);
+    this.deleteSelectedSection.set('');
+  }
+
+  addProductToCart(product: any): void {
+    this.cartService.addToCart(product);
+  }
+
+  hasAnySavedItems(): boolean {
+    return this.savedProducts().length > 0 ||
+           this.savedRecipes().length > 0 ||
+           this.savedPosts().length > 0 ||
+           this.savedBlogs().length > 0;
+  }
+
+  onImgError(event: Event): void {
+    const target = event.target as HTMLImageElement;
+    target.src = 'assets/images/logo-mark-dark.svg';
   }
 
   private scrollToContent(): void {
@@ -409,76 +1001,291 @@ export class AccountComponent implements OnInit, OnDestroy {
         profile_name: this.user().profile_name || '',
         community_name: this.user().community_name || '',
         email: this.user().email || '',
-        phone: this.user().phone || ''
+        phone: this.user().phone || '',
+        avatar_url: this.user().avatar_url || ''
       });
+      this.avatarPreview.set(this.user().avatar_url || '');
     }
     this.showEditModal.set(true);
+    this.setupProfileValidator();
   }
 
   closeEditModal(): void {
     this.showEditModal.set(false);
+    if (this.profileValidator) {
+      this.profileValidator.detach();
+      this.profileValidator = null;
+    }
     this.profileForm.reset();
+    this.avatarPreview.set('');
+  }
+  onAvatarSelected(event: any): void {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const targetSize = 150;
+          const canvas = document.createElement('canvas');
+          canvas.width = targetSize;
+          canvas.height = targetSize;
+          
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, targetSize, targetSize);
+            const base64String = canvas.toDataURL('image/jpeg', 0.7);
+            
+            this.zone.run(() => {
+              this.profileForm.patchValue({
+                avatar_url: base64String
+              });
+              this.avatarPreview.set(base64String);
+              this.cdr.detectChanges();
+            });
+          }
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
   }
 
   openPasswordModal(): void {
     this.errorMessage.set('');
     this.successMessage.set('');
+    this.showOldPassword.set(false);
+    this.showNewPassword.set(false);
+    this.showConfirmPassword.set(false);
     this.showPasswordModal.set(true);
+    this.setupPasswordValidator();
   }
 
   closePasswordModal(): void {
     this.showPasswordModal.set(false);
+    if (this.passwordValidator) {
+      this.passwordValidator.detach();
+      this.passwordValidator = null;
+    }
     this.passwordForm.reset();
+  }
+
+  passwordValidator: InlineValidator | null = null;
+
+  setupPasswordValidator(): void {
+    setTimeout(() => {
+      const passwordConfigs: FieldConfig[] = [
+        {
+          field_id: 'oldPassword',
+          error_element_id: 'oldPassword-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'Current password is required.'
+            }
+          ]
+        },
+        {
+          field_id: 'newPassword',
+          error_element_id: 'newPassword-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'New password is required.'
+            },
+            {
+              sequence: 2,
+              type: 'LENGTH_CHECK',
+              min_length: 8,
+              max_length: 15,
+              error_message: 'Password must be 8-15 characters.'
+            },
+            {
+              sequence: 3,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '\\s',
+              error_message: 'Password cannot contain spaces.'
+            }
+          ]
+        },
+        {
+          field_id: 'confirmPassword',
+          error_element_id: 'confirmPassword-error',
+          rules: [
+            {
+              sequence: 1,
+              type: 'FORMAT_CHECK',
+              regex_pattern: '^\\s*$',
+              error_message: 'Confirm password is required.'
+            },
+            {
+              sequence: 2,
+              type: 'FORMAT_CHECK',
+              condition: 'value !== document.getElementById("newPassword")?.value',
+              error_message: 'Passwords do not match.'
+            }
+          ]
+        }
+      ];
+
+      if (this.passwordValidator) {
+        this.passwordValidator.detach();
+      }
+      this.passwordValidator = new InlineValidator(passwordConfigs);
+      this.passwordValidator.attach();
+    }, 100);
+  }
+
+  toggleOldPasswordVisibility(): void {
+    this.showOldPassword.set(!this.showOldPassword());
+  }
+
+  toggleNewPasswordVisibility(): void {
+    this.showNewPassword.set(!this.showNewPassword());
+  }
+
+  toggleConfirmPasswordVisibility(): void {
+    this.showConfirmPassword.set(!this.showConfirmPassword());
+  }
+
+  get newPasswordStrengthScore(): number {
+    const p = this.passwordForm.get('newPassword')?.value || '';
+    if (!p) return 0;
+
+    const hasLower = /[a-z]/.test(p);
+    const hasUpper = /[A-Z]/.test(p);
+    const hasDigit = /[0-9]/.test(p);
+    const hasSpecial = /[^A-Za-z0-9]/.test(p);
+
+    const groupsCount = (hasLower ? 1 : 0) + (hasUpper ? 1 : 0) + (hasDigit ? 1 : 0) + (hasSpecial ? 1 : 0);
+
+    if (p.length < 8) {
+      return 1;
+    }
+    if (p.length >= 10 && groupsCount >= 3) {
+      return 3;
+    }
+    if (groupsCount >= 2) {
+      return 2;
+    }
+    return 1;
+  }
+
+  get newPasswordStrengthLabel(): string {
+    const score = this.newPasswordStrengthScore;
+    if (score === 3) return 'STRONG';
+    if (score === 2) return 'MEDIUM';
+    if (score === 1) return 'WEAK';
+    return '';
   }
 
   onUpdateProfile(): void {
     if (this.profileForm.invalid) return;
+    if (this.profileValidator && !this.profileValidator.validateAll()) return;
 
-    this.isSubmitting.set(true);
-    this.errorMessage.set('');
-    this.successMessage.set('');
+    // Cache previous user data for rollback in case of server error
+    const previousUser = this.user();
+    const formValue = this.profileForm.value;
 
-    this.http.put<{ message: string; user: any }>('/api/auth/profile', this.profileForm.value)
+    // Optimistically update frontend state
+    const optimisticallyUpdatedUser = {
+      ...previousUser,
+      profile_name: formValue.profile_name,
+      community_name: formValue.community_name,
+      email: formValue.email,
+      phone: formValue.phone,
+      avatar_url: formValue.avatar_url || previousUser?.avatar_url
+    };
+
+    this.user.set(optimisticallyUpdatedUser);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('user', JSON.stringify(optimisticallyUpdatedUser));
+    }
+
+    // Instantly close modal and show success toast
+    this.toastService.success('Profile updated successfully!');
+    this.closeEditModal();
+
+    this.http.put<{ message: string; user: any }>('/api/auth/profile', formValue)
       .subscribe({
         next: (response) => {
-          this.user.set(response.user);
-          localStorage.setItem('user', JSON.stringify(response.user));
-          this.successMessage.set('Profile updated successfully!');
-          this.isSubmitting.set(false);
-          setTimeout(() => {
-            this.closeEditModal();
-            this.successMessage.set('');
-          }, 1500);
+          this.zone.run(() => {
+            this.user.set(response.user);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('user', JSON.stringify(response.user));
+            }
+          });
         },
         error: (err) => {
-          this.errorMessage.set(err.error?.error || 'Failed to update profile.');
-          this.isSubmitting.set(false);
+          this.zone.run(() => {
+            // Rollback to original state
+            this.user.set(previousUser);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('user', JSON.stringify(previousUser));
+            }
+            
+            const errMsg = err.error?.error || 'Failed to update profile.';
+            this.toastService.error(`Update failed: ${errMsg}`);
+            
+            // Reopen edit modal and show error message
+            this.openEditModal();
+            this.errorMessage.set(errMsg);
+          });
         }
       });
   }
 
   onChangePassword(): void {
-    if (this.passwordForm.invalid) return;
+    if (this.passwordValidator && !this.passwordValidator.validateAll()) return;
 
-    this.isSubmitting.set(true);
     this.errorMessage.set('');
     this.successMessage.set('');
 
     const { oldPassword, newPassword } = this.passwordForm.value;
 
+    // Instantly close modal and show success toast (optimistic update)
+    this.toastService.success('Password changed successfully!');
+    this.closePasswordModal();
+
     this.http.put<{ message: string }>('/api/auth/change-password', { oldPassword, newPassword })
       .subscribe({
         next: (response) => {
-          this.successMessage.set('Password changed successfully!');
-          this.isSubmitting.set(false);
-          setTimeout(() => {
-            this.closePasswordModal();
-            this.successMessage.set('');
-          }, 1500);
+          // Already closed and notified successfully
         },
         error: (err) => {
-          this.errorMessage.set(err.error?.error || 'Failed to change password.');
-          this.isSubmitting.set(false);
+          this.zone.run(() => {
+            const errMsg = err.error?.error || 'Failed to change password.';
+            this.toastService.error(`Update failed: ${errMsg}`);
+            
+            // Reopen modal
+            this.openPasswordModal();
+            
+            // Restore field values
+            this.passwordForm.patchValue({
+              oldPassword,
+              newPassword
+            });
+
+            // Display the specific error inline
+            setTimeout(() => {
+              if (errMsg.includes('Mật khẩu cũ không chính xác') || errMsg.toLowerCase().includes('incorrect') || errMsg.toLowerCase().includes('cũ không chính xác')) {
+                const inputEl = document.getElementById('oldPassword');
+                if (inputEl) inputEl.classList.add('invalid');
+                const errorEl = document.getElementById('oldPassword-error');
+                if (errorEl) {
+                  errorEl.textContent = 'Current password is incorrect';
+                }
+              } else {
+                this.errorMessage.set(errMsg);
+              }
+            }, 150);
+          });
         }
       });
   }
@@ -994,5 +1801,39 @@ export class AccountComponent implements OnInit, OnDestroy {
   signOut(): void {
     this.authService.logout();
     this.router.navigate(['/']);
+  }
+
+  showMore(category: 'products' | 'recipes' | 'posts' | 'blogs'): void {
+    this.visibleLimits.update(limits => ({
+      ...limits,
+      [category]: limits[category] + 10
+    }));
+  }
+
+  getRelativeTime(dateInput: any): string {
+    if (!dateInput) return 'recently';
+    const date = new Date(dateInput);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  getRecipeTags(recipe: any): string[] {
+    if (!recipe.metadata?.tags || !Array.isArray(recipe.metadata.tags)) {
+      return [];
+    }
+    return recipe.metadata.tags.filter((tag: string) =>
+      ['HOT', 'COLD', 'DESSERT', 'COCKTAIL', 'ICED', 'FRAPPE', 'LATTE', 'AMERICANO', 'ESPRESSO'].includes(tag.toUpperCase())
+    );
   }
 }

@@ -14,10 +14,12 @@
       <button class="sidebar-close-btn" (click)="closeSidebar()" aria-label="Close sidebar">
         <svg lucideX [size]="20"></svg>
       </button>
-
       <div class="sidebar-header">
         <div class="avatar-circle">
-          <svg lucideUser [size]="48" class="avatar-icon"></svg>
+          <img *ngIf="user()?.avatar_url; else defaultAvatarSidebar" [src]="user().avatar_url" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+          <ng-template #defaultAvatarSidebar>
+            <svg lucideUser [size]="48" class="avatar-icon"></svg>
+          </ng-template>
         </div>
         <h2 class="username">{{ user().profile_name }}</h2>
         <span class="user-status-text">Active Member</span>
@@ -66,13 +68,11 @@
           <h1 class="page-title">{{ activeTab() === 'profile' ? 'Profile Information' : (activeTab() === 'saved' ? 'Saved Items' : (activeTab() === 'address' ? 'My Address' : (activeTab() === 'orders' ? 'My Orders' : (activeTab() === 'payment' ? 'Payment Cards' : (activeTab() | titlecase))))) }}</h1>
         </div>
 
-        <div class="header-action-wrapper" *ngIf="activeTab() === 'saved'">
-          <button class="btn-collapse-all">
-            <span>COLLAPSE ALL</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="collapse-icon">
-              <polyline points="4 17 12 9 20 17"></polyline>
-              <polyline points="4 7 12 15 20 7"></polyline>
-            </svg>
+        <div class="header-action-wrapper" *ngIf="activeTab() === 'saved' && hasAnySavedItems()">
+          <button class="btn-collapse-all" (click)="toggleCollapseAll()">
+            <span>{{ isAllExpanded() ? 'COLLAPSE ALL' : 'EXPAND ALL' }}</span>
+            <svg *ngIf="isAllExpanded()" lucideChevronsDownUp [size]="14" class="collapse-icon"></svg>
+            <svg *ngIf="!isAllExpanded()" lucideChevronsUpDown [size]="14" class="collapse-icon"></svg>
           </button>
         </div>
 
@@ -98,9 +98,13 @@
             <!-- Left side: Large avatar -->
             <div class="card-avatar-wrapper">
               <div class="card-avatar-circle">
-                <svg lucideUser [size]="80" class="avatar-icon"></svg>
+                <img *ngIf="user()?.avatar_url; else defaultAvatarCard" [src]="user().avatar_url" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                <ng-template #defaultAvatarCard>
+                  <svg lucideUser [size]="80" class="avatar-icon"></svg>
+                </ng-template>
               </div>
             </div>
+
 
             <!-- Right side: Info fields -->
             <div class="card-info-grid">
@@ -154,9 +158,293 @@
         </div>
       </div>
 
-      <!-- Saved Tab (New Empty State) -->
-      <div class="tab-content saved-empty-content-tab" *ngIf="activeTab() === 'saved'">
-        <div class="saved-empty-state-wrapper">
+      <!-- Saved Tab -->
+      <div class="tab-content saved-items-tab-container" *ngIf="activeTab() === 'saved'" [style.minHeight]="savedMinHeight()">
+        <!-- Sub-loading State for Saved Items -->
+        <div class="saved-loading-overlay" *ngIf="isSavedLoading()">
+          <svg lucideLoader [size]="32" class="spin-icon"></svg>
+          <p>Loading your saved items...</p>
+        </div>
+
+        <div class="saved-content-inner" *ngIf="!isSavedLoading() && hasAnySavedItems()">
+          
+          <!-- Saved Products Section -->
+          <div class="saved-section" [class.collapsed]="!sectionsExpanded().products">
+            <div class="section-header" (click)="toggleSection('products')">
+              <h2 class="section-title">Saved Products <span class="item-count">({{ savedProducts().length }} items)</span></h2>
+              <svg lucideChevronUp *ngIf="sectionsExpanded().products" class="chevron-icon" [size]="20"></svg>
+              <svg lucideChevronDown *ngIf="!sectionsExpanded().products" class="chevron-icon" [size]="20"></svg>
+            </div>
+            
+            <div class="section-content-wrapper" *ngIf="sectionsExpanded().products">
+              <div class="bulk-action-bar" *ngIf="savedProducts().length > 0">
+                <label class="custom-checkbox-container">
+                  <input type="checkbox" [checked]="isAllSelected('products')" (change)="toggleSelectAll('products')">
+                  <span class="checkmark"></span>
+                  <span class="label-text">Select All <span class="selected-count">({{ selectedProducts().length }} Selected)</span></span>
+                </label>
+                <button class="btn-delete-selected" [disabled]="selectedProducts().length === 0" (click)="deleteSelected('products')">
+                  <svg lucideTrash2 [size]="14"></svg>
+                  <span>Delete Selected</span>
+                </button>
+              </div>
+
+              <div class="products-grid" *ngIf="savedProducts().length > 0; else noProducts">
+                <div [id]="'product-' + item.product.product_id" class="saved-item-card product-card" *ngFor="let item of savedProducts() | slice:0:visibleLimits()['products']">
+                  <div class="card-left-select">
+                    <label class="custom-checkbox-container">
+                      <input type="checkbox" [checked]="isItemSelected('products', item.product.product_id.toString())" (change)="toggleSelection('products', item.product.product_id.toString())">
+                      <span class="checkmark"></span>
+                    </label>
+                  </div>
+                  
+                  <div class="card-image-wrapper">
+                    <img [src]="item.product.images[0]?.url || 'assets/images/logo-mark-dark.svg'" [alt]="item.product.name" (error)="onImgError($event)">
+                  </div>
+
+                  <div class="card-details">
+                    <span class="item-meta">{{ item.product.category | uppercase }} • {{ item.product.matcha?.origin || item.product.coffee?.product_origin || 'Offsite' }}</span>
+                    <h3 class="item-name"><a [routerLink]="['/shop', item.product.slug]" (click)="saveScrollAnchor('product', item.product.product_id)">{{ item.product.name }}</a></h3>
+                    <span class="item-price">${{ item.product.variants[0]?.price | number:'1.2-2' }}</span>
+                  </div>
+
+                  <div class="card-actions">
+                    <button class="btn-add-to-cart" (click)="addProductToCart(item.product)">ADD</button>
+                  </div>
+
+                  <button class="btn-remove-item" (click)="removeItem('products', item.product.product_id.toString())" aria-label="Remove item">
+                    <svg lucideX [size]="16"></svg>
+                  </button>
+                </div>
+              </div>
+              
+              <ng-template #noProducts>
+                <div class="no-items-placeholder">No saved products.</div>
+              </ng-template>
+              
+              <div class="see-more-row" *ngIf="savedProducts().length > visibleLimits()['products']">
+                <button type="button" class="btn-see-more" (click)="showMore('products')">SEE MORE PRODUCTS...</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Saved Recipes Section -->
+          <div class="saved-section" [class.collapsed]="!sectionsExpanded().recipes">
+            <div class="section-header" (click)="toggleSection('recipes')">
+              <h2 class="section-title">Saved Recipes <span class="item-count">({{ savedRecipes().length }} items)</span></h2>
+              <svg lucideChevronUp *ngIf="sectionsExpanded().recipes" class="chevron-icon" [size]="20"></svg>
+              <svg lucideChevronDown *ngIf="!sectionsExpanded().recipes" class="chevron-icon" [size]="20"></svg>
+            </div>
+
+            <div class="section-content-wrapper" *ngIf="sectionsExpanded().recipes">
+              <div class="bulk-action-bar" *ngIf="savedRecipes().length > 0">
+                <label class="custom-checkbox-container">
+                  <input type="checkbox" [checked]="isAllSelected('recipes')" (change)="toggleSelectAll('recipes')">
+                  <span class="checkmark"></span>
+                  <span class="label-text">Select All <span class="selected-count">({{ selectedRecipes().length }} Selected)</span></span>
+                </label>
+                <button class="btn-delete-selected" [disabled]="selectedRecipes().length === 0" (click)="deleteSelected('recipes')">
+                  <svg lucideTrash2 [size]="14"></svg>
+                  <span>Delete Selected</span>
+                </button>
+              </div>
+
+              <div class="recipes-grid" *ngIf="savedRecipes().length > 0; else noRecipes">
+                <div [id]="'recipe-' + item.recipe.recipe_id" class="saved-item-card recipe-card" *ngFor="let item of savedRecipes() | slice:0:visibleLimits()['recipes']" [routerLink]="['/recipes', item.recipe.slug]" (click)="saveScrollAnchor('recipe', item.recipe.recipe_id)">
+                  <div class="card-left-select" (click)="$event.stopPropagation()">
+                    <label class="custom-checkbox-container">
+                      <input type="checkbox" [checked]="isItemSelected('recipes', item.recipe.recipe_id)" (change)="toggleSelection('recipes', item.recipe.recipe_id)">
+                      <span class="checkmark"></span>
+                    </label>
+                  </div>
+                  
+                  <div class="card-image-wrapper">
+                    <img [src]="item.recipe.heroImage?.url || 'assets/images/logo-mark-dark.svg'" [alt]="item.recipe.title" (error)="onImgError($event)">
+                  </div>
+
+                  <div class="card-details">
+                    <h3 class="item-name">{{ item.recipe.title }}</h3>
+                    <div class="item-meta recipe-meta-row">
+                      <span class="meta-item">
+                        <svg lucideDroplet [size]="14" class="meta-icon"></svg>
+                        <span>{{ (item.recipe.metadata?.tags && item.recipe.metadata.tags[0]) || 'COFFEE' | uppercase }}</span>
+                      </span>
+                      <span class="meta-separator">·</span>
+                      <span class="meta-item">
+                        <svg lucideClock [size]="14" class="meta-icon"></svg>
+                        <span>{{ item.recipe.metadata?.cookTime || item.recipe.metadata?.prepTime || 12 }} MINS</span>
+                      </span>
+                      <span class="meta-separator">·</span>
+                      <span class="meta-item">
+                        <svg lucideStar [size]="14" class="meta-icon"></svg>
+                        <span>{{ item.recipe.metadata?.difficulty || 'MEDIUM' | uppercase }}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="card-actions">
+                    <a class="btn-view-item" [routerLink]="['/recipes', item.recipe.slug]">
+                      <span>VIEW RECIPE</span>
+                      <svg lucideArrowRight [size]="14"></svg>
+                    </a>
+                  </div>
+
+                  <button class="btn-remove-item" (click)="removeItem('recipes', item.recipe.recipe_id); $event.stopPropagation()" aria-label="Remove item">
+                    <svg lucideX [size]="16"></svg>
+                  </button>
+                </div>
+              </div>
+              
+              <ng-template #noRecipes>
+                <div class="no-items-placeholder">No saved recipes.</div>
+              </ng-template>
+
+              <div class="see-more-row" *ngIf="savedRecipes().length > visibleLimits()['recipes']">
+                <button type="button" class="btn-see-more" (click)="showMore('recipes')">SEE MORE RECIPES...</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Saved Posts Section -->
+          <div class="saved-section" [class.collapsed]="!sectionsExpanded().posts">
+            <div class="section-header" (click)="toggleSection('posts')">
+              <h2 class="section-title">Saved Posts <span class="item-count">({{ savedPosts().length }} items)</span></h2>
+              <svg lucideChevronUp *ngIf="sectionsExpanded().posts" class="chevron-icon" [size]="20"></svg>
+              <svg lucideChevronDown *ngIf="!sectionsExpanded().posts" class="chevron-icon" [size]="20"></svg>
+            </div>
+
+            <div class="section-content-wrapper" *ngIf="sectionsExpanded().posts">
+              <div class="bulk-action-bar" *ngIf="savedPosts().length > 0">
+                <label class="custom-checkbox-container">
+                  <input type="checkbox" [checked]="isAllSelected('posts')" (change)="toggleSelectAll('posts')">
+                  <span class="checkmark"></span>
+                  <span class="label-text">Select All <span class="selected-count">({{ selectedPosts().length }} Selected)</span></span>
+                </label>
+                <button class="btn-delete-selected" [disabled]="selectedPosts().length === 0" (click)="deleteSelected('posts')">
+                  <svg lucideTrash2 [size]="14"></svg>
+                  <span>Delete Selected</span>
+                </button>
+              </div>
+
+              <div class="posts-grid" *ngIf="savedPosts().length > 0; else noPosts">
+                <div [id]="'post-' + item.post.post_id" class="saved-item-card post-card" *ngFor="let item of savedPosts() | slice:0:visibleLimits()['posts']">
+                  <div class="card-left-select">
+                    <label class="custom-checkbox-container">
+                      <input type="checkbox" [checked]="isItemSelected('posts', item.post.post_id)" (change)="toggleSelection('posts', item.post.post_id)">
+                      <span class="checkmark"></span>
+                    </label>
+                  </div>
+                  
+                  <div class="card-image-wrapper avatar-wrapper" *ngIf="item.post.author?.avatar_url">
+                    <img [src]="item.post.author.avatar_url" [alt]="item.post.author.username" class="post-author-avatar" (error)="onImgError($event)">
+                  </div>
+                  <div class="card-image-wrapper avatar-wrapper fallback-avatar" *ngIf="!item.post.author?.avatar_url">
+                    <div class="post-author-avatar-placeholder">
+                      <svg lucideUser [size]="20"></svg>
+                    </div>
+                  </div>
+
+                  <div class="card-details">
+                    <div class="post-header-info">
+                      <span class="post-author-name">{{ item.post.author?.username || 'Anonymous' }}</span>
+                      <span class="post-date">{{ getRelativeTime(item.saved_at) }}</span>
+                    </div>
+                    <p class="post-excerpt-text">{{ item.post.content }}</p>
+                    <a [routerLink]="['/community']" class="btn-view-post-link" (click)="saveScrollAnchor('post', item.post.post_id)">
+                      <span>VIEW POST</span>
+                      <svg lucideArrowRight [size]="14"></svg>
+                    </a>
+                  </div>
+
+                  <button class="btn-remove-item" (click)="removeItem('posts', item.post.post_id)" aria-label="Remove item">
+                    <svg lucideX [size]="16"></svg>
+                  </button>
+                </div>
+              </div>
+              
+              <ng-template #noPosts>
+                <div class="no-items-placeholder">No saved posts.</div>
+              </ng-template>
+
+              <div class="see-more-row" *ngIf="savedPosts().length > visibleLimits()['posts']">
+                <button type="button" class="btn-see-more" (click)="showMore('posts')">SEE MORE POSTS...</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Saved Blogs Section -->
+          <div class="saved-section" [class.collapsed]="!sectionsExpanded().blogs">
+            <div class="section-header" (click)="toggleSection('blogs')">
+              <h2 class="section-title">Saved Blogs <span class="item-count">({{ savedBlogs().length }} items)</span></h2>
+              <svg lucideChevronUp *ngIf="sectionsExpanded().blogs" class="chevron-icon" [size]="20"></svg>
+              <svg lucideChevronDown *ngIf="!sectionsExpanded().blogs" class="chevron-icon" [size]="20"></svg>
+            </div>
+
+            <div class="section-content-wrapper" *ngIf="sectionsExpanded().blogs">
+              <div class="bulk-action-bar" *ngIf="savedBlogs().length > 0">
+                <label class="custom-checkbox-container">
+                  <input type="checkbox" [checked]="isAllSelected('blogs')" (change)="toggleSelectAll('blogs')">
+                  <span class="checkmark"></span>
+                  <span class="label-text">Select All <span class="selected-count">({{ selectedBlogs().length }} Selected)</span></span>
+                </label>
+                <button class="btn-delete-selected" [disabled]="selectedBlogs().length === 0" (click)="deleteSelected('blogs')">
+                  <svg lucideTrash2 [size]="14"></svg>
+                  <span>Delete Selected</span>
+                </button>
+              </div>
+
+              <div class="blogs-grid" *ngIf="savedBlogs().length > 0; else noBlogs">
+                <div [id]="'blog-' + item.blog._id" class="saved-item-card blog-card" *ngFor="let item of savedBlogs() | slice:0:visibleLimits()['blogs']" [routerLink]="['/journal', item.blog.slug]" (click)="saveScrollAnchor('blog', item.blog._id)">
+                  <div class="card-left-select" (click)="$event.stopPropagation()">
+                    <label class="custom-checkbox-container">
+                      <input type="checkbox" [checked]="isItemSelected('blogs', item.blog._id)" (change)="toggleSelection('blogs', item.blog._id)">
+                      <span class="checkmark"></span>
+                    </label>
+                  </div>
+                  
+                  <div class="card-image-wrapper">
+                    <img [src]="item.blog.featured_image_url || 'assets/images/logo-mark-dark.svg'" [alt]="item.blog.title" (error)="onImgError($event)">
+                  </div>
+
+                  <div class="card-details">
+                    <h3 class="item-name inline-title-row">
+                      <span class="blog-category-badge" [ngClass]="item.blog.category.toLowerCase().replace(' ', '-')">{{ item.blog.category | uppercase }}</span>
+                      <a [routerLink]="['/journal', item.blog.slug]" (click)="$event.stopPropagation()">{{ item.blog.title }}</a>
+                    </h3>
+                    <p class="blog-excerpt-text">{{ item.blog.excerpt }}</p>
+                    <div class="blog-meta-row">
+                      <span>{{ item.blog.published_at | date:'longDate' | uppercase }}</span>
+                      <span class="meta-separator">·</span>
+                      <span>{{ item.blog.read_time_minutes || 5 }} MIN READ</span>
+                    </div>
+                  </div>
+
+                  <div class="card-actions">
+                    <a [routerLink]="['/journal', item.blog.slug]" class="btn-view-item">
+                      <span>VIEW BLOG</span>
+                      <svg lucideArrowRight [size]="14"></svg>
+                    </a>
+                  </div>
+
+                  <button class="btn-remove-item" (click)="removeItem('blogs', item.blog._id); $event.stopPropagation()" aria-label="Remove item">
+                    <svg lucideX [size]="16"></svg>
+                  </button>
+                </div>
+              </div>
+              
+              <ng-template #noBlogs>
+                <div class="no-items-placeholder">No saved blogs.</div>
+              </ng-template>
+
+              <div class="see-more-row" *ngIf="savedBlogs().length > visibleLimits()['blogs']">
+                <button type="button" class="btn-see-more" (click)="showMore('blogs')">SEE MORE BLOGS...</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="saved-empty-state-wrapper" *ngIf="!isSavedLoading() && !hasAnySavedItems()">
           <div class="saved-empty-icon-container">
             <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="saved-empty-search-svg">
               <circle cx="28" cy="28" r="15"></circle>
@@ -693,109 +981,77 @@
           <div class="profile-avatar-container">
             <div class="profile-avatar-wrapper">
               <div class="profile-avatar-inner">
-                <img *ngIf="user()?.avatar_url; else defaultAvatar" [src]="user().avatar_url" alt="Profile Picture">
+                <img *ngIf="avatarPreview() || user()?.avatar_url; else defaultAvatar" [src]="avatarPreview() || user()?.avatar_url" alt="Profile Picture">
                 <ng-template #defaultAvatar>
                   <svg viewBox="0 0 24 24" fill="currentColor" class="default-avatar-svg">
                     <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                   </svg>
                 </ng-template>
               </div>
-              <button type="button" class="camera-edit-badge" aria-label="Change photo">
+              <button type="button" class="camera-edit-badge" aria-label="Change photo" (click)="avatarInput.click()">
                 <svg viewBox="0 0 24 24" fill="currentColor" class="camera-icon-svg">
                   <path d="M4 4h3l2-3h6l2 3h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm8 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/>
                 </svg>
               </button>
+              <input type="file" #avatarInput accept="image/*" style="display: none;" (change)="onAvatarSelected($event)">
             </div>
-          </div>
-
-          <!-- Name Field -->
-          <div class="profile-form-group" [class.field-has-error]="profileForm.get('profile_name')?.touched && profileForm.get('profile_name')?.invalid" [class.field-has-success]="profileForm.get('profile_name')?.touched && profileForm.get('profile_name')?.valid">
+          </div>          <!-- Name Field -->
+          <div class="profile-form-group" [class.field-has-error]="hasFieldError('profile_name')" [class.field-has-success]="hasFieldSuccess('profile_name')">
             <label for="profile_name">NAME</label>
             <div class="profile-input-wrapper">
-              <input type="text" id="profile_name" formControlName="profile_name" placeholder="Steve Jobs">
-              <span class="status-icon success-checkmark" *ngIf="profileForm.get('profile_name')?.touched && profileForm.get('profile_name')?.valid">
+              <input type="text" id="profile_name" formControlName="profile_name" placeholder="Enter your full name">
+              <span class="status-icon success-checkmark" *ngIf="hasFieldSuccess('profile_name')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               </span>
             </div>
-            <div class="field-error-msg" *ngIf="profileForm.get('profile_name')?.touched && profileForm.get('profile_name')?.invalid">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="error-exclamation-icon">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <span>Name cannot be empty</span>
-            </div>
+            <div id="profile_name-error" class="field-error-msg"></div>
           </div>
 
           <!-- Community Name Field -->
-          <div class="profile-form-group" [class.field-has-error]="profileForm.get('community_name')?.touched && profileForm.get('community_name')?.invalid" [class.field-has-success]="profileForm.get('community_name')?.touched && profileForm.get('community_name')?.valid">
+          <div class="profile-form-group" [class.field-has-error]="hasFieldError('community_name')" [class.field-has-success]="hasFieldSuccess('community_name')">
             <label for="community_name">COMMUNITY NAME</label>
             <div class="profile-input-wrapper">
-              <input type="text" id="community_name" formControlName="community_name" placeholder="stevejobs_vn">
-              <span class="status-icon success-checkmark" *ngIf="profileForm.get('community_name')?.touched && profileForm.get('community_name')?.valid">
+              <input type="text" id="community_name" formControlName="community_name" placeholder="Enter community name">
+              <span class="status-icon success-checkmark" *ngIf="hasFieldSuccess('community_name')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               </span>
             </div>
-            <div class="field-error-msg" *ngIf="profileForm.get('community_name')?.touched && profileForm.get('community_name')?.invalid">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="error-exclamation-icon">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <span>Name cannot be empty</span>
-            </div>
+            <div id="community_name-error" class="field-error-msg"></div>
           </div>
 
           <!-- Email Field -->
-          <div class="profile-form-group" [class.field-has-error]="profileForm.get('email')?.touched && (profileForm.get('email')?.invalid || errorMessage().includes('email') || errorMessage().includes('Email'))" [class.field-has-success]="profileForm.get('email')?.touched && profileForm.get('email')?.valid && !errorMessage().includes('email') && !errorMessage().includes('Email')">
+          <div class="profile-form-group" [class.field-has-error]="hasFieldError('email')" [class.field-has-success]="hasFieldSuccess('email')">
             <label for="email">EMAIL</label>
             <div class="profile-input-wrapper">
-              <input type="email" id="email" formControlName="email" placeholder="stevejobsvn@yahoohoo.com">
-              <span class="status-icon success-checkmark" *ngIf="profileForm.get('email')?.touched && profileForm.get('email')?.valid && !errorMessage().includes('email') && !errorMessage().includes('Email')">
+              <input type="email" id="email" formControlName="email" placeholder="Enter your email address">
+              <span class="status-icon success-checkmark" *ngIf="hasFieldSuccess('email')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               </span>
             </div>
-            <div class="field-error-msg" *ngIf="profileForm.get('email')?.touched && (profileForm.get('email')?.invalid || errorMessage().includes('email') || errorMessage().includes('Email'))">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="error-exclamation-icon">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <span *ngIf="profileForm.get('email')?.errors?.['email']">Invalid email format</span>
-              <span *ngIf="profileForm.get('email')?.errors?.['required']">Email is required</span>
-              <span *ngIf="!profileForm.get('email')?.errors?.['required'] && !profileForm.get('email')?.errors?.['email']">Email already in use</span>
-            </div>
+            <div id="email-error" class="field-error-msg"></div>
           </div>
 
           <!-- Phone Field -->
-          <div class="profile-form-group" [class.field-has-error]="profileForm.get('phone')?.touched && profileForm.get('phone')?.invalid" [class.field-has-success]="profileForm.get('phone')?.touched && profileForm.get('phone')?.valid && profileForm.get('phone')?.value">
+          <div class="profile-form-group" [class.field-has-error]="hasFieldError('phone')" [class.field-has-success]="hasFieldSuccess('phone')">
             <label for="phone">PHONE</label>
             <div class="profile-input-wrapper">
-              <input type="text" id="phone" formControlName="phone" placeholder="0987654321">
-              <span class="status-icon success-checkmark" *ngIf="profileForm.get('phone')?.touched && profileForm.get('phone')?.valid && profileForm.get('phone')?.value">
+              <input type="text" id="phone" formControlName="phone" placeholder="Enter your phone number">
+              <span class="status-icon success-checkmark" *ngIf="hasFieldSuccess('phone')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               </span>
             </div>
-            <div class="field-error-msg" *ngIf="profileForm.get('phone')?.touched && profileForm.get('phone')?.invalid">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="error-exclamation-icon">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <span>Phone number must be 10-11 digits</span>
-            </div>
+            <div id="phone-error" class="field-error-msg"></div>
           </div>
-
           <!-- Alert Messages (General, not field-specific) -->
-          <div class="alert alert-error" *ngIf="errorMessage() && !errorMessage().includes('email') && !errorMessage().includes('Email')">
+          <div class="alert alert-error" *ngIf="errorMessage() && !hasFieldError('profile_name') && !hasFieldError('community_name') && !hasFieldError('email') && !hasFieldError('phone')">
             <span>{{ errorMessage() }}</span>
           </div>
           <div class="alert alert-success" *ngIf="successMessage()">
@@ -827,45 +1083,91 @@
   </div>
 
   <!-- Change Password Modal -->
-  <div class="modal-overlay" *ngIf="showPasswordModal()" (click)="closePasswordModal()">
-    <div class="modal-content" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <h2>Change Password</h2>
-        <button class="close-btn" (click)="closePasswordModal()">
-          <svg lucideX [size]="20"></svg>
+  <div class="modal-overlay change-password-overlay" *ngIf="showPasswordModal()" (click)="closePasswordModal()">
+    <div class="modal-content change-password-modal" (click)="$event.stopPropagation()">
+      <div class="change-password-header">
+        <h2 class="change-password-title">Change Password</h2>
+        <button type="button" class="change-password-close-btn" (click)="closePasswordModal()" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="close-icon-svg">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
         </button>
       </div>
 
       <form [formGroup]="passwordForm" (ngSubmit)="onChangePassword()">
-        <div class="modal-body">
-          <div class="form-group">
-            <label for="oldPassword">Old Password *</label>
-            <input type="password" id="oldPassword" formControlName="oldPassword" placeholder="••••••••">
-            <span class="error-text" *ngIf="passwordForm.get('oldPassword')?.touched && passwordForm.get('oldPassword')?.errors?.['required']">
-              Old password is required.
-            </span>
+        <div class="change-password-body">
+          
+          <!-- Current Password -->
+          <div class="change-password-form-group">
+            <label for="oldPassword">CURRENT PASSWORD</label>
+            <div class="password-input-wrapper">
+              <input 
+                [type]="showOldPassword() ? 'text' : 'password'" 
+                id="oldPassword" 
+                formControlName="oldPassword" 
+                placeholder="••••••••">
+              <button 
+                type="button" 
+                class="password-toggle-btn" 
+                (click)="toggleOldPasswordVisibility()" 
+                [attr.aria-label]="showOldPassword() ? 'Hide password' : 'Show password'">
+                <svg *ngIf="!showOldPassword()" lucideEyeOff [size]="18"></svg>
+                <svg *ngIf="showOldPassword()" lucideEye [size]="18"></svg>
+              </button>
+            </div>
+            <div id="oldPassword-error" class="field-error-msg"></div>
           </div>
 
-          <div class="form-group">
-            <label for="newPassword">New Password *</label>
-            <input type="password" id="newPassword" formControlName="newPassword" placeholder="••••••••">
-            <span class="error-text" *ngIf="passwordForm.get('newPassword')?.touched && passwordForm.get('newPassword')?.errors?.['required']">
-              New password is required.
-            </span>
-            <span class="error-text" *ngIf="passwordForm.get('newPassword')?.touched && passwordForm.get('newPassword')?.errors?.['minlength']">
-              Password must be at least 8 characters long.
-            </span>
+          <!-- New Password -->
+          <div class="change-password-form-group">
+            <label for="newPassword">NEW PASSWORD</label>
+            <div class="password-input-wrapper">
+              <input 
+                [type]="showNewPassword() ? 'text' : 'password'" 
+                id="newPassword" 
+                formControlName="newPassword" 
+                placeholder="8-15 chars, no spaces">
+              <button 
+                type="button" 
+                class="password-toggle-btn" 
+                (click)="toggleNewPasswordVisibility()" 
+                [attr.aria-label]="showNewPassword() ? 'Hide password' : 'Show password'">
+                <svg *ngIf="!showNewPassword()" lucideEyeOff [size]="18"></svg>
+                <svg *ngIf="showNewPassword()" lucideEye [size]="18"></svg>
+              </button>
+            </div>
+            <!-- Password Strength Meter -->
+            <div class="password-strength-container" *ngIf="passwordForm.get('newPassword')?.value" [class.strength-weak]="newPasswordStrengthScore === 1" [class.strength-medium]="newPasswordStrengthScore === 2" [class.strength-strong]="newPasswordStrengthScore === 3">
+              <div class="strength-bar">
+                <div class="strength-segment" [class.filled]="newPasswordStrengthScore >= 1"></div>
+                <div class="strength-segment" [class.filled]="newPasswordStrengthScore >= 2"></div>
+                <div class="strength-segment" [class.filled]="newPasswordStrengthScore >= 3"></div>
+              </div>
+              <span class="strength-label">{{ newPasswordStrengthLabel }}</span>
+            </div>
+            <div id="newPassword-error" class="field-error-msg"></div>
           </div>
 
-          <div class="form-group">
-            <label for="confirmPassword">Confirm New Password *</label>
-            <input type="password" id="confirmPassword" formControlName="confirmPassword" placeholder="••••••••">
-            <span class="error-text" *ngIf="passwordForm.get('confirmPassword')?.touched && passwordForm.get('confirmPassword')?.errors?.['required']">
-              Confirm password is required.
-            </span>
-            <span class="error-text" *ngIf="passwordForm.touched && passwordForm.errors?.['mismatch']">
-              Passwords do not match.
-            </span>
+          <!-- Confirm Password -->
+          <div class="change-password-form-group">
+            <label for="confirmPassword">CONFIRM PASSWORD</label>
+            <div class="password-input-wrapper">
+              <input 
+                [type]="showConfirmPassword() ? 'text' : 'password'" 
+                id="confirmPassword" 
+                formControlName="confirmPassword" 
+                placeholder="Must match new password">
+              <button 
+                type="button" 
+                class="password-toggle-btn" 
+                (click)="toggleConfirmPasswordVisibility()" 
+                [attr.aria-label]="showConfirmPassword() ? 'Hide password' : 'Show password'">
+                <svg *ngIf="!showConfirmPassword()" lucideEyeOff [size]="18"></svg>
+                <svg *ngIf="showConfirmPassword()" lucideEye [size]="18"></svg>
+              </button>
+            </div>
+            <div id="confirmPassword-error" class="field-error-msg"></div>
           </div>
 
           <!-- Alert Messages -->
@@ -878,11 +1180,20 @@
           </div>
         </div>
 
-        <div class="modal-footer">
-          <button type="button" class="btn-outline" (click)="closePasswordModal()">CANCEL</button>
-          <button type="submit" class="btn-primary" [disabled]="passwordForm.invalid || isSubmitting()">
-            <svg lucideLoader [size]="16" class="spin-icon" *ngIf="isSubmitting()"></svg>
-            UPDATE PASSWORD
+        <div class="change-password-footer">
+          <button type="button" class="btn-change-password-cancel" (click)="closePasswordModal()">CANCEL</button>
+          <button type="submit" class="btn-change-password-submit" [disabled]="isSubmitting()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon" style="width: 16px; height: 16px; margin-right: 8px;" *ngIf="isSubmitting()">
+              <line x1="12" y1="2" x2="12" y2="6"></line>
+              <line x1="12" y1="18" x2="12" y2="22"></line>
+              <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+              <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+              <line x1="2" y1="12" x2="6" y2="12"></line>
+              <line x1="18" y1="12" x2="22" y2="12"></line>
+              <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+              <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+            </svg>
+            CHANGE PASSWORD
           </button>
         </div>
       </form>
@@ -911,4 +1222,27 @@
     [(isOpen)]="showReviewModal"
     (orderUpdated)="onReviewOrderUpdated($event)"
   ></app-review-modal>
+
+  <!-- Delete Selected Items Modal -->
+  <div class="modal-overlay delete-selected-overlay" *ngIf="showDeleteSelectedModal()" (click)="closeDeleteSelectedModal()">
+    <div class="modal-content delete-selected-modal" (click)="$event.stopPropagation()">
+      <button type="button" class="close-btn" (click)="closeDeleteSelectedModal()" aria-label="Close dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="close-icon-svg">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+
+      <div class="delete-selected-header">
+        <h2 class="delete-selected-title">Delete Selected Items?</h2>
+        <p class="confirm-desc">Are you sure you want to remove these items from you saved list?</p>
+        <p class="warning-desc">This action cannot be undone.</p>
+      </div>
+
+      <div class="delete-selected-footer">
+        <button type="button" class="btn-modal-action btn-cancel" (click)="closeDeleteSelectedModal()">CANCEL</button>
+        <button type="button" class="btn-modal-action btn-delete" (click)="confirmDeleteSelected()">DELETE</button>
+      </div>
+    </div>
+  </div>
 </div>

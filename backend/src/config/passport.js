@@ -50,6 +50,7 @@ function setupPassport(userCollection) {
               saved_products: [],
               saved_recipes: [],
               saved_posts: [],
+              saved_blogs: [],
               createdAt: new Date(),
               updatedAt: new Date()
             };
@@ -116,6 +117,7 @@ function setupPassport(userCollection) {
               saved_products: [],
               saved_recipes: [],
               saved_posts: [],
+              saved_blogs: [],
               createdAt: new Date(),
               updatedAt: new Date()
             };

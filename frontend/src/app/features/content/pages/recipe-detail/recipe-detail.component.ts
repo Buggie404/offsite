@@ -1,6 +1,7 @@
-import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { 
   LucideArrowLeft, 
   LucideClock, 
@@ -9,7 +10,6 @@ import {
   LucideDroplet, 
   LucideChevronDown, 
   LucideRotateCcw,
-  LucideArrowUp,
   LucidePlay,
   LucidePause,
   LucideArrowRight
@@ -22,6 +22,7 @@ import { AuthPromptModalService } from '../../../../shared/components/auth-promp
 import { AuthService } from '../../../../core/auth.service';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
+import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 
 @Component({
   selector: 'app-recipe-detail',
@@ -36,10 +37,10 @@ import { takeUntil } from 'rxjs/operators';
     LucideDroplet,
     LucideChevronDown,
     LucideRotateCcw,
-    LucideArrowUp,
     LucidePlay,
     LucidePause,
-    LucideArrowRight
+    LucideArrowRight,
+    BackToTopComponent
   ],
   templateUrl: './recipe-detail.component.html',
   styleUrl: './recipe-detail.component.scss'
@@ -53,10 +54,12 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private authService = inject(AuthService);
   private authPromptService = inject(AuthPromptModalService);
+  private http = inject(HttpClient);
   private destroy$ = new Subject<void>();
 
   recipe: Recipe | null = null;
   relatedRecipes: Recipe[] = [];
+  savedRecipeIds = new Set<string>();
   products: Product[] = [];
   isLoading = true;
   errorMessage = '';
@@ -71,28 +74,11 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   timerRunning = false;
   private timerInterval: any = null;
 
-  showBackToTop = false;
-  private scrollThreshold = 400;
-
   // Swatches for Coffee Roast level
   roastSwatches = [
     '#f3f8ec', '#e5f1d5', '#d7eabf', '#c9e3a9', '#b5d48a',
     '#96bf62', '#74a340', '#567d2e', '#43631f', '#375534'
   ];
-
-  @HostListener('window:scroll')
-  onWindowScroll(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      this.showBackToTop = window.scrollY > this.scrollThreshold;
-      this.cdr.detectChanges();
-    }
-  }
-
-  scrollToTop(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }
 
   ngOnInit(): void {
     this.route.params.pipe(takeUntil(this.destroy$)).subscribe(params => {
@@ -134,14 +120,26 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
         this.loadProducts(recipe.relatedProducts || []);
         this.loadRelatedRecipes(recipe._id);
 
-        this.isLoading = false;
-        
-        // Scroll to top of the page when new recipe loads
-        if (isPlatformBrowser(this.platformId)) {
-          window.scrollTo({ top: 0, behavior: 'instant' as any });
+        if (this.authService.isAuthenticated()) {
+          this.http.get<any>('/api/auth/saved-items').subscribe({
+            next: (res) => {
+              this.savedRecipeIds = new Set<string>((res.saved_recipes || []).map((sr: any) => sr.recipe?.recipe_id).filter(Boolean));
+              if (this.recipe) {
+                (this.recipe as any).isFavorited = this.savedRecipeIds.has(this.recipe.recipe_id);
+              }
+              this.isLoading = false;
+              this.cdr.detectChanges();
+            },
+            error: (err) => {
+              console.error('Failed to fetch saved recipes for detail:', err);
+              this.isLoading = false;
+              this.cdr.detectChanges();
+            }
+          });
+        } else {
+          this.isLoading = false;
+          this.cdr.detectChanges();
         }
-
-        this.cdr.detectChanges();
       },
       error: (err) => {
         console.error('Error loading recipe:', err);
@@ -349,17 +347,26 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if ((recipe as any).isFavorited) {
-      (recipe as any).isFavorited = false;
-      recipe.saves = Math.max(0, recipe.saves - 1);
-    } else {
-      (recipe as any).isFavorited = true;
-      recipe.saves += 1;
-    }
+    this.http.post<any>('/api/auth/saved-recipes', { recipeId: recipe.recipe_id }).subscribe({
+      next: (res) => {
+        (recipe as any).isFavorited = res.saved;
+        if (res.saved) {
+          this.savedRecipeIds.add(recipe.recipe_id);
+          recipe.saves += 1;
+        } else {
+          this.savedRecipeIds.delete(recipe.recipe_id);
+          recipe.saves = Math.max(0, recipe.saves - 1);
+        }
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Failed to toggle favorite detail:', err);
+      }
+    });
   }
 
   isFavorited(recipe: Recipe): boolean {
-    return (recipe as any).isFavorited || false;
+    return this.savedRecipeIds.has(recipe.recipe_id);
   }
 
   // --- Product Helpers ---

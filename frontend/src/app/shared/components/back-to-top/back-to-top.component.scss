@@ -1,0 +1,41 @@
+.back-to-top-btn {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  width: 48px;
+  height: 48px;
+  background-color: var(--color-forest-green);
+  color: var(--color-white);
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(44, 62, 45, 0.25);
+  transition: all 0.3s ease;
+  z-index: 100;
+  animation: fadeIn 0.3s ease-out;
+
+  &:hover {
+    background-color: var(--color-forest-green-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(44, 62, 45, 0.35);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  @media (max-width: 768px) {
+    bottom: 24px;
+    right: 20px;
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

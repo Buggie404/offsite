@@ -1,12 +1,14 @@
-import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { LucideSearch, LucideChevronDown, LucideBookmark, LucideArrowRight, LucideArrowUp, LucideX } from '@lucide/angular';
+import { HttpClient } from '@angular/common/http';
+import { LucideSearch, LucideChevronDown, LucideBookmark, LucideArrowRight, LucideX } from '@lucide/angular';
 import { ContentService } from '../../services/content.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { AuthService } from '../../../../core/auth.service';
 import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged, takeUntil } from 'rxjs/operators';
+import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 
 interface Article {
   id: string;
@@ -35,8 +37,8 @@ interface Article {
     LucideChevronDown,
     LucideBookmark,
     LucideArrowRight,
-    LucideArrowUp,
-    LucideX
+    LucideX,
+    BackToTopComponent
   ],
   templateUrl: './journal.component.html',
   styleUrl: './journal.component.scss'
@@ -49,8 +51,10 @@ export class JournalComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private authPromptService = inject(AuthPromptModalService);
   private authService = inject(AuthService);
+  private http = inject(HttpClient);
   constructor() {}
 
+  savedBlogIds: string[] = [];
   selectedCategory = 'ALL';
   searchQuery = '';
   selectedSort = 'NEWEST';
@@ -85,22 +89,24 @@ export class JournalComponent implements OnInit, OnDestroy {
   featuredArticle: Article | undefined;
   gridArticles: Article[] = [];
 
-  showBackToTop = false;
-  private scrollThreshold = 400;
-
   private searchSubject = new Subject<string>();
   private destroy$ = new Subject<void>();
 
-  @HostListener('window:scroll')
-  onWindowScroll(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      this.showBackToTop = window.scrollY > this.scrollThreshold;
-    }
-  }
-
-  scrollToTop(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+  fetchSavedBlogs(): void {
+    if (isPlatformBrowser(this.platformId) && this.authService.isAuthenticated()) {
+      this.http.get<{ user: any }>('/api/auth/me').subscribe({
+        next: (response) => {
+          if (response.user && response.user.saved_blogs) {
+            this.savedBlogIds = response.user.saved_blogs.map((sb: any) => sb.blog_id);
+            // Update already loaded articles
+            this.articles.forEach(article => {
+              article.bookmarked = this.savedBlogIds.includes(article.id);
+            });
+            this.updateArticlesLayout();
+            this.cdr.detectChanges();
+          }
+        }
+      });
     }
   }
 
@@ -120,6 +126,7 @@ export class JournalComponent implements OnInit, OnDestroy {
     });
 
     if (isPlatformBrowser(this.platformId)) {
+      this.fetchSavedBlogs();
       this.loadBlogs();
     }
   }
@@ -187,7 +194,7 @@ export class JournalComponent implements OnInit, OnDestroy {
             }),
             formattedMeta,
             featured: this.currentPage === 1 && index === 0 && this.selectedCategory === 'ALL' && !this.searchQuery && this.selectedSort === 'NEWEST',
-            bookmarked: false,
+            bookmarked: this.savedBlogIds.includes(blog._id),
             tags: blog.tags || []
           };
         });
@@ -263,7 +270,22 @@ export class JournalComponent implements OnInit, OnDestroy {
       return;
     }
     
-    article.bookmarked = !article.bookmarked;
+    this.http.post<any>('/api/auth/saved-blogs', { blogId: article.id }).subscribe({
+      next: (res) => {
+        article.bookmarked = res.saved;
+        if (res.saved) {
+          if (!this.savedBlogIds.includes(article.id)) {
+            this.savedBlogIds.push(article.id);
+          }
+        } else {
+          this.savedBlogIds = this.savedBlogIds.filter(id => id !== article.id);
+        }
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Error toggling bookmark:', err);
+      }
+    });
   }
 
   navigateToArticle(article: Article): void {

@@ -718,13 +718,11 @@
       color: var(--color-cream);
       cursor: pointer;
       transition: all 0.2s ease;
-      opacity: 0;
-      transform: scale(0.9);
+      opacity: 1;
+      transform: scale(1);
 
       &:hover {
         background-color: var(--color-forest-green-hover);
-        opacity: 1;
-        transform: scale(1);
       }
 
       svg {
@@ -739,8 +737,6 @@
       &.bookmarked {
         background-color: var(--color-forest-green-hover);
         color: var(--color-cream);
-        opacity: 1;
-        transform: scale(1);
       }
     }
   }
@@ -1109,41 +1105,4 @@
   margin-bottom: 8px !important;
 }
 
-/* Back to Top Button */
-.back-to-top-btn {
-  position: fixed;
-  bottom: 32px;
-  right: 32px;
-  width: 48px;
-  height: 48px;
-  background-color: var(--color-forest-green);
-  color: var(--color-white);
-  border: none;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(44, 62, 45, 0.25);
-  transition: all 0.3s ease;
-  z-index: 100;
-  animation: fadeIn 0.3s ease-out;
-
-  &:hover {
-    background-color: var(--color-forest-green-hover);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(44, 62, 45, 0.35);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  @media (max-width: 768px) {
-    bottom: 24px;
-    right: 20px;
-    width: 44px;
-    height: 44px;
-  }
-}
 

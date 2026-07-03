@@ -20,7 +20,7 @@ router.get('/google/callback',
         email: req.user.email,
         role: req.user.role
       },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'fallback-secret-key',
       { expiresIn: '8h' }
     );
 
@@ -46,7 +46,7 @@ router.get('/facebook/callback',
         email: req.user.email,
         role: req.user.role
       },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'fallback-secret-key',
       { expiresIn: '8h' }
     );
 

@@ -1,12 +1,14 @@
-import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { LucideArrowLeft, LucideBookmark, LucideClock, LucideCalendar, LucideAlertCircle, LucideLink, LucideArrowRight } from '@lucide/angular';
 import { ContentService } from '../../services/content.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { AuthService } from '../../../../core/auth.service';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
+import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 
 interface Article {
   id: string;
@@ -53,7 +55,8 @@ interface RelatedArticle {
     LucideCalendar,
     LucideAlertCircle,
     LucideLink,
-    LucideArrowRight
+    LucideArrowRight,
+    BackToTopComponent
   ],
   templateUrl: './blog-detail.component.html',
   styleUrl: './blog-detail.component.scss'
@@ -67,27 +70,33 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private authPromptService = inject(AuthPromptModalService);
   private authService = inject(AuthService);
+  private http = inject(HttpClient);
 
+  savedBlogIds: string[] = [];
   article: Article | null = null;
   relatedArticles: RelatedArticle[] = [];
   isLoading = true;
   errorMessage = '';
   isBookmarked = false;
-  showBackToTop = false;
   categoryFilter: string | null = null;
   primaryTag: string | null = null;
-  private scrollThreshold = 400;
 
-  @HostListener('window:scroll')
-  onWindowScroll(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      this.showBackToTop = window.scrollY > this.scrollThreshold;
-    }
-  }
-
-  scrollToTop(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+  fetchSavedBlogs(): void {
+    if (isPlatformBrowser(this.platformId) && this.authService.isAuthenticated()) {
+      this.http.get<{ user: any }>('/api/auth/me').subscribe({
+        next: (response) => {
+          if (response.user && response.user.saved_blogs) {
+            this.savedBlogIds = response.user.saved_blogs.map((sb: any) => sb.blog_id);
+            if (this.article) {
+              this.isBookmarked = this.savedBlogIds.includes(this.article.id);
+            }
+            this.relatedArticles.forEach(rel => {
+              rel.bookmarked = this.savedBlogIds.includes(rel.id);
+            });
+            this.cdr.detectChanges();
+          }
+        }
+      });
     }
   }
 
@@ -102,6 +111,8 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
         this.loadBlogDetail(slug);
       }
     });
+
+    this.fetchSavedBlogs();
   }
 
   ngOnDestroy(): void {
@@ -147,6 +158,7 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
         if (this.article.tags && this.article.tags.length > 0) {
           this.primaryTag = this.article.tags[0];
         }
+        this.isBookmarked = this.savedBlogIds.includes(this.article.id);
         this.loadRelatedArticles(this.article.category, this.article.id);
 
         this.isLoading = false;
@@ -188,7 +200,7 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
               year: 'numeric'
             }),
             formattedMeta: `${month} ${day} - ${blog.read_time_minutes} MIN READ`,
-            bookmarked: false,
+            bookmarked: this.savedBlogIds.includes(blog._id),
             tags: blog.tags || []
           };
         };
@@ -249,7 +261,24 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
       this.authPromptService.open();
       return;
     }
-    this.isBookmarked = !this.isBookmarked;
+    if (!this.article) return;
+    
+    this.http.post<any>('/api/auth/saved-blogs', { blogId: this.article.id }).subscribe({
+      next: (res) => {
+        this.isBookmarked = res.saved;
+        if (res.saved) {
+          if (!this.savedBlogIds.includes(this.article!.id)) {
+            this.savedBlogIds.push(this.article!.id);
+          }
+        } else {
+          this.savedBlogIds = this.savedBlogIds.filter(id => id !== this.article!.id);
+        }
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Error toggling bookmark:', err);
+      }
+    });
   }
 
   toggleRelatedBookmark(related: RelatedArticle, event: Event): void {
@@ -260,7 +289,22 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
       return;
     }
     
-    related.bookmarked = !related.bookmarked;
+    this.http.post<any>('/api/auth/saved-blogs', { blogId: related.id }).subscribe({
+      next: (res) => {
+        related.bookmarked = res.saved;
+        if (res.saved) {
+          if (!this.savedBlogIds.includes(related.id)) {
+            this.savedBlogIds.push(related.id);
+          }
+        } else {
+          this.savedBlogIds = this.savedBlogIds.filter(id => id !== related.id);
+        }
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Error toggling related bookmark:', err);
+      }
+    });
   }
 
   getCategoryClass(category: string): string {

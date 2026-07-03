@@ -6,10 +6,11 @@ import { NavbarComponent } from './shared/components/navbar/navbar.component';
 import { FooterComponent } from './shared/components/footer/footer.component';
 import { AuthModalComponent } from './shared/components/auth-modal/auth-modal.component';
 import { AuthPromptModalComponent } from './shared/components/auth-prompt-modal/auth-prompt-modal.component';
+import { ToastComponent } from './shared/services/toast.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, NavbarComponent, FooterComponent, AuthModalComponent, AuthPromptModalComponent],
+  imports: [RouterOutlet, NavbarComponent, FooterComponent, AuthModalComponent, AuthPromptModalComponent, ToastComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })

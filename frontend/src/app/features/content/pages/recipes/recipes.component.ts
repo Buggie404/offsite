@@ -1,13 +1,13 @@
-import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef, HostListener } from '@angular/core';
+import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { ContentService } from '../../services/content.service';
 import { Recipe } from '../../../../shared/models/recipe.model';
 import { 
   LucideSearch, 
   LucideChevronDown, 
-  LucideArrowUp, 
   LucideDroplet, 
   LucideClock, 
   LucideStar, 
@@ -19,6 +19,7 @@ import {
 
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { AuthService } from '../../../../core/auth.service';
+import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 
 @Component({
   selector: 'app-recipes',
@@ -29,14 +30,14 @@ import { AuthService } from '../../../../core/auth.service';
     RouterModule,
     LucideSearch,
     LucideChevronDown,
-    LucideArrowUp,
     LucideDroplet,
     LucideClock,
     LucideStar,
     LucideHeart,
     LucideX,
     LucideSearchX,
-    LucideRotateCcw
+    LucideRotateCcw,
+    BackToTopComponent
   ],
   templateUrl: './recipes.component.html',
   styleUrl: './recipes.component.scss'
@@ -48,6 +49,7 @@ export class RecipesComponent implements OnInit {
   private authService = inject(AuthService);
   private authPromptService = inject(AuthPromptModalService);
   private route = inject(ActivatedRoute);
+  private http = inject(HttpClient);
 
   // Raw list from backend
   allRecipes: Recipe[] = [];
@@ -66,23 +68,6 @@ export class RecipesComponent implements OnInit {
 
   bases = ['ALL', 'MATCHA', 'COFFEE', 'OTHERS'];
   styles = ['ALL', 'HOT', 'COLD', 'DESSERT'];
-
-  showBackToTop = false;
-  private scrollThreshold = 400;
-
-  @HostListener('window:scroll')
-  onWindowScroll(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      this.showBackToTop = window.scrollY > this.scrollThreshold;
-      this.cdr.detectChanges();
-    }
-  }
-
-  scrollToTop(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }
 
   ngOnInit(): void {
     if (isPlatformBrowser(this.platformId)) {
@@ -106,9 +91,29 @@ export class RecipesComponent implements OnInit {
     this.contentService.getRecipes().subscribe({
       next: (recipes) => {
         this.allRecipes = recipes;
-        this.applyFilters();
-        this.isLoading = false;
-        this.cdr.detectChanges();
+        if (this.authService.isAuthenticated()) {
+          this.http.get<any>('/api/auth/saved-items').subscribe({
+            next: (res) => {
+              const savedIds = new Set((res.saved_recipes || []).map((sr: any) => sr.recipe?.recipe_id).filter(Boolean));
+              this.allRecipes.forEach(r => {
+                (r as any).isFavorited = savedIds.has(r.recipe_id);
+              });
+              this.applyFilters();
+              this.isLoading = false;
+              this.cdr.detectChanges();
+            },
+            error: (err) => {
+              console.error('Error fetching saved items:', err);
+              this.applyFilters();
+              this.isLoading = false;
+              this.cdr.detectChanges();
+            }
+          });
+        } else {
+          this.applyFilters();
+          this.isLoading = false;
+          this.cdr.detectChanges();
+        }
       },
       error: (err) => {
         console.error('Error fetching recipes:', err);
@@ -243,14 +248,20 @@ export class RecipesComponent implements OnInit {
       return;
     }
 
-    // Simulate toggling favorite
-    if ((recipe as any).isFavorited) {
-      (recipe as any).isFavorited = false;
-      recipe.saves = Math.max(0, recipe.saves - 1);
-    } else {
-      (recipe as any).isFavorited = true;
-      recipe.saves += 1;
-    }
+    this.http.post<any>('/api/auth/saved-recipes', { recipeId: recipe.recipe_id }).subscribe({
+      next: (res) => {
+        (recipe as any).isFavorited = res.saved;
+        if (res.saved) {
+          recipe.saves += 1;
+        } else {
+          recipe.saves = Math.max(0, recipe.saves - 1);
+        }
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Failed to toggle favorite:', err);
+      }
+    });
   }
 
   isFavorited(recipe: Recipe): boolean {
