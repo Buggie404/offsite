@@ -139,16 +139,21 @@ export class NavbarComponent implements OnInit {
     this.authModalService.open('login');
     this.isProfileDropdownOpen = false;
   }
-  logout(): void {
-    console.log('logout called');
-    this.isSignOutModalOpen = true;
-    console.log('isSignOutModalOpen:', this.isSignOutModalOpen);
+  logout(): void {    
+    this.isSignOutModalOpen = true;    
     this.isProfileDropdownOpen = false;
   }
 
   confirmSignOut(): void {
     this.authService.logout();
     this.isSignOutModalOpen = false;
+
+    const protectedRoutes = ['/account', '/profile', '/checkout'];
+    const currentUrl = this.router.url;
+    if (protectedRoutes.some(route => currentUrl.startsWith(route))) {
+      this.router.navigate(['/']);
+    }
+
     this.successModalConfig = {
       title: 'Signed Out Successfully',
       subtitle: 'See you next time!',
