@@ -208,7 +208,35 @@
       </li>
     </ul>
   </div>
+
 </header>
+  <!-- Sign Out Modal -->
+  <div *ngIf="isSignOutModalOpen" class="signout-overlay" (click)="cancelSignOut()">
+    <div class="signout-modal" (click)="$event.stopPropagation()">
+      <button class="signout-close-btn" (click)="cancelSignOut()">
+        <svg lucideX [size]="20"></svg>
+      </button>
+      <div class="signout-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#e53935" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </div>
+      <h3>Signing out?</h3>
+      <p>Any unsaved changes will be saved to your drafts before you leave.</p>
+      <button class="signout-confirm-btn" (click)="confirmSignOut()">SIGN OUT</button>
+      <button class="signout-cancel-btn" (click)="cancelSignOut()">STAY</button>
+    </div>
+  </div>
+
+  <app-success-modal
+    *ngIf="showSuccessModal"
+    [config]="successModalConfig"
+    (onPrimary)="onSuccessPrimary()"
+    (onSecondary)="onSuccessSecondary()"
+    (onClose)="showSuccessModal = false">
+  </app-success-modal>
 
 <!-- Search Drawer -->
 <div class="search-drawer-overlay" [class.open]="isSearchOpen" (click)="closeSearch()"></div>

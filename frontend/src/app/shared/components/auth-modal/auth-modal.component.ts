@@ -4,11 +4,14 @@ import { FormsModule } from '@angular/forms';
 import { LucideX, LucideEye, LucideEyeOff } from '@lucide/angular';
 import { AuthModalService } from '../../../core/auth-modal.service';
 import { AuthService } from '../../../core/auth.service';
+import { SuccessModalComponent, SuccessModalConfig } from '../success-modal/success-modal.components';
+import { Router } from '@angular/router';
+
 
 @Component({
   selector: 'app-auth-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideX, LucideEye, LucideEyeOff],
+  imports: [CommonModule, FormsModule, LucideX, LucideEye, LucideEyeOff, SuccessModalComponent],
   templateUrl: './auth-modal.component.html',
   styleUrl: './auth-modal.component.scss'
 })
@@ -16,6 +19,7 @@ export class AuthModalComponent {
   private authModalService = inject(AuthModalService);
   private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
+  private router = inject(Router); 
 
   @ViewChild('loginEmailInput') loginEmailInput!: ElementRef<HTMLInputElement>;
   @ViewChild('loginPhoneInput') loginPhoneInput!: ElementRef<HTMLInputElement>;
@@ -57,6 +61,13 @@ export class AuthModalComponent {
   serverEmailError: string | null = null;
   serverPasswordError: string | null = null;
   isSubmitting = false;
+
+  showSuccessModal = false;
+  successModalConfig: SuccessModalConfig = {
+    title: '',
+    subtitle: '',
+    primaryBtn: '',
+  };
 
   setLoginTab(tab: 'email' | 'phone'): void {
     this.loginTab = tab;
@@ -306,7 +317,12 @@ export class AuthModalComponent {
           password: this.signupPassword
         });
         this.closeAuthModal();
-        this.showToast('Account created successfully! Please sign in.');
+        this.successModalConfig = {
+          title: 'Signed Up Successfully',
+          subtitle: 'Welcome to Offsite! Please log in to continue.',
+          primaryBtn: 'LOG IN'
+        };
+        this.showSuccessModal = true;
       } catch (err: any) {
         console.error('Registration error:', err);
         const serverError = err.error;
@@ -343,8 +359,15 @@ export class AuthModalComponent {
     try {
       await this.authService.login(normalizedIdentifier, this.loginPassword);
       this.closeAuthModal();
-      this.showToast('Welcome back!');
-    } catch (err: any) {
+      this.successModalConfig = {
+        title: 'Log In Successfully',
+        subtitle: "Welcome back! You're now signed in.",
+        primaryBtn: 'BACK TO HOMEPAGE',
+        // secondaryBtn: 'SIGN OUT'
+      };
+      this.showSuccessModal = true;
+    } 
+      catch (err: any) {
       console.error('Login error:', err);
       const serverError = err.error;
       const errorCode = serverError?.code;
@@ -387,37 +410,27 @@ export class AuthModalComponent {
     window.location.href = 'http://localhost:5000/api/auth/oauth/facebook';
   }
 
-  showToast(message: string): void {
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    toast.style.cssText = `
-      position: fixed;
-      top: 24px;
-      right: 24px;
-      z-index: 99999;
-      background: #FAF0EB;
-      color: #1a1a1a;
-      padding: 16px 24px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-family: 'DM Sans', sans-serif;
-      box-shadow: 0px 20px 50px rgba(26, 26, 26, 0.12);
-      border: 1px solid rgba(115, 120, 114, 0.1);
-      max-width: 320px;
-      opacity: 0;
-      transform: translateY(-8px);
-      transition: opacity 0.25s ease, transform 0.25s ease;
-    `;
-    document.body.appendChild(toast);
-    requestAnimationFrame(() => {
-      toast.style.opacity = '1';
-      toast.style.transform = 'translateY(0)';
-    });
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateY(-8px)';
-      setTimeout(() => toast.remove(), 300);
-    }, 3700);
+  onSuccessPrimary(): void {
+    this.showSuccessModal = false;
+    if (this.successModalConfig.primaryBtn === 'LOG IN') {
+      this.closeAuthModal();
+      this.authModalService.open('login');
+    } else {
+      this.closeAuthModal();
+      this.router.navigate(['/']);
+    }
+  }
+
+  onSuccessSecondary(): void {
+    this.showSuccessModal = false;
+    this.closeAuthModal();
+    this.authService.logout();
+  }
+
+  onSuccessClose(): void {
+    console.log('X clicked!'); // thêm dòng test
+    this.showSuccessModal = false;
+    this.closeAuthModal();
   }
 
   @HostListener('document:keydown.escape')

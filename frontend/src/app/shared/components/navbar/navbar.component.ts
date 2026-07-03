@@ -1,4 +1,6 @@
+// components/navbar/navbar.component.ts
 import { Component, OnInit, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild } from '@angular/core';
+import { SuccessModalComponent, SuccessModalConfig } from '../success-modal/success-modal.components';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
@@ -32,7 +34,8 @@ import { AuthModalService } from '../../../core/auth-modal.service';
     LucideLogIn,
     LucideLogOut,
     LucideClipboardClock,
-    LucideChevronDown
+    LucideChevronDown,
+    SuccessModalComponent
   ],
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.scss'
@@ -52,6 +55,14 @@ export class NavbarComponent implements OnInit {
   isSearchOpen = false;
   isCartOpen = false;
   isAboutDropdownOpen = false;
+  isSignOutModalOpen = false;
+
+  showSuccessModal = false;
+  successModalConfig: SuccessModalConfig = {
+    title: '',
+    subtitle: '',
+    primaryBtn: '',
+  };
 
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
 
@@ -119,11 +130,36 @@ export class NavbarComponent implements OnInit {
     this.authModalService.open('login');
     this.isProfileDropdownOpen = false;
   }
-
   logout(): void {
-    this.authService.logout();
+    console.log('logout called');
+    this.isSignOutModalOpen = true;
+    console.log('isSignOutModalOpen:', this.isSignOutModalOpen);
     this.isProfileDropdownOpen = false;
-    this.router.navigate(['/']);
+  }
+
+  confirmSignOut(): void {
+    this.authService.logout();
+    this.isSignOutModalOpen = false;
+    this.successModalConfig = {
+      title: 'Signed Out Successfully',
+      subtitle: 'See you next time!',
+      primaryBtn: 'LOG IN'
+    };
+    this.showSuccessModal = true;
+  }
+
+  cancelSignOut(): void {
+    this.isSignOutModalOpen = false;
+  }
+
+  onSuccessPrimary(): void {
+    this.showSuccessModal = false;
+    this.authModalService.open('login');
+  }
+
+  onSuccessSecondary(): void {
+    this.showSuccessModal = false;
+    this.authModalService.open('login');
   }
 
   @HostListener('document:click', ['$event'])

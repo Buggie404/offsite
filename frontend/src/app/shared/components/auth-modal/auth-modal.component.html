@@ -1,3 +1,4 @@
+//auth-modal.component.html
 <!-- Auth Modal -->
 <div class="auth-modal-overlay" [class.open]="isOpen()" (click)="closeAuthModal()"></div>
 <div class="auth-modal-wrapper" [class.open]="isOpen()">
@@ -287,3 +288,11 @@
     </div>
   </div>
 </div>
+
+<app-success-modal
+  *ngIf="showSuccessModal"
+  [config]="successModalConfig"
+  (onPrimary)="onSuccessPrimary()"
+  (onSecondary)="onSuccessSecondary()"
+  (onClose)="onSuccessClose()">
+</app-success-modal>

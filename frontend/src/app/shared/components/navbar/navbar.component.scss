@@ -1424,3 +1424,110 @@
     }
   }
 }
+
+.signout-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.signout-modal {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+  gap: 32px;
+  position: relative;
+  width: 420px;
+  max-width: 420px;
+  background: #FAF0EB;
+  border: 1px solid rgba(115, 120, 114, 0.05);
+  box-shadow: 0px 20px 50px rgba(26, 26, 26, 0.08);
+  border-radius: 8px;
+
+  h3 {
+    font-family: 'Russo One', sans-serif;
+    font-size: 32px;
+    line-height: 42px;
+    color: #375534;
+    text-align: center;
+    margin: 0;
+    font-weight: 400;
+  }
+
+  p {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 26px;
+    color: #1A1A1A;
+    text-align: center;
+    margin: 0;
+    padding: 0 8px;
+  }
+}
+
+.signout-close-btn {
+  position: absolute;
+  top: 25px;
+  right: 25px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #1A1A1A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.signout-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 64px;
+  height: 64px;
+  background: #F6F3EE;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.signout-confirm-btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 338px;
+  height: 56px;
+  background: #375534;
+  border-radius: 999px;
+  border: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #FFFFFF;
+  cursor: pointer;
+}
+
+.signout-cancel-btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 338px;
+  height: 56px;
+  background: transparent;
+  border: 2px solid rgba(26, 26, 26, 0.1);
+  border-radius: 999px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #1A1A1A;
+  cursor: pointer;
+}
