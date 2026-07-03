@@ -165,7 +165,7 @@
 
         <!-- Delivered Status Actions -->
         <ng-container *ngIf="order().order_status === 'delivered'">
-          <button type="button" class="btn-solid-action" routerLink="/shop/best-sellers">
+          <button type="button" class="btn-solid-action" (click)="buyAgain()">
             <svg lucideRefreshCw [size]="16" class="btn-icon"></svg>
             Buy Again
           </button>
@@ -183,7 +183,7 @@
           *ngIf="order().order_status === 'canceled' || order().order_status === 'cancelled'"
           type="button"
           class="btn-solid-action"
-          routerLink="/shop/best-sellers"
+          (click)="buyAgain()"
         >
           <svg lucideRefreshCw [size]="16" class="btn-icon"></svg>
           Buy Again

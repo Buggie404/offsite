@@ -163,6 +163,12 @@ export class CheckoutService {
     return res.user;
   }
 
+  async getOrderHistory(): Promise<any[]> {
+    return await firstValueFrom(
+      this.http.get<any[]>('/api/orders')
+    );
+  }
+
   async addUserAddress(address: Omit<UserAddress, '_id'>): Promise<{ message: string; address: UserAddress }> {
     return await firstValueFrom(
       this.http.post<{ message: string; address: UserAddress }>('/api/auth/addresses', address)

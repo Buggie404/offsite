@@ -10,6 +10,7 @@ import {
   LucidePackageCheck
 } from '@lucide/angular';
 import { CheckoutService } from '../../services/checkout.service';
+import { CartService } from '../../services/cart.service';
 import { ReviewModalComponent } from '../../components/review-modal/review-modal.component';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
@@ -37,6 +38,7 @@ export class OrderTrackingComponent implements OnInit {
   private checkoutService = inject(CheckoutService);
   private authService = inject(AuthService);
   private authPromptModalService = inject(AuthPromptModalService);
+  private cartService = inject(CartService);
 
   ngOnInit(): void {
     this.route.queryParams.subscribe(params => {
@@ -169,12 +171,54 @@ export class OrderTrackingComponent implements OnInit {
 
     try {
       const res = await this.checkoutService.cancelOrder(ord.order_id, ord.session_id);
-      this.order.set(res.data);
+      this.router.navigate(['/checkout/canceled'], { state: { order: res.data } });
     } catch (err: any) {
       console.error('Failed to cancel order:', err);
       this.errorMessage.set(err.error?.error || 'Failed to cancel the order. Please try again.');
     } finally {
       this.isLoading.set(false);
+    }
+  }
+
+  async buyAgain(): Promise<void> {
+    const ord = this.order();
+    if (!ord || !ord.items) return;
+
+    try {
+      const allProducts = await this.checkoutService.getAllProducts();
+      const checkoutItems = ord.items.map((it: any) => {
+        const matchingProduct = allProducts.find(p => p._id === it.product_id);
+        if (!matchingProduct) return null;
+        return {
+          product: matchingProduct,
+          variantSku: it.variant_id,
+          quantity: it.quantity
+        };
+      }).filter(Boolean);
+
+      if (checkoutItems.length === 0) {
+        alert('Products in this order are no longer available.');
+        return;
+      }
+
+      this.cartService.checkoutSummaryItems.set(checkoutItems);
+      localStorage.setItem('checkout_summary_items', JSON.stringify(checkoutItems));
+      
+      const deliveryInfo = {
+        name: ord.delivery_info?.recipient_name || '',
+        mobile: ord.delivery_info?.mobile || '',
+        email: ord.delivery_info?.email || '',
+        city: ord.delivery_info?.city || '',
+        address: ord.delivery_info?.address || '',
+        note: ord.delivery_info?.note || ''
+      };
+      localStorage.setItem('checkout_delivery_info', JSON.stringify(deliveryInfo));
+
+      this.cartService.setCheckoutProcessed(true);
+      this.router.navigate(['/checkout']);
+    } catch (err) {
+      console.error('Failed to buy again:', err);
+      alert('Failed to load products for checkout. Please try again.');
     }
   }
 
