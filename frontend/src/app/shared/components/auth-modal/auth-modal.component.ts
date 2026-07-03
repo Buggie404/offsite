@@ -316,7 +316,6 @@ export class AuthModalComponent {
           phone: normalizedPhone,
           password: this.signupPassword
         });
-        this.closeAuthModal();
         this.successModalConfig = {
           title: 'Signed Up Successfully',
           subtitle: 'Welcome to Offsite! Please log in to continue.',
@@ -325,8 +324,14 @@ export class AuthModalComponent {
         this.showSuccessModal = true;
       } catch (err: any) {
         console.error('Registration error:', err);
-        const serverError = err.error;
-        this.serverEmailError = serverError?.error || 'An error occurred during registration.';
+        const errorCode = err?.code;
+        if (errorCode === 'EMAIL_EXISTS') {
+          this.serverEmailError = 'This email is already registered.';
+        } else if (errorCode === 'PHONE_EXISTS') {
+          this.serverEmailError = 'This phone number is already registered.';
+        } else {
+          this.serverEmailError = err?.error || 'An error occurred during registration.';
+        }
         this.cdr.detectChanges();
       } finally {
         this.isSubmitting = false;
@@ -368,37 +373,38 @@ export class AuthModalComponent {
       this.showSuccessModal = true;
     } 
       catch (err: any) {
-      console.error('Login error:', err);
-      const serverError = err.error;
-      const errorCode = serverError?.code;
-      const errorMessage = serverError?.error || 'An error occurred during login.';
+        console.error('Login error:', err);
+        const errorCode = err?.code;
+        const errorMessage = err?.error || 'An error occurred during login.';
 
-      if (errorCode === 'ACCOUNT_NOT_FOUND' || errorCode === 'ADMIN_NOT_ALLOWED') {
-        this.serverEmailError = 'Invalid account';
-        setTimeout(() => {
-          if (this.loginTab === 'email') {
-            this.loginEmailInput?.nativeElement?.focus();
-          } else {
-            this.loginPhoneInput?.nativeElement?.focus();
-          }
-        }, 50);
-      } else if (errorCode === 'INCORRECT_PASSWORD') {
-        this.serverPasswordError = 'Incorrect password';
-        setTimeout(() => {
-          if (this.loginTab === 'email') {
-            this.loginPasswordInput?.nativeElement?.focus();
-          } else {
-            this.loginPhonePasswordInput?.nativeElement?.focus();
-          }
-        }, 50);
-      } else {
-        this.serverEmailError = errorMessage;
+        if (errorCode === 'ACCOUNT_NOT_FOUND') {
+          this.serverEmailError = 'Email or phone not found.';
+          setTimeout(() => {
+            if (this.loginTab === 'email') {
+              this.loginEmailInput?.nativeElement?.focus();
+            } else {
+              this.loginPhoneInput?.nativeElement?.focus();
+            }
+          }, 50);
+        } else if (errorCode === 'ADMIN_NOT_ALLOWED') {
+          this.serverEmailError = 'Admin accounts cannot log in here.';
+        } else if (errorCode === 'INCORRECT_PASSWORD') {
+          this.serverPasswordError = 'Incorrect password.';
+          setTimeout(() => {
+            if (this.loginTab === 'email') {
+              this.loginPasswordInput?.nativeElement?.focus();
+            } else {
+              this.loginPhonePasswordInput?.nativeElement?.focus();
+            }
+          }, 50);
+        } else {
+          this.serverEmailError = errorMessage;
+        }
+        this.cdr.detectChanges();
+      } finally {
+        this.isSubmitting = false;
+        this.cdr.detectChanges();
       }
-      this.cdr.detectChanges();
-    } finally {
-      this.isSubmitting = false;
-      this.cdr.detectChanges();
-    }
   }
 
 

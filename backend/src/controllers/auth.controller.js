@@ -54,22 +54,20 @@ async function register(req, res) {
     }
 
     const { userCollection } = await getCollections();
-   
-    // Kiểm tra trùng email và phone
-    let existing = null;
 
+   // Check trùng email/phone
     if (email) {
-      existing = await userCollection.findOne({ email: email.trim().toLowerCase() });
+      const emailExists = await userCollection.findOne({ email: email.trim().toLowerCase() });
+      if (emailExists) {
+        return res.status(409).json({ error: 'This email is already registered.', code: 'EMAIL_EXISTS' });
+      }
     }
 
-    if (!existing && phone) {
-      existing = await userCollection.findOne({ phone: phone.trim() });
-    }
-
-    if (existing) {
-      return res.status(409).json({
-        error: 'Email hoặc số điện thoại đã tồn tại'
-      });
+    if (phone) {
+      const phoneExists = await userCollection.findOne({ phone: phone.trim() });
+      if (phoneExists) {
+        return res.status(409).json({ error: 'This phone number is already registered.', code: 'PHONE_EXISTS' });
+      }
     }
 
     // Sinh user_id tuần tự kiểu USRXXXXX
