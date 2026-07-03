@@ -12,6 +12,7 @@ const variantSchema = new mongoose.Schema({
   label: { type: String, default: '' },
   price: { type: Number, required: true },
   stock: { type: Number, required: true },
+  sold_quantity: { type: Number, default: 0 },
   is_default: { type: Boolean, default: false },
   images: { type: [imageSchema], default: [] }
 }, { _id: false });
@@ -58,6 +59,9 @@ const productSchema = new mongoose.Schema({
     enum: ['matcha', 'coffee', 'drinkware', 'sets_bundles', 'tools'] 
   },
   product_tag: { type: [String], default: [] },
+  is_best_seller: { type: Boolean, default: false },
+  is_new_arrival: { type: Boolean, default: false },
+  total_sold_quantity: { type: Number, default: 0 },
   variant_type: { type: String, required: true, default: 'none' },
   images: { type: [imageSchema], default: [] },
   variants: { type: [variantSchema], default: [] },
