@@ -11,7 +11,8 @@ import {
   LucideRotateCcw,
   LucideArrowUp,
   LucidePlay,
-  LucidePause
+  LucidePause,
+  LucideArrowRight
 } from '@lucide/angular';
 import { ContentService } from '../../services/content.service';
 import { ProductService } from '../../../home/services/product.service';
@@ -37,7 +38,8 @@ import { takeUntil } from 'rxjs/operators';
     LucideRotateCcw,
     LucideArrowUp,
     LucidePlay,
-    LucidePause
+    LucidePause,
+    LucideArrowRight
   ],
   templateUrl: './recipe-detail.component.html',
   styleUrl: './recipe-detail.component.scss'

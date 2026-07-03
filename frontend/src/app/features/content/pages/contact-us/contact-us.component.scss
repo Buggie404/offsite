@@ -107,7 +107,7 @@
   display: grid;
   grid-template-columns: 1.2fr 1fr;
   gap: var(--space-5);
-  align-items: stretch;
+  align-items: start;
 
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
@@ -178,7 +178,7 @@
         box-shadow: 0 0 0 3px rgba(55, 85, 52, 0.1);
       }
 
-      &.error {
+      &.error, &.invalid {
         border-color: var(--state-error);
         background-color: rgba(192, 57, 43, 0.02);
       }
@@ -197,15 +197,15 @@
         padding-right: var(--space-5);
       }
 
-      &::after {
-        content: '▼';
-        font-size: 9px;
-        color: var(--color-warm-brown);
+      .chevron-icon {
         position: absolute;
         right: 16px;
         top: 50%;
         transform: translateY(-50%);
         pointer-events: none;
+        color: var(--color-warm-brown);
+        width: 16px;
+        height: 16px;
       }
     }
 
@@ -385,7 +385,7 @@
 
 /* Coffee Image Card */
 .image-wrapper {
-  flex-grow: 1;
+  height: 280px;
   display: flex;
   overflow: hidden;
   border-radius: var(--radius-card);
@@ -395,8 +395,6 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    min-height: 220px;
-    max-height: 280px;
     transition: transform 0.5s ease;
 
     &:hover {
