@@ -306,6 +306,7 @@ export class AuthModalComponent {
           password: this.signupPassword
         });
         this.closeAuthModal();
+        this.showToast('Account created successfully! Please sign in.');
       } catch (err: any) {
         console.error('Registration error:', err);
         const serverError = err.error;
@@ -342,6 +343,7 @@ export class AuthModalComponent {
     try {
       await this.authService.login(normalizedIdentifier, this.loginPassword);
       this.closeAuthModal();
+      this.showToast('Welcome back!');
     } catch (err: any) {
       console.error('Login error:', err);
       const serverError = err.error;
@@ -383,6 +385,39 @@ export class AuthModalComponent {
 
   loginWithFacebook(): void {
     window.location.href = 'http://localhost:5000/api/auth/oauth/facebook';
+  }
+
+  showToast(message: string): void {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = `
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 99999;
+      background: #FAF0EB;
+      color: #1a1a1a;
+      padding: 16px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: 'DM Sans', sans-serif;
+      box-shadow: 0px 20px 50px rgba(26, 26, 26, 0.12);
+      border: 1px solid rgba(115, 120, 114, 0.1);
+      max-width: 320px;
+      opacity: 0;
+      transform: translateY(-8px);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    `;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+    });
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-8px)';
+      setTimeout(() => toast.remove(), 300);
+    }, 3700);
   }
 
   @HostListener('document:keydown.escape')

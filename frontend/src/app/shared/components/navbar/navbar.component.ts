@@ -123,6 +123,7 @@ export class NavbarComponent implements OnInit {
   logout(): void {
     this.authService.logout();
     this.isProfileDropdownOpen = false;
+    this.router.navigate(['/']);
   }
 
   @HostListener('document:click', ['$event'])
