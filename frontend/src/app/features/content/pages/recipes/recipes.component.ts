@@ -12,7 +12,9 @@ import {
   LucideClock, 
   LucideStar, 
   LucideHeart, 
-  LucideX 
+  LucideX,
+  LucideSearchX,
+  LucideRotateCcw
 } from '@lucide/angular';
 
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
@@ -32,7 +34,9 @@ import { AuthService } from '../../../../core/auth.service';
     LucideClock,
     LucideStar,
     LucideHeart,
-    LucideX
+    LucideX,
+    LucideSearchX,
+    LucideRotateCcw
   ],
   templateUrl: './recipes.component.html',
   styleUrl: './recipes.component.scss'

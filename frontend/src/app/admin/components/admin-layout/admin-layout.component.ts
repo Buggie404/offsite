@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
@@ -7,7 +7,8 @@ import {
   LucidePackage,
   LucideLogOut,
   LucideSearch,
-  LucideBell
+  LucideBell,
+  LucideX
 } from '@lucide/angular';
 import { AdminAuthService } from '../../services/admin-auth.service';
 
@@ -21,7 +22,8 @@ import { AdminAuthService } from '../../services/admin-auth.service';
     LucidePackage,
     LucideLogOut,
     LucideSearch,
-    LucideBell
+    LucideBell,
+    LucideX
   ],
   templateUrl: './admin-layout.component.html',
   styleUrl: './admin-layout.component.scss'
@@ -34,6 +36,14 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
 
   searchQuery = '';
   ordersLinkActive = false;
+  showSignOutModal = false;
+
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    if (this.showSignOutModal) {
+      this.closeSignOutModal();
+    }
+  }
 
   ngOnInit(): void {
     this.updateOrdersLinkActive();
@@ -86,7 +96,16 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     });
   }
 
-  signOut(): void {
+  openSignOutModal(): void {
+    this.showSignOutModal = true;
+  }
+
+  closeSignOutModal(): void {
+    this.showSignOutModal = false;
+  }
+
+  confirmSignOut(): void {
+    this.showSignOutModal = false;
     this.adminAuth.logout();
     this.router.navigate(['/admin/login']);
   }

@@ -1,6 +1,7 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
+import { AdminAuthService } from '../../admin/services/admin-auth.service';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const platformId = inject(PLATFORM_ID);
@@ -9,7 +10,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
-  const token = localStorage.getItem('token');
+  const isAdminApi = req.url.includes('/api/admin/') && !req.url.endsWith('/api/admin/login');
+  const adminAuth = inject(AdminAuthService);
+  const token = isAdminApi ? adminAuth.getToken() : localStorage.getItem('token');
 
   if (!token) {
     return next(req);

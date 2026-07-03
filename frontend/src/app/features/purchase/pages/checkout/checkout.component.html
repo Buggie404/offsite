@@ -133,7 +133,7 @@
             </div>
             <div class="form-field form-field--full">
               <label>NOTE (OPTIONAL)</label>
-              <textarea id="delivery-note" rows="3" placeholder="Delivery notes (Maxium 500 words)…" [(ngModel)]="delivery.note"></textarea>
+              <textarea id="delivery-note" rows="3" placeholder="Delivery notes (Maxium 500 words)…" [(ngModel)]="delivery.note" (input)="onFieldInput('note')"></textarea>
               <div id="delivery-note-error" class="field-error animate-fade-in"></div>
             </div>
           </div>
@@ -237,6 +237,105 @@
           </button>
         </div>
 
+        <!-- Inline Form for Bank Transfer -->
+        <div class="card-item-form-container bank-transfer-form" *ngIf="paymentMethod() === 'bank_transfer'">
+          <div class="form-header-row">
+            <div class="header-left">
+              <span class="card-icon-box">
+                <svg lucideLandmark [size]="18"></svg>
+              </span>
+              <span class="form-title-text">Bank Transfer</span>
+            </div>
+          </div>
+
+          <div class="inline-form-fields">
+            <div class="inline-field">
+              <label>ACCOUNT HOLDER NAME</label>
+              <input type="text" [(ngModel)]="bankForm.cardholder_name" id="bank-holder-name" placeholder="Full Name" (blur)="formatBankholderName(); savePaymentInfo()" (input)="savePaymentInfo()" />
+              <div id="bank-holder-name-error" class="field-error animate-fade-in"></div>
+            </div>
+            <div class="inline-field">
+              <label>CARD NUMBER</label>
+              <div class="input-with-icon">
+                <input type="text" [(ngModel)]="bankForm.card_number" id="bank-num" placeholder="2345 3859 2952 5871" (blur)="formatBankNumber(); savePaymentInfo()" (input)="savePaymentInfo()" />
+                <img src="assets/images/payment_napas.png" class="inline-brand-icon" />
+              </div>
+              <div id="bank-num-error" class="field-error animate-fade-in"></div>
+            </div>
+            <div class="inline-row-fields">
+              <div class="inline-field">
+                <label>EXPIRY DATE</label>
+                <input type="text" [(ngModel)]="bankForm.expire_date" id="bank-expiry" placeholder="MM / YY" (input)="savePaymentInfo()" />
+                <div id="bank-expiry-error" class="field-error animate-fade-in"></div>
+              </div>
+              <div class="inline-field">
+                <label>ISSUED BANK</label>
+                <input type="text" [(ngModel)]="bankForm.issued_bank" id="bank-issued" placeholder="Vietcombank" list="vietnam-banks" (input)="savePaymentInfo()" />
+                
+                <datalist id="vietnam-banks">
+                  <option value="Vietcombank">Vietcombank</option>
+                  <option value="BIDV">BIDV</option>
+                  <option value="Techcombank">Techcombank</option>
+                  <option value="VietinBank">VietinBank</option>
+                  <option value="Agribank">Agribank</option>
+                  <option value="MB Bank">MB Bank</option>
+                  <option value="VPBank">VPBank</option>
+                  <option value="ACB">ACB</option>
+                  <option value="Sacombank">Sacombank</option>
+                  <option value="TPBank">TPBank</option>
+                  <option value="VIB">VIB</option>
+                  <option value="SHB">SHB</option>
+                  <option value="MSB">MSB</option>
+                  <option value="SeABank">SeABank</option>
+                </datalist>
+                
+                <div id="bank-issued-error" class="field-error animate-fade-in"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Inline Form for Credit / Debit Card -->
+        <div class="card-item-form-container credit-card-form" *ngIf="paymentMethod() === 'card' && savedCards().length === 0">
+          <div class="form-header-row">
+            <div class="header-left">
+              <span class="card-icon-box">
+                <svg lucideCreditCard [size]="18"></svg>
+              </span>
+              <span class="form-title-text">Credit / Debit Card</span>
+            </div>
+          </div>
+
+          <div class="inline-form-fields">
+            <div class="inline-field">
+              <label>CARDHOLDER NAME</label>
+              <input type="text" [(ngModel)]="cardForm.cardholder_name" id="card-holder-name" placeholder="Full Name" (blur)="formatCardholderName(); savePaymentInfo()" (input)="savePaymentInfo()" />
+              <div id="card-holder-name-error" class="field-error animate-fade-in"></div>
+            </div>
+            <div class="inline-field">
+              <label>CARD NUMBER</label>
+              <div class="input-with-icon">
+                <input type="text" [(ngModel)]="cardForm.card_number" id="card-num" placeholder="2345 3859 2952 5871" (blur)="formatCardNumber(); savePaymentInfo()" (input)="savePaymentInfo()" />
+                <img *ngIf="inlineCardBrand === 'Visa'" src="assets/images/payment_visa.png" class="inline-brand-icon" />
+                <img *ngIf="inlineCardBrand === 'Mastercard'" src="assets/images/payment_mastercard.png" class="inline-brand-icon" />
+              </div>
+              <div id="card-num-error" class="field-error animate-fade-in"></div>
+            </div>
+            <div class="inline-row-fields">
+              <div class="inline-field">
+                <label>EXPIRY DATE</label>
+                <input type="text" [(ngModel)]="cardForm.expire_date" id="card-expiry" placeholder="MM / YY" (input)="savePaymentInfo()" />
+                <div id="card-expiry-error" class="field-error animate-fade-in"></div>
+              </div>
+              <div class="inline-field">
+                <label>CVV</label>
+                <input type="text" [(ngModel)]="cardForm.cvc" id="card-cvc" placeholder="941" (input)="savePaymentInfo()" />
+                <div id="card-cvc-error" class="field-error animate-fade-in"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Saved Cards list for logged in users -->
         <div *ngIf="authService.isAuthenticated() && savedCards().length > 0"
           class="saved-resources-list saved-cards-list">
@@ -308,13 +407,13 @@
             <div class="inline-form-fields">
               <div class="inline-field">
                 <label>CARDHOLDER NAME</label>
-                <input type="text" [(ngModel)]="cardForm.cardholder_name" id="card-holder-name" placeholder="Full Name" (blur)="formatCardholderName()" />
+                <input type="text" [(ngModel)]="cardForm.cardholder_name" id="card-holder-name" placeholder="Full Name" (blur)="formatCardholderName(); savePaymentInfo()" (input)="savePaymentInfo()" />
                 <div id="card-holder-name-error" class="field-error animate-fade-in"></div>
               </div>
               <div class="inline-field">
                 <label>CARD NUMBER</label>
                 <div class="input-with-icon">
-                  <input type="text" [(ngModel)]="cardForm.card_number" id="card-num" placeholder="2345 3859 2952 5871" (blur)="formatCardNumber()" />
+                  <input type="text" [(ngModel)]="cardForm.card_number" id="card-num" placeholder="2345 3859 2952 5871" (blur)="formatCardNumber(); savePaymentInfo()" (input)="savePaymentInfo()" />
                   <img *ngIf="inlineCardBrand === 'Visa'" src="assets/images/payment_visa.png" class="inline-brand-icon" />
                   <img *ngIf="inlineCardBrand === 'Mastercard'" src="assets/images/payment_mastercard.png" class="inline-brand-icon" />
                   <img *ngIf="inlineCardBrand === 'Napas'" src="assets/images/payment_napas.png" class="inline-brand-icon" />
@@ -324,15 +423,15 @@
               <div class="inline-row-fields">
                 <div class="inline-field">
                   <label>EXPIRY DATE</label>
-                  <input type="text" [(ngModel)]="cardForm.expire_date" id="card-expiry" placeholder="MM / YY" />
+                  <input type="text" [(ngModel)]="cardForm.expire_date" id="card-expiry" placeholder="MM / YY" (input)="savePaymentInfo()" />
                   <div id="card-expiry-error" class="field-error animate-fade-in"></div>
                 </div>
                 <div class="inline-field">
                   <label *ngIf="cardForm.card_type !== 'NAPAS'">CVV</label>
                   <label *ngIf="cardForm.card_type === 'NAPAS'">ISSUED BANK</label>
                   
-                  <input *ngIf="cardForm.card_type !== 'NAPAS'" type="text" [(ngModel)]="cardForm.cvc" id="card-cvc" placeholder="941" />
-                  <input *ngIf="cardForm.card_type === 'NAPAS'" type="text" [(ngModel)]="cardForm.issued_bank" id="card-bank" placeholder="Vietcombank" list="vietnam-banks" />
+                  <input *ngIf="cardForm.card_type !== 'NAPAS'" type="text" [(ngModel)]="cardForm.cvc" id="card-cvc" placeholder="941" (input)="savePaymentInfo()" />
+                  <input *ngIf="cardForm.card_type === 'NAPAS'" type="text" [(ngModel)]="cardForm.issued_bank" id="card-bank" placeholder="Vietcombank" list="vietnam-banks" (input)="savePaymentInfo()" />
                   
                   <datalist id="vietnam-banks">
                     <option value="Vietcombank">Vietcombank</option>
@@ -546,6 +645,7 @@
                    [orderId]="pendingOrderId()" 
                    [sessionId]="pendingOrderSessionId()" 
                    [paymentMethod]="paymentMethod()"
+                   [mobileNumber]="delivery.mobile"
                    (confirmed)="onPaymentConfirmed($event)" 
                    (canceled)="onPaymentCanceled()"
                    (continueShopping)="onContinueShopping()" 

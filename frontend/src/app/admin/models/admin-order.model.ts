@@ -52,3 +52,75 @@ export interface AdminOrdersQuery {
   page?: number;
   limit?: number;
 }
+
+export interface AdminOrderLineItem {
+  product_id: string;
+  product_name: string;
+  variant_name: string;
+  image_url: string | null;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+}
+
+export interface AdminOrderStatusHistoryEntry {
+  status: string;
+  changed_at: string;
+  changed_by: string;
+  note?: string;
+}
+
+export interface AdminOrderRefundRequest {
+  type?: string | null;
+  reason?: string | null;
+  status?: 'pending' | 'approved' | 'rejected' | null;
+  requested_at?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  admin_note?: string;
+}
+
+export interface AdminInternalNote {
+  text: string;
+  author: string;
+  created_at: string;
+}
+
+export interface AdminOrderDetail {
+  _id: string;
+  order_id: string;
+  order_status: AdminOrderStatus;
+  payment_status: string;
+  created_at: string;
+  updated_at: string;
+  delivered_at: string | null;
+  canceled_at: string | null;
+  is_guest: boolean;
+  items: AdminOrderLineItem[];
+  pricing: {
+    subtotal: number;
+    shipping_cost: number;
+    discount_amount?: number;
+    total: number;
+    currency: string;
+  };
+  payment_label: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  shipping_address: string;
+  status_history: AdminOrderStatusHistoryEntry[];
+  refund_request: AdminOrderRefundRequest | null;
+  internal_notes: AdminInternalNote[];
+}
+
+export interface AdminOrderDetailResponse {
+  data: AdminOrderDetail;
+}
+
+export type AdminOrderStatusUpdate =
+  | 'processing'
+  | 'shipping'
+  | 'delivered'
+  | 'canceled'
+  | 'refund';

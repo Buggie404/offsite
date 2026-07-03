@@ -16,7 +16,7 @@ const reviewSchema = new mongoose.Schema({
   review_id: { type: String, unique: true, index: true },
 
   // === Identity (verify purchase + enforce uniqueness) ===
-  user_id: { type: String, required: true, ref: 'User', index: true }, // No guests allowed
+  user_id: { type: String, required: false, ref: 'User', index: true }, // Optional for guest reviews
   order_id: { type: String, required: true, ref: 'Order', index: true }, // To verify purchase
   product_id: { type: String, required: true, ref: 'Product', index: true },
   variant_id: { type: String, required: true }, // Review per variant (usually variant SKU or "default")

@@ -94,10 +94,26 @@ $wheat:       #E8D5B0;
 // BASE CARD
 // ============================================================
 .card {
+  display: block;
   position: relative;
   overflow: hidden;
   border: 2px solid $wheat;
   background: transparent;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease;
+
+  &:hover,
+  &:focus-visible {
+    transform: translate(-4px, -4px);
+    box-shadow: 8px 8px 2px var(--color-blush-pink);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $forest;
+    outline-offset: 4px;
+  }
 }
 
 // ============================================================
@@ -232,46 +248,4 @@ $wheat:       #E8D5B0;
   line-height: 20px;
   letter-spacing: 0.7px;
   color: $warm-dark;
-}
-
-.btn-shop {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 32px;
-  height: 44px;
-  background: $forest;
-  border-radius: 999px;
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-  color: $cream;
-  border: none;
-  cursor: pointer;
-  white-space: nowrap;
-
-  &:hover {
-    background: darken($forest, 5%);
-  }
-}
-
-.link-explore {
-  font-family: 'DM Mono', monospace;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  color: $forest;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
-
-  &:hover {
-    opacity: 0.75;
-  }
 }

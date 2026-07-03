@@ -1,0 +1,165 @@
+<div class="payment-qr-container" *ngIf="order()">
+  <div class="payment-qr-content">
+    <!-- LEFT COLUMN: SCAN TO PAY -->
+    <main class="payment-main">
+      <a routerLink="/checkout" class="back-link">
+        <svg lucideArrowLeft [size]="14"></svg>
+        <span>BACK TO CHECKOUT</span>
+      </a>
+      <h1 class="page-title">SCAN TO PAY</h1>
+      <p class="page-subtitle">Open your banking app and scan the QR code below to complete payment.</p>
+
+      <div class="payment-card">
+        <!-- QR Code Display -->
+        <div class="qr-wrapper">
+          <div class="qr-box" [class.qr-box--blurred]="isExpired()" [class.qr-box--glitch]="isGlitching()">
+            <img *ngIf="qrCodeUrl()" [src]="qrCodeUrl()" alt="Payment QR Code" class="qr-image" />
+            
+            <!-- Expired overlay -->
+            <div class="qr-overlay" *ngIf="isExpired()">
+              <svg lucideAlertTriangle [size]="36" class="error-icon"></svg>
+              <span class="overlay-text" *ngIf="!isFailed()">QR EXPIRED</span>
+              <span class="overlay-text overlay-text--failed" *ngIf="isFailed()">PAYMENT FAILED</span>
+            </div>
+          </div>
+          <!-- Simulation helper link -->
+          <a *ngIf="!isExpired() && !isFailed()" [href]="qrData()" target="_blank" class="simulate-link">
+            <span>Simulate Mobile Scan ↗</span>
+          </a>
+        </div>
+
+        <!-- Payment Info / Status -->
+        <div class="payment-info">
+          <div class="info-section">
+            <span class="info-label">TOTAL AMOUNT</span>
+            <span class="info-value">{{ order().pricing.total | currency:'USD' }}</span>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Timer / Failure Message -->
+          <div class="info-section timer-section" *ngIf="!isFailed()">
+            <div class="clock-icon-wrapper">
+              <svg lucideClock [size]="20" class="clock-icon"></svg>
+            </div>
+            <div class="timer-details">
+              <span class="timer-label" *ngIf="!isExpired()">QR EXPIRES IN</span>
+              <span class="timer-label timer-label--expired" *ngIf="isExpired()">QR EXPIRED</span>
+              <span class="timer-countdown" [class.timer-countdown--expired]="isExpired()">{{ timeLeft() }}</span>
+            </div>
+          </div>
+
+          <!-- Payment Failed Alert -->
+          <div class="info-section failed-section" *ngIf="isFailed()">
+            <div class="failed-icon-wrapper">
+              <svg lucideAlertTriangle [size]="20" class="failed-icon"></svg>
+            </div>
+            <div class="failed-details">
+              <span class="failed-title">PAYMENT FAILED</span>
+              <span class="failed-subtitle">Exceeded maximum reloads. Order status is now Pending.</span>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Actions -->
+          <div class="actions-section">
+            <button type="button" 
+                    class="refresh-btn" 
+                    [disabled]="isFailed()" 
+                    [class.refresh-btn--disabled]="isFailed()"
+                    (click)="handleRefresh()">
+              <svg lucideRefreshCw [size]="16" class="btn-icon"></svg>
+              <span>REFRESH QR</span>
+            </button>
+            <p class="refresh-hint" *ngIf="!isFailed() && isExpired()">Click Refresh to generate a new QR code (15-min validity).</p>
+            <p class="refresh-hint failed-hint" *ngIf="isFailed()">Please navigate to your Account Page to retry payment.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT COLUMN: ORDER SUMMARY -->
+    <aside class="payment-sidebar">
+      <div class="summary-card">
+        <header class="summary-header">
+          <svg lucidePackage [size]="18"></svg>
+          <span>ORDER SUMMARY</span>
+        </header>
+
+        <div class="summary-items">
+          <div class="summary-item" *ngFor="let item of order().items">
+            <!-- Product Image -->
+            <div class="summary-item__media">
+              <img *ngIf="item.image?.url; else noImg" [src]="item.image.url" [alt]="item.product_name" />
+              <ng-template #noImg>
+                <div class="thumb-fallback"></div>
+              </ng-template>
+            </div>
+
+            <!-- Product Details -->
+            <div class="summary-item__body">
+              <div class="summary-item__row">
+                <span class="summary-item__name">{{ item.product_name }}</span>
+                <span class="summary-item__price">
+                  {{ item.subtotal | currency:'USD' }}
+                </span>
+              </div>
+
+              <!-- Static/Read-only Variant -->
+              <div class="variant-static">
+                {{ item.variant_name }}
+              </div>
+
+              <div class="summary-item__quantity">
+                x{{ item.quantity }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-divider"></div>
+
+        <!-- Promo Code Applied -->
+        <div class="discount-display" *ngIf="order().coupon">
+          <div class="discount-applied-badge">
+            <span class="discount-label">
+              <svg lucideTag [size]="14" class="tag-icon"></svg>
+              PROMO APPLIED
+            </span>
+            <span class="discount-code">{{ order().coupon.code }}</span>
+          </div>
+        </div>
+
+        <div class="summary-divider" *ngIf="order().coupon"></div>
+
+        <!-- Pricing Totals -->
+        <div class="summary-totals">
+          <div class="total-row">
+            <span>SUBTOTAL</span>
+            <span>{{ order().pricing.subtotal | currency:'USD' }}</span>
+          </div>
+          <div class="total-row">
+            <span>SHIPPING</span>
+            <span *ngIf="order().pricing.shipping_cost === 0">FREE</span>
+            <span *ngIf="order().pricing.shipping_cost > 0">
+              {{ order().pricing.shipping_cost | currency:'USD' }}
+            </span>
+          </div>
+          <div class="total-row" *ngIf="order().pricing.discount_amount > 0">
+            <span>DISCOUNT</span>
+            <span>-{{ order().pricing.discount_amount | currency:'USD' }}</span>
+          </div>
+        </div>
+
+        <div class="summary-divider"></div>
+
+        <!-- Grand Total -->
+        <div class="total-row total-row--grand">
+          <span>TOTAL (USD)</span>
+          <span>{{ order().pricing.total | currency:'USD' }}</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>

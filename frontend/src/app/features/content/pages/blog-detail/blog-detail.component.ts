@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef, HostListener } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { LucideArrowLeft, LucideBookmark, LucideClock, LucideCalendar, LucideAlertCircle } from '@lucide/angular';
+import { LucideArrowLeft, LucideBookmark, LucideClock, LucideCalendar, LucideAlertCircle, LucideLink, LucideArrowRight } from '@lucide/angular';
 import { ContentService } from '../../services/content.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { AuthService } from '../../../../core/auth.service';
@@ -51,7 +51,9 @@ interface RelatedArticle {
     LucideBookmark,
     LucideClock,
     LucideCalendar,
-    LucideAlertCircle
+    LucideAlertCircle,
+    LucideLink,
+    LucideArrowRight
   ],
   templateUrl: './blog-detail.component.html',
   styleUrl: './blog-detail.component.scss'

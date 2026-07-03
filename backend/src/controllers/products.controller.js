@@ -20,6 +20,34 @@ async function getAllProducts(req, res) {
   }
 }
 
+async function getProductCategoryCounts(req, res) {
+  try {
+    const groupedCounts = await Product.aggregate([
+      { $match: { is_active: true } },
+      { $group: { _id: '$category', count: { $sum: 1 } } }
+    ]);
+
+    const categoryCounts = {
+      matcha: 0,
+      coffee: 0,
+      tools: 0,
+      drinkware: 0,
+      sets_bundles: 0
+    };
+
+    groupedCounts.forEach(({ _id, count }) => {
+      if (Object.prototype.hasOwnProperty.call(categoryCounts, _id)) {
+        categoryCounts[_id] = count;
+      }
+    });
+
+    res.json(categoryCounts);
+  } catch (error) {
+    console.error('Error fetching product category counts:', error);
+    res.status(500).json({ error: 'Failed to retrieve product category counts' });
+  }
+}
+
 async function getProductById(req, res) {
   try {
     const { id } = req.params;
@@ -41,5 +69,6 @@ async function getProductById(req, res) {
 
 module.exports = {
   getAllProducts,
+  getProductCategoryCounts,
   getProductById
 };

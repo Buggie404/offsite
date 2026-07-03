@@ -13,7 +13,7 @@
     </nav>
 
     <div class="sidebar-footer">
-      <button type="button" class="sidebar-sign-out" (click)="signOut()">
+      <button type="button" class="sidebar-sign-out" (click)="openSignOutModal()">
         <svg lucideLogOut aria-hidden="true" [size]="16"></svg>
         Sign out
       </button>
@@ -25,7 +25,7 @@
     <header class="admin-header">
       <a routerLink="/admin/orders" class="logo-lockup--header" aria-label="Offsite Admin home">
         <img
-          src="assets/images/abs-logo-dark.png"
+          src="assets/images/abs_logo_dark.png"
           alt=""
           class="logo-mark-img"
           width="40"
@@ -64,3 +64,43 @@
     </main>
   </div>
 </div>
+
+@if (showSignOutModal) {
+  <div class="sign-out-overlay" (click)="closeSignOutModal()" role="presentation">
+    <div
+      class="sign-out-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sign-out-modal-title"
+      (click)="$event.stopPropagation()"
+    >
+      <button
+        type="button"
+        class="sign-out-modal__close"
+        (click)="closeSignOutModal()"
+        aria-label="Close dialog"
+      >
+        <svg lucideX aria-hidden="true" [size]="18"></svg>
+      </button>
+
+      <div class="sign-out-modal__icon-wrap" aria-hidden="true">
+        <svg lucideLogOut class="sign-out-modal__icon" [size]="22"></svg>
+      </div>
+
+      <h2 id="sign-out-modal-title" class="sign-out-modal__title">Signing out?</h2>
+      <p class="sign-out-modal__message">
+        Any unsaved changes will be saved to your drafts before you leave.
+      </p>
+
+      <div class="sign-out-modal__actions">
+        <button type="button" class="sign-out-modal__btn sign-out-modal__btn--primary" (click)="confirmSignOut()">
+          <svg lucideLogOut aria-hidden="true" [size]="16"></svg>
+          Sign out
+        </button>
+        <button type="button" class="sign-out-modal__btn sign-out-modal__btn--secondary" (click)="closeSignOutModal()">
+          Stay
+        </button>
+      </div>
+    </div>
+  </div>
+}

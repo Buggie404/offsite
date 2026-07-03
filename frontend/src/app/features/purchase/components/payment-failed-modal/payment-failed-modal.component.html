@@ -1,0 +1,36 @@
+<div class="modal-overlay animate-fade-in">
+  <div class="modal-container animate-scale-up">
+    <!-- Close button -->
+    <button class="modal-close-btn" (click)="onClose()" aria-label="Close modal">
+      <svg lucideX [size]="20" class="close-icon"></svg>
+    </button>
+
+    <!-- Alert Exclamation Circle -->
+    <div class="alert-circle-wrapper">
+      <svg lucideAlertTriangle [size]="24" class="alert-exclamation-icon"></svg>
+    </div>
+
+    <!-- Title -->
+    <h2 class="modal-title">Payment Failed</h2>
+
+    <!-- Description -->
+    <p class="modal-desc">
+      Something went wrong with your transaction. Please check your card details or try a different payment method.
+    </p>
+
+    <!-- Actions -->
+    <div class="modal-actions">
+      <button class="modal-btn-primary font-mono" (click)="onRetry()">
+        TRY AGAIN
+      </button>
+      <button class="modal-btn-secondary font-mono" (click)="onChangeMethod()">
+        CHANGE PAYMENT METHOD
+      </button>
+    </div>
+
+    <!-- Footer footnote -->
+    <div class="modal-footer font-mono">
+      © Offsite 2026 · Ho Chi Minh City, Vietnam
+    </div>
+  </div>
+</div>

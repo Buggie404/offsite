@@ -4,6 +4,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ProductService } from '../../services/product.service';
 import { Product, getDefaultPrice } from '../../models/product.model';
+import { CartService } from '../../../purchase/services/cart.service';
 
 const BEST_SELLER_IDS = [14001, 12011, 13014, 11010];
 const BEST_SELLER_BADGE_IDS = new Set([10004, 10005]);
@@ -25,7 +26,10 @@ export class BestSellerComponent implements OnInit {
     '#96bf62','#74a340','#567d2e','#43631f','#375534'
   ];
 
-  constructor(private productService: ProductService) {}
+  constructor(
+    private productService: ProductService,
+    private cartService: CartService
+  ) {}
 
   ngOnInit(): void {
     this.productService.getProducts().subscribe({
@@ -116,6 +120,7 @@ export class BestSellerComponent implements OnInit {
 
   onAddToCart(p: Product): void {
     console.log('Add to cart:', p.name);
+    this.cartService.addToCart(p as any);
   }
 
   onSave(p: Product): void {

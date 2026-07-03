@@ -8,23 +8,32 @@
   --cream:        #faf0eb;
   --accent:       #c8a96e;   // "at home" warm gold tint
   --btn-dark:     #1a1a1a;
+  display:        block;
+  width:          100%;
 }
 
 // ── Section wrapper ──────────────────────────────────────────
 .hero {
-  width:            1440px;
-  max-width:        100%;
-  min-height:       870px;
+  width:            100%;
   background:       var(--bg);
+  overflow:         hidden;
+}
+
+// The section owns the full-bleed background; this inner wrapper keeps
+// the actual content aligned with the rest of the page.
+.hero__inner {
+  width:            100%;
+  max-width:        1440px;
+  min-height:       870px;
+  margin:           0 auto;
   display:          flex;
   flex-direction:   row;
   align-items:      center;
   justify-content:  center;
-  overflow:         hidden;
   padding:          0 80px;
   gap:              72px;
 
-  @media (max-width: 960px) {
+  @media (max-width: 1200px) {
     flex-direction: column;
     padding:        60px 32px;
     gap:            48px;
@@ -39,10 +48,14 @@
   flex-direction:  column;
   padding:         80px 0;
 
-  @media (max-width: 960px) {
+  @media (max-width: 1200px) {
     flex:    unset;
     width:   100%;
+    max-width: 640px;
+    margin: 0 auto;
     padding: 0;
+    align-items: center;
+    text-align: center;
   }
 }
 
@@ -82,6 +95,10 @@
   gap:            16px;
   padding-top:    32px;
 
+  @media (max-width: 1200px) {
+    justify-content: center;
+  }
+
   @media (max-width: 480px) {
     flex-direction: column;
     align-items:    stretch;
@@ -102,16 +119,19 @@
   text-decoration: none;
   cursor:          pointer;
   white-space:     nowrap;
-  transition:      opacity 0.18s ease, background 0.18s ease;
+  transition:      background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 
   &--dark {
     background: var(--btn-dark);
     color:      var(--cream);
-    border:     none;
-    padding:    21px 40px;
+    border:     1.5px solid var(--btn-dark);
+    padding:    19.5px 40px;
     min-width:  200px;
 
-    &:hover { opacity: 0.82; }
+    &:hover {
+      background: transparent;
+      border-color: var(--color-sage);
+    }
   }
 
   &--outline {
@@ -122,7 +142,9 @@
     min-width:  180px;
 
     &:hover {
-      background: rgba(250, 240, 235, 0.1);
+      background: var(--color-sage);
+      border-color: var(--color-sage);
+      color: var(--bg);
     }
   }
 }
@@ -130,8 +152,8 @@
 // ── Right: arch image ────────────────────────────────────────
 .hero__image-wrap {
   flex:          0 0 548px;
-  width:         548px;
-  height:        678px;
+  width:         min(100%, 548px);
+  aspect-ratio:  548 / 678;
   border-radius: 9999px 9999px 16px 16px;   // arch shape
   overflow:      hidden;
   background:    #c9b99a;                    // warm placeholder
@@ -146,10 +168,16 @@
     display:     block;
   }
 
-  @media (max-width: 960px) {
-    flex:   unset;
-    width:  100%;
-    height: 420px;
+  @media (max-width: 1200px) {
+    flex:  none;
+    order: -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .hero__inner {
+    padding: 40px 20px;
+    gap: 36px;
   }
 }
 

@@ -63,7 +63,7 @@
           <button class="sidebar-toggle-btn" (click)="toggleSidebar()" aria-label="Open sidebar menu">
             <svg lucideMenu [size]="24"></svg>
           </button>
-          <h1 class="page-title">{{ activeTab() === 'profile' ? 'Profile Information' : (activeTab() === 'saved' ? 'Saved Items' : (activeTab() === 'address' ? 'My Address' : (activeTab() | titlecase))) }}</h1>
+          <h1 class="page-title">{{ activeTab() === 'profile' ? 'Profile Information' : (activeTab() === 'saved' ? 'Saved Items' : (activeTab() === 'address' ? 'My Address' : (activeTab() === 'orders' ? 'My Orders' : (activeTab() === 'payment' ? 'Payment Cards' : (activeTab() | titlecase))))) }}</h1>
         </div>
 
         <div class="header-action-wrapper" *ngIf="activeTab() === 'saved'">
@@ -77,9 +77,16 @@
         </div>
 
         <div class="header-action-wrapper" *ngIf="activeTab() === 'address'">
-          <button class="btn-add-address">
+          <button class="btn-add-address" (click)="openAddressModal()">
             <span class="plus-icon">+</span>
             <span>ADD NEW ADDRESS</span>
+          </button>
+        </div>
+
+        <div class="header-action-wrapper" *ngIf="activeTab() === 'payment' && !isAddingCard()">
+          <button class="btn-add-address" (click)="openAddCardForm()">
+            <span class="plus-icon">+</span>
+            <span>ADD CARD</span>
           </button>
         </div>
       </div>
@@ -165,7 +172,7 @@
       </div>
 
       <!-- Address Tab (New Empty State) -->
-      <div class="tab-content address-empty-content-tab" *ngIf="activeTab() === 'address'">
+      <div class="tab-content address-empty-content-tab" *ngIf="activeTab() === 'address' && sortedAddresses().length === 0">
         <div class="address-empty-state-wrapper">
           <div class="address-empty-icon-container">
             <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="address-empty-search-svg">
@@ -180,8 +187,481 @@
         </div>
       </div>
 
+      <!-- Address Tab (List State) -->
+      <div class="tab-content address-list-tab" *ngIf="activeTab() === 'address' && sortedAddresses().length > 0">
+        <div class="address-cards-wrapper">
+          <div 
+            *ngFor="let addr of sortedAddresses()" 
+            class="address-card" 
+            [class.default]="addr.is_default"
+          >
+            <div class="address-card-header">
+              <div class="address-title-group">
+                <h3 class="address-label-title">{{ addr.label || 'Other' | titlecase }}</h3>
+                <span class="default-badge" *ngIf="addr.is_default">DEFAULT</span>
+              </div>
+              <div class="address-actions-group">
+                <button type="button" class="btn-action-link default-link" *ngIf="!addr.is_default" (click)="onSetAsDefaultAddress(addr)">
+                  Set as Default
+                </button>
+                <button type="button" class="btn-action-link" (click)="openAddressModal(addr)">
+                  <svg lucidePencil [size]="14" class="action-icon"></svg>
+                  <span>Edit</span>
+                </button>
+                <button type="button" class="btn-action-link delete-link" (click)="openDeleteAddressModal(addr)">
+                  <svg lucideTrash2 [size]="14" class="action-icon"></svg>
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="address-card-body">
+              <div class="address-info-grid">
+                <div class="info-item">
+                  <span class="info-label">RECIPIENT NAME</span>
+                  <span class="info-value">{{ addr.recipient_name }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">PHONE</span>
+                  <span class="info-value">{{ addr.phone }}</span>
+                </div>
+              </div>
+              <div class="address-info-full">
+                <span class="info-label">ADDRESS</span>
+                <span class="info-value address-text">
+                  <svg lucideMapPin [size]="16" class="pin-icon"></svg>
+                  {{ addr.detail_address }}, {{ addr.city }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Orders Tab -->
+      <div class="tab-content orders-tab-content" *ngIf="activeTab() === 'orders'">
+        <!-- Stats Summary Grid -->
+        <div class="orders-stats-grid">
+          <div class="stat-card">
+            <span class="stat-number">{{ totalOrdersCount() }}</span>
+            <span class="stat-label">TOTAL ORDERS</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-number">${{ totalSpentSum() | number:'1.2-2' }}</span>
+            <span class="stat-label">TOTAL SPENT</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-number">{{ inTransitCount() }}</span>
+            <span class="stat-label">IN TRANSIT</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-number">{{ pendingCount() }}</span>
+            <span class="stat-label">PENDING</span>
+          </div>
+        </div>
+
+        <!-- Filter and Sort Row -->
+        <div class="orders-filter-row">
+          <div class="search-box">
+            <svg lucideSearch [size]="18" class="search-icon"></svg>
+            <input 
+              type="text" 
+              [ngModel]="orderSearchQuery()" 
+              (ngModelChange)="setOrderSearchQuery($event)" 
+              placeholder="Search by order number..."
+              class="search-input"
+            />
+          </div>
+          
+          <div class="sort-box">
+            <span class="sort-label">SORT BY</span>
+            <div class="select-wrapper">
+              <select [ngModel]="orderSortBy()" (ngModelChange)="setOrderSortBy($event)" class="sort-select">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="price_low">Price: Low to High</option>
+                <option value="price_high">Price: High to High</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status Filter Sub-Tabs -->
+        <div class="orders-status-tabs">
+          <button class="status-tab" [class.active]="orderStatusFilter() === 'all'" (click)="setOrderStatusFilter('all')">
+            All <span class="count-badge" [class.active]="orderStatusFilter() === 'all'">{{ orders().length }}</span>
+          </button>
+          <button class="status-tab" [class.active]="orderStatusFilter() === 'pending'" (click)="setOrderStatusFilter('pending')">
+            Pending <span class="count-badge" [class.active]="orderStatusFilter() === 'pending'">{{ getCountByStatus('pending') }}</span>
+          </button>
+          <button class="status-tab" [class.active]="orderStatusFilter() === 'processing'" (click)="setOrderStatusFilter('processing')">
+            Processing <span class="count-badge" [class.active]="orderStatusFilter() === 'processing'">{{ getCountByStatus('processing') }}</span>
+          </button>
+          <button class="status-tab" [class.active]="orderStatusFilter() === 'shipping'" (click)="setOrderStatusFilter('shipping')">
+            Shipping <span class="count-badge" [class.active]="orderStatusFilter() === 'shipping'">{{ getCountByStatus('shipping') }}</span>
+          </button>
+          <button class="status-tab" [class.active]="orderStatusFilter() === 'delivered'" (click)="setOrderStatusFilter('delivered')">
+            Delivered <span class="count-badge" [class.active]="orderStatusFilter() === 'delivered'">{{ getCountByStatus('delivered') }}</span>
+          </button>
+          <button class="status-tab" [class.active]="orderStatusFilter() === 'canceled'" (click)="setOrderStatusFilter('canceled')">
+            Canceled <span class="count-badge" [class.active]="orderStatusFilter() === 'canceled'">{{ getCountByStatus('canceled') }}</span>
+          </button>
+          <button class="status-tab" [class.active]="orderStatusFilter() === 'refund'" (click)="setOrderStatusFilter('refund')">
+            Refund <span class="count-badge" [class.active]="orderStatusFilter() === 'refund'">{{ getCountByStatus('refund') }}</span>
+          </button>
+        </div>
+
+        <!-- Orders Loading state -->
+        <div *ngIf="isLoadingOrders()" class="orders-loading-state">
+          <span class="orders-spinner"></span>
+          <p>Loading orders...</p>
+        </div>
+
+        <!-- Orders List -->
+        <div class="orders-list-wrapper" *ngIf="!isLoadingOrders()">
+          <!-- Empty State -->
+          <div *ngIf="filteredOrders().length === 0" class="orders-empty-state">
+            <svg lucideShoppingBag [size]="48" class="empty-icon"></svg>
+            <h3>No Orders Found</h3>
+            <p>We couldn't find any orders matching your criteria.</p>
+          </div>
+
+          <!-- Order Cards -->
+          <div 
+            *ngFor="let order of paginatedOrders()" 
+            class="order-result-card animate-fade-in"
+            (click)="viewOrderDetails(order)"
+          >
+            <div class="card-header-row">
+              <div class="header-left-col">
+                <div class="order-id-group">
+                  <h3 class="order-id font-display">{{ order.order_id }}</h3>
+                </div>
+                <span class="order-date font-mono">{{ formatOrderDate(order.created_at || order.createdAt) }}</span>
+              </div>
+
+              <div class="header-right-col">
+                <span class="order-total-price font-mono">${{ order.pricing?.total | number:'1.2-2' }}</span>
+                <span class="status-badge" [ngClass]="getStatusClass(order.order_status)">
+                  <span class="status-dot"></span>
+                  {{ getStatusLabel(order.order_status) }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Card Inner Body -->
+            <div class="card-inner-body" *ngIf="order.items && order.items.length">
+              <div class="product-thumb-container">
+                <img [src]="productThumb(order.items[0])" [alt]="order.items[0]?.product_name" class="product-thumbnail" />
+              </div>
+              <div class="product-meta-details">
+                <h4 class="product-name-title font-body">{{ order.items[0]?.product_name }}</h4>
+                <span class="items-summary-text font-mono">
+                  {{ getItemCount(order) }} {{ getItemCount(order) === 1 ? 'item' : 'items' }} &middot; ${{ order.pricing?.total | number:'1.2-2' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Card Actions Footer -->
+            <div class="card-actions-footer" (click)="$event.stopPropagation()">
+              <!-- Cancel Button: shown for pending/processing status -->
+              <button
+                *ngIf="order.order_status === 'pending' || order.order_status === 'processing'"
+                type="button"
+                class="btn-cancel-action"
+                (click)="cancelOrder(order)"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="cancel-svg-icon">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="15" y1="9" x2="9" y2="15"></line>
+                  <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+                Cancel Order
+              </button>
+
+              <!-- Shipping Status Actions -->
+              <ng-container *ngIf="order.order_status === 'shipping'">
+                <button type="button" class="btn-solid-action" (click)="viewOrderDetails(order)">
+                  <svg lucideTruck [size]="16" class="btn-icon"></svg>
+                  Track Order
+                </button>
+                <button type="button" class="btn-outlined-action" (click)="confirmReceipt(order)">
+                  <svg lucidePackageCheck [size]="16" class="btn-icon"></svg>
+                  Received Order
+                </button>
+              </ng-container>
+
+              <!-- Delivered Status Actions -->
+              <ng-container *ngIf="order.order_status === 'delivered'">
+                <button type="button" class="btn-solid-action" (click)="buyAgain(order)">
+                  <svg lucideRefreshCw [size]="16" class="btn-icon"></svg>
+                  Buy Again
+                </button>
+                <button type="button" class="btn-outlined-action" (click)="openReviewModal(order)">
+                  <svg lucideStar [size]="16" class="btn-icon"></svg>
+                  Leave a Review
+                </button>
+                <button type="button" class="btn-outlined-action" (click)="refundOrder(order)">
+                  Refund/Return
+                </button>
+              </ng-container>
+
+              <!-- Canceled Status Actions -->
+              <button
+                *ngIf="order.order_status === 'canceled' || order.order_status === 'cancelled'"
+                type="button"
+                class="btn-solid-action"
+                (click)="buyAgain(order)"
+              >
+                <svg lucideRefreshCw [size]="16" class="btn-icon"></svg>
+                Buy Again
+              </button>
+            </div>
+          </div>
+
+          <!-- Pagination -->
+          <div class="orders-pagination" *ngIf="totalPages() > 1">
+            <button class="pagination-btn" [disabled]="currentPage() === 1" (click)="setCurrentPage(currentPage() - 1)">
+              <svg lucideChevronLeft [size]="16"></svg>
+            </button>
+            <button 
+              *ngFor="let page of getPagesArray()" 
+              class="pagination-btn page-num" 
+              [class.active]="currentPage() === page"
+              (click)="setCurrentPage(page)"
+            >
+              {{ page }}
+            </button>
+            <button class="pagination-btn" [disabled]="currentPage() === totalPages()" (click)="setCurrentPage(currentPage() + 1)">
+              <svg lucideChevronRight [size]="16"></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Tab (Empty State) -->
+      <div class="tab-content payment-empty-content-tab" *ngIf="activeTab() === 'payment' && sortedPaymentMethods().length === 0 && !isAddingCard()">
+        <div class="address-empty-state-wrapper">
+          <div class="address-empty-icon-container">
+            <svg lucideCreditCard [size]="48" class="address-empty-search-svg" style="color: var(--color-warm-brown); opacity: 0.6;"></svg>
+          </div>
+          <h2 class="address-empty-title">NO SAVED CARDS YET</h2>
+          <p class="address-empty-subtitle">You haven't saved any payment cards yet. Add a card for a faster checkout experience.</p>
+        </div>
+      </div>
+
+      <!-- Payment Tab (List State) -->
+      <div class="tab-content payment-list-tab" *ngIf="activeTab() === 'payment' && sortedPaymentMethods().length > 0 && !isAddingCard()">
+        <div class="saved-cards-label">SAVED CARDS ({{ sortedPaymentMethods().length }})</div>
+        <div class="payment-cards-wrapper">
+          <div 
+            *ngFor="let card of sortedPaymentMethods()" 
+            class="payment-card" 
+            [class.expired]="isCardExpired(card.expire_date)"
+          >
+            <div class="card-brand-logo-wrapper">
+              <img
+                [src]="getCardThumbnail(card)"
+                [alt]="getCardBrand(card)"
+                class="brand-logo-img"
+              />
+            </div>
+
+            <button type="button" class="delete-card-btn" (click)="onDeletePaymentCard(card._id)" aria-label="Delete card">
+              <svg lucideX [size]="20"></svg>
+            </button>
+
+            <div class="card-number-info">
+              <span class="info-label">
+                {{ card.card_type === 'NAPAS' ? 'DOMESTIC NAPAS' : (card.card_type === 'debit' ? 'DEBIT CARD' : 'CREDIT CARD') }}
+              </span>
+              <span class="info-value card-number-dots">•••• •••• •••• {{ card.card_number.slice(-4) }}</span>
+            </div>
+
+            <div class="card-row-footer">
+              <div class="footer-col cardholder-col">
+                <span class="info-label">CARDHOLDER</span>
+                <span class="info-value cardholder-name-val">{{ card.cardholder_name }}</span>
+              </div>
+              <div class="footer-col expires-col">
+                <span class="info-label">EXPIRES</span>
+                <span class="info-value expires-val">
+                  {{ card.expire_date }}
+                  <span class="expired-label-tag" *ngIf="isCardExpired(card.expire_date)"> (EXPIRED)</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Payment Card Inline Panel -->
+      <div class="tab-content payment-add-card-tab animate-fade-in" *ngIf="activeTab() === 'payment' && isAddingCard()">
+        <div class="address-card" style="padding: 32px; border: 1.5px solid rgba(84, 74, 64, 0.15); border-radius: 16px;">
+          <h2 class="form-section-title" style="font-size: 22px; font-weight: 700; margin: 0 0 6px 0; color: var(--color-near-black);">Add New Payment Method</h2>
+          <p class="form-section-subtitle" style="font-size: 14px; color: var(--color-warm-brown); opacity: 0.6; margin: 0 0 32px 0;">Your card details are encrypted and secure</p>
+
+          <form (ngSubmit)="submitCardForm()" class="payment-card-inline-form">
+            <!-- Card Type Selector -->
+            <div class="form-row card-type-selector-row" style="margin-bottom: 24px;">
+              <label class="info-label" style="display: block; margin-bottom: 8px;">CARD TYPE</label>
+              <div class="payment-card-type-selector" style="display: flex; gap: 24px;">
+                <button 
+                  type="button" 
+                  class="type-selector-box" 
+                  [class.selected]="cardCategory() === 'credit_debit'" 
+                  (click)="setCardCategory('credit_debit')"
+                >
+                  <div class="radio-indicator">
+                    <span class="dot" *ngIf="cardCategory() === 'credit_debit'"></span>
+                  </div>
+                  <div class="text-group">
+                    <span class="main-text">Credit / Debit</span>
+                    <span class="sub-text">Visa, Mastercard, etc.</span>
+                  </div>
+                </button>
+                <button 
+                  type="button" 
+                  class="type-selector-box" 
+                  [class.selected]="cardCategory() === 'domestic_atm'" 
+                  (click)="setCardCategory('domestic_atm')"
+                >
+                  <div class="radio-indicator">
+                    <span class="dot" *ngIf="cardCategory() === 'domestic_atm'"></span>
+                  </div>
+                  <div class="text-group">
+                    <span class="main-text">Domestic ATM</span>
+                    <span class="sub-text">NAPAS cards</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Card Number -->
+            <div class="form-row" style="margin-bottom: 20px;">
+              <div class="form-group full-width" style="display: flex; flex-direction: column; gap: 6px;">
+                <label class="info-label">CARD NUMBER</label>
+                <div class="input-with-icon" style="position: relative; display: flex; align-items: center; width: 100%;">
+                  <input
+                    type="text"
+                    class="form-input"
+                    [(ngModel)]="cardForm.card_number"
+                    name="card_number"
+                    id="account-card-num"
+                    placeholder="1234 5678 9012 3456"
+                    maxlength="19"
+                    (blur)="formatCardNumber()"
+                    style="padding-right: 50px;"
+                  />
+                  <!-- Inline card brand thumbnail -->
+                  <img *ngIf="inlineCardBrand === 'Visa'" src="assets/images/payment_visa.png" class="inline-brand-icon" style="position: absolute; right: 16px; height: 20px; width: auto; object-fit: contain;" />
+                  <img *ngIf="inlineCardBrand === 'Mastercard'" src="assets/images/payment_mastercard.png" class="inline-brand-icon" style="position: absolute; right: 16px; height: 20px; width: auto; object-fit: contain;" />
+                  <img *ngIf="inlineCardBrand === 'Napas'" src="assets/images/payment_napas.png" class="inline-brand-icon" style="position: absolute; right: 16px; height: 20px; width: auto; object-fit: contain;" />
+                </div>
+                <!-- Inline validation messages -->
+                <div id="account-card-num-error" class="field-error animate-fade-in" style="color: #C0392B; font-size: 12px; margin-top: 4px; font-weight: 600;"></div>
+              </div>
+            </div>
+
+            <!-- Cardholder Name -->
+            <div class="form-row" style="margin-bottom: 20px;">
+              <div class="form-group full-width" style="display: flex; flex-direction: column; gap: 6px;">
+                <label class="info-label">CARDHOLDER NAME</label>
+                <input
+                  type="text"
+                  class="form-input"
+                  [(ngModel)]="cardForm.cardholder_name"
+                  name="cardholder_name"
+                  id="account-card-holder-name"
+                  placeholder="Full name as shown on card"
+                  (blur)="formatCardholderName()"
+                />
+                <!-- Inline validation messages -->
+                <div id="account-card-holder-name-error" class="field-error animate-fade-in" style="color: #C0392B; font-size: 12px; margin-top: 4px; font-weight: 600;"></div>
+              </div>
+            </div>
+
+            <!-- Expiry & CVV / Issued Bank -->
+            <div class="form-row inline-row" style="display: flex; gap: 24px; margin-bottom: 32px;">
+              <div class="form-group half-width" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                <label class="info-label">EXPIRED DATE</label>
+                <input
+                  type="text"
+                  class="form-input"
+                  [(ngModel)]="cardForm.expire_date"
+                  name="expire_date"
+                  id="account-card-expiry"
+                  placeholder="MM / YY"
+                  maxlength="7"
+                />
+                <!-- Inline validation messages -->
+                <div id="account-card-expiry-error" class="field-error animate-fade-in" style="color: #C0392B; font-size: 12px; margin-top: 4px; font-weight: 600;"></div>
+              </div>
+
+              <!-- CVC (Visa/Mastercard) -->
+              <div class="form-group half-width" style="flex: 1; display: flex; flex-direction: column; gap: 6px;" *ngIf="cardCategory() === 'credit_debit'">
+                <label class="info-label">CVV</label>
+                <input
+                  type="password"
+                  class="form-input"
+                  [(ngModel)]="cardForm.cvc"
+                  name="cvc"
+                  id="account-card-cvc"
+                  placeholder="123"
+                  maxlength="3"
+                />
+                <!-- Inline validation messages -->
+                <div id="account-card-cvc-error" class="field-error animate-fade-in" style="color: #C0392B; font-size: 12px; margin-top: 4px; font-weight: 600;"></div>
+              </div>
+
+              <!-- Issued Bank (Napas) -->
+              <div class="form-group half-width" style="flex: 1; display: flex; flex-direction: column; gap: 6px;" *ngIf="cardCategory() === 'domestic_atm'">
+                <label class="info-label">ISSUED BANK</label>
+                <input
+                  type="text"
+                  class="form-input"
+                  [(ngModel)]="cardForm.issued_bank"
+                  name="issued_bank"
+                  id="account-card-bank"
+                  placeholder="e.g. Vietcombank"
+                  list="account-vietnam-banks"
+                />
+                <datalist id="account-vietnam-banks">
+                  <option value="Vietcombank">Vietcombank</option>
+                  <option value="BIDV">BIDV</option>
+                  <option value="Techcombank">Techcombank</option>
+                  <option value="VietinBank">VietinBank</option>
+                  <option value="Agribank">Agribank</option>
+                  <option value="MB Bank">MB Bank</option>
+                  <option value="VPBank">VPBank</option>
+                  <option value="ACB">ACB</option>
+                  <option value="Sacombank">Sacombank</option>
+                  <option value="TPBank">TPBank</option>
+                  <option value="VIB">VIB</option>
+                  <option value="SHB">SHB</option>
+                  <option value="MSB">MSB</option>
+                  <option value="SeABank">SeABank</option>
+                </datalist>
+                <!-- Inline validation messages -->
+                <div id="account-card-bank-error" class="field-error animate-fade-in" style="color: #C0392B; font-size: 12px; margin-top: 4px; font-weight: 600;"></div>
+              </div>
+            </div>
+
+            <div class="form-actions-row" style="display: flex; gap: 24px; justify-content: flex-end; margin-top: 16px;">
+              <button type="button" class="btn-form btn-cancel-card" style="flex: 1; padding: 15px 24px; border-radius: 100px; border: 1.5px solid #C0392B; background: transparent; color: #C0392B; font-weight: 700; font-size: 13px; letter-spacing: 0.08em; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" (click)="closeAddCardForm()">
+                CANCEL
+              </button>
+              <button type="submit" class="btn-form btn-submit-card" style="flex: 1; padding: 15px 24px; border-radius: 100px; border: none; background-color: #375534; color: #FFFFFF; font-weight: 700; font-size: 13px; letter-spacing: 0.08em; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" [disabled]="isSubmitting()">
+                <svg lucideLoader [size]="16" class="spin-icon" *ngIf="isSubmitting()" style="margin-right: 8px;"></svg>
+                <span>ADD CARD</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
       <!-- Placeholder tabs -->
-      <div class="tab-content placeholder-tab" *ngIf="activeTab() !== 'profile' && activeTab() !== 'saved' && activeTab() !== 'address'">
+      <div class="tab-content placeholder-tab" *ngIf="activeTab() !== 'profile' && activeTab() !== 'saved' && activeTab() !== 'address' && activeTab() !== 'orders' && activeTab() !== 'payment'">
         <div class="profile-info-card empty-state-card">
           <svg lucideShoppingBag [size]="48" class="empty-icon" *ngIf="activeTab() === 'orders'"></svg>
           <svg lucideCreditCard [size]="48" class="empty-icon" *ngIf="activeTab() === 'payment'"></svg>
@@ -408,4 +888,27 @@
       </form>
     </div>
   </div>
+
+  <app-address-modal
+    [isOpen]="showAddressModal()"
+    [address]="selectedAddressForEdit()"
+    [isOnlyAddress]="isOnlyAddress()"
+    (save)="onSaveAddress($event)"
+    (cancel)="closeAddressModal()"
+  ></app-address-modal>
+
+  <app-delete-address-modal
+    [isOpen]="showDeleteAddressModal()"
+    [address]="selectedAddressForDelete()"
+    (confirm)="confirmDeleteAddress()"
+    (cancel)="closeDeleteAddressModal()"
+  ></app-delete-address-modal>
+
+  <app-review-modal
+    *ngIf="selectedOrderForReview() && showReviewModal()"
+    [order]="selectedOrderForReview()"
+    [verificationDetails]="{ email: user()?.email || '', mobile: user()?.phone || '' }"
+    [(isOpen)]="showReviewModal"
+    (orderUpdated)="onReviewOrderUpdated($event)"
+  ></app-review-modal>
 </div>

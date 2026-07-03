@@ -107,5 +107,17 @@ export class AuthService {
     }
     this.isAuthenticatedSignal.set(true);
   }
+
+  getUser(): any {
+    if (isPlatformBrowser(this.platformId)) {
+      const u = localStorage.getItem('user');
+      if (u) {
+        try {
+          return JSON.parse(u);
+        } catch (e) {}
+      }
+    }
+    return null;
+  }
 }
 

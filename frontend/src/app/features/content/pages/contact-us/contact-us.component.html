@@ -30,10 +30,8 @@
               name="fullName" 
               [(ngModel)]="fullName" 
               #nameInput="ngModel"
-              required 
-              placeholder="Steve Jobs"
-              [class.error]="nameInput.touched && nameInput.invalid">
-            <span class="error-msg" *ngIf="nameInput.touched && nameInput.invalid">Full name is required</span>
+              placeholder="Enter your full name">
+            <div class="error-msg" id="fullName-error"></div>
           </div>
 
           <div class="form-group">
@@ -44,14 +42,8 @@
               name="email" 
               [(ngModel)]="email" 
               #emailInput="ngModel"
-              required 
-              email
-              placeholder="stevejobsvn@example.com"
-              [class.error]="emailInput.touched && emailInput.invalid">
-            <span class="error-msg" *ngIf="emailInput.touched && emailInput.invalid">
-              <span *ngIf="emailInput.errors?.['required']">Email is required</span>
-              <span *ngIf="emailInput.errors?.['email']">Invalid email address</span>
-            </span>
+              placeholder="yourmail@gmail.com">
+            <div class="error-msg" id="email-error"></div>
           </div>
 
           <div class="form-group">
@@ -60,6 +52,7 @@
               <select id="subject" name="subject" [(ngModel)]="subject">
                 <option *ngFor="let opt of subjects" [value]="opt">{{ opt }}</option>
               </select>
+              <svg lucideChevronDown [size]="16" class="chevron-icon"></svg>
             </div>
           </div>
 
@@ -111,7 +104,7 @@
             <li class="info-item align-top">
               <svg lucideMapPin [size]="20" class="info-icon"></svg>
               <span class="info-text font-multiline">
-                123 Café Street, District 1<br>
+                669 Do Muoi District 1<br>
                 Ho Chi Minh City, Vietnam
               </span>
             </li>
@@ -149,7 +142,7 @@
 
         <!-- Coffee Cup Image -->
         <div class="image-wrapper animate-fade-in">
-          <img src="assets/images/contact-coffee.jpg" alt="Hot cup of coffee with latte art and coffee beans" class="coffee-image">
+          <img src="assets/images/contact-us.png" alt="Cozy modern minimalist cafe with a warm cup of coffee and a laptop" class="coffee-image">
         </div>
       </div>
     </div>

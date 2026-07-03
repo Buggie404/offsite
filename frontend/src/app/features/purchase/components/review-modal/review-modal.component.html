@@ -1,0 +1,172 @@
+<div class="review-modal-overlay" *ngIf="isOpen" (click)="close()">
+  <div class="review-modal-container" (click)="$event.stopPropagation()">
+    
+    <!-- SCREEN 1: CHOOSE ITEM -->
+    <ng-container *ngIf="currentScreen === 'choose-item'">
+      <div class="modal-header-custom">
+        <span class="order-info-tag font-subtitle">
+          ORDER #{{ order?.order_id }}
+        </span>
+        <h2 class="modal-title font-title">Which product would you like to review?</h2>
+        <p class="modal-description font-body">Your feedback helps our community of artisans grow and improve.</p>
+      </div>
+
+      <div class="modal-body-custom">
+        <div class="product-selection-list">
+          <div 
+            *ngFor="let item of getUnreviewedItems()" 
+            class="product-item-card"
+            (click)="selectItem(item)"
+          >
+            <div class="product-image-wrapper">
+              <img [src]="item.image?.url || item.image || 'assets/placeholder.jpg'" [alt]="item.product_name" class="product-thumb" />
+            </div>
+            <div class="product-item-details">
+              <h4 class="product-name font-subtitle">{{ item.product_name }}</h4>
+              <span class="product-variant-badge font-body" *ngIf="item.variant_name">
+                {{ item.variant_name }}
+              </span>
+            </div>
+            <div class="product-action-indicator">
+              <svg lucideChevronRight [size]="18" class="chevron-icon"></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer-custom">
+        <button class="btn-skip font-body" (click)="close()">SKIP FOR NOW</button>
+        <button class="btn-review-later font-body" (click)="close()">REVIEW LATER</button>
+      </div>
+    </ng-container>
+
+    <!-- SCREEN 2: LEAVE A REVIEW -->
+    <ng-container *ngIf="currentScreen === 'write-review'">
+      <div class="modal-header header-simple">
+        <h3 class="header-title font-title">Leave a Review</h3>
+        <button class="btn-close" (click)="close()">
+          <svg lucideX [size]="20"></svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Selected Product Mini Card -->
+        <div class="selected-product-banner">
+          <button class="btn-card-back" (click)="goBackToChooseItem()">
+            <svg lucideArrowLeft [size]="18"></svg>
+          </button>
+          <div class="product-image-wrapper">
+            <img [src]="selectedItem?.image?.url || selectedItem?.image || 'assets/placeholder.jpg'" [alt]="selectedItem?.product_name" class="product-thumb" />
+          </div>
+          <div class="product-item-details">
+            <h4 class="product-name font-subtitle">{{ selectedItem?.product_name }}</h4>
+            <p class="product-variant font-body">
+              {{ selectedItem?.variant_name }} <span class="quantity-multiplier">· x{{ selectedItem?.quantity }}</span>
+            </p>
+            <p class="order-id-sub font-body">Order #{{ order?.order_id }}</p>
+          </div>
+        </div>
+
+        <!-- Rating Stars -->
+        <div class="star-rating-section">
+          <div class="stars-row">
+            <button 
+              *ngFor="let star of [1,2,3,4,5]" 
+              type="button" 
+              class="star-btn"
+              (click)="setRating(star)"
+            >
+              <svg 
+                lucideStar 
+                [size]="36" 
+                class="star-icon"
+                [class.filled]="star <= rating"
+              ></svg>
+            </button>
+          </div>
+          <div class="rating-text-label font-subtitle" [class.active]="rating > 0">
+            {{ ratingText }}
+          </div>
+        </div>
+
+        <!-- Review Text Input -->
+        <div class="review-textarea-section">
+          <label class="textarea-label font-subtitle">YOUR REVIEW (OPTIONAL)</label>
+          <div class="textarea-wrapper">
+            <textarea 
+              [(ngModel)]="content"
+              maxlength="500" 
+              placeholder="Share your experience with this product..."
+              class="review-textarea font-body"
+            ></textarea>
+            <div class="char-counter font-body">{{ content.length }}/500</div>
+          </div>
+        </div>
+
+        <!-- Anonymous Toggle Option -->
+        <div class="anonymous-toggle-box" [class.checked]="isAnonymous">
+          <div class="toggle-icon-circle">
+            <svg *ngIf="!isAnonymous" lucideEye [size]="18" class="eye-icon"></svg>
+            <svg *ngIf="isAnonymous" lucideEyeOff [size]="18" class="eye-icon"></svg>
+          </div>
+          <div class="toggle-texts">
+            <span class="toggle-title font-subtitle">Post anonymously</span>
+            <span class="toggle-subtitle font-body">
+              {{ isAnonymous ? 'Your name will be hidden' : 'Your name will be shown' }}
+            </span>
+          </div>
+          <label class="switch-control">
+            <input type="checkbox" [(ngModel)]="isAnonymous" />
+            <span class="slider-round"></span>
+          </label>
+        </div>
+
+        <div class="error-banner font-body" *ngIf="errorMessage">
+          {{ errorMessage }}
+        </div>
+      </div>
+
+      <div class="modal-footer-single">
+        <button 
+          class="btn-submit-review font-body" 
+          [disabled]="rating === 0 || isSubmitting"
+          (click)="onSubmit()"
+        >
+          {{ isSubmitting ? 'SUBMITTING...' : 'SUBMIT REVIEW' }}
+        </button>
+      </div>
+    </ng-container>
+
+    <!-- SCREEN 3: REVIEW SUBMITTED -->
+    <ng-container *ngIf="currentScreen === 'submitted'">
+      <div class="modal-body centered-success-screen">
+        <div class="success-icon-wrapper">
+          <div class="success-icon-circle">
+            <svg lucideCheck [size]="24" class="success-check-icon"></svg>
+          </div>
+        </div>
+        
+        <h2 class="modal-title font-title">Review Submitted</h2>
+        <p class="modal-description font-body">
+          Your feedback helps our community thrive.<br />
+          Thank you for supporting artisanal craftsmanship.
+        </p>
+
+        <div class="success-actions-column">
+          <button class="btn-success-action-primary font-body" (click)="backToShop()">
+            BACK TO SHOP
+          </button>
+          <button 
+            *ngIf="hasUnreviewedItems()"
+            class="btn-success-action-secondary font-body" 
+            (click)="reviewAnother()"
+          >
+            REVIEW ANOTHER ITEM
+          </button>
+        </div>
+
+      </div>
+    </ng-container>
+
+  </div>
+</div>

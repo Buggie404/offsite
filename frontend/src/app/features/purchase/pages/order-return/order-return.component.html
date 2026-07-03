@@ -1,0 +1,224 @@
+<div class="refund-page-container" *ngIf="order() && !loading()">
+  <div class="refund-content-grid">
+    
+    <!-- Left Column: Form Details -->
+    <main class="refund-form-area">
+      <button class="back-link font-body" (click)="router.navigate(['/checkout/delivered'], { state: { order: order() } })">
+        <svg lucideArrowLeft [size]="16" class="arrow-icon"></svg> BACK TO ORDER
+      </button>
+
+      <h1 class="page-title font-header">REQUEST REFUND</h1>
+      <p class="page-description font-body">
+        We're sorry your experience wasn't perfect. Please provide the details below so we can assist you with your return or refund immediately.
+      </p>
+
+      <!-- Section: Refund Reason -->
+      <section class="form-card">
+        <h2 class="section-title font-header"><span class="bullet">•</span> REFUND REASON</h2>
+        <div class="select-wrapper">
+          <select [(ngModel)]="reason" (blur)="reasonTouched.set(true)" class="custom-select font-body">
+            <option value="" disabled selected hidden>Select reason</option>
+            <option *ngFor="let r of reasonsList" [value]="r">{{ r }}</option>
+          </select>
+          <svg lucideChevronDown [size]="18" class="select-arrow"></svg>
+        </div>
+        <div class="inline-error font-body" *ngIf="reasonTouched() && !reason()">
+          Please select a refund reason.
+        </div>
+
+        <!-- Custom text input for Other reason -->
+        <div class="other-reason-wrapper" *ngIf="reason() === 'Other'">
+          <label class="other-reason-label font-body font-bold">PLEASE SPECIFY REASON</label>
+          <textarea 
+            [ngModel]="otherReasonText()" 
+            (ngModelChange)="otherReasonText.set($event); checkOtherReasonWords($event)"
+            (blur)="otherReasonTouched.set(true)"
+            class="other-reason-textarea font-body" 
+            placeholder="Please enter your specific reason here (max 200 words)..."
+            rows="3">
+          </textarea>
+          <div class="word-counter font-body" [class.error]="otherReasonWordCount() > 200">
+            {{ otherReasonWordCount() }}/200 words
+          </div>
+          <div class="inline-error font-body" *ngIf="otherReasonTouched() && !otherReasonText().trim()">
+            Please specify the custom reason.
+          </div>
+          <div class="inline-error font-body" *ngIf="otherReasonWordCount() > 200">
+            Reason cannot exceed 200 words.
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Refund To -->
+      <section class="form-card">
+        <h2 class="section-title font-header"><span class="bullet">•</span> REFUND TO</h2>
+        
+        <div class="refund-destination-box">
+          <div class="destination-icon-box" [class.no-bg]="getPaymentThumbnail(order())">
+            <img *ngIf="getPaymentThumbnail(order())" [src]="getPaymentThumbnail(order())" [alt]="order().payment?.card_info?.brand" class="dest-thumb-img" />
+            <svg *ngIf="!getPaymentThumbnail(order()) && order().payment?.method === 'cod'" lucideBanknote [size]="20" class="dest-icon"></svg>
+            <svg *ngIf="!getPaymentThumbnail(order()) && order().payment?.method === 'qr'" lucideQrCode [size]="20" class="dest-icon"></svg>
+          </div>
+          <div class="destination-details">
+            <div class="destination-title font-body font-bold">
+              {{ getPaymentLabel(order()) }}
+            </div>
+            <div class="destination-subtitle font-body">
+              Refund will be processed to this card/account
+            </div>
+          </div>
+          <div class="check-icon-circle">
+            <svg lucideCheck [size]="12"></svg>
+          </div>
+        </div>
+
+        <p class="policy-note font-body">
+          <svg lucideInfo [size]="14" class="info-inline-icon"></svg>
+          Refunds typically take 5-10 business days to appear on your statement.
+        </p>
+      </section>
+
+      <!-- Section: Description -->
+      <section class="form-card">
+        <div class="title-row">
+          <h2 class="section-title font-header"><span class="bullet">•</span> DESCRIPTION</h2>
+          <span class="optional-label font-body">OPTIONAL</span>
+        </div>
+        
+        <textarea 
+          [(ngModel)]="description" 
+          class="description-textarea font-body" 
+          placeholder="Please provide additional details about your refund request. Include information about the issue, condition of the product, or any other relevant details..."
+          rows="5">
+        </textarea>
+        
+        <div class="character-counter font-body" [class.error]="description() && description().trim().length < 20">
+          Minimum 20 characters ({{ description().trim().length }}/20)
+        </div>
+      </section>
+
+      <!-- Section: Supporting Evidence -->
+      <section class="form-card">
+        <h2 class="section-title font-header"><span class="bullet">•</span> SUPPORTING EVIDENCE</h2>
+        <p class="evidence-subtitle font-body">
+          Upload photos or videos showing the issue with your order. This helps us process your refund faster.
+        </p>
+
+        <!-- Drag & Drop Upload Zone -->
+        <label class="upload-dropzone">
+          <input type="file" multiple (change)="onFileSelected($event); evidenceTouched.set(true)" accept="image/*,video/*" class="file-input" />
+          <div class="upload-zone-content">
+            <div class="upload-icon-circle">
+              <svg lucideUpload [size]="20"></svg>
+            </div>
+            <div class="upload-title font-body font-bold">Upload Images or Videos</div>
+            <div class="upload-subtitle font-body">Click to browse or drag and drop<br>PNG, JPG, MP4 up to 10MB each</div>
+          </div>
+        </label>
+        <div class="inline-error font-body" *ngIf="evidenceTouched() && evidenceFiles().length === 0">
+          Please upload at least one image or video as supporting evidence.
+        </div>
+
+        <!-- Preview Uploaded Files as actual image/video thumbnails -->
+        <div class="evidence-previews-grid" *ngIf="evidenceFiles().length > 0">
+          <div *ngFor="let file of evidenceFiles(); let idx = index" class="evidence-preview-card">
+            <div class="preview-img-wrapper">
+              <video *ngIf="file.name.toLowerCase().endsWith('.mp4'); else imgTemp" [src]="file.url" class="preview-image" muted></video>
+              <ng-template #imgTemp>
+                <img [src]="file.url" [alt]="file.name" class="preview-image" />
+              </ng-template>
+              <button type="button" class="remove-preview-badge" (click)="removeFile(idx)" title="Remove evidence">
+                &times;
+              </button>
+            </div>
+            <div class="preview-info font-body">
+              <span class="file-name" [title]="file.name">{{ file.name }}</span>
+              <span class="file-size">{{ file.size }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bottom Actions -->
+      <div class="actions-row">
+        <button class="btn-cancel font-body" (click)="router.navigate(['/checkout/delivered'], { state: { order: order() } })">
+          CANCEL
+        </button>
+        <button 
+          class="btn-submit font-body" 
+          [disabled]="isFormInvalid" 
+          (click)="submitRefundRequest()">
+          SUBMIT REFUND REQUEST
+        </button>
+      </div>
+    </main>
+
+    <!-- Right Column: Return Items Sidebar -->
+    <aside class="refund-sidebar">
+      <div class="sidebar-card">
+        <header class="sidebar-header font-header">
+          <svg lucidePackage [size]="18" class="package-icon"></svg> ITEM TO RETURN
+        </header>
+
+        <!-- Item List with checkboxes -->
+        <div class="sidebar-items-list">
+          <div *ngFor="let item of order().items" class="return-item-row" (click)="toggleItemSelection(item.variant_id); itemsTouched.set(true)">
+            <div class="item-checkbox">
+              <span class="checkbox-circle" [class.selected]="isItemSelected(item.variant_id)">
+                <svg *ngIf="isItemSelected(item.variant_id)" lucideCheck [size]="12"></svg>
+              </span>
+            </div>
+            <div class="item-thumbnail">
+              <img [src]="item.image?.url" [alt]="item.product_name" />
+            </div>
+            <div class="item-details">
+              <div class="item-title font-body font-bold">{{ item.product_name }}</div>
+              <div class="item-variant font-body">{{ item.variant_name }}</div>
+            </div>
+            <div class="item-price font-body font-bold">
+              ${{ item.unit_price.toFixed(2) }}
+            </div>
+          </div>
+        </div>
+        <div class="inline-error font-body" *ngIf="itemsTouched() && selectedItemsList.length === 0" style="margin-top: -12px; margin-bottom: 16px;">
+          Please select at least one item to return.
+        </div>
+
+        <!-- Price Breakdown -->
+        <div class="sidebar-pricing-breakdown font-body">
+          <div class="price-row">
+            <span>SUBTOTAL</span>
+            <span class="price-val font-bold">${{ subtotal.toFixed(2) }}</span>
+          </div>
+          <div class="price-row">
+            <span>SHIPPING</span>
+            <span class="price-val">Free</span>
+          </div>
+          <div class="price-row" *ngIf="discountAmount > 0">
+            <span>DISCOUNT</span>
+            <span class="price-val discount-val font-bold">-${{ discountAmount.toFixed(2) }}</span>
+          </div>
+          <div class="price-total-row font-header">
+            <span>TOTAL REFUND</span>
+            <span class="total-val">${{ totalRefund.toFixed(2) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Refund Policy Notice -->
+      <div class="policy-card font-body">
+        <div class="policy-title font-bold">
+          <svg lucideInfo [size]="16" class="policy-info-icon"></svg> Refund Policy
+        </div>
+        <p class="policy-desc">
+          All refund requests are reviewed within 1-2 business days. Once approved, refunds will be processed to your original payment method within 5-10 business days.
+        </p>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<div class="loading-overlay" *ngIf="loading()">
+  <div class="spinner"></div>
+</div>

@@ -14,10 +14,15 @@ import {
   LucideLogIn,
   LucideLogOut,
   LucideClipboardClock,
-  LucideChevronDown
+  LucideChevronDown,
+  LucideTrash2,
+  LucidePlus,
+  LucideMinus
 } from '@lucide/angular';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
+import { CartService, CartItem } from '../../../features/purchase/services/cart.service';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-navbar',
@@ -35,7 +40,11 @@ import { AuthModalService } from '../../../core/auth-modal.service';
     LucideLogOut,
     LucideClipboardClock,
     LucideChevronDown,
-    SuccessModalComponent
+    SuccessModalComponent,
+    LucideTrash2,
+    LucidePlus,
+    LucideMinus,
+    FormsModule
   ],
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.scss'
@@ -46,6 +55,7 @@ export class NavbarComponent implements OnInit {
   private authModalService = inject(AuthModalService);
   private elementRef = inject(ElementRef);
   private router = inject(Router);
+  private cartService = inject(CartService);
 
   isPromobarVisible = true;
   isMobileMenuOpen = false;
@@ -53,7 +63,6 @@ export class NavbarComponent implements OnInit {
   isMobileProductsOpen = false;
   isMobileAboutOpen = false;
   isSearchOpen = false;
-  isCartOpen = false;
   isAboutDropdownOpen = false;
   isSignOutModalOpen = false;
 
@@ -238,17 +247,79 @@ export class NavbarComponent implements OnInit {
     }
   }
 
+  get isCartOpen(): boolean {
+    return this.cartService.isOpen();
+  }
+
+  set isCartOpen(value: boolean) {
+    this.cartService.isOpen.set(value);
+  }
+
+  get cartItems(): CartItem[] {
+    return this.cartService.cartItems();
+  }
+
+  get cartCount(): number {
+    return this.cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  }
+
+  get subtotal(): number {
+    return this.cartItems.reduce((sum, item) => {
+      if (!item.selected) return sum;
+      const variant = this.getVariant(item);
+      if (!variant || variant.stock <= 0) return sum;
+      return sum + variant.price * item.quantity;
+    }, 0);
+  }
+
+  getVariant(item: CartItem) {
+    return item.product.variants.find(v => v.sku === item.variantSku) || item.product.variants[0];
+  }
+
+  isItemOutOfStock(item: CartItem): boolean {
+    const variant = this.getVariant(item);
+    return variant ? variant.stock <= 0 : true;
+  }
+
   openCart(event?: Event): void {
     if (event) {
       event.preventDefault();
       event.stopPropagation();
     }
-    this.isCartOpen = true;
+    this.cartService.openCart();
     this.isMobileMenuOpen = false;
     this.isSearchOpen = false;
   }
 
   closeCart(): void {
-    this.isCartOpen = false;
+    this.cartService.closeCart();
+  }
+
+  incrementQuantity(item: CartItem): void {
+    this.cartService.updateQuantity(item.product._id, item.variantSku, item.quantity + 1);
+  }
+
+  decrementQuantity(item: CartItem): void {
+    this.cartService.updateQuantity(item.product._id, item.variantSku, item.quantity - 1);
+  }
+
+  removeFromCart(item: CartItem): void {
+    this.cartService.removeFromCart(item.product._id, item.variantSku);
+  }
+
+  toggleSelection(item: CartItem): void {
+    this.cartService.toggleSelection(item.product._id, item.variantSku);
+  }
+
+  changeVariant(item: CartItem, newSku: string): void {
+    this.cartService.updateVariant(item.product._id, item.variantSku, newSku);
+  }
+
+  checkout(event?: Event): void {
+    if (event) {
+      event.preventDefault();
+    }
+    this.cartService.processCheckout();
+    this.router.navigate(['/checkout']);
   }
 }
