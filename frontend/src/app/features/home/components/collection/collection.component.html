@@ -14,10 +14,11 @@
 
     <!-- ROW 1: Large cards (Matcha + Coffee) -->
     <div class="row-large">
-      <div
+      <a
         *ngFor="let item of largeCollections"
-        class="card card-large"
         [class]="'card card-large ' + item.id"
+        [routerLink]="['/shop', item.id]"
+        [attr.aria-label]="'Shop ' + item.name"
       >
         <div class="card-content">
           <h3 class="card-title">{{ item.name }}</h3>
@@ -30,17 +31,17 @@
 
         <div class="card-footer">
           <span class="card-count">{{ formatCount(item.productCount, item.productLabel) }}</span>
-          <button class="btn-shop" (click)="onShopNow(item.id)">Shop Now</button>
         </div>
-      </div>
+      </a>
     </div>
 
     <!-- ROW 2: Small cards (Tools + Drinkware + Bundles) -->
     <div class="row-small">
-      <div
+      <a
         *ngFor="let item of smallCollections"
-        class="card card-small"
         [class]="'card card-small ' + item.id"
+        [routerLink]="['/shop', item.id]"
+        [attr.aria-label]="'Shop ' + item.name"
       >
         <span class="card-title">{{ item.name }}</span>
 
@@ -50,9 +51,8 @@
 
         <div class="card-footer">
           <span class="card-count">{{ formatCount(item.productCount, item.productLabel) }}</span>
-          <button class="link-explore" (click)="onExplore(item.id)">Explore</button>
         </div>
-      </div>
+      </a>
     </div>
 
   </div>

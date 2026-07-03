@@ -11,6 +11,16 @@ $forest:    #213E1F;
 $pill-bg:   #EAE1DC;
 
 // ── SECTION ──
+:host {
+  display: block;
+  width: 100%;
+}
+
+.bestseller-section {
+  width: 100%;
+  background: $wheat;
+}
+
 .main-frame {
   display: flex;
   flex-direction: column;
@@ -20,7 +30,6 @@ $pill-bg:   #EAE1DC;
   min-height: 828px;
   padding: 88px 16px;   // giảm padding 2 bên (32→16) để nhường width cho card
   gap: 24px;
-  background: $wheat;
   margin: 0 auto;
 }
 
@@ -66,6 +75,23 @@ $pill-bg:   #EAE1DC;
   font-size: 48px;
   line-height: 58px;
   color: $warm-mid;
+}
+
+@media (max-width: 768px) {
+  .main-frame {
+    min-height: 0;
+    padding: 56px 16px;
+  }
+
+  .bestsellers-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .section-heading {
+    font-size: clamp(32px, 10vw, 48px);
+    line-height: 1.15;
+  }
 }
 
 .view-all-link {

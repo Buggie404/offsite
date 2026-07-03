@@ -3,6 +3,7 @@
 ───────────────────────────────────────────────────────────── -->
 
 <section class="hero">
+  <div class="hero__inner">
 
   <!-- ── LEFT: text content ───────────────────────────────── -->
   <div class="hero__content">
@@ -14,8 +15,8 @@
     <p class="hero__body">{{ body }}</p>
 
     <div class="hero__cta">
-      <a href="/shop" class="btn btn--dark">{{ ctaPrimary }}</a>
-      <a href="/quiz" class="btn btn--outline">{{ ctaSecondary }}</a>
+      <a routerLink="/shop/best-sellers" class="btn btn--dark">{{ ctaPrimary }}</a>
+      <a routerLink="/contact-us" class="btn btn--outline">{{ ctaSecondary }}</a>
     </div>
 
   </div>
@@ -31,6 +32,8 @@
     <span *ngIf="!heroImage" class="hero__image-placeholder">
       Photo goes here
     </span>
+  </div>
+
   </div>
 
 </section>

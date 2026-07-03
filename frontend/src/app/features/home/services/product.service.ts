@@ -5,6 +5,14 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Product } from '../models/product.model';
 
+export interface ProductCategoryCounts {
+  matcha: number;
+  coffee: number;
+  tools: number;
+  drinkware: number;
+  sets_bundles: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -20,6 +28,9 @@ export class ProductService {
 
   getProductById(id: string): Observable<Product> {
     return this.http.get<Product>(`${this.api}/${id}`);
+  }
+  getCategoryCounts(): Observable<ProductCategoryCounts> {
+    return this.http.get<ProductCategoryCounts>(`${this.api}/category-counts`);
   }
 
   getBestSellers(): Observable<Product[]> {
