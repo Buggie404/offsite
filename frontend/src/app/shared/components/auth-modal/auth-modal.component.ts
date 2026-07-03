@@ -162,26 +162,30 @@ export class AuthModalComponent {
   }
 
   get signupEmailError(): string | null {
-    if (!this.signupEmail) {
-      return this.signupEmailTouched ? 'Email is required' : null;
+    if (!this.signupEmail && !this.signupPhone) {
+      return this.signupEmailTouched ? 'Email or phone is required' : null;
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(this.signupEmail)) {
-      return 'Invalid email format';
+    if (this.signupEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(this.signupEmail)) {
+        return 'Invalid email format';
+      }
     }
     return null;
   }
 
   get signupPhoneError(): string | null {
-    if (!this.signupPhone) {
-      return this.signupPhoneTouched ? 'Phone number is required' : null;
+    if (!this.signupPhone && !this.signupEmail) {
+      return this.signupPhoneTouched ? 'Email or phone is required' : null;
     }
-    const normalized = this.signupPhone.replace(/\s+/g, '');
-    if (!/^\d+$/.test(normalized)) {
-      return 'Phone number must contain digits and spaces only';
-    }
-    if (normalized.length < 10 || normalized.length > 11) {
-      return 'Phone number must be 10 to 11 digits';
+    if (this.signupPhone) {
+      const normalized = this.signupPhone.replace(/\s+/g, '');
+      if (!/^\d+$/.test(normalized)) {
+        return 'Phone number must contain digits only';
+      }
+      if (normalized.length < 10 || normalized.length > 11) {
+        return 'Phone number must be 10 to 11 digits';
+      }
     }
     return null;
   }
@@ -249,7 +253,7 @@ export class AuthModalComponent {
       const phoneValid = /^\d{10,11}$/.test(normalizedPhone);
       const passwordValid = this.signupPassword.length >= 8 && this.signupPassword.length <= 15 && !/\s/.test(this.signupPassword);
       const confirmValid = this.signupPassword === this.signupConfirmPassword;
-      return nameValid && emailValid && phoneValid && passwordValid && confirmValid;
+      return nameValid && (emailValid || phoneValid) && passwordValid && confirmValid;
     }
 
     if (this.loginTab === 'email') {
