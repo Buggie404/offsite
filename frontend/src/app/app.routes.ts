@@ -61,6 +61,10 @@ export const routes: Routes = [
   {
     path: 'journal/:slug',
     loadComponent: () => import('./features/content/pages/blog-detail/blog-detail.component').then(m => m.BlogDetailComponent)
+  },
+  {
+    path: 'shop/:category',
+    loadComponent: () => import('./features/shop/pages/category/category.component').then(m => m.CategoryComponent)
   }
 ];
 

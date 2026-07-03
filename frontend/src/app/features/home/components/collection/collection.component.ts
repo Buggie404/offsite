@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 
 export interface Collection {
   id: string;
@@ -21,6 +22,7 @@ export interface Collection {
   styleUrls: ['./collection.component.scss'],
 })
 export class CollectionComponent {
+  constructor(private router: Router) {}
 
   // Mock data — sau này thay bằng API từ service
   largeCollections: Collection[] = [
@@ -90,12 +92,10 @@ export class CollectionComponent {
   }
 
   onShopNow(collectionId: string): void {
-    // TODO: router.navigate(['/shop'], { queryParams: { collection: collectionId } })
-    console.log('Shop now:', collectionId);
+    this.router.navigate(['/shop', collectionId]);
   }
 
   onExplore(collectionId: string): void {
-    // TODO: router.navigate(['/shop', collectionId])
-    console.log('Explore:', collectionId);
+    this.router.navigate(['/shop', collectionId]);
   }
 }

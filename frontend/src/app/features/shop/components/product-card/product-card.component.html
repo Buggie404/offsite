@@ -1,0 +1,77 @@
+<!-- shop/components/product-card/product-card.component.html -->
+
+<div class="card">
+
+  <!-- ── IMAGE WRAP ── -->
+  <div class="card-image-wrap">
+    <img [src]="getPrimaryImage(product)" [alt]="getPrimaryImageAlt(product)" class="product-img" />
+
+    <button class="save-btn" (click)="onSave(product)">
+      <svg lucideHeart [size]="16" aria-hidden="true"></svg>
+    </button>
+
+    @if (showBestSellerBadge) {
+      <div class="badge-wrap">
+        <div class="badge"><span>Best seller</span></div>
+      </div>
+    }
+  </div>
+
+  <!-- ── CARD BODY ── -->
+  <div class="card-body">
+
+    <!-- TOP: title, origin, tags, roast bar -->
+    <div class="card-body-top"
+         [class.gap-coffee]="product.category === 'coffee'"
+         [class.gap-bundle]="product.category === 'sets_bundles'">
+
+      <!-- Title + Rating -->
+      <div class="title-rating-row">
+        <h3 class="product-title">{{ product.name }}</h3>
+        <div class="rating">
+          <svg viewBox="0 0 16 16">
+            <polygon points="8,1 10,6 15,6 11,9.5 12.5,15 8,11.8 3.5,15 5,9.5 1,6 6,6"/>
+          </svg>
+          <span>{{ product.rating_avg ?? '4.9' }}</span>
+        </div>
+      </div>
+
+      <!-- Origin (ẩn với sets_bundles) -->
+      @if (product.category !== 'sets_bundles' && getOrigin(product)) {
+        <p class="origin-text">{{ getOrigin(product) }}</p>
+      }
+
+      <!-- Tag pills -->
+      @if (getTags(product).length) {
+        <div class="tags-row">
+          @for (tag of getTags(product); track tag) {
+            <div class="tag"><span>{{ tag }}</span></div>
+          }
+        </div>
+      }
+
+      <!-- Roast bar — coffee only -->
+      @if (showRoastBar(product)) {
+        <div class="roast-bar">
+          @for (color of roastSwatches; track $index) {
+            <span class="swatch"
+                  [class.swatch--highlight]="isHighlightSwatch(product, $index)"
+                  [style.background]="isHighlightSwatch(product, $index) ? '#E8E05A' : color">
+            </span>
+          }
+        </div>
+      }
+
+    </div><!-- /card-body-top -->
+
+    <!-- BOTTOM: price + add -->
+    <div class="price-add-row">
+      <span class="price">{{ getPrice(product) }}</span>
+      <button class="add-btn" (click)="onAddToCart(product)">
+        <span>Add</span>
+      </button>
+    </div>
+
+  </div><!-- /card-body -->
+
+</div><!-- /card -->

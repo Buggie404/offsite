@@ -1,0 +1,89 @@
+.category-hero {
+  width: 100%;
+  padding: 96px 64px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  &__container {
+    max-width: var(--container-max, 1280px);
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 40px;
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* Based on Figma */
+    max-width: 672px;
+  }
+
+  &__title {
+    font-family: var(--font-display, 'Russo One', sans-serif);
+    font-size: 64px;
+    font-weight: 400;
+    color: var(--color-near-black, #1F1B16);
+    margin: 0;
+    text-transform: uppercase;
+  }
+
+  &__description {
+    font-family: var(--font-body, 'DM Sans', sans-serif);
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--color-warm-brown, #434840);
+    line-height: 1.6;
+    margin: 0;
+    max-width: 672px;
+  }
+
+  &__image-wrapper {
+    width: 460px;
+    height: 344px;
+    flex-shrink: 0;
+  }
+
+  &__image-placeholder {
+    width: 100%;
+    height: 100%;
+    border-radius: 292px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  &__image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Responsive Adjustments */
+  @media (max-width: 1024px) {
+    padding: 64px 32px;
+    &__container {
+      flex-direction: column;
+      text-align: center;
+    }
+    &__content {
+      align-items: center;
+    }
+  }
+
+  @media (max-width: 768px) {
+    padding: 48px 16px;
+    &__title {
+      font-size: 48px;
+    }
+    &__image-wrapper {
+      width: 100%;
+      max-width: 460px;
+      height: auto;
+      aspect-ratio: 460 / 344;
+    }
+  }
+}

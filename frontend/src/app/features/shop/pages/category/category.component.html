@@ -1,0 +1,16 @@
+@if (currentCategoryData) {
+  <app-category-hero
+    [title]="currentCategoryData.title"
+    [description]="currentCategoryData.description"
+    [bgColor]="currentCategoryData.bgColor"
+    [imageSrc]="currentCategoryData.imageSrc"
+  ></app-category-hero>
+
+  <!-- Catalog: Sidebar Filters + Product Grid + Pagination -->
+  <app-category-catalog [category]="currentCategorySlug"></app-category-catalog>
+
+} @else {
+  <div class="category-not-found">
+    <h2>Category not found</h2>
+  </div>
+}

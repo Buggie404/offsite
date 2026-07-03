@@ -1,0 +1,113 @@
+<!-- shop/components/category-catalog/category-catalog.component.html -->
+
+<section class="catalog">
+
+  <!-- ═══════════════════════════════════════
+       ASIDE - FILTER SIDEBAR
+  ════════════════════════════════════════ -->
+  <aside class="catalog__sidebar">
+
+    @for (group of filterGroups; track group.key) {
+      <div class="filter-group">
+
+        <!-- Filter Group Header -->
+        <button class="filter-group__header" (click)="toggleFilterGroup(group)">
+          <span class="filter-group__label">{{ group.label }}</span>
+          @if (group.isOpen) {
+            <svg lucideChevronDown [size]="16" class="filter-group__icon" aria-hidden="true"></svg>
+          } @else {
+            <svg lucideChevronRight [size]="16" class="filter-group__icon" aria-hidden="true"></svg>
+          }
+        </button>
+
+        <!-- Filter Options (collapsible) -->
+        @if (group.isOpen) {
+          <div class="filter-group__options">
+            @for (option of group.options; track option.value) {
+              <label class="filter-option" (click)="toggleOption(option)">
+                <span class="filter-option__checkbox" [class.is-checked]="option.checked">
+                  @if (option.checked) {
+                    <svg lucideCheck [size]="11" class="filter-option__check-icon" aria-hidden="true"></svg>
+                  }
+                </span>
+                <span class="filter-option__label">{{ option.label }}</span>
+              </label>
+            }
+          </div>
+        }
+
+      </div>
+    }
+
+  </aside><!-- /sidebar -->
+
+  <!-- ═══════════════════════════════════════
+       MAIN - PRODUCT GRID AREA
+  ════════════════════════════════════════ -->
+  <div class="catalog__main">
+
+    <!-- ── TOP BAR: result count + sort ── -->
+    <div class="catalog__topbar">
+      <span class="catalog__count">
+        {{ filteredProducts.length }} products
+      </span>
+
+      <!-- Sort Dropdown -->
+      <div class="sort-dropdown" [class.is-open]="isSortOpen">
+        <button class="sort-dropdown__trigger" (click)="toggleSort()">
+          <span>{{ selectedSort }}</span>
+          <svg lucideChevronDown [size]="14" class="sort-dropdown__icon" aria-hidden="true"></svg>
+        </button>
+        @if (isSortOpen) {
+          <ul class="sort-dropdown__menu">
+            @for (opt of sortOptions; track opt) {
+              <li class="sort-dropdown__item"
+                  [class.is-active]="opt === selectedSort"
+                  (click)="selectSort(opt)">
+                {{ opt }}
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+
+    <!-- ── LOADING ── -->
+    @if (isLoading) {
+      <div class="catalog__loading">Loading products...</div>
+    }
+
+    <!-- ── PRODUCT GRID ── -->
+    @if (!isLoading) {
+      <div class="catalog__grid">
+        @for (product of pagedProducts; track product.product_id) {
+          <app-product-card [product]="product"></app-product-card>
+        }
+        @if (pagedProducts.length === 0) {
+          <div class="catalog__empty">No products found.</div>
+        }
+      </div>
+    }
+
+    <!-- ── PAGINATION ── -->
+    @if (!isLoading && totalPages > 1) {
+      <div class="catalog__pagination">
+        <button class="pagination-btn"
+                [disabled]="currentPage === 1"
+                (click)="prevPage()">
+          <svg lucideChevronLeft [size]="16" aria-hidden="true"></svg>
+        </button>
+
+        <span class="pagination-info">{{ currentPage }} / {{ totalPages }}</span>
+
+        <button class="pagination-btn"
+                [disabled]="currentPage === totalPages"
+                (click)="nextPage()">
+          <svg lucideChevronRight [size]="16" aria-hidden="true"></svg>
+        </button>
+      </div>
+    }
+
+  </div><!-- /main -->
+
+</section><!-- /catalog -->
