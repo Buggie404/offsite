@@ -19,11 +19,11 @@ export const serverRoutes: ServerRoute[] = [
   },
   {
     path: 'shop/:category',
-    renderMode: RenderMode.Server
+    renderMode: RenderMode.Client
   },
   {
     path: 'products/:id',
-    renderMode: RenderMode.Server
+    renderMode: RenderMode.Client
   },
   {
     path: 'orders/:id/return',
@@ -31,10 +31,10 @@ export const serverRoutes: ServerRoute[] = [
   },
   {
     path: 'order-tracking',
-    renderMode: RenderMode.Server
+    renderMode: RenderMode.Client
   },
   {
     path: '**',
-    renderMode: RenderMode.Prerender
+    renderMode: RenderMode.Client
   }
-];
+];

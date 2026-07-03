@@ -12,7 +12,7 @@
       <div class="form-field">
         <label class="field-label">RECIPIENT NAME <span class="required-star">*</span></label>
         <div class="input-wrapper">
-          <input type="text" class="form-input" placeholder="Enter name" [(ngModel)]="form.recipient_name"
+          <input type="text" id="recipient-name" class="form-input" placeholder="Enter name" [(ngModel)]="form.recipient_name"
             (blur)="onFieldBlur('name'); form.recipient_name = form.recipient_name.trimStart()"
             (input)="onFieldInput('name')" [class.has-error]="nameError()"
             [class.is-valid]="fieldStates()['name'] === 'valid'"
@@ -23,16 +23,14 @@
             <svg *ngSwitchCase="'invalid'" lucideAlertCircle class="icon-invalid" [size]="16"></svg>
           </div>
         </div>
-        <div *ngIf="nameError()" class="field-error animate-fade-in">
-          {{ nameError() }}
-        </div>
+        <div id="recipient-name-error" class="field-error animate-fade-in"></div>
       </div>
 
       <!-- Phone Number -->
       <div class="form-field">
         <label class="field-label">PHONE NUMBER <span class="required-star">*</span></label>
         <div class="input-wrapper">
-          <input type="tel" class="form-input" placeholder="e.g., 0123456789" [(ngModel)]="form.phone"
+          <input type="tel" id="recipient-phone" class="form-input" placeholder="e.g., 0123456789" [(ngModel)]="form.phone"
             (blur)="onFieldBlur('mobile')" (input)="onFieldInput('mobile')" [class.has-error]="mobileError()"
             [class.is-valid]="fieldStates()['mobile'] === 'valid'"
             [class.is-typing]="fieldStates()['mobile'] === 'typing'" />
@@ -42,16 +40,14 @@
             <svg *ngSwitchCase="'invalid'" lucideAlertCircle class="icon-invalid" [size]="16"></svg>
           </div>
         </div>
-        <div *ngIf="mobileError()" class="field-error animate-fade-in">
-          {{ mobileError() }}
-        </div>
+        <div id="recipient-phone-error" class="field-error animate-fade-in"></div>
       </div>
 
       <!-- City -->
       <div class="form-field select-suggest-wrapper">
         <label class="field-label">CITY / PROVINCE <span class="required-star">*</span></label>
         <div class="input-wrapper">
-          <input type="text" class="form-input" placeholder="Recipient City" [(ngModel)]="form.city"
+          <input type="text" id="recipient-city" class="form-input" placeholder="Recipient City" [(ngModel)]="form.city"
             (blur)="onCityBlur()" (input)="onCityInput()" [class.has-error]="cityError()"
             [class.is-valid]="fieldStates()['city'] === 'valid'" [class.is-typing]="fieldStates()['city'] === 'typing'"
             autocomplete="off" />
@@ -66,16 +62,14 @@
             {{ suggest }}
           </button>
         </div>
-        <div *ngIf="cityError()" class="field-error animate-fade-in">
-          {{ cityError() }}
-        </div>
+        <div id="recipient-city-error" class="field-error animate-fade-in"></div>
       </div>
 
       <!-- Detailed Address -->
       <div class="form-field">
         <label class="field-label">DETAILED ADDRESS <span class="required-star">*</span></label>
         <div class="input-wrapper">
-          <textarea class="form-textarea" placeholder="House Number Street, Ward" rows="3"
+          <textarea id="recipient-address" class="form-textarea" placeholder="House Number Street, Ward" rows="3"
             [(ngModel)]="form.detail_address" (blur)="onFieldBlur('address')" (input)="onFieldInput('address')"
             [class.has-error]="addressError()" [class.is-valid]="fieldStates()['address'] === 'valid'"
             [class.is-typing]="fieldStates()['address'] === 'typing'"></textarea>
@@ -85,9 +79,7 @@
             <svg *ngSwitchCase="'invalid'" lucideAlertCircle class="icon-invalid" [size]="16"></svg>
           </div>
         </div>
-        <div *ngIf="addressError()" class="field-error animate-fade-in">
-          {{ addressError() }}
-        </div>
+        <div id="recipient-address-error" class="field-error animate-fade-in"></div>
       </div>
 
       <!-- Address Label -->

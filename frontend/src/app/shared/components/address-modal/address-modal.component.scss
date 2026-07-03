@@ -324,8 +324,11 @@
 }
 
 input.has-error,
+input.invalid,
 textarea.has-error,
-select.has-error {
+textarea.invalid,
+select.has-error,
+select.invalid {
   border-color: var(--state-error) !important;
   background-color: rgba(192, 57, 43, 0.015) !important;
   &:focus {

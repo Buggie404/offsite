@@ -261,7 +261,12 @@ export class NavbarComponent implements OnInit {
   }
 
   get cartItems(): CartItem[] {
-    return this.cartService.cartItems();
+    const items = this.cartService.cartItems();
+    return [...items].sort((a, b) => {
+      const aOut = this.isItemOutOfStock(a) ? 1 : 0;
+      const bOut = this.isItemOutOfStock(b) ? 1 : 0;
+      return aOut - bOut;
+    });
   }
 
   get cartCount(): number {
@@ -284,6 +289,21 @@ export class NavbarComponent implements OnInit {
   isItemOutOfStock(item: CartItem): boolean {
     const variant = this.getVariant(item);
     return variant ? variant.stock <= 0 : true;
+  }
+
+  get isAllSelected(): boolean {
+    const inStockItems = this.cartItems.filter(item => !this.isItemOutOfStock(item));
+    if (inStockItems.length === 0) return false;
+    return inStockItems.every(item => item.selected);
+  }
+
+  toggleSelectAll(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.cartService.setSelectAll(checked);
+  }
+
+  get hasSelectedItems(): boolean {
+    return this.cartItems.some(item => item.selected && !this.isItemOutOfStock(item));
   }
 
   openCart(event?: Event): void {

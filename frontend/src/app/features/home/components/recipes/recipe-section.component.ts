@@ -2,8 +2,8 @@
 //  components/recipe-section/recipe-section.component.ts
 // ─────────────────────────────────────────────────────────────
 
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Recipe } from '../../models/recipe.model';
 import { RecipeService } from '../../services/recipe.service';
 
@@ -20,9 +20,13 @@ export class RecipeSectionComponent implements OnInit {
   isLoading            = true;
   error: string | null = null;
 
+  private platformId = inject(PLATFORM_ID);
+  private cdr = inject(ChangeDetectorRef);
+
   constructor(private recipeService: RecipeService) {}
 
   ngOnInit(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
     this.loadRecipes();
   }
 
@@ -64,11 +68,13 @@ export class RecipeSectionComponent implements OnInit {
       next: (data) => {
         this.recipes   = data.slice(0, 3);
         this.isLoading = false;
+        this.cdr.detectChanges();
       },
       error: (err) => {
         console.error('Failed to load recipes:', err);
         this.error     = 'Could not load recipes.';
         this.isLoading = false;
+        this.cdr.detectChanges();
       },
     });
   }

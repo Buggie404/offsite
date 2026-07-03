@@ -1,5 +1,5 @@
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ProductCategoryCounts, ProductService } from '../../services/product.service';
 
@@ -22,6 +22,9 @@ export interface Collection {
   styleUrls: ['./collection.component.scss'],
 })
 export class CollectionComponent implements OnInit {
+  private platformId = inject(PLATFORM_ID);
+  private cdr = inject(ChangeDetectorRef);
+
   constructor(private productService: ProductService) {}
 
   // Mock data — sau này thay bằng API từ service
@@ -82,9 +85,16 @@ export class CollectionComponent implements OnInit {
   ];
 
   ngOnInit(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
     this.productService.getCategoryCounts().subscribe({
-      next: (counts) => this.applyCategoryCounts(counts),
-      error: (error) => console.error('Unable to load collection product counts:', error)
+      next: (counts) => {
+        this.applyCategoryCounts(counts);
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        console.error('Unable to load collection product counts:', error);
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -97,9 +107,13 @@ export class CollectionComponent implements OnInit {
       bundles: 'sets_bundles'
     };
 
-    [...this.largeCollections, ...this.smallCollections].forEach((collection) => {
-      collection.productCount = counts[categoryMap[collection.id]] ?? 0;
+    const withCount = (collection: Collection): Collection => ({
+      ...collection,
+      productCount: counts[categoryMap[collection.id]] ?? 0
     });
+
+    this.largeCollections = this.largeCollections.map(withCount);
+    this.smallCollections = this.smallCollections.map(withCount);
   }
 
   // Format hiển thị số lượng — "12 PRODUCTS", "08 PRODUCTS", "05 SETS"

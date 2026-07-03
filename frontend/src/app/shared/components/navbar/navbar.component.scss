@@ -1706,6 +1706,75 @@
       padding: 20px 20px 24px;
     }
 
+    .select-all-row {
+      display: flex;
+      align-items: center;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--color-latte);
+      margin-bottom: 4px;
+
+      .select-all-container {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+        width: 100%;
+
+        input {
+          position: absolute;
+          opacity: 0;
+          cursor: pointer;
+          height: 0;
+          width: 0;
+
+          &:checked ~ .checkmark {
+            background-color: var(--color-forest-green);
+            border-color: var(--color-forest-green);
+
+            &:after {
+              display: block;
+            }
+          }
+        }
+
+        .checkmark {
+          position: relative;
+          display: inline-block;
+          height: 20px;
+          width: 20px;
+          background-color: transparent;
+          border: 1px solid var(--color-warm-brown);
+          border-radius: 4px;
+          transition: background-color 0.2s ease, border-color 0.2s ease;
+          flex-shrink: 0;
+
+          &:after {
+            content: "";
+            position: absolute;
+            display: none;
+            left: 6px;
+            top: 2px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+          }
+        }
+
+        .select-all-label {
+          font-family: var(--font-body);
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--color-near-black);
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+      }
+    }
+
     .subtotal-row {
       display: flex;
       justify-content: space-between;
@@ -1748,6 +1817,14 @@
 
       &:active {
         transform: translateY(0);
+      }
+
+      &:disabled {
+        background-color: var(--color-latte);
+        color: var(--color-warm-brown);
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
       }
     }
 
