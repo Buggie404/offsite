@@ -20,6 +20,7 @@ export class AdminAuthService {
 
   private readonly tokenKey = 'admin_token';
   private readonly userKey = 'admin_user';
+  private readonly rememberMeKey = 'admin_remember_me';
 
   private isAuthenticatedSignal = signal<boolean>(false);
   readonly isAuthenticated = this.isAuthenticatedSignal.asReadonly();
@@ -30,15 +31,23 @@ export class AdminAuthService {
     }
   }
 
+  isRememberMeEnabled(): boolean {
+    if (!isPlatformBrowser(this.platformId)) return false;
+    return localStorage.getItem(this.rememberMeKey) === 'true';
+  }
+
   getToken(): string | null {
-    if (!isPlatformBrowser(this.platformId)) return null;
-    return localStorage.getItem(this.tokenKey);
+    const storage = this.getActiveStorage();
+    return storage?.getItem(this.tokenKey) ?? null;
   }
 
   getUser(): AdminUser | null {
-    if (!isPlatformBrowser(this.platformId)) return null;
-    const raw = localStorage.getItem(this.userKey);
+    const storage = this.getActiveStorage();
+    if (!storage) return null;
+
+    const raw = storage.getItem(this.userKey);
     if (!raw) return null;
+
     try {
       return JSON.parse(raw) as AdminUser;
     } catch {
@@ -77,25 +86,58 @@ export class AdminAuthService {
     }
   }
 
-  async login(email: string, password: string): Promise<{ token: string; user: AdminUser }> {
+  private getActiveStorage(): Storage | null {
+    if (!isPlatformBrowser(this.platformId)) return null;
+
+    if (localStorage.getItem(this.rememberMeKey) === 'true') {
+      return localStorage.getItem(this.tokenKey) ? localStorage : null;
+    }
+
+    if (sessionStorage.getItem(this.tokenKey)) {
+      return sessionStorage;
+    }
+
+    if (localStorage.getItem(this.tokenKey)) {
+      return localStorage;
+    }
+
+    return null;
+  }
+
+  private clearStoredSession(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    localStorage.removeItem(this.tokenKey);
+    localStorage.removeItem(this.userKey);
+    localStorage.removeItem(this.rememberMeKey);
+    sessionStorage.removeItem(this.tokenKey);
+    sessionStorage.removeItem(this.userKey);
+  }
+
+  async login(
+    email: string,
+    password: string,
+    rememberMe = false
+  ): Promise<{ token: string; user: AdminUser }> {
     const response = await firstValueFrom(
       this.http.post<{ token: string; user: AdminUser }>('/api/admin/login', { email, password })
     );
 
-    this.isAuthenticatedSignal.set(true);
     if (isPlatformBrowser(this.platformId)) {
-      localStorage.setItem(this.tokenKey, response.token);
-      localStorage.setItem(this.userKey, JSON.stringify(response.user));
+      this.clearStoredSession();
+
+      const storage = rememberMe ? localStorage : sessionStorage;
+      storage.setItem(this.tokenKey, response.token);
+      storage.setItem(this.userKey, JSON.stringify(response.user));
+      localStorage.setItem(this.rememberMeKey, rememberMe ? 'true' : 'false');
     }
 
+    this.isAuthenticatedSignal.set(true);
     return response;
   }
 
   logout(): void {
     this.isAuthenticatedSignal.set(false);
-    if (isPlatformBrowser(this.platformId)) {
-      localStorage.removeItem(this.tokenKey);
-      localStorage.removeItem(this.userKey);
-    }
+    this.clearStoredSession();
   }
 }

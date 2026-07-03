@@ -1,4 +1,5 @@
-import { ChangeDetectorRef, Component, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject, PLATFORM_ID } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -28,10 +29,11 @@ import { AdminAuthService } from '../../services/admin-auth.service';
   templateUrl: './sign-in.component.html',
   styleUrl: './sign-in.component.scss'
 })
-export class AdminSignInComponent {
+export class AdminSignInComponent implements OnInit {
   private adminAuth = inject(AdminAuthService);
   private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
+  private platformId = inject(PLATFORM_ID);
 
   email = '';
   password = '';
@@ -42,6 +44,16 @@ export class AdminSignInComponent {
   emailError: string | null = null;
   passwordError: string | null = null;
   formError: string | null = null;
+
+  ngOnInit(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    this.rememberMe = this.adminAuth.isRememberMeEnabled();
+
+    if (this.adminAuth.isAdmin() && this.rememberMe) {
+      void this.router.navigateByUrl('/admin/orders', { replaceUrl: true });
+    }
+  }
 
   togglePassword(): void {
     this.showPassword = !this.showPassword;
@@ -65,7 +77,7 @@ export class AdminSignInComponent {
 
     this.isSubmitting = true;
     try {
-      await this.adminAuth.login(trimmedEmail, this.password);
+      await this.adminAuth.login(trimmedEmail, this.password, this.rememberMe);
       await this.router.navigateByUrl('/admin/orders', { replaceUrl: true });
     } catch (err: any) {
       const serverError = err?.error;
