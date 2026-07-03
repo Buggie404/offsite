@@ -1,0 +1,644 @@
+// Variables
+$color-bg-modal: #FBF6F0; // light cream
+$color-card-border: #F5EAE1;
+$color-text-dark: #1E2E22; // forest dark
+$color-text-muted: #6D7E73;
+$color-green-primary: #385E38; // deep forest green
+$color-green-hover: #2E4E2E;
+$color-green-light: #EBF2EC; // toggle background/checked
+$color-green-light-border: #DCE7DD;
+$color-star-empty: #EFE6DD;
+$color-star-filled: #EAA812; // rich gold yellow
+
+.review-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(30, 46, 34, 0.4); // dark forest backdrop
+  backdrop-filter: blur(4px);
+  z-index: 1050;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+}
+
+.review-modal-container {
+  background-color: $color-bg-modal;
+  border-radius: 24px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 95vh;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  animation: modalReveal 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modalReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+// Modal Header simple flex style
+.header-simple {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 24px 12px;
+
+  .header-title {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: $color-text-dark;
+    margin: 0;
+  }
+
+  .btn-close {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: $color-text-dark;
+    padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+
+    &:hover {
+      background-color: rgba(30, 46, 34, 0.05);
+    }
+  }
+}
+
+// Modal Header Custom for Screen 1
+.modal-header-custom {
+  padding: 32px 32px 16px 32px;
+  display: flex;
+  flex-direction: column;
+
+  .order-info-tag {
+    color: #887C74;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .modal-title {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #2E4F32;
+    margin: 0 0 10px 0;
+    line-height: 1.2;
+  }
+
+  .modal-description {
+    font-size: 0.95rem;
+    color: #645A52;
+    margin: 0;
+    line-height: 1.4;
+  }
+}
+
+.modal-body-custom {
+  padding: 8px 32px 24px 32px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.product-selection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.product-item-card {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background-color: #FFF;
+  border: 1px solid #D2C4B7;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    border-color: #A89585;
+  }
+}
+
+.product-image-wrapper {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #FAF8F5;
+  margin-right: 16px;
+  flex-shrink: 0;
+
+  .product-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.product-item-details {
+  flex: 1;
+  min-width: 0;
+
+  .product-name {
+    margin: 0 0 6px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #1A1A1A;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .product-variant-badge {
+    display: inline-block;
+    background-color: #EFEBE4;
+    color: #645A52;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+}
+
+.product-action-indicator {
+  display: flex;
+  align-items: center;
+  color: #D2C4B7;
+
+  .chevron-icon {
+    transition: transform 0.2s;
+    stroke-width: 2.5px;
+  }
+
+  .product-item-card:hover & .chevron-icon {
+    transform: translateX(2px);
+  }
+}
+
+.modal-footer-custom {
+  background-color: #F6ECE2;
+  padding: 24px 32px 32px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  .btn-skip {
+    background: transparent;
+    border: none;
+    color: #5C5650;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    padding: 0;
+    transition: color 0.2s;
+
+    &:hover {
+      color: #1A1A1A;
+    }
+  }
+
+  .btn-review-later {
+    background-color: #2E4F32;
+    color: #FFF;
+    border: none;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 14px 28px;
+    border-radius: 30px;
+    letter-spacing: 0.05em;
+    transition: background-color 0.2s;
+
+    &:hover {
+      background-color: #203825;
+    }
+  }
+}
+
+// Modal Body
+.modal-body {
+  padding: 12px 24px 24px;
+  overflow-y: auto;
+  flex: 1;
+
+  .modal-title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: $color-text-dark;
+    margin: 0 0 8px;
+    line-height: 1.25;
+  }
+
+  .modal-description {
+    font-size: 0.9rem;
+    color: $color-text-muted;
+    margin: 0 0 20px;
+    line-height: 1.4;
+  }
+}
+
+// Selected Banner (Screen 2)
+.selected-product-banner {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background-color: #FFF;
+  border: 1px solid $color-card-border;
+  border-radius: 16px;
+  margin-bottom: 24px;
+  position: relative;
+
+  .btn-card-back {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #5C5650;
+    padding: 8px;
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s, color 0.2s;
+
+    &:hover {
+      background-color: #F5EAE1;
+      color: $color-text-dark;
+    }
+  }
+
+  .product-image-wrapper {
+    margin-right: 16px;
+  }
+
+  .product-variant {
+    font-size: 0.85rem;
+    color: $color-text-muted;
+    margin: 0 0 4px;
+
+    .quantity-multiplier {
+      font-weight: bold;
+      color: $color-text-dark;
+    }
+  }
+
+  .order-id-sub {
+    font-size: 0.8rem;
+    color: #A3B2A7;
+    margin: 0;
+  }
+}
+
+// Star rating section
+.star-rating-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+
+  .stars-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .star-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    transition: transform 0.15s;
+
+    &:hover {
+      transform: scale(1.15);
+    }
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+
+  .star-icon {
+    color: $color-star-empty;
+    fill: $color-star-empty;
+    stroke-width: 1.5;
+    transition: color 0.2s, fill 0.2s;
+
+    &.filled {
+      color: $color-star-filled;
+      fill: $color-star-filled;
+    }
+  }
+
+  .rating-text-label {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: $color-text-muted;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+
+    &.active {
+      color: $color-text-dark;
+    }
+  }
+}
+
+// Review Textarea
+.review-textarea-section {
+  margin-bottom: 20px;
+
+  .textarea-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: $color-text-muted;
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+  }
+
+  .textarea-wrapper {
+    position: relative;
+    background-color: #FFF;
+    border: 1px solid $color-card-border;
+    border-radius: 12px;
+    padding: 12px;
+    transition: border-color 0.2s;
+
+    &:focus-within {
+      border-color: $color-green-primary;
+    }
+  }
+
+  .review-textarea {
+    width: 100%;
+    height: 120px;
+    border: none;
+    resize: none;
+    outline: none;
+    font-size: 0.9rem;
+    color: $color-text-dark;
+    background: transparent;
+    line-height: 1.4;
+
+    &::placeholder {
+      color: #A3B2A7;
+    }
+  }
+
+  .char-counter {
+    position: absolute;
+    bottom: 10px;
+    right: 12px;
+    font-size: 0.75rem;
+    color: #A3B2A7;
+  }
+}
+
+// Anonymous Toggle Box
+.anonymous-toggle-box {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background-color: #FFF;
+  border: 1.5px solid $color-card-border;
+  border-radius: 24px;
+  transition: background-color 0.25s, border-color 0.25s;
+
+  &.checked {
+    background-color: #EAE9DF; // soft light greenish-beige matching screenshot
+    border-color: #2E4F32; // dark green border
+
+    .toggle-icon-circle {
+      background-color: #2E4F32; // dark green circle background
+      color: #FFF; // white icon color
+    }
+  }
+
+  .toggle-icon-circle {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background-color: #EFEBE4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    flex-shrink: 0;
+    color: #6D7E73;
+    transition: background-color 0.25s, color 0.25s;
+  }
+
+  .toggle-texts {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-grow: 1;
+  }
+
+  .toggle-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: $color-text-dark;
+  }
+
+  .toggle-subtitle {
+    font-size: 0.8rem;
+    color: $color-text-muted;
+    font-family: monospace, Courier, monospace; // slab/monospace feel from screen
+  }
+}
+
+// Custom Switch Control
+.switch-control {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+
+  input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+
+    &:checked + .slider-round {
+      background-color: #2E4F32;
+    }
+
+    &:checked + .slider-round:before {
+      transform: translateX(20px);
+    }
+  }
+
+  .slider-round {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #E2DDD5;
+    transition: 0.3s;
+    border-radius: 34px;
+
+    &:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+  }
+}
+
+// Error Banner
+.error-banner {
+  margin-top: 14px;
+  padding: 10px 14px;
+  background-color: #FFF2F2;
+  border: 1px solid #FFE0E0;
+  border-radius: 8px;
+  color: #CC3333;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.modal-footer-single {
+  padding: 16px 24px 24px;
+
+  .btn-submit-review {
+    width: 100%;
+    background-color: $color-green-primary;
+    color: #FFF;
+    border: none;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 16px;
+    border-radius: 30px;
+    letter-spacing: 0.05em;
+    transition: background-color 0.2s, opacity 0.2s;
+
+    &:hover:not(:disabled) {
+      background-color: $color-green-hover;
+    }
+
+    &:disabled {
+      background-color: #BDC8C0;
+      color: #FAFDFB;
+      cursor: not-allowed;
+    }
+  }
+}
+
+// Success Screen (Screen 3)
+.centered-success-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+
+  .success-icon-wrapper {
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: center;
+
+    .success-icon-circle {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background-color: #DCE7DD; // light green fill
+      border: 2px solid #2E4F32; // dark green border
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #2E4F32;
+    }
+  }
+
+  .modal-title {
+    margin-bottom: 12px;
+    color: #2E4F32;
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+
+  .modal-description {
+    margin-bottom: 32px;
+    line-height: 1.5;
+  }
+}
+
+.success-actions-column {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 12px;
+
+  .btn-success-action-primary {
+    background-color: #2E4F32; // dark forest green
+    color: #FFF;
+    border: none;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 16px;
+    border-radius: 30px;
+    letter-spacing: 0.05em;
+    transition: background-color 0.2s;
+
+    &:hover {
+      background-color: #1E3421;
+    }
+  }
+
+  .btn-success-action-secondary {
+    background: transparent;
+    color: #2E4F32;
+    border: 1px solid #2E4F32;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 16px;
+    border-radius: 30px;
+    letter-spacing: 0.05em;
+    transition: background-color 0.2s;
+
+    &:hover {
+      background-color: rgba(46, 79, 50, 0.05);
+    }
+  }
+}

@@ -69,6 +69,8 @@ const statusHistorySchema = new mongoose.Schema({
 const refundRequestSchema = new mongoose.Schema({
   type:         { type: String, enum: ["cancel_refund", "return_refund"], default: null },
   reason:       { type: String, default: null },
+  description:  { type: String, default: "" },
+  evidence:     [{ type: String }],
   items: [{
     product_id: { type: String },
     variant_id: { type: String },

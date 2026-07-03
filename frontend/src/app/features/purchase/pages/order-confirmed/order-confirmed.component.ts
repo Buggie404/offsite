@@ -14,6 +14,7 @@ import {
   LucideCircleCheck
 } from '@lucide/angular';
 import { CheckoutService, CheckoutItem } from '../../services/checkout.service';
+import { CartService } from '../../services/cart.service';
 import { Product } from '../../../../shared/models/product.model';
 
 @Component({
@@ -39,6 +40,7 @@ import { Product } from '../../../../shared/models/product.model';
 export class OrderConfirmedComponent implements OnInit {
   private router = inject(Router);
   private checkoutService = inject(CheckoutService);
+  private cartService = inject(CartService);
 
   order = signal<any>(null);
   showModal = signal<boolean>(true);
@@ -46,7 +48,7 @@ export class OrderConfirmedComponent implements OnInit {
   copiedOrderNum = signal<boolean>(false);
   copiedTracking = signal<boolean>(false);
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     if (typeof window === 'undefined') {
       return;
     }
@@ -55,14 +57,40 @@ export class OrderConfirmedComponent implements OnInit {
     const navigation = this.router.getCurrentNavigation();
     const state = navigation?.extras.state || history.state;
 
-    if (!state || !state.order) {
-      console.warn('Access denied. No order state found. Redirecting to home...');
+    if (state && state.order) {
+      this.order.set(state.order);
+      // Persist order_id and session_id for reload support (crucial for guest checkouts)
+      localStorage.setItem('last_order_info', JSON.stringify({
+        orderId: state.order.order_id,
+        sessionId: state.order.session_id || ''
+      }));
+      if (state.showModal !== undefined) {
+        this.showModal.set(state.showModal);
+      } else {
+        this.showModal.set(true);
+      }
+      this.loadRecommendations();
+    } else {
+      // Attempt recovery from localStorage
+      const stored = localStorage.getItem('last_order_info');
+      if (stored) {
+        try {
+          const info = JSON.parse(stored);
+          if (info && info.orderId) {
+            const fetchedOrder = await this.checkoutService.getOrderStatus(info.orderId, info.sessionId);
+            this.order.set(fetchedOrder);
+            this.showModal.set(false);
+            this.loadRecommendations();
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to recover order from localStorage:', e);
+        }
+      }
+      
+      console.warn('Access denied. No order state or cached order found. Redirecting to home...');
       this.router.navigate(['/']);
-      return;
     }
-
-    this.order.set(state.order);
-    this.loadRecommendations();
   }
 
   private async loadRecommendations(): Promise<void> {
@@ -145,14 +173,28 @@ export class OrderConfirmedComponent implements OnInit {
     return ord.shipping?.tracking_number || 'GHN-' + ord.order_id.replace('OFS-', '');
   }
 
+  private getSessionId(ord: any): string | null {
+    if (ord?.session_id) return ord.session_id;
+    try {
+      const stored = localStorage.getItem('last_order_info');
+      if (stored) {
+        const info = JSON.parse(stored);
+        if (info && info.orderId === ord?.order_id) {
+          return info.sessionId || null;
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
   async handleCancelOrder(): Promise<void> {
     const currentOrder = this.order();
     if (!currentOrder) return;
 
     if (confirm('Are you sure you want to cancel this order?')) {
       try {
-        await this.checkoutService.cancelOrder(currentOrder.order_id, currentOrder.session_id);
-        const canceledOrder = {
+        const res = await this.checkoutService.cancelOrder(currentOrder.order_id, this.getSessionId(currentOrder));
+        const canceledOrder = res?.data || {
           ...currentOrder,
           order_status: 'canceled'
         };
@@ -161,6 +203,48 @@ export class OrderConfirmedComponent implements OnInit {
         console.error('Failed to cancel order:', err);
         alert(err.error?.error || 'Failed to cancel the order. Please try again.');
       }
+    }
+  }
+
+  async buyAgain(): Promise<void> {
+    const ord = this.order();
+    if (!ord || !ord.items) return;
+
+    try {
+      const allProducts = await this.checkoutService.getAllProducts();
+      const checkoutItems = ord.items.map((it: any) => {
+        const matchingProduct = allProducts.find(p => p._id === it.product_id);
+        if (!matchingProduct) return null;
+        return {
+          product: matchingProduct,
+          variantSku: it.variant_id,
+          quantity: it.quantity
+        };
+      }).filter(Boolean);
+
+      if (checkoutItems.length === 0) {
+        alert('Products in this order are no longer available.');
+        return;
+      }
+
+      this.cartService.checkoutSummaryItems.set(checkoutItems);
+      localStorage.setItem('checkout_summary_items', JSON.stringify(checkoutItems));
+      
+      const deliveryInfo = {
+        name: ord.delivery_info?.recipient_name || '',
+        mobile: ord.delivery_info?.mobile || '',
+        email: ord.delivery_info?.email || '',
+        city: ord.delivery_info?.city || '',
+        address: ord.delivery_info?.address || '',
+        note: ord.delivery_info?.note || ''
+      };
+      localStorage.setItem('checkout_delivery_info', JSON.stringify(deliveryInfo));
+
+      this.cartService.setCheckoutProcessed(true);
+      this.router.navigate(['/checkout']);
+    } catch (err) {
+      console.error('Failed to buy again:', err);
+      alert('Failed to load products for checkout. Please try again.');
     }
   }
 

@@ -9,6 +9,7 @@ export interface CheckoutItem {
   product: Product;
   variantSku: string;
   quantity: number;
+  isComplement?: boolean;
 }
 
 export interface DeliveryInfo {
@@ -198,6 +199,12 @@ export class CheckoutService {
     );
   }
 
+  async requestRefund(id: string, payload: any): Promise<any> {
+    return await firstValueFrom(
+      this.http.post<any>(`/api/orders/${id}/refund`, payload)
+    );
+  }
+
   async confirmOrder(id: string, sessionId?: string | null): Promise<any> {
     return await firstValueFrom(
       this.http.put<any>(`/api/orders/${id}/confirm`, { session_id: sessionId })
@@ -207,6 +214,66 @@ export class CheckoutService {
   async cancelOrder(id: string, sessionId?: string | null): Promise<any> {
     return await firstValueFrom(
       this.http.put<any>(`/api/orders/${id}/cancel`, { session_id: sessionId })
+    );
+  }
+
+  async failPayment(id: string, sessionId?: string | null): Promise<any> {
+    return await firstValueFrom(
+      this.http.put<any>(`/api/orders/${id}/fail-payment`, { session_id: sessionId })
+    );
+  }
+
+  async confirmPayment(id: string, sessionId?: string | null): Promise<any> {
+    return await firstValueFrom(
+      this.http.put<any>(`/api/orders/${id}/confirm-payment`, { session_id: sessionId })
+    );
+  }
+
+  async trackOrder(orderId: string, verificationValue: string, isEmail: boolean): Promise<any> {
+    const params: { [param: string]: string } = { order_id: orderId };
+    if (isEmail) {
+      params['email'] = verificationValue;
+    } else {
+      params['mobile'] = verificationValue;
+    }
+    return await firstValueFrom(
+      this.http.get<any>('/api/order-tracking', { params })
+    );
+  }
+
+  async getOrderStatus(id: string, sessionId?: string | null): Promise<any> {
+    const params: { [param: string]: string } = {};
+    if (sessionId) {
+      params['session_id'] = sessionId;
+    }
+    return await firstValueFrom(
+      this.http.get<any>(`/api/orders/${id}/status`, { params })
+    );
+  }
+
+  async receiveOrder(
+    id: string, 
+    sessionId?: string | null, 
+    verification?: { email?: string; mobile?: string }
+  ): Promise<any> {
+    return await firstValueFrom(
+      this.http.put<any>(`/api/orders/${id}/receive`, { 
+        session_id: sessionId, 
+        ...verification 
+      })
+    );
+  }
+
+  async submitReview(payload: {
+    order_id: string;
+    product_id: string;
+    variant_id: string;
+    rating: number;
+    content?: string;
+    is_anonymous?: boolean;
+  }): Promise<any> {
+    return await firstValueFrom(
+      this.http.post<any>('/api/reviews', payload)
     );
   }
 }

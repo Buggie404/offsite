@@ -116,7 +116,7 @@
 
       <button class="action-btn cart-btn" (click)="openCart($event)" aria-label="Shopping Cart">
         <svg lucideShoppingCart [size]="20"></svg>
-        <span class="cart-badge">0</span>
+        <span class="cart-badge">{{ cartCount }}</span>
       </button>
 
       <!-- Profile Button Wrapper -->
@@ -141,7 +141,7 @@
               </button>
             </li>
             <li>
-              <button class="dropdown-item">
+              <button class="dropdown-item" routerLink="/order-tracking" (click)="closeProfileDropdown()">
                 <span class="item-text">ORDER TRACKING</span>
                 <svg lucideClipboardClock [size]="16" class="item-icon"></svg>
               </button>
@@ -264,8 +264,74 @@
     </button>
   </div>
 
-  <!-- Empty State -->
-  <div class="cart-body">
+  <!-- Empty State & Cart Items -->
+  <div class="cart-body" *ngIf="cartItems.length > 0">
+    <div class="cart-items-list">
+      <div class="cart-item" *ngFor="let item of cartItems" [class.out-of-stock]="isItemOutOfStock(item)">
+        <!-- Checkbox -->
+        <label class="cart-item-checkbox">
+          <input type="checkbox" [checked]="item.selected && !isItemOutOfStock(item)" [disabled]="isItemOutOfStock(item)" (change)="toggleSelection(item)">
+          <span class="checkmark"></span>
+        </label>
+
+        <!-- Image -->
+        <div class="cart-item-image">
+          <img [src]="getVariant(item).images?.[0]?.url || item.product.images[0]?.url" [alt]="item.product.name">
+        </div>
+
+        <!-- Details -->
+        <div class="cart-item-details">
+          <div class="cart-item-title-row">
+            <span class="cart-item-name">{{ item.product.name }}</span>
+            <span class="cart-item-price">${{ (getVariant(item).price * item.quantity) | number:'1.2-2' }}</span>
+          </div>
+
+          <!-- Variant Selector / Name -->
+          <div class="cart-item-variant">
+            <span class="out-of-stock-label" *ngIf="isItemOutOfStock(item)">OUT OF STOCK</span>
+            
+            <div class="variant-select-wrapper" *ngIf="item.product.variants.length > 1; else singleVariant">
+              <select [ngModel]="item.variantSku" (ngModelChange)="changeVariant(item, $event)" [ngModelOptions]="{standalone: true}">
+                <option *ngFor="let v of item.product.variants" [value]="v.sku">
+                  {{ (v.label || '').toUpperCase() }}
+                </option>
+              </select>
+              <svg lucideChevronDown [size]="12" class="variant-caret"></svg>
+            </div>
+            <ng-template #singleVariant>
+              <span class="variant-static-label">
+                {{ (getVariant(item).label || '').toUpperCase() }}
+              </span>
+            </ng-template>
+          </div>
+
+          <!-- Controls (stepper + remove) -->
+          <div class="cart-item-controls">
+            <div class="qty-stepper" [class.disabled]="isItemOutOfStock(item)">
+              <button type="button" (click)="decrementQuantity(item)" [disabled]="item.quantity <= 1 || isItemOutOfStock(item)">
+                <svg lucideMinus [size]="12"></svg>
+              </button>
+              <span>{{ item.quantity }}</span>
+              <button type="button" (click)="incrementQuantity(item)" [disabled]="item.quantity >= (getVariant(item).stock || 99) || isItemOutOfStock(item)">
+                <svg lucidePlus [size]="12"></svg>
+              </button>
+            </div>
+            
+            <button type="button" class="remove-btn" (click)="removeFromCart(item)" aria-label="Remove item">
+              <svg lucideTrash2 [size]="16"></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Note section -->
+    <div class="cart-note">
+      <p><strong>NOTE:</strong> All Ritual orders are packed in recycled paper and include detailed brewing instructions. Thank you for choosing OFFSITE.</p>
+    </div>
+  </div>
+
+  <div class="cart-body" *ngIf="cartItems.length === 0">
     <div class="cart-empty-state">
       <div class="empty-icon-wrapper">
         <span class="dot dot-tr"></span>
@@ -278,5 +344,19 @@
       <p class="empty-desc">Looks like you haven't added<br>anything yet. Find your ritual.</p>
       <button class="empty-cta-btn" (click)="closeCart()">RETURN TO SHOP</button>
     </div>
+  </div>
+
+  <!-- Cart Footer -->
+  <div class="cart-footer" *ngIf="cartItems.length > 0">
+    <div class="subtotal-row">
+      <span class="subtotal-label">SUBTOTAL</span>
+      <span class="subtotal-price">${{ subtotal | number:'1.2-2' }}</span>
+    </div>
+    
+    <button class="checkout-btn" (click)="checkout($event)">
+      CHECKOUT
+    </button>
+    
+    <p class="shipping-disclaimer">Shipping & taxes calculated at checkout.</p>
   </div>
 </div>

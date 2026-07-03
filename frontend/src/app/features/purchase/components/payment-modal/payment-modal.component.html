@@ -1,6 +1,11 @@
 <div class="modal-backdrop" *ngIf="isOpen">
-  <!-- Modal 1: Confirm Your Order (no close button) -->
-  <div class="modal-container" *ngIf="status() === 'confirm-pending'" (click)="$event.stopPropagation()">
+  <!-- Debug OTP Badge (fixed on the top right corner of the screen) -->
+  <div class="debug-otp-badge" *ngIf="paymentMethod !== 'cod'">
+    Debug OTP: <strong>{{ generatedOtp() }}</strong>
+  </div>
+
+  <!-- Modal 1: Confirm Your Order (COD, no close button) -->
+  <div class="modal-container" *ngIf="status() === 'confirm-pending' && paymentMethod === 'cod'" (click)="$event.stopPropagation()">
     <div class="modal-body text-center">
       <!-- Wavy Success Icon Badge -->
       <div class="badge-wrapper">
@@ -38,6 +43,143 @@
         <span *ngIf="isLoadingCancel()" class="loader-dots">CANCELLING<span>.</span><span>.</span><span>.</span></span>
       </button>
       <button type="button" class="btn btn-confirm" (click)="confirmNow()" [disabled]="isLoadingCancel() || isLoadingConfirm()">
+        <span *ngIf="!isLoadingConfirm()">CONFIRM NOW</span>
+        <span *ngIf="isLoadingConfirm()" class="loader-dots">CONFIRMING<span>.</span><span>.</span><span>.</span></span>
+      </button>
+    </div>
+
+    <!-- Modal Footer Credit -->
+    <footer class="modal-credit-footer">
+      © Offsite 2026 · Ho Chi Minh City, Vietnam
+    </footer>
+  </div>
+
+  <!-- Modal 2: Transaction Verification (Card/Bank Transfer, OTP Input) -->
+  <div class="modal-container" *ngIf="status() === 'confirm-pending' && paymentMethod !== 'cod'" (click)="$event.stopPropagation()">
+    <div class="modal-body text-center">
+      <!-- Shield check badge icon -->
+      <div class="badge-wrapper">
+        <div class="scalloped-badge scalloped-badge--circle">
+          <svg lucideBadgeCheck [size]="40" class="badge-check-icon-inner"></svg>
+        </div>
+      </div>
+
+      <!-- Title & Description -->
+      <h2 class="modal-title">Transaction Verification</h2>
+      <p class="modal-subtitle">
+        Enter the 6-digit OTP sent to your registered mobile phone ({{ maskedPhone }})
+      </p>
+
+      <!-- 6-digit OTP input boxes -->
+      <div class="otp-inputs-container">
+        <input 
+          id="otp-input-0"
+          type="text" 
+          maxlength="1" 
+          inputmode="numeric" 
+          pattern="[0-9]*"
+          class="otp-input"
+          [value]="otpInputs()[0]"
+          (input)="onOtpInput($event, 0)"
+          (keydown)="onOtpKeyDown($event, 0)"
+          (paste)="onOtpPaste($event)"
+          [disabled]="isLoadingConfirm() || isLoadingCancel()"
+        />
+        <input 
+          id="otp-input-1"
+          type="text" 
+          maxlength="1" 
+          inputmode="numeric" 
+          pattern="[0-9]*"
+          class="otp-input"
+          [value]="otpInputs()[1]"
+          (input)="onOtpInput($event, 1)"
+          (keydown)="onOtpKeyDown($event, 1)"
+          (paste)="onOtpPaste($event)"
+          [disabled]="isLoadingConfirm() || isLoadingCancel()"
+        />
+        <input 
+          id="otp-input-2"
+          type="text" 
+          maxlength="1" 
+          inputmode="numeric" 
+          pattern="[0-9]*"
+          class="otp-input"
+          [value]="otpInputs()[2]"
+          (input)="onOtpInput($event, 2)"
+          (keydown)="onOtpKeyDown($event, 2)"
+          (paste)="onOtpPaste($event)"
+          [disabled]="isLoadingConfirm() || isLoadingCancel()"
+        />
+        <input 
+          id="otp-input-3"
+          type="text" 
+          maxlength="1" 
+          inputmode="numeric" 
+          pattern="[0-9]*"
+          class="otp-input"
+          [value]="otpInputs()[3]"
+          (input)="onOtpInput($event, 3)"
+          (keydown)="onOtpKeyDown($event, 3)"
+          (paste)="onOtpPaste($event)"
+          [disabled]="isLoadingConfirm() || isLoadingCancel()"
+        />
+        <input 
+          id="otp-input-4"
+          type="text" 
+          maxlength="1" 
+          inputmode="numeric" 
+          pattern="[0-9]*"
+          class="otp-input"
+          [value]="otpInputs()[4]"
+          (input)="onOtpInput($event, 4)"
+          (keydown)="onOtpKeyDown($event, 4)"
+          (paste)="onOtpPaste($event)"
+          [disabled]="isLoadingConfirm() || isLoadingCancel()"
+        />
+        <input 
+          id="otp-input-5"
+          type="text" 
+          maxlength="1" 
+          inputmode="numeric" 
+          pattern="[0-9]*"
+          class="otp-input"
+          [value]="otpInputs()[5]"
+          (input)="onOtpInput($event, 5)"
+          (keydown)="onOtpKeyDown($event, 5)"
+          (paste)="onOtpPaste($event)"
+          [disabled]="isLoadingConfirm() || isLoadingCancel()"
+        />
+      </div>
+
+      <!-- Timer or Resend Link -->
+      <div class="resend-container">
+        <span *ngIf="resendCountdown() > 0" class="timer-countdown-text">
+          🕒 RESEND OTP IN {{ formattedResendTimer }}
+        </span>
+        <button 
+          *ngIf="resendCountdown() === 0" 
+          type="button" 
+          class="btn-resend-link" 
+          (click)="resendOtp()" 
+          [disabled]="isLoadingConfirm() || isLoadingCancel()">
+          RESEND OTP NOW
+        </button>
+      </div>
+
+      <!-- Error Message -->
+      <div *ngIf="errorMessage()" class="error-banner animate-fade-in">
+        {{ errorMessage() }}
+      </div>
+    </div>
+
+    <!-- Modal Footer Actions -->
+    <div class="modal-footer footer-grid">
+      <button type="button" class="btn btn-cancel" (click)="cancelOrder()" [disabled]="isLoadingCancel() || isLoadingConfirm()">
+        <span *ngIf="!isLoadingCancel()">CANCEL</span>
+        <span *ngIf="isLoadingCancel()" class="loader-dots">CANCELLING<span>.</span><span>.</span><span>.</span></span>
+      </button>
+      <button type="button" class="btn btn-confirm" (click)="confirmOtp()" [disabled]="isLoadingCancel() || isLoadingConfirm() || otpInputs().join('').length < 6">
         <span *ngIf="!isLoadingConfirm()">CONFIRM NOW</span>
         <span *ngIf="isLoadingConfirm()" class="loader-dots">CONFIRMING<span>.</span><span>.</span><span>.</span></span>
       </button>

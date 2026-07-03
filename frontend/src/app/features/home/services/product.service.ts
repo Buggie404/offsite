@@ -18,6 +18,10 @@ export class ProductService {
     return this.http.get<Product[]>(this.api);
   }
 
+  getProductById(id: string): Observable<Product> {
+    return this.http.get<Product>(`${this.api}/${id}`);
+  }
+
   getBestSellers(): Observable<Product[]> {
     // Sau khi backend thêm filter: GET /api/products?tag=best-seller
     // đổi thành: return this.http.get<Product[]>(`${this.api}?tag=best-seller`);

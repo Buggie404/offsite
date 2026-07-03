@@ -1,0 +1,220 @@
+<!-- ================= SEARCH BAR BANNER ================= -->
+<div class="tracking-search-banner">
+  <div class="banner-inner">
+    <form (ngSubmit)="onSearch()" class="search-form-wrapper">
+      <div class="search-input-container">
+        <svg lucideSearch [size]="20" class="search-icon-inside"></svg>
+        <input
+          type="text"
+          name="searchQuery"
+          [(ngModel)]="searchQuery"
+          (input)="clearFormatError()"
+          placeholder="e.g., OFS-2026-00012"
+          class="tracking-search-input"
+          [class.input-error]="isFormatError()"
+          [disabled]="isLoading()"
+        />
+        <div *ngIf="isFormatError()" class="inline-error-text animate-fade-in">
+          Invalid format (e.g., OFS-2026-00012)
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="tracking-page-container">
+  <!-- Results count header -->
+  <div class="results-count-header font-mono" *ngIf="searched() && !isLoading() && !needsVerification()">
+    FOUND {{ order() ? 1 : 0 }} {{ order() ? 'ORDER' : 'ORDERS' }}
+  </div>
+
+  <!-- Alert / Error message -->
+  <div *ngIf="errorMessage()" class="alert-error-message animate-fade-in">
+    <span>{{ errorMessage() }}</span>
+  </div>
+
+  <!-- Guest Verification Form -->
+  <div *ngIf="needsVerification() && !order()" class="verification-prompt-box animate-fade-in">
+    <div class="verification-header">
+      <h3 class="verification-title">Verification Required</h3>
+      <p class="verification-desc">This guest order requires verification. Please enter your email or phone number to view status.</p>
+    </div>
+
+    <div class="verification-tabs">
+      <button
+        type="button"
+        class="ver-tab-btn"
+        [class.active]="verificationType() === 'email'"
+        (click)="verificationType.set('email')"
+      >
+        EMAIL
+      </button>
+      <button
+        type="button"
+        class="ver-tab-btn"
+        [class.active]="verificationType() === 'phone'"
+        (click)="verificationType.set('phone')"
+      >
+        PHONE NUMBER
+      </button>
+    </div>
+
+    <form (ngSubmit)="onVerify()" class="verification-form">
+      <div class="verification-input-wrap">
+        <input
+          *ngIf="verificationType() === 'email'"
+          type="email"
+          name="verificationQuery"
+          [(ngModel)]="verificationQuery"
+          placeholder="e.g., customer@example.com"
+          class="verification-input"
+          required
+          [disabled]="isLoading()"
+        />
+        <input
+          *ngIf="verificationType() === 'phone'"
+          type="tel"
+          name="verificationQuery"
+          [(ngModel)]="verificationQuery"
+          placeholder="e.g., 0987654321"
+          class="verification-input"
+          required
+          [disabled]="isLoading()"
+        />
+      </div>
+      <button type="submit" class="btn-verify-submit" [disabled]="isLoading()">
+        <span *ngIf="!isLoading()">VERIFY & VIEW</span>
+        <span *ngIf="isLoading()" class="spinner"></span>
+      </button>
+    </form>
+  </div>
+
+  <!-- ================= TRACKING RESULTS SECTION ================= -->
+  <div class="results-section-container">
+    <!-- Loading state -->
+    <div *ngIf="isLoading() && !needsVerification() && !order()" class="loading-state">
+      <span class="page-spinner"></span>
+      <p>Retrieving order details...</p>
+    </div>
+
+    <!-- Result Card (Found Order) -->
+    <div
+      *ngIf="order() && !isLoading()"
+      class="order-result-card animate-fade-in"
+      (click)="viewOrderDetails()"
+    >
+      <div class="card-header-row">
+        <div class="header-left-col">
+          <div class="order-id-group">
+            <h3 class="order-id font-display">{{ order().order_id }}</h3>
+          </div>
+          <span class="order-date font-mono">{{ formatOrderDate(order().created_at) }}</span>
+        </div>
+
+        <div class="header-right-col">
+          <span class="order-total-price font-mono">${{ order().pricing.total | number:'1.2-2' }}</span>
+          <span class="status-badge" [ngClass]="getStatusClass(order().order_status)">
+            <span class="status-dot"></span>
+            {{ getStatusLabel(order().order_status) }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Card Inner Body -->
+      <div class="card-inner-body" *ngIf="order().items && order().items.length">
+        <div class="product-thumb-container">
+          <img [src]="productThumb(order().items[0])" [alt]="order().items[0]?.product_name" class="product-thumbnail" />
+        </div>
+        <div class="product-meta-details">
+          <h4 class="product-name-title font-body">{{ order().items[0]?.product_name }}</h4>
+          <span class="items-summary-text font-mono">
+            {{ getItemCount() }} {{ getItemCount() === 1 ? 'item' : 'items' }} &middot; ${{ order().pricing.total | number:'1.2-2' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Card Actions Footer -->
+      <div class="card-actions-footer" (click)="$event.stopPropagation()">
+        <!-- Cancel Button: shown for pending/processing status -->
+        <button
+          *ngIf="order().order_status === 'pending' || order().order_status === 'processing'"
+          type="button"
+          class="btn-cancel-action"
+          (click)="cancelOrder()"
+        >
+          <!-- Custom SVG for red circle with X inside -->
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="cancel-svg-icon">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+          Cancel Order
+        </button>
+
+        <!-- Shipping Status Actions -->
+        <ng-container *ngIf="order().order_status === 'shipping'">
+          <button type="button" class="btn-solid-action" (click)="viewOrderDetails()">
+            <svg lucideTruck [size]="16" class="btn-icon"></svg>
+            Track Order
+          </button>
+          <button type="button" class="btn-outlined-action" (click)="confirmReceipt()">
+            <svg lucidePackageCheck [size]="16" class="btn-icon"></svg>
+            Received Order
+          </button>
+        </ng-container>
+
+        <!-- Delivered Status Actions -->
+        <ng-container *ngIf="order().order_status === 'delivered'">
+          <button type="button" class="btn-solid-action" routerLink="/shop/best-sellers">
+            <svg lucideRefreshCw [size]="16" class="btn-icon"></svg>
+            Buy Again
+          </button>
+          <button type="button" class="btn-outlined-action" (click)="openReviewModal()">
+            <svg lucideStar [size]="16" class="btn-icon"></svg>
+            Leave a Review
+          </button>
+          <button type="button" class="btn-outlined-action" (click)="refundOrder()">
+            Refund/Return
+          </button>
+        </ng-container>
+
+        <!-- Canceled Status Actions -->
+        <button
+          *ngIf="order().order_status === 'canceled' || order().order_status === 'cancelled'"
+          type="button"
+          class="btn-solid-action"
+          routerLink="/shop/best-sellers"
+        >
+          <svg lucideRefreshCw [size]="16" class="btn-icon"></svg>
+          Buy Again
+        </button>
+      </div>
+    </div>
+
+    <!-- Empty State (Order Not Found) -->
+    <div *ngIf="searched() && !order() && !isLoading() && !needsVerification()" class="empty-state-card animate-fade-in">
+      <div class="empty-icon-wrap">
+        <!-- SVG matching screenshot magnifying glass with X inside -->
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="empty-search-svg">
+          <circle cx="11" cy="11" r="8" stroke="#1A1A1A" stroke-width="1.8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="#1A1A1A" stroke-width="1.8"></line>
+          <line x1="8" y1="8" x2="14" y2="14" stroke="#1A1A1A" stroke-width="1.8"></line>
+          <line x1="14" y1="8" x2="8" y2="14" stroke="#1A1A1A" stroke-width="1.8"></line>
+        </svg>
+      </div>
+      <h3 class="empty-title font-display">NO ORDER FOUND</h3>
+      <p class="empty-desc font-body">We couldn't find any orders matching "{{ searchedQuery() }}". Please check your order code and try again.</p>
+      <button routerLink="/shop/best-sellers" class="btn-continue-shopping font-body">
+        CONTINUE SHOPPING
+      </button>
+    </div>
+  </div>
+</div>
+
+<app-review-modal
+  *ngIf="order()"
+  [order]="order()"
+  [verificationDetails]="{ email: verificationType() === 'email' ? verificationQuery().trim() : '', mobile: verificationType() === 'phone' ? verificationQuery().trim() : '' }"
+  [(isOpen)]="showReviewModal"
+  (orderUpdated)="onOrderUpdated($event)"
+></app-review-modal>

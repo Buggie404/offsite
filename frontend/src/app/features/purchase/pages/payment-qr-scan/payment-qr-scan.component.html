@@ -1,0 +1,82 @@
+<div class="mobile-scan-container">
+  <!-- Error view -->
+  <div class="error-container" *ngIf="errorMessage() as error">
+    <svg lucideAlertTriangle [size]="48" class="error-icon"></svg>
+    <h2>Invalid Payment Link</h2>
+    <p>{{ error }}</p>
+    <a routerLink="/" class="home-btn">Go to Home</a>
+  </div>
+
+  <!-- Main payment view -->
+  <div class="payment-view-content" *ngIf="!errorMessage()">
+    <!-- Header slant -->
+    <header class="payment-header">
+      <span class="payment-req-label">PAYMENT REQUEST</span>
+      <h1 class="payment-amount">{{ amount() | currency:'USD' }}</h1>
+      <div class="secure-badge">
+        <svg lucideCheck [size]="14" class="check-icon"></svg>
+        <span>SECURE TRANSACTION</span>
+      </div>
+    </header>
+
+    <!-- Body content -->
+    <main class="payment-body">
+      <!-- Expiry banner -->
+      <div class="expiry-banner" *ngIf="isExpired()">
+        <svg lucideAlertTriangle [size]="18" class="expiry-icon"></svg>
+        <span>QR Code Expired. Please refresh checkout and scan again.</span>
+      </div>
+
+      <!-- Success banner -->
+      <div class="success-banner" *ngIf="successMessage() as msg">
+        <svg lucideCheck [size]="18" class="success-icon"></svg>
+        <span>{{ msg }}</span>
+      </div>
+
+      <!-- Details Card -->
+      <div class="details-card">
+        <div class="card-row">
+          <span class="row-label">PROVIDER</span>
+          <span class="row-value provider-logo">Offsite</span>
+        </div>
+        <div class="card-divider"></div>
+        <div class="card-row">
+          <span class="row-label">TRANSACTION ID</span>
+          <span class="row-value val-mono">{{ transactionId() }}</span>
+        </div>
+        <div class="card-row">
+          <span class="row-label">DATE & TIME</span>
+          <span class="row-value val-mono">{{ formattedDateTime() }}</span>
+        </div>
+      </div>
+
+      <!-- Encryption note -->
+      <div class="encryption-note">
+        <svg lucideLock [size]="18" class="lock-icon"></svg>
+        <p>By confirming, you authorize Offsite Payments Inc. to process this transaction. Your payment information is encrypted and never stored on local devices.</p>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="actions">
+        <!-- Confirm button -->
+        <button type="button" 
+                class="btn-confirm" 
+                [disabled]="loading() || isExpired() || isFailed() || hasActionBeenClicked()"
+                [class.btn-confirm--disabled]="isExpired() || isFailed() || hasActionBeenClicked()"
+                (click)="confirmPayment()">
+          <span>CONFIRM PAYMENT</span>
+          <svg lucideArrowRight [size]="16" class="arrow-icon"></svg>
+        </button>
+
+        <!-- Cancel button -->
+        <button type="button" 
+                class="btn-cancel" 
+                [disabled]="loading() || isFailed() || hasActionBeenClicked()"
+                [class.btn-cancel--disabled]="hasActionBeenClicked()"
+                (click)="cancelPayment()">
+          <span>CANCEL PAYMENT</span>
+        </button>
+      </div>
+    </main>
+  </div>
+</div>

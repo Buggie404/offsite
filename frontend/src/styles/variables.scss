@@ -125,13 +125,13 @@
 
   /* Order status badges */
   --status-processing-bg: #e3f0ff;
-  --status-processing-text: #2563eb;
+  --status-processing-text: var(--state-link);
   --status-shipping-bg: #f3e5ff;
   --status-shipping-text: #6a1b9a;
   --status-delivered-bg: var(--color-sage);
   --status-delivered-text: var(--color-forest-green);
   --status-refund-bg: rgba(84, 73, 63, 0.2);
-  --status-refund-text: #54493f;
+  --status-refund-text: var(--color-warm-brown);
   --status-cancelled-bg: rgba(220, 38, 38, 0.2);
   --status-cancelled-text: #dc2626;
 

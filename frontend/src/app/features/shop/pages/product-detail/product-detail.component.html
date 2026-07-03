@@ -1,0 +1,123 @@
+<div class="product-detail-container">
+  <!-- Back navigation / Breadcrumbs -->
+  <div class="breadcrumbs-row">
+    <button (click)="goBack()" class="btn-back-link">
+      <span class="back-arrow">&larr;</span> Back to previous
+    </button>
+    <div class="breadcrumbs-path">
+      <a routerLink="/">Home</a>
+      <span class="bc-separator">/</span>
+      <span class="bc-active" *ngIf="product()">{{ product()?.name }}</span>
+      <span class="bc-active" *ngIf="!product()">Product Details</span>
+    </div>
+  </div>
+
+  <!-- Loading / Error states -->
+  <div *ngIf="isLoading()" class="loading-state">
+    <span class="page-spinner"></span>
+    <p>Loading product details...</p>
+  </div>
+
+  <div *ngIf="errorMessage() && !isLoading()" class="error-state">
+    <p class="error-msg-text">{{ errorMessage() }}</p>
+    <button routerLink="/shop/best-sellers" class="btn-continue-shopping">CONTINUE SHOPPING</button>
+  </div>
+
+  <!-- Product Detail Content -->
+  <div *ngIf="product() && !isLoading()" class="detail-grid animate-fade-in">
+    <!-- Left Column: Image -->
+    <div class="image-gallery-col">
+      <div class="main-image-wrap">
+        <img [src]="getPrimaryImage()" [alt]="product()?.name" class="detail-product-img" />
+      </div>
+    </div>
+
+    <!-- Right Column: Meta & Buying Options -->
+    <div class="buying-details-col">
+      <div class="meta-section">
+        <!-- Origin / Process category info -->
+        <span class="product-origin-label" *ngIf="getOrigin()">{{ getOrigin() | uppercase }}</span>
+        
+        <h1 class="product-name-title font-display">{{ product()?.name }}</h1>
+        
+        <div class="product-price font-body">
+          ${{ (selectedVariant()?.price || 0) | number:'1.2-2' }}
+        </div>
+      </div>
+
+      <!-- Tag row -->
+      <div class="tags-row" *ngIf="getTags().length">
+        <span *ngFor="let tag of getTags()" class="product-tag-badge">{{ tag }}</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Description -->
+      <p class="product-description-text font-body">
+        {{ product()?.description || 'No description available for this product.' }}
+      </p>
+
+      <!-- Category Specific Technical details -->
+      <div class="technical-details-box font-mono" *ngIf="product()?.category === 'coffee' || product()?.category === 'matcha'">
+        <!-- Coffee Specifics -->
+        <div *ngIf="product()?.category === 'coffee'" class="tech-grid">
+          <div class="tech-item" *ngIf="product()?.coffee?.roast_level">
+            <span class="tech-label">Roast Level:</span>
+            <span class="tech-val">{{ product()?.coffee?.roast_level }}</span>
+          </div>
+          <div class="tech-item" *ngIf="product()?.coffee?.process_type">
+            <span class="tech-label">Process:</span>
+            <span class="tech-val">{{ product()?.coffee?.process_type }}</span>
+          </div>
+        </div>
+
+        <!-- Matcha Specifics -->
+        <div *ngIf="product()?.category === 'matcha'" class="tech-grid">
+          <div class="tech-item" *ngIf="product()?.matcha?.product_grade">
+            <span class="tech-label">Grade:</span>
+            <span class="tech-val">{{ product()?.matcha?.product_grade }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Variant Selector -->
+      <div class="variant-selector-section" *ngIf="product()?.variants && product()!.variants.length > 1">
+        <label class="selector-label">SELECT VARIANT</label>
+        <div class="variant-pills-row">
+          <button
+            type="button"
+            *ngFor="let variant of product()?.variants"
+            class="variant-pill-btn"
+            [class.active]="selectedVariant()?.sku === variant.sku"
+            (click)="selectVariant(variant)"
+          >
+            {{ variant.label || variant.sku }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Quantity + Add to Cart -->
+      <div class="add-to-cart-section">
+        <div class="qty-control-wrapper">
+          <button type="button" class="qty-btn" (click)="decrementQty()">&minus;</button>
+          <span class="qty-number font-mono">{{ quantity() }}</span>
+          <button type="button" class="qty-btn" (click)="incrementQty()">&plus;</button>
+        </div>
+
+        <button type="button" class="btn-add-to-cart font-body" (click)="onAddToCart()">
+          ADD TO CART &bull; ${{ ((selectedVariant()?.price || 0) * quantity()) | number:'1.2-2' }}
+        </button>
+      </div>
+
+      <!-- Additional Perks List -->
+      <ul class="perks-list-wrapper font-body">
+        <li>
+          <span class="perk-bullet">&bull;</span> Free standard shipping on orders over $50.00
+        </li>
+        <li>
+          <span class="perk-bullet">&bull;</span> Freshness Guaranteed: Shipped within 48 hours of roasting
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>

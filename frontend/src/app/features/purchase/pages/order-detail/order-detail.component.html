@@ -1,0 +1,555 @@
+<div class="confirmed-page-wrapper animate-fade-in" *ngIf="order() && config()">
+  <div class="confirmed-container">
+    
+    <!-- ================= DYNAMIC STATUS BANNER ================= -->
+    <div class="order-banner" [ngClass]="'order-banner--' + config()?.bannerStyle">
+      <div class="banner-waves">
+        <div class="wave wave-1"></div>
+        <div class="wave wave-2"></div>
+        <div class="wave wave-3"></div>
+
+        <!-- Faint concentric waves on the left -->
+        <div class="left-waves">
+          <div class="l-wave l-wave-1"></div>
+          <div class="l-wave l-wave-2"></div>
+          <div class="l-wave l-wave-3"></div>
+        </div>
+
+        <!-- Scattered dots -->
+        <div class="pattern-dot dot-1"></div>
+        <div class="pattern-dot dot-2"></div>
+        <div class="pattern-dot dot-3"></div>
+        <div class="pattern-dot dot-4"></div>
+        <div class="pattern-dot dot-5"></div>
+        <div class="pattern-dot dot-6"></div>
+        <div class="pattern-dot dot-7"></div>
+        <div class="pattern-dot dot-8"></div>
+        <div class="pattern-dot dot-9"></div>
+        <div class="pattern-dot dot-10"></div>
+        <div class="pattern-dot dot-11"></div>
+        <div class="pattern-dot dot-12"></div>
+        <div class="pattern-dot dot-13"></div>
+        <div class="pattern-dot dot-14"></div>
+        <div class="pattern-dot dot-15"></div>
+      </div>
+      <div class="banner-content">
+        <!-- Badge icon based on state -->
+        <div class="badge-icon-wrapper">
+          <svg lucideX [size]="28" class="badge-icon" *ngIf="config()?.bannerStyle === 'canceled'"></svg>
+          <svg lucideClock [size]="28" class="badge-icon" *ngIf="config()?.bannerStyle === 'pending'"></svg>
+          <svg lucideCog [size]="28" class="badge-icon" *ngIf="config()?.bannerStyle === 'processing'"></svg>
+          <svg lucideTruck [size]="28" class="badge-icon" *ngIf="config()?.bannerStyle === 'shipping'"></svg>
+          <svg lucideTruck [size]="28" class="badge-icon" *ngIf="config()?.bannerStyle === 'delivered'"></svg>
+          <svg lucideRefreshCw [size]="28" class="badge-icon" *ngIf="config()?.bannerStyle === 'refund'"></svg>
+        </div>
+        
+        <span class="payment-status-label font-mono">{{ config()?.bannerLabel }}</span>
+        <h1 class="banner-title font-display">{{ config()?.bannerTitle }}</h1>
+        <p class="banner-subtitle">
+          <ng-container *ngIf="config()?.bannerStyle === 'canceled'">
+            <ng-container *ngIf="order().payment.method === 'cod'">
+              This order was canceled on {{ getOrderDateFormatted(order().updatedAt) }}. No charge was made to your payment method.
+            </ng-container>
+            <ng-container *ngIf="order().payment.method !== 'cod'">
+              This order was canceled on {{ getOrderDateFormatted(order().updatedAt) }}. A refund has been issued. Please allow 3–5 business days for your bank to process the refund.
+            </ng-container>
+          </ng-container>
+          <ng-container *ngIf="config()?.bannerStyle === 'pending'">
+            We're ready when you are. Finish your checkout within 24 hours to bring the calm home.
+          </ng-container>
+          <ng-container *ngIf="config()?.bannerStyle === 'processing'">
+            Take a deep breath and relax. Your daily ritual upgrade will be on its way to your doorstep very soon.
+          </ng-container>
+          <ng-container *ngIf="config()?.bannerStyle === 'shipping'">
+            Good news! Your package has been handed over to the carrier and is currently in transit to you.
+          </ng-container>
+          <ng-container *ngIf="config()?.bannerStyle === 'delivered'">
+            Your package has been successfully delivered. We hope you enjoy your freshly roasted coffee and gear!
+          </ng-container>
+          <ng-container *ngIf="config()?.bannerStyle === 'refund'">
+            This order has been returned/refunded. The funds have been returned to your original payment method.
+          </ng-container>
+        </p>
+      </div>
+    </div>
+
+    <!-- ================= META INFO ROW ================= -->
+    <div class="meta-row">
+      <!-- Order Number -->
+      <div class="meta-card">
+        <span class="meta-label">ORDER NUMBER</span>
+        <div class="meta-value-wrapper">
+          <span class="meta-value font-display">{{ order().order_id }}</span>
+          <button class="icon-btn-copy" (click)="copyOrderNumber(order().order_id)" title="Copy Order Number">
+            <svg lucideCopy [size]="14" *ngIf="!copiedOrderNum()"></svg>
+            <svg lucideCheck [size]="14" class="text-success" *ngIf="copiedOrderNum()"></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Order Date -->
+      <div class="meta-card">
+        <span class="meta-label">ORDER DATE</span>
+        <span class="meta-value font-body">{{ getOrderDateFormatted(order().createdAt) }}</span>
+      </div>
+
+      <!-- Est. Dispatch (processing status only) -->
+      <div class="meta-card" *ngIf="config()?.bannerStyle === 'processing'">
+        <span class="meta-label">EST. DISPATCH</span>
+        <span class="meta-value font-body">{{ getEstDispatchDate(order().createdAt) }}</span>
+      </div>
+
+      <!-- Delivered On (shipping and delivered statuses) -->
+      <div class="meta-card" *ngIf="config()?.bannerStyle === 'shipping' || config()?.bannerStyle === 'delivered'">
+        <span class="meta-label">DELIVERED ON</span>
+        <span class="meta-value font-body">{{ order().delivered_at ? getOrderDateFormatted(order().delivered_at) : getEstDeliveryRange(order().created_at || order().createdAt, order().shipping?.method || order().delivery_info.shipping_method) }}</span>
+      </div>
+
+      <!-- Est. Delivery (except shipping/delivered statuses) -->
+      <div class="meta-card" *ngIf="config()?.bannerStyle !== 'shipping' && config()?.bannerStyle !== 'delivered'">
+        <span class="meta-label">EST. DELIVERY</span>
+        <span class="meta-value font-body">{{ getEstDeliveryRange(order().created_at || order().createdAt, order().shipping?.method || order().delivery_info.shipping_method) }}</span>
+      </div>
+
+      <!-- Carrier (shipping status only) -->
+      <div class="meta-card" *ngIf="config()?.bannerStyle === 'shipping'">
+        <span class="meta-label">CARRIER</span>
+        <div class="meta-value-wrapper">
+          <span class="meta-value font-body" style="text-transform: capitalize;">{{ order().shipping?.carrier || 'Giao hang nhanh' }}</span>
+          <button class="icon-btn-carrier" (click)="trackOrder()" title="Track with carrier">
+            <svg lucideArrowRight [size]="14"></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Review (delivered status only) -->
+      <div class="meta-card" *ngIf="config()?.bannerStyle === 'delivered'">
+        <span class="meta-label">REVIEW</span>
+        <div class="meta-value-wrapper">
+          <span class="meta-value font-body">Share your thought</span>
+          <button class="icon-btn-carrier" routerLink="/journal" title="Leave a review">
+            <svg lucideArrowRight [size]="14"></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Charge / Status (except processing/shipping/delivered status) -->
+      <div class="meta-card" *ngIf="config()?.bannerStyle !== 'processing' && config()?.bannerStyle !== 'shipping' && config()?.bannerStyle !== 'delivered'">
+        <span class="meta-label">{{ config()?.bannerStyle === 'canceled' ? 'CHARGE' : 'STATUS' }}</span>
+        <span class="meta-value font-body text-muted">
+          {{ config()?.chargeText }}
+        </span>
+      </div>
+    </div>
+
+    <!-- ================= CONTENT GRID ================= -->
+    <div class="content-grid">
+      <!-- Left Column -->
+      <main class="left-col">
+        
+        <!-- Tracking Alert Box -->
+        <div class="tracking-alert-box">
+          <div class="tracking-header">
+            <span class="dot-indicator" [ngClass]="config()?.trackingDotClass"></span>
+            <span class="tracking-title font-mono">TRACKING</span>
+          </div>
+
+          <!-- Progress Stepper Graph (Shown for pending state) -->
+          <div class="progress-stepper" *ngIf="config()?.showStepper && config()?.bannerStyle === 'pending'">
+            <!-- Step 1 (Active) -->
+            <div class="step step--active">
+              <div class="step-icon-wrap">
+                <svg lucideBanknoteX [size]="16" class="inner-step-icon"></svg>
+              </div>
+              <span class="step-name font-mono">Pending Payment</span>
+              <span class="step-subname font-mono">&nbsp;</span>
+            </div>
+            
+            <div class="step-line"></div>
+            
+            <!-- Step 2 -->
+            <div class="step step--inactive">
+              <div class="step-icon-wrap">
+                <svg lucidePackage [size]="14" class="inner-step-icon"></svg>
+              </div>
+              <span class="step-name font-mono">Processing</span>
+              <span class="step-subname font-body">Roasting to order</span>
+            </div>
+            
+            <div class="step-line"></div>
+            
+            <!-- Step 3 -->
+            <div class="step step--inactive">
+              <div class="step-icon-wrap">
+                <svg lucideTruck [size]="14" class="inner-step-icon"></svg>
+              </div>
+              <span class="step-name font-mono">Shipping</span>
+              <span class="step-subname font-body">Est. {{ getShippingEstDate(order().createdAt) }}</span>
+            </div>
+            
+            <div class="step-line"></div>
+            
+            <!-- Step 4 -->
+            <div class="step step--inactive">
+              <div class="step-icon-wrap">
+                <svg lucideMapPin [size]="14" class="inner-step-icon"></svg>
+              </div>
+              <span class="step-name font-mono">Delivered</span>
+              <span class="step-subname font-body">{{ getDeliveryEstDateRange(order().createdAt) }}</span>
+            </div>
+          </div>
+
+          <!-- Progress Stepper Graph (Shown for processing/shipping/delivered states) -->
+          <div class="progress-stepper" *ngIf="config()?.showStepper && (config()?.bannerStyle === 'processing' || config()?.bannerStyle === 'shipping' || config()?.bannerStyle === 'delivered')">
+            <!-- Step 1 (Order Placed) -->
+            <div class="step step--active">
+              <div class="step-icon-wrap">
+                <svg lucideCheck [size]="16" class="inner-step-icon"></svg>
+              </div>
+              <span class="step-name font-mono">Order Placed</span>
+              <span class="step-subname font-body">{{ getOrderDateFormatted(order().createdAt) }}</span>
+            </div>
+            
+            <div class="step-line step-line--completed"></div>
+            
+            <!-- Step 2 (Processing) -->
+            <div class="step" [ngClass]="isStepCompleted(2) || isStepActive(2) ? 'step--active' : 'step--inactive'">
+              <div class="step-icon-wrap">
+                <svg lucideCheck [size]="16" class="inner-step-icon" *ngIf="isStepCompleted(2)"></svg>
+                <svg lucidePackage [size]="14" class="inner-step-icon" *ngIf="!isStepCompleted(2)"></svg>
+              </div>
+              <span class="step-name font-mono">Processing</span>
+              <span class="step-subname font-body">Roasting to order</span>
+            </div>
+            
+            <div class="step-line" [class.step-line--completed]="isStepCompleted(2)"></div>
+            
+            <!-- Step 3 (Shipping) -->
+            <div class="step" [ngClass]="isStepCompleted(3) || isStepActive(3) ? 'step--active' : 'step--inactive'">
+              <div class="step-icon-wrap">
+                <svg lucideCheck [size]="16" class="inner-step-icon" *ngIf="isStepCompleted(3)"></svg>
+                <svg lucideTruck [size]="14" class="inner-step-icon" *ngIf="!isStepCompleted(3)"></svg>
+              </div>
+              <span class="step-name font-mono">Shipping</span>
+              <span class="step-subname font-body">
+                <ng-container *ngIf="isStepCompleted(3); else estShipping">
+                  Shipped
+                </ng-container>
+                <ng-template #estShipping>
+                  Est. {{ getShippingEstDate(order().createdAt) }}
+                </ng-template>
+              </span>
+            </div>
+            
+            <div class="step-line" [class.step-line--completed]="isStepCompleted(3)"></div>
+            
+            <!-- Step 4 (Delivered) -->
+            <div class="step" [ngClass]="isStepActive(4) ? 'step--active' : 'step--inactive'">
+              <div class="step-icon-wrap">
+                <svg lucideMapPin [size]="14" class="inner-step-icon"></svg>
+              </div>
+              <span class="step-name font-mono">Delivered</span>
+              <span class="step-subname font-body">
+                <ng-container *ngIf="isStepActive(4) && order().delivered_at; else estDelivery">
+                  {{ getOrderDateFormatted(order().delivered_at) }}
+                </ng-container>
+                <ng-template #estDelivery>
+                  {{ getDeliveryEstDateRange(order().createdAt) }}
+                </ng-template>
+              </span>
+            </div>
+          </div>
+
+          <!-- Alert Banner (dynamic styling/content) -->
+          <div class="alert-banner-inner" [ngClass]="'alert-banner-inner--' + config()?.bannerStyle" *ngIf="config()?.bannerStyle !== 'processing' && config()?.bannerStyle !== 'shipping' && config()?.bannerStyle !== 'delivered'">
+            <div class="alert-icon-wrap">
+              <!-- Cancel icon for canceled status -->
+              <svg lucideX [size]="14" class="inner-alert-x" *ngIf="config()?.bannerStyle === 'canceled'"></svg>
+              <!-- Alert icon for pending status -->
+              <svg class="alert-warning-icon" viewBox="0 0 20 20" fill="currentColor" width="20" height="20" *ngIf="config()?.bannerStyle === 'pending'">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+              </svg>
+              <!-- Refund icon for refund status -->
+              <svg lucideRefreshCw [size]="14" class="inner-alert-x" *ngIf="config()?.bannerStyle === 'refund'"></svg>
+            </div>
+            <div class="alert-text-wrap font-body">
+              <ng-container *ngIf="config()?.bannerStyle === 'canceled'">
+                <ng-container *ngIf="order().payment.method === 'cod'">
+                  Order canceled on {{ getOrderDateFormatted(order().updatedAt) }}. No charge was made to your payment method.
+                </ng-container>
+                <ng-container *ngIf="order().payment.method !== 'cod'">
+                  Order canceled on {{ getOrderDateFormatted(order().updatedAt) }}. A refund has been issued. Please allow 3–5 business days for your bank to process the refund.
+                </ng-container>
+              </ng-container>
+              <ng-container *ngIf="config()?.bannerStyle === 'pending'">
+                Payment pending. Please complete your payment to confirm this order. Expires in: 
+                <span class="timer-countdown font-mono">{{ timeLeft() }}</span>
+              </ng-container>
+              <ng-container *ngIf="config()?.bannerStyle === 'refund'">
+                Refund of {{ (order().payment?.amount || order().total) | currency:'USD':'symbol':'1.2-2' }} processed on {{ getOrderDateFormatted(order().updatedAt) }}. Allow 3–5 business days for it to appear on your statement.
+              </ng-container>
+            </div>
+          </div>
+        </div>
+
+        <!-- Items Ordered -->
+        <div class="panel items-panel">
+          <header class="panel-header dark-green-header">
+            <h2 class="panel-title font-body">ITEMS ORDERED</h2>
+            <span class="items-count-badge font-mono">{{ getItemCount() }} items</span>
+          </header>
+          
+          <div class="items-list">
+            <div class="order-item-row" *ngFor="let item of order().items">
+              <div class="item-thumb-wrapper">
+                <img [src]="productThumb(item)" [alt]="item.product_name" class="item-thumb-img" />
+              </div>
+              
+              <div class="item-meta-info">
+                <h3 class="item-name font-body">{{ item.product_name }}</h3>
+                <span class="item-specs font-body">
+                  {{ item.variant_name || 'Default variant' }}
+                </span>
+                <span class="item-qty font-mono">x{{ item.quantity }}</span>
+              </div>
+              
+              <div class="item-pricing font-mono">
+                ${{ (item.subtotal || item.unit_price * item.quantity) | number:'1.2-2' }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Deliver, Shipping, & Payment Info Panel -->
+        <div class="panel details-grid-card">
+          <div class="details-top">
+            <!-- Deliver To -->
+            <div class="detail-column">
+              <span class="detail-label">DELIVER TO</span>
+              <h3 class="recipient-name font-body">{{ order().delivery_info.recipient_name }}</h3>
+              <p class="recipient-address">
+                {{ order().delivery_info.address }}<br/>
+                {{ order().delivery_info.city }}, Vietnam
+              </p>
+            </div>
+
+            <!-- Shipping Method -->
+            <div class="detail-column">
+              <span class="detail-label">SHIPPING METHOD</span>
+              <h3 class="shipping-method-title font-body">
+                {{ order().delivery_info.shipping_method === 'express' ? 'Express Delivery' : 'Standard Delivery' }}
+              </h3>
+              <p class="shipping-method-desc">
+                {{ order().delivery_info.shipping_method === 'express' ? '1–2 business days' : '3–5 business days' }} · {{ order().shipping?.carrier || 'Giao Hang Nhanh' }}
+              </p>
+              
+              <!-- Inline Tracking Number display (always show tracking details) -->
+              <p class="tracking-number-inline">
+                Tracking: <span class="font-mono font-bold">{{ trackingNumber }}</span>
+                <button class="icon-btn-copy-inline" (click)="copyTrackingNumber(trackingNumber)" title="Copy Tracking Number">
+                  <svg lucideCopy [size]="12" *ngIf="!copiedTracking()"></svg>
+                  <svg lucideCheck [size]="12" class="text-success" *ngIf="copiedTracking()"></svg>
+                </button>
+              </p>
+            </div>
+          </div>
+
+          <!-- Bottom Row (Payment Method with Dynamic Thumbnails) -->
+          <div class="details-bottom">
+            
+            <!-- Cash on Delivery (COD) -->
+            <ng-container *ngIf="order().payment.method === 'cod'">
+              <div class="method-thumbnail-wrapper method-icon-wrapper">
+                <svg lucideBanknote [size]="20" class="banknote-icon"></svg>
+              </div>
+              <div class="method-details">
+                <span class="method-title font-body">Cash on Delivery</span>
+                <span class="method-desc font-body">Pay with cash upon delivery</span>
+              </div>
+            </ng-container>
+
+            <!-- QR Code -->
+            <ng-container *ngIf="order().payment.method === 'qr'">
+              <div class="method-thumbnail-wrapper method-icon-wrapper">
+                <svg lucideQrCode [size]="20" class="qr-icon"></svg>
+              </div>
+              <div class="method-details">
+                <span class="method-title font-body">QR Code Payment</span>
+                <span class="method-desc font-mono">
+                  {{ order().payment.transaction_id || 'TXN-PENDING' }} · Scan confirmation pending
+                </span>
+              </div>
+            </ng-container>
+
+            <!-- Cards -->
+            <ng-container *ngIf="order().payment.method === 'card'">
+              <!-- Visa -->
+              <ng-container *ngIf="order().payment.card_info?.brand === 'Visa'">
+                <div class="method-thumbnail-wrapper">
+                  <img src="assets/images/payment_visa.png" alt="Visa" class="payment-thumbnail-img" />
+                </div>
+                <div class="method-details">
+                  <span class="method-title font-body">Visa</span>
+                  <span class="method-desc font-mono">
+                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ order().delivery_info.recipient_name | uppercase }}
+                  </span>
+                </div>
+              </ng-container>
+
+              <!-- Mastercard -->
+              <ng-container *ngIf="order().payment.card_info?.brand === 'Mastercard' || order().payment.card_info?.brand === 'MasterCard'">
+                <div class="method-thumbnail-wrapper">
+                  <img src="assets/images/payment_mastercard.png" alt="Mastercard" class="payment-thumbnail-img" />
+                </div>
+                <div class="method-details">
+                  <span class="method-title font-body">Mastercard</span>
+                  <span class="method-desc font-mono">
+                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ order().delivery_info.recipient_name | uppercase }}
+                  </span>
+                </div>
+              </ng-container>
+
+              <!-- Napas -->
+              <ng-container *ngIf="order().payment.card_info?.brand === 'Napas' || order().payment.card_info?.brand === 'napas'">
+                <div class="method-thumbnail-wrapper">
+                  <img src="assets/images/payment_napas.png" alt="Napas" class="payment-thumbnail-img" />
+                </div>
+                <div class="method-details">
+                  <span class="method-title font-body">NAPAS Domestic Card</span>
+                  <span class="method-desc font-mono">
+                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ order().delivery_info.recipient_name | uppercase }}
+                  </span>
+                </div>
+              </ng-container>
+
+              <!-- Generic Credit Card -->
+              <ng-container *ngIf="order().payment.card_info?.brand !== 'Visa' && order().payment.card_info?.brand !== 'Mastercard' && order().payment.card_info?.brand !== 'MasterCard' && order().payment.card_info?.brand !== 'Napas' && order().payment.card_info?.brand !== 'napas'">
+                <div class="method-thumbnail-wrapper">
+                  <svg class="payment-thumbnail-svg generic-card-svg" viewBox="0 0 36 24" width="36" height="24">
+                    <rect width="36" height="24" rx="4" fill="#544A40"/>
+                    <rect x="4" y="6" width="28" height="4" fill="#E8ECE9"/>
+                    <circle cx="8" cy="16" r="2" fill="#E8ECE9"/>
+                  </svg>
+                </div>
+                <div class="method-details">
+                  <span class="method-title font-body">{{ order().payment.card_info?.brand || 'Credit Card' }}</span>
+                  <span class="method-desc font-mono">
+                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ order().delivery_info.recipient_name | uppercase }}
+                  </span>
+                </div>
+              </ng-container>
+            </ng-container>
+
+          </div>
+        </div>
+
+        <!-- Buy Again Footer Button (Canceled status) -->
+        <footer class="page-actions-row" *ngIf="config()?.showBuyAgain">
+          <button (click)="buyAgain()" class="btn-buy-again font-body">
+            BUY AGAIN
+          </button>
+        </footer>
+
+        <!-- Action Buttons (Processing status) -->
+        <footer class="page-actions-row" *ngIf="config()?.showProcessingActions">
+          <button routerLink="/shop/best-seller" class="btn-continue-shopping font-body">
+            CONTINUE SHOPPING
+          </button>
+          <button (click)="cancelOrder()" class="btn-cancel-order btn-cancel-order--processing font-body">
+            CANCEL ORDER
+          </button>
+        </footer>
+
+        <!-- Action Buttons (Shipping status) -->
+        <footer class="page-actions-row" *ngIf="config()?.showShippingActions">
+          <button (click)="trackOrder()" class="btn-continue-shopping font-body">
+            TRACK ORDER
+          </button>
+          <button (click)="confirmReceipt()" class="btn-order-received font-body">
+            ORDER RECEIVED
+          </button>
+        </footer>
+
+        <!-- Action Buttons (Delivered status) -->
+        <footer class="page-actions-row" *ngIf="config()?.showDeliveredActions">
+          <button (click)="buyAgain()" class="btn-continue-shopping font-body">
+            BUY AGAIN
+          </button>
+          <button (click)="openReviewModal()" class="btn-order-received font-body">
+            LEAVE A REVIEW
+          </button>
+          <button (click)="refundOrder()" class="btn-order-received font-body">
+            REFUND/RETURN
+          </button>
+        </footer>
+
+        <!-- Action Buttons (Refund status) -->
+        <footer class="page-actions-row" *ngIf="config()?.showRefundActions">
+          <button routerLink="/shop/best-seller" class="btn-continue-shopping font-body">
+            CONTINUE SHOPPING
+          </button>
+        </footer>
+
+        <!-- Complete / Cancel Buttons (Pending status) -->
+        <footer class="page-actions-row" *ngIf="config()?.showPaymentActions">
+          <button (click)="retryPayment()" class="btn-complete-payment font-body">
+            COMPLETE PAYMENT
+          </button>
+          <button (click)="cancelOrder()" class="btn-cancel-order font-body">
+            CANCEL ORDER
+          </button>
+        </footer>
+
+      </main>
+
+      <!-- Right Column (Payment Summary) -->
+      <aside class="right-col">
+        <div class="panel summary-card">
+          <header class="summary-header">
+            <span class="summary-line-prefix">—</span>
+            <h2 class="summary-title font-body">PAYMENT SUMMARY</h2>
+          </header>
+          
+          <div class="summary-body">
+            <div class="summary-row">
+              <span>SUBTOTAL</span>
+              <span class="font-mono">${{ order().pricing.subtotal | number:'1.2-2' }}</span>
+            </div>
+            <div class="summary-row">
+              <span>SHIPPING</span>
+              <span class="font-mono text-success uppercase">
+                {{ order().pricing.shipping_cost === 0 ? 'FREE' : ('$' + (order().pricing.shipping_cost | number:'1.2-2')) }}
+              </span>
+            </div>
+            <div class="summary-row">
+              <span>DISCOUNT</span>
+              <span class="font-mono">-${{ (order().pricing.discount_amount || 0) | number:'1.2-2' }}</span>
+            </div>
+            
+            <div class="summary-divider"></div>
+            
+            <div class="summary-row total-row">
+              <span>TOTAL PAID</span>
+              <span class="total-price font-mono">${{ order().pricing.total | number:'1.2-2' }}</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================= PAYMENT FAILED MODAL OVERLAY ================= -->
+<app-payment-failed-modal
+  *ngIf="showFailedModal() && (order()?.order_status === 'pending' || order()?.status === 'pending')"
+  (close)="closeModal()"
+  (retry)="retryPayment()"
+  (changeMethod)="changePaymentMethod()"
+></app-payment-failed-modal>
+
+<app-review-modal
+  [order]="order()"
+  [(isOpen)]="showReviewModal"
+  (orderUpdated)="onOrderUpdated($event)"
+></app-review-modal>

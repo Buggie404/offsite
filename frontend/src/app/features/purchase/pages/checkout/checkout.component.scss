@@ -12,31 +12,17 @@
 }
 
 .checkout-main {
-  /* Fits the viewport (minus navbar + promo bar ~120px) so the right
-     column never needs to scroll. */
-  height: calc(100vh - 120px);
-  min-height: 640px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 420px;
   gap: var(--space-5);
   max-width: var(--container-max);
   margin: 0 auto;
-  overflow: hidden;
+  align-items: start;
 }
 
 /* ─── LEFT COLUMN ─── */
 .checkout-left {
-  height: 100%;
-  overflow-y: auto;
   padding-right: var(--space-3);
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-
-  &::-webkit-scrollbar {
-    width: 0;
-    height: 0;
-    display: none;
-  }
 }
 
 .back-link {
@@ -445,20 +431,15 @@
 
 /* ─── RIGHT COLUMN ─── */
 .checkout-right {
-  height: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  overflow-y: auto;
   padding-left: var(--space-1);
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-
-  &::-webkit-scrollbar {
-    width: 0;
-    height: 0;
-    display: none;
-  }
+  
+  position: sticky;
+  top: 100px; /* Adjust based on navbar height */
+  /* If right column is taller than viewport, allow it to scroll up to its bottom, then stick */
+  /* But standard sticky top is safer and works well for shorter columns */
 }
 
 .summary-card {

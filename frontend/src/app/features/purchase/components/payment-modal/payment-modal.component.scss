@@ -302,3 +302,106 @@
   20% { opacity: 1; }
   100% { opacity: .2; }
 }
+
+/* OTP Styling */
+.otp-inputs-container {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  justify-content: center;
+  margin: 16px 0;
+  width: 100%;
+}
+
+.otp-input {
+  width: 100%;
+  aspect-ratio: 1;
+  font-family: var(--font-body);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-near-black);
+  text-align: center;
+  border: 1.5px solid rgba(84, 74, 64, 0.15);
+  border-radius: 12px;
+  background: #fdfcfb;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &:focus {
+    border-color: var(--color-forest-green);
+    box-shadow: 0 0 0 3px rgba(55, 85, 52, 0.15);
+    background: #ffffff;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    background: rgba(84, 74, 64, 0.05);
+    cursor: not-allowed;
+  }
+}
+
+.resend-container {
+  margin: 12px 0 8px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--color-warm-brown);
+  text-transform: uppercase;
+}
+
+.btn-resend-link {
+  background: transparent;
+  border: none;
+  color: var(--color-forest-green);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: opacity 0.2s, background-color 0.2s;
+
+  &:hover:not(:disabled) {
+    background-color: rgba(55, 85, 52, 0.05);
+    opacity: 0.9;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.timer-countdown-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-warm-brown);
+}
+
+/* Floating Debug Badge in Top Right Corner of Screen */
+.debug-otp-badge {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  background: #ffffff;
+  border: 1.5px solid var(--color-forest-green);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-near-black);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 9999;
+  animation: modalSlideUp 0.3s ease;
+  pointer-events: none;
+
+  strong {
+    color: var(--color-forest-green);
+    font-size: 16px;
+    margin-left: 4px;
+  }
+}
+

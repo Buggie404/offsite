@@ -313,5 +313,53 @@ describe('InlineValidator', () => {
     delete (window as any).MOCK_LIST;
     validator.detach();
   });
+
+  it('should test isValidBank with the window helper', () => {
+    const input = document.createElement('input');
+    input.id = 'bank-input';
+    const errorEl = document.createElement('span');
+    errorEl.id = 'bank-error';
+    container.appendChild(input);
+    container.appendChild(errorEl);
+
+    // Mock window.isValidBank
+    const allowed = ['Vietcombank','BIDV','Techcombank','VietinBank','Agribank','MB Bank','VPBank','ACB','Sacombank','TPBank','VIB','SHB','MSB','SeABank'];
+    (window as any).isValidBank = (val: string) => {
+      return allowed.includes((val || '').trim());
+    };
+
+    const configs: FieldConfig[] = [
+      {
+        field_id: 'bank-input',
+        error_element_id: 'bank-error',
+        rules: [
+          {
+            sequence: 1,
+            type: 'FORMAT_CHECK',
+            condition: '!window.isValidBank(value)',
+            error_message: 'Invalid bank name. Please select from the list.',
+          },
+        ],
+      },
+    ];
+
+    const validator = new InlineValidator(configs);
+    validator.attach(container);
+
+    // Act: Input invalid bank
+    input.value = 'InvalidBank';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(input.classList.contains('invalid')).toBe(true);
+    expect(errorEl.textContent).toBe('Invalid bank name. Please select from the list.');
+
+    // Act: Input valid bank
+    input.value = 'Vietcombank';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(input.classList.contains('invalid')).toBe(false);
+    expect(errorEl.textContent).toBe('');
+
+    delete (window as any).isValidBank;
+    validator.detach();
+  });
 });
 

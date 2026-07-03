@@ -23,12 +23,44 @@ export const routes: Routes = [
     loadComponent: () => import('./features/purchase/pages/checkout/checkout.component').then(m => m.CheckoutComponent)
   },
   {
+    path: 'checkout/payment-qr',
+    loadComponent: () => import('./features/purchase/pages/payment-qr/payment-qr.component').then(m => m.PaymentQrComponent)
+  },
+  {
+    path: 'checkout/payment-qr/scan',
+    loadComponent: () => import('./features/purchase/pages/payment-qr-scan/payment-qr-scan.component').then(m => m.PaymentQrScanComponent)
+  },
+  {
     path: 'checkout/confirmed',
     loadComponent: () => import('./features/purchase/pages/order-confirmed/order-confirmed.component').then(m => m.OrderConfirmedComponent)
   },
   {
+    path: 'checkout/pending',
+    loadComponent: () => import('./features/purchase/pages/order-detail/order-detail.component').then(m => m.OrderDetailComponent)
+  },
+  {
     path: 'checkout/canceled',
-    loadComponent: () => import('./features/purchase/pages/order-canceled/order-canceled.component').then(m => m.OrderCanceledComponent)
+    loadComponent: () => import('./features/purchase/pages/order-detail/order-detail.component').then(m => m.OrderDetailComponent)
+  },
+  {
+    path: 'checkout/processing',
+    loadComponent: () => import('./features/purchase/pages/order-detail/order-detail.component').then(m => m.OrderDetailComponent)
+  },
+  {
+    path: 'checkout/shipping',
+    loadComponent: () => import('./features/purchase/pages/order-detail/order-detail.component').then(m => m.OrderDetailComponent)
+  },
+  {
+    path: 'checkout/delivered',
+    loadComponent: () => import('./features/purchase/pages/order-detail/order-detail.component').then(m => m.OrderDetailComponent)
+  },
+  {
+    path: 'checkout/refund',
+    loadComponent: () => import('./features/purchase/pages/order-detail/order-detail.component').then(m => m.OrderDetailComponent)
+  },
+  {
+    path: 'orders/:id/return',
+    loadComponent: () => import('./features/purchase/pages/order-return/order-return.component').then(m => m.OrderReturnComponent)
   },
   {
     path: 'admin',
@@ -71,8 +103,31 @@ export const routes: Routes = [
     loadComponent: () => import('./features/content/pages/blog-detail/blog-detail.component').then(m => m.BlogDetailComponent)
   },
   {
+    path: 'order-tracking',
+    loadComponent: () => import('./features/purchase/pages/order-tracking/order-tracking.component').then(m => m.OrderTrackingComponent)
+  },
+  {
+    path: 'products/best-seller',
+    redirectTo: '',
+    pathMatch: 'full'
+  },
+  {
+    path: 'shop/best-seller',
+    redirectTo: '',
+    pathMatch: 'full'
+  },
+  {
+    path: 'shop/best-sellers',
+    redirectTo: '',
+    pathMatch: 'full'
+  },
+  {
     path: 'shop/:category',
     loadComponent: () => import('./features/shop/pages/category/category.component').then(m => m.CategoryComponent)
+  },
+  {
+    path: 'products/:id',
+    loadComponent: () => import('./features/shop/pages/product-detail/product-detail.component').then(m => m.ProductDetailComponent)
   }
 ];
 

@@ -109,19 +109,16 @@
     transform: translate(-50%, -50%);
     pointer-events: none;
     
-    // pink dots
-    &.dot-1, &.dot-3, &.dot-8, &.dot-11, &.dot-12, &.dot-14, &.dot-15 {
-      background-color: #E8A8BA;
+    &.dot-1, &.dot-4, &.dot-7, &.dot-10, &.dot-13 {
+      background-color: #EFB5D0;
     }
 
-    // green dots
-    &.dot-2, &.dot-6, &.dot-7, &.dot-10 {
-      background-color: #7A9A68;
+    &.dot-2, &.dot-5, &.dot-8, &.dot-11, &.dot-14 {
+      background-color: #C4A840;
     }
 
-    // gold/brown dots
-    &.dot-4, &.dot-5, &.dot-9, &.dot-13 {
-      background-color: #C4A882;
+    &.dot-3, &.dot-6, &.dot-9, &.dot-12, &.dot-15 {
+      background-color: #8BA880;
     }
 
     // Specific positions (percentages)
