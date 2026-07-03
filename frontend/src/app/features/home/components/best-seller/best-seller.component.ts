@@ -1,7 +1,7 @@
 // home/components/best-seller/best-seller.component.ts
 
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ProductService } from '../../services/product.service';
 import { Product, getDefaultPrice } from '../../models/product.model';
 import { CartService } from '../../../purchase/services/cart.service';
@@ -26,12 +26,16 @@ export class BestSellerComponent implements OnInit {
     '#96bf62','#74a340','#567d2e','#43631f','#375534'
   ];
 
+  private platformId = inject(PLATFORM_ID);
+  private cdr = inject(ChangeDetectorRef);
+
   constructor(
     private productService: ProductService,
     private cartService: CartService
   ) {}
 
   ngOnInit(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
     this.productService.getProducts().subscribe({
       next: (data: Product[]) => {
         const map = new Map(data.map(p => [p.product_id, p]));
@@ -39,10 +43,12 @@ export class BestSellerComponent implements OnInit {
           .map(id => map.get(id))
           .filter((p): p is Product => !!p);
         this.isLoading = false;
+        this.cdr.markForCheck();
       },
       error: (err) => {
         console.error('Failed to load best sellers:', err);
         this.isLoading = false;
+        this.cdr.markForCheck();
       }
     });
   }

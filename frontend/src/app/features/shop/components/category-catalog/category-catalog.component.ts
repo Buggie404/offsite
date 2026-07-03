@@ -1,7 +1,7 @@
 // shop/components/category-catalog/category-catalog.component.ts
 
-import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   LucideChevronDown, LucideChevronRight, LucideCheck, LucideChevronLeft
@@ -214,11 +214,16 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
     return this.filteredProducts.slice(start, start + this.PAGE_SIZE);
   }
 
+  private platformId = inject(PLATFORM_ID);
+  private cdr = inject(ChangeDetectorRef);
+
   constructor(private productService: ProductService) {}
 
   ngOnInit(): void {
     this.loadFilters();
-    this.loadProducts();
+    if (isPlatformBrowser(this.platformId)) {
+      this.loadProducts();
+    }
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -255,9 +260,11 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
         this.allProducts = data.filter(p => p.category === catKey);
         this.applyFilters();
         this.isLoading = false;
+        this.cdr.detectChanges();
       },
       error: () => {
         this.isLoading = false;
+        this.cdr.detectChanges();
       }
     });
   }

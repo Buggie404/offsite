@@ -7,8 +7,8 @@
 //  Nếu API lỗi hoặc DB chưa có data → fallback về 3 card mẫu.
 // ─────────────────────────────────────────────────────────────
 
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { CommunityService } from '../../services/community.service';
 import { Post } from '../../models/post.model';
 
@@ -67,11 +67,21 @@ export interface CommunityCard {
 })
 export class CommunityComponent implements OnInit {
   // Hiển thị ngay fallback trong khi chờ API
-  cards: CommunityCard[] = DEFAULT_CARDS.map((d, i) => this.toCard(d, i));
+  cards: CommunityCard[] = DEFAULT_CARDS.map(d => ({
+    community_name: d.community_name,
+    preview: d.content.trim().split(/\s+/).slice(0, 10).join(' '),
+    image: d.image,
+    likes: d.likes,
+    bgColor: d.bgColor
+  }));
+
+  private platformId = inject(PLATFORM_ID);
+  private cdr = inject(ChangeDetectorRef);
 
   constructor(private communityService: CommunityService) {}
 
   ngOnInit() {
+    if (!isPlatformBrowser(this.platformId)) return;
     this.loadTopLiked();
   }
 
@@ -97,10 +107,12 @@ export class CommunityComponent implements OnInit {
             bgColor: BG_COLORS[i] ?? 'var(--color-cream)'
           }, i);
         });
+        this.cdr.markForCheck();
       },
       error: () => {
         // Giữ nguyên fallback đã hiển thị sẵn
         console.warn('[CommunityComponent] API không phản hồi, dùng fallback data.');
+        this.cdr.markForCheck();
       }
     });
   }
