@@ -1,0 +1,352 @@
+<div class="recipe-detail-page" *ngIf="recipe">
+  <!-- ── HERO / HEADER SECTION ────────────────────────────────────────── -->
+  <div class="hero-section">
+    <div class="hero-container">
+      <!-- Back to Recipes link -->
+      <button class="back-btn" (click)="goBack()">
+        <svg lucideArrowLeft [size]="16" class="btn-icon"></svg>
+        <span>Back to Recipes</span>
+      </button>
+
+      <div class="hero-content-grid">
+        <!-- Hero Left: Info -->
+        <div class="hero-info">
+          <h1 class="hero-title">{{ recipe.title }}</h1>
+          <p class="hero-description">{{ recipe.description }}</p>
+
+          <!-- Meta chips (SAVES, BASE, TIME, DIFFICULTY) -->
+          <div class="meta-chips">
+            <span class="chip chip--saves">
+              <svg lucideHeart [size]="14"></svg>
+              <span>{{ recipe.saves || 0 }}</span>
+            </span>
+            <span class="chip chip--base">
+              <svg lucideDroplet [size]="14"></svg>
+              <span>{{ getRecipeBaseLabel(recipe) | uppercase }}</span>
+            </span>
+            <span class="chip chip--time">
+              <svg lucideClock [size]="14"></svg>
+              <span>{{ recipe.metadata.prepTime }} MINS</span>
+            </span>
+            <span class="chip chip--difficulty">
+              <svg lucideStar [size]="14"></svg>
+              <span>{{ getDifficultyLabel(recipe) | uppercase }}</span>
+            </span>
+          </div>
+
+          <!-- Authors / Yield / Serve Style metadata -->
+          <div class="specs-grid">
+            <div class="spec-item">
+              <span class="spec-label">AUTHOR</span>
+              <span class="spec-val">{{ recipe.source.author || recipe.source.creatorName || 'Offsite' }}</span>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">YIELD</span>
+              <span class="spec-val">{{ recipe.metadata.servings }} {{ recipe.metadata.servings === 1 ? 'Serving' : 'Servings' }}</span>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">SERVE STYLE</span>
+              <span class="spec-val">{{ (getBadgeLabel(recipe) || 'Standard') | titlecase }}</span>
+            </div>
+          </div>
+
+          <!-- Save recipe CTA -->
+          <button 
+            class="save-recipe-btn" 
+            [class.save-recipe-btn--active]="isFavorited(recipe)"
+            (click)="toggleFavorite(recipe, $event)"
+          >
+            <svg lucideHeart [size]="18" [attr.fill]="isFavorited(recipe) ? 'currentColor' : 'none'"></svg>
+            <span>{{ isFavorited(recipe) ? 'SAVED RECIPE' : 'SAVE RECIPE' }}</span>
+          </button>
+        </div>
+
+        <!-- Hero Right: Main Image -->
+        <div class="hero-image-wrapper">
+          <img [src]="recipe.heroImage.url" [alt]="recipe.title" class="hero-image" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MAIN CONTENT (INGREDIENTS, STEPS & TIMER) ─────────────────────── -->
+  <div class="main-content-section">
+    <div class="main-container">
+      <div class="content-timer-grid">
+        <!-- Left: Accordions -->
+        <div class="content-left">
+          <!-- Ingredients & Tools Accordion -->
+          <div class="accordion-item" [class.accordion-item--open]="ingredientsOpen">
+            <button class="accordion-header" (click)="toggleIngredients()">
+              <h2>INGREDIENTS & TOOLS</h2>
+              <svg lucideChevronDown [size]="20" class="chevron-icon"></svg>
+            </button>
+            <div class="accordion-body" *ngIf="ingredientsOpen">
+              <ul class="items-list">
+                <!-- Ingredients -->
+                <li class="item-row" [class.item-row--optional]="ing.optional" *ngFor="let ing of recipe.ingredients">
+                  <div class="item-checkbox"></div>
+                  <span class="item-text">
+                    <span class="item-qty" *ngIf="ing.quantity">{{ ing.quantity }} {{ ing.unit }} </span>
+                    <span class="item-optional-prefix" *ngIf="ing.optional">Optional: </span>
+                    {{ ing.name }}
+                  </span>
+                </li>
+                <!-- Tools -->
+                <li class="item-row item-row--tool" *ngFor="let tool of recipe.tools">
+                  <div class="item-checkbox item-checkbox--tool"></div>
+                  <span class="item-text">{{ tool.name }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Steps Accordion -->
+          <div class="accordion-item" [class.accordion-item--open]="stepsOpen">
+            <button class="accordion-header" (click)="toggleSteps()">
+              <h2>STEPS</h2>
+              <svg lucideChevronDown [size]="20" class="chevron-icon"></svg>
+            </button>
+
+            <div class="accordion-body" *ngIf="stepsOpen">
+              <div class="steps-list">
+                <div class="step-card" *ngFor="let step of recipe.steps; let idx = index">
+                  <div class="step-num">{{ idx + 1 }}</div>
+                  <div class="step-details">
+                    <h3 class="step-title">{{ step.title }}</h3>
+                    <p class="step-desc">{{ step.description }}</p>
+                    
+                    <!-- Start timer button if step has a timer -->
+                    <button 
+                      class="step-timer-btn" 
+                      *ngIf="getStepTimerDuration(step) > 0" 
+                      (click)="startTimerForStep(step)"
+                    >
+                      <svg lucideClock [size]="14"></svg>
+                      <span>START TIMER: {{ formatTime(getStepTimerDuration(step)) }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Floating Timer Card -->
+        <div class="content-right">
+          <div class="timer-card">
+            <h3 class="timer-title">Timer</h3>
+            <div class="timer-digits">{{ formatTime(timeLeft) }}</div>
+            <div class="timer-actions">
+              <button class="timer-btn timer-btn--primary" (click)="toggleTimer()">
+                <svg *ngIf="!timerRunning" lucidePlay [size]="16" class="btn-icon"></svg>
+                <svg *ngIf="timerRunning" lucidePause [size]="16" class="btn-icon"></svg>
+                <span>{{ timerRunning ? 'PAUSE' : 'START' }}</span>
+              </button>
+              <button class="timer-btn timer-btn--secondary" (click)="resetTimer()">
+                <svg lucideRotateCcw [size]="16" class="btn-icon"></svg>
+                <span>RESET</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── COMPLETE THE RITUAL (PRODUCTS) ───────────────────────────────── -->
+  <div class="ritual-section" *ngIf="products.length > 0">
+    <div class="ritual-container">
+      <div class="section-header">
+        <h2 class="section-title">COMPLETE THE RITUAL</h2>
+        <a href="#" class="view-all-link">
+          <span>VIEW ALL</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </a>
+      </div>
+      
+      <div class="product-grid">
+        <div class="card" *ngFor="let product of products">
+          <!-- Image wrap -->
+          <div class="card-image-wrap">
+            <img [src]="getPrimaryImage(product)" [alt]="getPrimaryImageAlt(product)" class="product-img" />
+
+            <button class="save-btn" (click)="onSaveProduct(product, $event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                <path d="M12 21s-7-4.6-9.5-9.1C1 9 2.2 5.5 5.6 4.6 8 4 10 5 12 7c2-2 4-3 6.4-2.4 3.4 0.9 4.6 4.4 3.1 7.3C19 16.4 12 21 12 21z"/>
+              </svg>
+            </button>
+
+            <!-- Optional badge -->
+            <div class="badge-wrap" *ngIf="product.product_id === 14001 || product.product_id === 12011">
+              <div class="badge"><span>Best seller</span></div>
+            </div>
+          </div>
+
+          <!-- Card body -->
+          <div class="card-body">
+            <div class="card-body-top"
+                 [class.gap-coffee]="product.category === 'coffee'">
+              
+              <!-- Title + Rating -->
+              <div class="title-rating-row">
+                <h3 class="product-title">{{ product.name }}</h3>
+                <div class="rating">
+                  <svg viewBox="0 0 16 16">
+                    <polygon points="8,1 10,6 15,6 11,9.5 12.5,15 8,11.8 3.5,15 5,9.5 1,6 6,6"/>
+                  </svg>
+                  <span>4.9</span>
+                </div>
+              </div>
+
+              <!-- Origin -->
+              <p class="origin-text" *ngIf="getOrigin(product)">
+                {{ getOrigin(product) }}
+              </p>
+
+              <!-- Tag pills -->
+              <div class="tags-row" *ngIf="getTags(product).length">
+                <div class="tag" *ngFor="let tag of getTags(product)">
+                  <span>{{ tag }}</span>
+                </div>
+              </div>
+
+              <!-- Roast Swatch bar -->
+              <div class="roast-bar" *ngIf="showRoastBar(product)">
+                <span
+                  *ngFor="let color of roastSwatches; let i = index"
+                  class="swatch"
+                  [class.swatch--highlight]="isHighlightSwatch(product, i)"
+                  [style.background]="isHighlightSwatch(product, i) ? '#E8E05A' : color"
+                ></span>
+              </div>
+            </div>
+
+            <!-- Price & Add -->
+            <div class="price-add-row">
+              <span class="price">{{ getPrice(product) }}</span>
+              <button class="add-btn" (click)="onAddToCart(product)">
+                <span>ADD</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RELATED RECIPES ─────────────────────────────────────────────── -->
+  <div class="related-section" *ngIf="relatedRecipes.length > 0">
+    <!-- Geometric decorative shapes matching the recipes hero background -->
+    <div class="shape shape-circle-1"></div>
+    <div class="shape shape-circle-2"></div>
+    <div class="shape shape-diamond-left"></div>
+    <div class="shape shape-diamond-right-1"></div>
+    <div class="shape shape-diamond-right-2"></div>
+
+    <div class="related-container">
+      <div class="section-header">
+        <h2 class="section-title">RELATED RECIPES</h2>
+        <a routerLink="/recipes" [queryParams]="{ base: getRecipeBaseLabel(recipe), style: getBadgeLabel(recipe) }" class="view-all-link">
+          <span>VIEW ALL</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </a>
+      </div>
+      
+      <div class="recipe-grid">
+        <article class="recipe-card" *ngFor="let relRecipe of relatedRecipes" [routerLink]="['/recipes', relRecipe.slug]" style="cursor: pointer;">
+          <!-- Image -->
+          <div class="recipe-card__image-wrapper">
+            <span *ngIf="getBadgeLabel(relRecipe)" class="badge" [style.background]="getBadgeColor(relRecipe)">
+              {{ getBadgeLabel(relRecipe) }}
+            </span>
+            
+            <button 
+              class="fav-btn" 
+              [class.fav-btn--active]="isFavorited(relRecipe)"
+              (click)="toggleFavorite(relRecipe, $event)" 
+              aria-label="Add to favorites"
+            >
+              <svg class="fav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" 
+                      [attr.fill]="isFavorited(relRecipe) ? 'currentColor' : 'none'" 
+                      stroke="currentColor" 
+                      stroke-width="1.8"/>
+              </svg>
+            </button>
+
+            <div class="recipe-card__image">
+              <img [src]="relRecipe.heroImage.url" [alt]="relRecipe.title" />
+            </div>
+          </div>
+
+          <!-- Body -->
+          <div class="recipe-card__body">
+            <h3 class="recipe-card__title">{{ relRecipe.title }}</h3>
+            <hr class="recipe-card__divider" />
+
+            <div class="recipe-card__meta">
+              <span class="meta-item">
+                <svg lucideDroplet [size]="14" class="meta-item__icon"></svg>
+                {{ getRecipeBaseLabel(relRecipe) }}
+              </span>
+              <span class="meta-item">
+                <svg lucideClock [size]="14" class="meta-item__icon"></svg>
+                {{ relRecipe.metadata.prepTime }} MINS
+              </span>
+              <span class="meta-item">
+                <svg lucideStar [size]="14" class="meta-item__icon"></svg>
+                {{ getDifficultyLabel(relRecipe) }}
+              </span>
+              <span class="meta-item">
+                <svg lucideHeart [size]="14" class="meta-item__icon"></svg>
+                {{ relRecipe.saves || 0 }}
+              </span>
+            </div>
+
+            <p class="recipe-card__desc">{{ relRecipe.description }}</p>
+
+            <div class="recipe-card__cta">
+              <span>VIEW RECIPE</span>
+              <span class="recipe-card__cta-arrow">→</span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+
+  <!-- Back to Recipes CTA -->
+  <section class="back-cta-section">
+    <div class="back-cta-container">
+      <button class="back-cta-btn" (click)="goBack()" style="cursor: pointer; border: none;">
+        <svg lucideArrowLeft [size]="18"></svg>
+        BACK TO RECIPES
+      </button>
+    </div>
+  </section>
+
+  <button
+    *ngIf="showBackToTop"
+    class="back-to-top-btn"
+    (click)="scrollToTop()"
+    aria-label="Back to top">
+    <svg lucideArrowUp [size]="20" class="arrow-up-icon"></svg>
+  </button>
+</div>
+
+<div class="loading-state" *ngIf="isLoading">
+  <div class="spinner"></div>
+  <p>Loading artisanal recipe...</p>
+</div>
+
+<div class="error-state" *ngIf="!isLoading && errorMessage">
+  <p>{{ errorMessage }}</p>
+  <button class="back-btn" (click)="goBack()">Back to Recipes</button>
+</div>

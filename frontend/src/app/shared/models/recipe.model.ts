@@ -26,6 +26,8 @@ export interface RecipeStep {
   order: number;
   title: string;
   description: string;
+  timerSeconds?: number;
+  duration?: number;
 }
 
 export interface RecipeSource {

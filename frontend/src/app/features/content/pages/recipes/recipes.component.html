@@ -1,0 +1,236 @@
+<div class="recipes-page">
+  <!-- ── HERO BANNER ────────────────────────────────────────── -->
+  <div class="recipes-hero-banner">
+    <!-- Geometric decorative shapes matching the mockup background -->
+    <div class="shape shape-circle-1"></div>
+    <div class="shape shape-circle-2"></div>
+    <div class="shape shape-diamond-left"></div>
+    <div class="shape shape-diamond-right-1"></div>
+    <div class="shape shape-diamond-right-2"></div>
+
+    <div class="hero-content">
+      <h1 class="hero-title">RECIPES</h1>
+      <p class="hero-subtitle">Discover artisanal preparations and techniques to elevate your daily ritual.</p>
+    </div>
+  </div>
+
+  <!-- ── FILTER BAR ─────────────────────────────────────────── -->
+  <div class="filter-bar-section">
+    <div class="filter-container">
+      
+      <!-- Two columns layout matching mockup -->
+      <div class="filter-columns">
+        <!-- Left Column: Search & Base Filter -->
+        <div class="filter-column left-column">
+          <div class="search-wrapper">
+            <svg lucideSearch [size]="18" class="search-icon"></svg>
+            <input 
+              type="text" 
+              placeholder="Search recipes..." 
+              [(ngModel)]="searchQuery" 
+              (ngModelChange)="onSearchChange()" 
+              class="search-input"
+            />
+            <button
+              *ngIf="searchQuery"
+              class="search-clear-btn"
+              (click)="clearSearch()"
+              aria-label="Clear search"
+            >
+              <svg lucideX [size]="16" class="search-clear-icon"></svg>
+            </button>
+          </div>
+
+          <!-- BASE filter -->
+          <div class="filter-group">
+            <span class="filter-label">BASE:</span>
+            <div class="filter-options">
+              <button 
+                *ngFor="let base of bases" 
+                (click)="setBase(base)" 
+                [class.active]="selectedBase === base"
+                class="filter-btn"
+              >
+                {{ base }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Sort & Style Filter -->
+        <div class="filter-column right-column">
+          <div class="sort-dropdown-wrapper">
+            <button class="sort-dropdown-btn" (click)="toggleSortDropdown()">
+              <span>SORT: {{ getSortLabel() }}</span>
+              <svg lucideChevronDown [size]="16" class="chevron-icon" [class.open]="isSortDropdownOpen"></svg>
+            </button>
+            <div class="sort-menu" *ngIf="isSortDropdownOpen">
+              <button class="sort-item" (click)="selectSort('popularity')">POPULARITY</button>
+              <button class="sort-item" (click)="selectSort('newest')">NEWEST</button>
+              <button class="sort-item" (click)="selectSort('name')">NAME</button>
+            </div>
+          </div>
+
+          <!-- STYLE filter -->
+          <div class="filter-group">
+            <span class="filter-label">STYLE:</span>
+            <div class="filter-options">
+              <button 
+                *ngFor="let style of styles" 
+                (click)="setStyle(style)" 
+                [class.active]="selectedStyle === style"
+                class="filter-btn"
+              >
+                {{ style }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── RESULTS COUNT ──────────────────────────────────────── -->
+  <div class="results-count-container">
+    <h2 class="results-title">FOUND {{ filteredRecipes.length }} RECIPES</h2>
+  </div>
+
+  <!-- ── RECIPES GRID ───────────────────────────────────────── -->
+  <div class="recipes-grid-section">
+    <div class="recipes-container">
+      
+      <!-- Loading state -->
+      <div *ngIf="isLoading" class="loading-row">
+        <div class="skeleton-card" *ngFor="let i of [1,2,3]">
+          <div class="skeleton-card__image"></div>
+          <div class="skeleton-card__body">
+            <div class="skeleton-line skeleton-line--short"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line skeleton-line--long"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div *ngIf="!isLoading && filteredRecipes.length === 0" class="empty-state">
+        <div class="empty-icon-wrapper">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="empty-icon">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.3-4.3"></path>
+            <line x1="8" y1="8" x2="14" y2="14"></line>
+            <line x1="14" y1="8" x2="8" y2="14"></line>
+          </svg>
+        </div>
+        <h3 class="empty-title">NO RECIPES FOUND</h3>
+        <p class="empty-subtitle">
+          <ng-container *ngIf="searchQuery.trim(); else filterOnlyText">
+            We couldn't find any recipes matching "{{ searchQuery }}".
+          </ng-container>
+          <ng-template #filterOnlyText>
+            We couldn't find any recipes matching your selected filters.
+          </ng-template>
+          <br class="desktop-only-br" />
+          Try different keywords or clear your filters to explore more artisanal preparations.
+        </p>
+        <button (click)="searchQuery = ''; selectedBase = 'ALL'; selectedStyle = 'ALL'; applyFilters()" class="clear-filters-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="btn-icon">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <polyline points="3 3 3 8 8 8"></polyline>
+          </svg>
+          CLEAR SEARCH & FILTERS
+        </button>
+      </div>
+
+      <!-- Cards Grid -->
+      <div *ngIf="!isLoading && filteredRecipes.length > 0" class="card-grid">
+        <article class="recipe-card" *ngFor="let recipe of filteredRecipes" [routerLink]="['/recipes', recipe.slug]" style="cursor: pointer;">
+          
+          <!-- Image area -->
+          <div class="recipe-card__image-wrapper">
+            <!-- Badge (e.g. HOT, COLD, DESSERT) -->
+            <span *ngIf="getBadgeLabel(recipe)" class="badge" [style.background]="getBadgeColor(recipe)">
+              {{ getBadgeLabel(recipe) }}
+            </span>
+            
+            <!-- Favorite Heart Button -->
+            <button 
+              class="fav-btn" 
+              [class.fav-btn--active]="isFavorited(recipe)"
+              (click)="toggleFavorite(recipe, $event)" 
+              aria-label="Add to favorites"
+            >
+              <svg class="fav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" 
+                      [attr.fill]="isFavorited(recipe) ? 'currentColor' : 'none'" 
+                      stroke="currentColor" 
+                      stroke-width="1.8"/>
+              </svg>
+            </button>
+
+            <div class="recipe-card__image">
+              <img
+                [src]="recipe.heroImage.url"
+                [alt]="recipe.title"
+                loading="lazy"
+                onerror="this.src='assets/images/placeholder.jpg'; this.onerror=null;"
+              />
+            </div>
+          </div>
+
+          <!-- Card body -->
+          <div class="recipe-card__body">
+            <h3 class="recipe-card__title">{{ recipe.title }}</h3>
+            <hr class="recipe-card__divider" />
+
+            <!-- Meta: Base + Duration + Difficulty + Saves -->
+            <div class="recipe-card__meta">
+              <!-- Base (Matcha/Coffee/Others) -->
+              <span class="meta-item">
+                <svg lucideDroplet [size]="14" class="meta-item__icon"></svg>
+                {{ getRecipeBaseLabel(recipe) }}
+              </span>
+
+              <!-- Duration -->
+              <span class="meta-item">
+                <svg lucideClock [size]="14" class="meta-item__icon"></svg>
+                {{ recipe.metadata.prepTime }} Mins
+              </span>
+
+              <!-- Difficulty -->
+              <span class="meta-item">
+                <svg lucideStar [size]="14" class="meta-item__icon"></svg>
+                {{ getDifficultyLabel(recipe) }}
+              </span>
+
+              <!-- Saves -->
+              <span class="meta-item">
+                <svg lucideHeart [size]="14" class="meta-item__icon heart-icon-spec"></svg>
+                {{ recipe.saves || 0 }}
+              </span>
+            </div>
+
+            <!-- Description -->
+            <p class="recipe-card__desc">{{ recipe.description }}</p>
+
+            <!-- CTA -->
+            <div class="recipe-card__cta">
+              <span>View Recipe</span>
+              <span class="recipe-card__cta-arrow" aria-hidden="true">→</span>
+            </div>
+          </div>
+
+        </article>
+      </div><!-- /.card-grid -->
+
+    </div><!-- /.recipes-container -->
+  </div><!-- /.recipes-grid-section -->
+
+  <button
+    *ngIf="showBackToTop"
+    class="back-to-top-btn"
+    (click)="scrollToTop()"
+    aria-label="Back to top">
+    <svg lucideArrowUp [size]="20" class="arrow-up-icon"></svg>
+  </button>
+</div>

@@ -91,7 +91,7 @@
         </div>
       </li>
       <li><a routerLink="/journal" routerLinkActive="active" class="nav-link">JOURNAL</a></li>
-      <li><a href="#" class="nav-link">RECIPES</a></li>
+      <li><a routerLink="/recipes" routerLinkActive="active" class="nav-link">RECIPES</a></li>
       <li><a href="#" class="nav-link">COMMUNITY</a></li>
 
       <!-- Hoverable Dropdown Link -->
@@ -191,7 +191,7 @@
         </div>
       </li>
       <li><a routerLink="/journal" class="mobile-nav-link" (click)="closeMobileMenu()">JOURNAL</a></li>
-      <li><a href="#" class="mobile-nav-link" (click)="closeMobileMenu()">RECIPES</a></li>
+      <li><a routerLink="/recipes" class="mobile-nav-link" (click)="closeMobileMenu()">RECIPES</a></li>
       <li><a href="#" class="mobile-nav-link" (click)="closeMobileMenu()">COMMUNITY</a></li>
       <li class="mobile-nav-item">
         <button class="mobile-nav-link" (click)="toggleMobileAbout($event)" [attr.aria-expanded]="isMobileAboutOpen">

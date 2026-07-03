@@ -33,7 +33,7 @@ async function getRecipeBySlugOrId(req, res) {
     }
 
     let query = {};
-    if (mongoose.Types.ObjectId.isValid(slugOrId)) {
+    if (mongoose.Types.ObjectId.isValid(slugOrId) && /^[0-9a-fA-F]{24}$/.test(slugOrId)) {
       query = { _id: slugOrId };
     } else if (slugOrId.startsWith('RCP')) {
       query = { recipe_id: slugOrId };

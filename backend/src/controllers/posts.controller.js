@@ -45,7 +45,7 @@ async function getPostById(req, res) {
     const { id } = req.params;
     let query = {};
     
-    if (mongoose.Types.ObjectId.isValid(id)) {
+    if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
       query = { _id: id };
     } else {
       query = { post_id: id };
@@ -120,7 +120,7 @@ async function updatePost(req, res) {
     const { content, media, post_type, recipe_id } = req.body;
 
     let query = {};
-    if (mongoose.Types.ObjectId.isValid(id)) {
+    if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
       query = { _id: id };
     } else {
       query = { post_id: id };
@@ -159,7 +159,7 @@ async function deletePost(req, res) {
     const { id } = req.params;
     
     let query = {};
-    if (mongoose.Types.ObjectId.isValid(id)) {
+    if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
       query = { _id: id };
     } else {
       query = { post_id: id };
@@ -195,7 +195,7 @@ async function likePost(req, res) {
     const { id } = req.params;
 
     let query = {};
-    if (mongoose.Types.ObjectId.isValid(id)) {
+    if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
       query = { _id: id };
     } else {
       query = { post_id: id };

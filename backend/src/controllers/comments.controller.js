@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 
 // Helper to resolve postId parameter to post_id string
 async function resolvePostIdString(postId) {
-  if (mongoose.Types.ObjectId.isValid(postId)) {
+  if (mongoose.Types.ObjectId.isValid(postId) && /^[0-9a-fA-F]{24}$/.test(postId)) {
     const post = await Post.findById(postId);
     return post ? post.post_id : null;
   }
@@ -66,7 +66,7 @@ async function createComment(req, res) {
 
     // Resolve post
     let queryPost = {};
-    if (mongoose.Types.ObjectId.isValid(postId)) {
+    if (mongoose.Types.ObjectId.isValid(postId) && /^[0-9a-fA-F]{24}$/.test(postId)) {
       queryPost = { _id: postId };
     } else {
       queryPost = { post_id: postId };
@@ -142,7 +142,7 @@ async function deleteComment(req, res) {
     const { id } = req.params;
 
     let query = {};
-    if (mongoose.Types.ObjectId.isValid(id)) {
+    if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
       query = { _id: id };
     } else {
       query = { comment_id: id };
@@ -203,7 +203,7 @@ async function likeComment(req, res) {
     const { action } = req.body; // 'like' or 'unlike'
 
     let query = {};
-    if (mongoose.Types.ObjectId.isValid(id)) {
+    if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
       query = { _id: id };
     } else {
       query = { comment_id: id };

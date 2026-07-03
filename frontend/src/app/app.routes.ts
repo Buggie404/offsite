@@ -35,6 +35,14 @@ export const routes: Routes = [
     loadChildren: () => import('./admin/admin-module').then(m => m.AdminModule)
   },
   {
+    path: 'recipes',
+    loadComponent: () => import('./features/content/pages/recipes/recipes.component').then(m => m.RecipesComponent)
+  },
+  {
+    path: 'recipes/:slug',
+    loadComponent: () => import('./features/content/pages/recipe-detail/recipe-detail.component').then(m => m.RecipeDetailComponent)
+  },
+  {
     path: 'about-us',
     loadComponent: () => import('./features/content/pages/about-us/about-us.component').then(m => m.AboutUsComponent)
   },
