@@ -11,9 +11,15 @@
   <div class="brew-container">
 
     <!-- ── HEADING ─────────────────────────────────────────── -->
-    <div class="heading-block">
-      <h2 class="heading-block__title">Brew It Yourself</h2>
-      <hr class="heading-block__divider" />
+    <div class="section-header">
+      <div class="heading-block">
+        <h2 class="heading-block__title">Brew It Yourself</h2>
+        <hr class="heading-block__divider" />
+      </div>
+      <a routerLink="/recipes" class="view-all-link">
+        <span>VIEW ALL RECIPES</span>
+        <svg lucideArrowRight [size]="16" aria-hidden="true"></svg>
+      </a>
     </div>
 
     <!-- ── LOADING STATE ───────────────────────────────────── -->
@@ -40,12 +46,21 @@
           <span class="badge" [style.background]="getBadgeColor(recipe)">
             {{ getBadgeLabel(recipe) }}
           </span>
+          <button
+            type="button"
+            class="fav-btn"
+            [class.fav-btn--active]="isSaved(recipe)"
+            (click)="toggleFavorite(recipe, $event)"
+            [attr.aria-label]="isSaved(recipe) ? 'Remove from saved recipes' : 'Save recipe'"
+          >
+            <svg lucideHeart [size]="18" class="fav-icon" [attr.fill]="isSaved(recipe) ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+          </button>
           <div class="recipe-card__image">
             <img
               [src]="recipe.heroImage.url"
               [alt]="recipe.title"
               loading="lazy"
-              onerror="this.style.display='none'"
+              onerror="this.src='assets/images/placeholder.jpg'; this.onerror=null;"
             />
           </div>
         </div>
@@ -55,22 +70,23 @@
           <h3 class="recipe-card__title">{{ recipe.title }}</h3>
           <hr class="recipe-card__divider" />
 
-          <!-- Meta: time + difficulty -->
+          <!-- Meta: base + time + difficulty + saves -->
           <div class="recipe-card__meta">
             <span class="meta-item">
-              <!-- Clock icon -->
-              <svg class="meta-item__icon" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/>
-                <path d="M7 4V7.5L9.5 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-              </svg>
+              <svg lucideDroplet [size]="14" class="meta-item__icon" aria-hidden="true"></svg>
+              {{ getRecipeBaseLabel(recipe) }}
+            </span>
+            <span class="meta-item">
+              <svg lucideClock [size]="14" class="meta-item__icon" aria-hidden="true"></svg>
               {{ recipe.metadata.prepTime }} Mins
             </span>
             <span class="meta-item">
-              <!-- Star icon -->
-              <svg class="meta-item__icon" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M7 1.5l1.5 3 3.3.5-2.4 2.3.6 3.2L7 9l-3 1.5.6-3.2L2.2 5l3.3-.5L7 1.5Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
-              </svg>
+              <svg lucideStar [size]="14" class="meta-item__icon" aria-hidden="true"></svg>
               {{ getDifficultyLabel(recipe) }}
+            </span>
+            <span class="meta-item">
+              <svg lucideHeart [size]="14" class="meta-item__icon heart-icon-spec" aria-hidden="true"></svg>
+              {{ recipe.saves || 0 }}
             </span>
           </div>
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
+const savedItemsController = require('../controllers/saved-items.controller');
 const { authMiddleware } = require('../middleware/auth.middleware');
 
 
@@ -17,6 +18,9 @@ router.get('/me', authMiddleware, authController.getProfile);
 router.get('/profile', authMiddleware, authController.getProfile);
 router.put('/profile', authMiddleware, authController.updateProfile);
 router.put('/change-password', authMiddleware, authController.changePassword);
+router.get('/saved-items', authMiddleware, savedItemsController.getSavedItems);
+router.put('/saved-products/:productId', authMiddleware, savedItemsController.toggleSavedProduct);
+router.put('/saved-recipes/:recipeId', authMiddleware, savedItemsController.toggleSavedRecipe);
 
 // Address and Payment Method routes
 router.post('/addresses', authMiddleware, authController.addAddress);

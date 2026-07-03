@@ -12,11 +12,9 @@
       </div>
       <h2 class="section-heading">What everyone's drinking</h2>
     </div>
-    <a href="#" class="view-all-link">
+    <a routerLink="/shop/best-sellers" class="view-all-link">
       <span>VIEW ALL PRODUCTS</span>
-      <svg viewBox="0 0 16 16" fill="none">
-        <path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="#544A40" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+      <svg lucideArrowRight [size]="16" aria-hidden="true"></svg>
     </a>
   </div>
 
@@ -32,15 +30,17 @@
       <div class="card-image-wrap">
         <img [src]="getPrimaryImage(product)" [alt]="getPrimaryImageAlt(product)" class="product-img" />
 
-        <button class="save-btn" (click)="onSave(product)">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
-            <path d="M12 21s-7-4.6-9.5-9.1C1 9 2.2 5.5 5.6 4.6 8 4 10 5 12 7c2-2 4-3 6.4-2.4 3.4 0.9 4.6 4.4 3.1 7.3C19 16.4 12 21 12 21z"/>
-          </svg>
+        <button
+          type="button"
+          class="save-btn"
+          [class.save-btn--active]="isSaved(product)"
+          (click)="onSave(product, $event)"
+          [attr.aria-label]="isSaved(product) ? 'Remove from saved products' : 'Save product'"
+        >
+          <svg lucideHeart [size]="16" [attr.fill]="isSaved(product) ? 'currentColor' : 'none'" aria-hidden="true"></svg>
         </button>
 
-        <div class="badge-wrap" *ngIf="isBestSeller(product)">
-          <div class="badge"><span>Best seller</span></div>
-        </div>
+        <span class="badge">BEST SELLER</span>
       </div>
 
       <!-- ── CARD BODY — flex column space-between ── -->

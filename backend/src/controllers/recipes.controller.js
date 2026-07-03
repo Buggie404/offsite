@@ -17,7 +17,16 @@ async function getAllRecipes(req, res) {
       filter['source.type'] = req.query.source_type;
     }
 
-    const recipes = await Recipe.find(filter);
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 0, 0), 100);
+    const skip = Math.max(Number.parseInt(req.query.skip, 10) || 0, 0);
+    const sort = req.query.sort === 'saves'
+      ? { saves: -1, recipe_id: 1 }
+      : {};
+
+    let query = Recipe.find(filter).sort(sort).skip(skip);
+    if (limit > 0) query = query.limit(limit);
+
+    const recipes = await query;
     res.json(recipes);
   } catch (error) {
     console.error('Error fetching recipes:', error);

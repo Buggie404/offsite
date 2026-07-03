@@ -53,6 +53,7 @@ export interface Product {
   variants: Variant[];
   rating_avg?: number | null;
   review_count?: number;
+  total_sold_quantity?: number;
   is_active?: boolean;
 
   matcha?: MatchaMeta;

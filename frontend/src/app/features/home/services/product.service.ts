@@ -1,7 +1,7 @@
 // home/services/product.service.ts
 
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Product } from '../models/product.model';
 
@@ -33,9 +33,11 @@ export class ProductService {
     return this.http.get<ProductCategoryCounts>(`${this.api}/category-counts`);
   }
 
-  getBestSellers(): Observable<Product[]> {
-    // Sau khi backend thêm filter: GET /api/products?tag=best-seller
-    // đổi thành: return this.http.get<Product[]>(`${this.api}?tag=best-seller`);
-    return this.http.get<Product[]>(this.api);
+  getBestSellers(limit = 4): Observable<Product[]> {
+    const params = new HttpParams()
+      .set('sort', 'total_sold_quantity')
+      .set('limit', limit.toString());
+
+    return this.http.get<Product[]>(this.api, { params });
   }
 }

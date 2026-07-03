@@ -12,7 +12,15 @@ async function getAllProducts(req, res) {
       filter['matcha.pricing_tier'] = req.query.pricing_tier;
     }
     
-    const products = await Product.find(filter);
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 0, 0), 100);
+    const sort = req.query.sort === 'total_sold_quantity'
+      ? { total_sold_quantity: -1, product_id: 1 }
+      : {};
+
+    let query = Product.find(filter).sort(sort);
+    if (limit > 0) query = query.limit(limit);
+
+    const products = await query;
     res.json(products);
   } catch (error) {
     console.error('Error fetching products:', error);

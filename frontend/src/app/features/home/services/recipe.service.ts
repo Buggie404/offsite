@@ -34,6 +34,15 @@ export class RecipeService {
     return this.http.get<Recipe[]>(this.endpoint, { params });
   }
 
+  /** Fetch the most-saved published recipes for the homepage. */
+  getMostSavedRecipes(limit = 3): Observable<Recipe[]> {
+    const params = new HttpParams()
+      .set('sort', 'saves')
+      .set('limit', limit.toString());
+
+    return this.http.get<Recipe[]>(this.endpoint, { params });
+  }
+
   /**
    * Fetch a single recipe by its slug.
    */

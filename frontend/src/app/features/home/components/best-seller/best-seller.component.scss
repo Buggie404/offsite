@@ -3,7 +3,7 @@
 $wheat:     #E8D5B0;
 $warm-mid:  #544A40;
 $cream:     #FCF2ED;
-$blush:     #EFB5CF;
+$blush:     #EFB5D0;
 $dark:      #1F1B18;
 $text-dark: #1A1A1A;
 $origin:    #434840;
@@ -98,6 +98,7 @@ $pill-bg:   #EAE1DC;
   display: flex;
   align-items: center;
   gap: 8px;
+  color: $warm-mid;
   text-decoration: none;
   flex: none;
 
@@ -109,7 +110,13 @@ $pill-bg:   #EAE1DC;
     white-space: nowrap;
   }
 
-  svg { width: 16px; height: 16px; }
+  svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.2s ease;
+  }
+
+  &:hover svg { transform: translateX(3px); }
 }
 
 // ── LOADING ──
@@ -163,46 +170,58 @@ $pill-bg:   #EAE1DC;
 
 .save-btn {
   position: absolute;
-  right: 5px;
-  top: 15px;
-  width: 26px;
-  height: 26px;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(84, 74, 64, 0.1);
-  backdrop-filter: blur(2px);
-  border-radius: 9999px;
-  border: none;
+  padding: 0;
+  background: #FAF3EB;
+  border: 1px solid $dark;
+  border-radius: 50%;
+  color: $dark;
   cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+
+  &:hover {
+    transform: scale(1.1);
+    background-color: $cream;
+  }
 
   svg {
     width: 16px;
     height: 16px;
-    stroke: $warm-mid;
+    stroke: currentColor;
     fill: none;
   }
-}
 
-.badge-wrap {
-  position: absolute;
-  left: 16px;
-  top: 16px;
+  &--active {
+    color: #D32F2F;
+
+    svg {
+      stroke: currentColor;
+      fill: currentColor;
+    }
+  }
 }
 
 .badge {
-  display: flex;
-  align-items: center;
-  padding: 4px 8px;
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 2;
+  display: inline-block;
+  padding: 4px 10px;
   background: $blush;
-
-  span {
-    font-family: 'DM Mono', monospace;
-    font-weight: 500;
-    font-size: 12px;
-    text-transform: uppercase;
-    color: #121F06;
-  }
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1a1a1a;
 }
 
 // ── BODY ──
