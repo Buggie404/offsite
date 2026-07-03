@@ -231,6 +231,18 @@ export class CartService {
     }
   }
 
+  setSelectAll(selected: boolean): void {
+    const currentItems = this.cartItems().map(item => {
+      const variant = item.product.variants.find(v => v.sku === item.variantSku);
+      const inStock = variant ? variant.stock > 0 : false;
+      return {
+        ...item,
+        selected: inStock ? selected : false
+      };
+    });
+    this.saveCart(currentItems);
+  }
+
   clearPurchased(): void {
     const remaining = this.cartItems().filter(item => !item.selected);
     this.saveCart(remaining);

@@ -376,12 +376,21 @@
 
   <!-- Cart Footer -->
   <div class="cart-footer" *ngIf="cartItems.length > 0">
+    <!-- Select All control -->
+    <div class="select-all-row">
+      <label class="select-all-container">
+        <input type="checkbox" [checked]="isAllSelected" (change)="toggleSelectAll($event)">
+        <span class="checkmark"></span>
+        <span class="select-all-label">SELECT ALL</span>
+      </label>
+    </div>
+
     <div class="subtotal-row">
       <span class="subtotal-label">SUBTOTAL</span>
       <span class="subtotal-price">${{ subtotal | number:'1.2-2' }}</span>
     </div>
     
-    <button class="checkout-btn" (click)="checkout($event)">
+    <button class="checkout-btn" (click)="checkout($event)" [disabled]="!hasSelectedItems">
       CHECKOUT
     </button>
     

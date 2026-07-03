@@ -5,12 +5,15 @@ import {
   EventEmitter,
   OnChanges,
   SimpleChanges,
-  signal
+  signal,
+  AfterViewInit,
+  OnDestroy
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideX, LucideChevronDown, LucideCheck, LucideAlertCircle } from '@lucide/angular';
 import { UserAddress } from '../../models/user.model';
+import { InlineValidator, FieldConfig } from '../../utils/inline-validator';
 
 @Component({
   selector: 'app-address-modal',
@@ -19,7 +22,8 @@ import { UserAddress } from '../../models/user.model';
   templateUrl: './address-modal.component.html',
   styleUrl: './address-modal.component.scss'
 })
-export class AddressModalComponent implements OnChanges {
+export class AddressModalComponent implements OnChanges, AfterViewInit, OnDestroy {
+  addressValidator: InlineValidator | null = null;
   @Input() isOpen = false;
   @Input() address: UserAddress | null = null;
   @Input() isOnlyAddress = false;
@@ -95,6 +99,148 @@ export class AddressModalComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['address'] || changes['isOnlyAddress'] || changes['isOpen']) {
       this.reloadForm();
+    }
+    if (changes['isOpen']) {
+      if (this.isOpen) {
+        setTimeout(() => {
+          this.setupValidator();
+        });
+      } else {
+        this.cleanupValidator();
+      }
+    }
+  }
+
+  ngAfterViewInit() {
+    if (this.isOpen) {
+      this.setupValidator();
+    }
+  }
+
+  ngOnDestroy() {
+    this.cleanupValidator();
+  }
+
+  setupValidator() {
+    if (typeof window === 'undefined') return;
+
+    // Expose helper and data on window for InlineValidator expression evaluation
+    (window as any).normalizeString = this.normalizeString.bind(this);
+    (window as any).REAL_CITIES = this.REAL_CITIES;
+
+    const addressConfigs: FieldConfig[] = [
+      {
+        field_id: 'recipient-name',
+        error_element_id: 'recipient-name-error',
+        rules: [
+          {
+            sequence: 1,
+            type: 'FORMAT_CHECK',
+            regex_pattern: '^\\s*$',
+            error_message: 'Name is required.'
+          }
+        ]
+      },
+      {
+        field_id: 'recipient-phone',
+        error_element_id: 'recipient-phone-error',
+        rules: [
+          {
+            sequence: 1,
+            type: 'FORMAT_CHECK',
+            regex_pattern: '^\\s*$',
+            error_message: 'Mobile number is required.'
+          },
+          {
+            sequence: 2,
+            type: 'FORMAT_CHECK',
+            regex_pattern: '[^0-9 ]',
+            error_message: 'Mobile number must contain digits and spaces only.'
+          },
+          {
+            sequence: 3,
+            type: 'FORMAT_CHECK',
+            regex_pattern: '^(?!\\s*(?:\\d\\s*){10,11}$)',
+            error_message: 'Mobile number must be 10 to 11 digits.'
+          }
+        ]
+      },
+      {
+        field_id: 'recipient-city',
+        error_element_id: 'recipient-city-error',
+        rules: [
+          {
+            sequence: 1,
+            type: 'FORMAT_CHECK',
+            regex_pattern: '^\\s*$',
+            error_message: 'City is required.'
+          },
+          {
+            sequence: 2,
+            type: 'FORMAT_CHECK',
+            condition: '!window.REAL_CITIES.has(window.normalizeString(value))',
+            error_message: 'City not exists.'
+          }
+        ]
+      },
+      {
+        field_id: 'recipient-address',
+        error_element_id: 'recipient-address-error',
+        rules: [
+          {
+            sequence: 1,
+            type: 'FORMAT_CHECK',
+            regex_pattern: '^\\s*$',
+            error_message: 'Address is required.'
+          },
+          {
+            sequence: 2,
+            type: 'FORMAT_CHECK',
+            regex_pattern: '^(?!\\d)',
+            error_message: 'Address must start with a house number.'
+          },
+          {
+            sequence: 3,
+            type: 'FORMAT_CHECK',
+            regex_pattern: '^(?!.*,)',
+            error_message: 'Address must include a comma to separate the street and ward.'
+          },
+          {
+            sequence: 4,
+            type: 'FORMAT_CHECK',
+            condition: 'value.split(",").map(p => p.trim()).length < 2 || !value.split(",").map(p => p.trim())[0] || !value.split(",").map(p => p.trim())[1]',
+            error_message: 'Address must contain street name and ward name.'
+          },
+          {
+            sequence: 5,
+            type: 'FORMAT_CHECK',
+            condition: 'value.split(",")[0] && value.split(",")[0].replace(/^\\d+[-/a-zA-Z\\d]*\\s*/, "").trim().length < 2',
+            error_message: 'Street name must be at least 2 characters long.'
+          },
+          {
+            sequence: 6,
+            type: 'FORMAT_CHECK',
+            condition: 'value.split(",")[1] && value.split(",")[1].trim().length < 2',
+            error_message: 'Ward name must be at least 2 characters long.'
+          }
+        ]
+      }
+    ];
+
+    this.addressValidator = new InlineValidator(addressConfigs);
+    
+    const modalContainer = document.querySelector('.modal-container');
+    if (modalContainer) {
+      this.addressValidator.attach(modalContainer as HTMLElement);
+    } else {
+      this.addressValidator.attach();
+    }
+  }
+
+  cleanupValidator() {
+    if (this.addressValidator) {
+      this.addressValidator.detach();
+      this.addressValidator = null;
     }
   }
 
@@ -180,6 +326,12 @@ export class AddressModalComponent implements OnChanges {
     this.form.city = city;
     this.showCitySuggestions = false;
     this.onFieldBlur('city');
+    setTimeout(() => {
+      const el = document.getElementById('recipient-city');
+      if (el) {
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
   }
 
   validateAddress(): string | null {
@@ -220,7 +372,24 @@ export class AddressModalComponent implements OnChanges {
     }
   }
 
+  formatPhoneNumber(value: string): string {
+    const digits = (value || '').replace(/\D/g, '');
+    if (digits.length === 10 || digits.length === 11) {
+      return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+    }
+    return value;
+  }
+
   onFieldBlur(field: 'name' | 'mobile' | 'city' | 'address') {
+    if (field === 'mobile') {
+      this.form.phone = this.formatPhoneNumber(this.form.phone);
+      setTimeout(() => {
+        const el = document.getElementById('recipient-phone');
+        if (el) {
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+    }
     this.onFieldInput(field);
   }
 
@@ -294,6 +463,9 @@ export class AddressModalComponent implements OnChanges {
       address: 'idle'
     });
     this.showCitySuggestions = false;
+    if (this.addressValidator) {
+      this.addressValidator.clearAll();
+    }
   }
 
   selectLabel(label: 'home' | 'office' | 'other'): void {
@@ -309,10 +481,17 @@ export class AddressModalComponent implements OnChanges {
   }
 
   onSave(): void {
+    let hasError = false;
+    if (this.addressValidator) {
+      const isValid = this.addressValidator.validateAll();
+      if (!isValid) {
+        hasError = true;
+      }
+    }
+
     const fields: ('name' | 'mobile' | 'city' | 'address')[] = [
       'name', 'mobile', 'city', 'address'
     ];
-    let hasError = false;
     for (const f of fields) {
       const error = this.runValidation(f);
       if (error) {
