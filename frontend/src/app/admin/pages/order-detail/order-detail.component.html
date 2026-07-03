@@ -1,0 +1,275 @@
+@if (loading) {
+  <p class="state-message">Loading order details…</p>
+} @else if (error) {
+  <p class="state-message state-message--error" role="alert">{{ error }}</p>
+  <a routerLink="/admin/orders" class="back-link">← Back to orders</a>
+} @else if (order) {
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a routerLink="/admin/orders">Orders</a>
+    <span aria-hidden="true">/</span>
+    <span>#{{ order.order_id }}</span>
+  </nav>
+
+  <div class="order-hero">
+    <h1 class="order-hero__title">Order #{{ order.order_id }}</h1>
+    <div class="order-hero__row">
+      <p class="order-hero__meta">
+        Placed {{ formatDateTime(order.created_at) }} · {{ itemCount }} items
+      </p>
+      <span class="status-badge" [ngClass]="statusClass(order.order_status)">
+        {{ statusLabel(order.order_status) }}
+      </span>
+    </div>
+  </div>
+
+  @if (actionError) {
+    <p class="action-feedback action-feedback--error" role="alert">{{ actionError }}</p>
+  }
+
+  <div class="detail-layout">
+    <div class="detail-main">
+      <section class="detail-card">
+        <h2 class="detail-card__title">Line Items</h2>
+        <div class="line-items">
+          @for (item of order.items; track item.product_id + item.variant_name) {
+            <div class="line-item">
+              @if (item.image_url) {
+                <img [src]="item.image_url" [alt]="item.product_name" class="line-item__thumb" />
+              } @else {
+                <div class="line-item__thumb line-item__thumb--placeholder" aria-hidden="true"></div>
+              }
+              <div class="line-item__info">
+                <p class="line-item__name">{{ item.product_name }}</p>
+                <p class="line-item__variant">{{ item.variant_name }}</p>
+              </div>
+              <span class="line-item__qty">× {{ item.quantity }}</span>
+              <span class="line-item__price">{{
+                formatPrice(item.subtotal, order.pricing.currency)
+              }}</span>
+            </div>
+          }
+        </div>
+        <div class="order-total">
+          <span>Total</span>
+          <span>{{ formatPrice(order.pricing.total, order.pricing.currency) }}</span>
+        </div>
+      </section>
+
+      <section class="detail-card">
+        <h2 class="detail-card__title">Customer &amp; Shipping</h2>
+        <div class="info-grid">
+          <div class="info-field">
+            <label>Customer</label>
+            <p>{{ order.customer_name }}</p>
+          </div>
+          <div class="info-field">
+            <label>Email</label>
+            <p>{{ order.customer_email || '—' }}</p>
+          </div>
+          <div class="info-field">
+            <label>Phone</label>
+            <p>{{ order.customer_phone || '—' }}</p>
+          </div>
+          <div class="info-field">
+            <label>Payment</label>
+            <p>{{ order.payment_label }}</p>
+          </div>
+        </div>
+        <div class="info-field info-field--block">
+          <label>Shipping address</label>
+          @if (shippingAddressLines().length) {
+            <p>
+              @for (line of shippingAddressLines(); track line) {
+                {{ line }}@if (!$last) {<br />}
+              }
+            </p>
+          } @else {
+            <p>—</p>
+          }
+        </div>
+      </section>
+
+      <section class="detail-card">
+        <h2 class="detail-card__title">Order Timeline</h2>
+
+        <div class="timeline">
+          @for (step of mainTimelineSteps; track step.label; let last = $last) {
+            <div class="timeline__item">
+              <div class="timeline__marker">
+                <div class="timeline__dot" [class.timeline__dot--done]="step.done"></div>
+                @if (!last) {
+                  <div
+                    class="timeline__stem"
+                    [class.timeline__stem--done]="step.done"
+                    aria-hidden="true"
+                  ></div>
+                }
+              </div>
+              <div class="timeline__body">
+                <p class="timeline__label">{{ step.label }}</p>
+                <p class="timeline__time">{{ step.time }}</p>
+              </div>
+            </div>
+          }
+        </div>
+
+        @if (showExceptionSection) {
+          <p class="timeline-section-label">Exception states</p>
+
+          <div class="timeline timeline--exceptions">
+            @if (showRefunded) {
+              <div class="timeline__item timeline__item--refunded">
+                <div class="timeline__marker">
+                  <div class="timeline__dot timeline__dot--refunded"></div>
+                  @if (showRefundProcessing || showCanceled) {
+                    <div class="timeline__stem timeline__stem--refund-done" aria-hidden="true"></div>
+                  }
+                </div>
+                <div class="timeline__body">
+                  <p class="timeline__label">Refunded</p>
+                  <p class="timeline__time">
+                    Refund approved by admin ·
+                    {{ formatDateTime(order.refund_request?.reviewed_at) }}
+                  </p>
+                </div>
+              </div>
+            }
+
+            @if (showRefundProcessing) {
+              <div class="timeline__item timeline__item--refund-processing">
+                <div class="timeline__marker">
+                  <div class="timeline__dot timeline__dot--refund-processing"></div>
+                </div>
+                <div class="timeline__body">
+                  <p class="timeline__label">Refund processing</p>
+                  <p class="timeline__time">
+                    Awaiting admin confirmation ·
+                    {{ formatDateTime(order.refund_request?.requested_at) }}
+                  </p>
+                </div>
+              </div>
+            }
+
+            @if (showCanceled) {
+              <div class="timeline__alert timeline__alert--cancel">
+                <svg lucideXCircle aria-hidden="true" [size]="18"></svg>
+                <div>
+                  <strong>Order canceled</strong>
+                  <p>Order was canceled on {{ formatDateTime(order.canceled_at) }}</p>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    </div>
+
+    <aside class="detail-sidebar">
+      <section class="detail-card">
+        <h2 class="detail-card__title">Update Status</h2>
+        <p class="field-hint field-hint--spaced">Customer receives an email notification on save.</p>
+        <div class="field">
+          <label class="field-label" for="status">New status</label>
+          <div class="select-wrap">
+            <select
+              id="status"
+              class="field-select"
+              [value]="selectedStatus"
+              (change)="selectedStatus = $any($event.target).value"
+            >
+              @for (option of statusOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+            <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+          </div>
+        </div>
+        <button
+          type="button"
+          class="btn btn-primary btn-block"
+          (click)="saveStatus()"
+          [disabled]="statusSaving"
+        >
+          <svg lucideSave aria-hidden="true" [size]="16"></svg>
+          Save &amp; notify
+        </button>
+        @if (statusMessage) {
+          <p class="action-feedback action-feedback--success">{{ statusMessage }}</p>
+        }
+      </section>
+
+      <section class="detail-card">
+        <h2 class="detail-card__title">Return &amp; Refund</h2>
+        <p class="field-hint field-hint--spaced">
+          Confirm reason → Approve → Refund via payment gateway.
+        </p>
+        <div class="field">
+          <label class="field-label" for="refund-reason">Refund reason</label>
+          <div class="select-wrap">
+            <select
+              id="refund-reason"
+              class="field-select"
+              [value]="refundReason"
+              (change)="refundReason = $any($event.target).value"
+            >
+              <option value="">Select reason…</option>
+              @for (reason of refundReasons; track reason) {
+                <option [value]="reason">{{ reason }}</option>
+              }
+            </select>
+            <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+          </div>
+        </div>
+        <button
+          type="button"
+          class="btn btn-secondary btn-secondary--cta btn-block"
+          (click)="approveRefund()"
+          [disabled]="refundSaving"
+        >
+          <svg lucideUndo2 aria-hidden="true" [size]="16"></svg>
+          Approve refund
+        </button>
+        @if (refundMessage) {
+          <p class="action-feedback action-feedback--success">{{ refundMessage }}</p>
+        }
+      </section>
+
+      <section class="detail-card">
+        <h2 class="detail-card__title">Internal Notes</h2>
+        <p class="field-hint field-hint--spaced">Team only — not visible to customer.</p>
+        @if (order.internal_notes.length) {
+          <div class="note-list">
+            @for (note of order.internal_notes; track note.created_at + note.text) {
+              <div class="note-item">
+                {{ note.text }}
+                <p class="note-item__meta">{{ formatNoteMeta(note) }}</p>
+              </div>
+            }
+          </div>
+        }
+        <div class="field">
+          <label class="field-label" for="note">Add note</label>
+          <textarea
+            id="note"
+            class="field-textarea"
+            placeholder="Enter internal note…"
+            [value]="noteText"
+            (input)="noteText = $any($event.target).value"
+          ></textarea>
+        </div>
+        <button
+          type="button"
+          class="btn btn-secondary btn-secondary--cta btn-block"
+          (click)="saveNote()"
+          [disabled]="noteSaving"
+        >
+          <svg lucideStickyNote aria-hidden="true" [size]="16"></svg>
+          Save note
+        </button>
+        @if (noteMessage) {
+          <p class="action-feedback action-feedback--success">{{ noteMessage }}</p>
+        }
+      </section>
+    </aside>
+  </div>
+}

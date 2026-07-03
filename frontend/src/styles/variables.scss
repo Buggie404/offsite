@@ -134,4 +134,15 @@
   --status-refund-text: #54493f;
   --status-cancelled-bg: rgba(220, 38, 38, 0.2);
   --status-cancelled-text: #dc2626;
+
+  /* Admin order detail */
+  --admin-detail-sidebar-w: 360px;
+  --admin-detail-section-gap: 16px;
+  --admin-detail-label-gap: 6px;
+  --timeline-refund-processing-border: #c4a050;
+  --timeline-refund-processing-text: #8a6a20;
+  --timeline-refunded-text: #8a4a62;
+  --timeline-cancel-bg: rgba(220, 53, 69, 0.12);
+  --timeline-cancel-border: rgba(220, 53, 69, 0.4);
+  --timeline-cancel-text: #842029;
 }

@@ -2,8 +2,11 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
+  AdminOrderDetail,
+  AdminOrderDetailResponse,
   AdminOrdersQuery,
-  AdminOrdersResponse
+  AdminOrdersResponse,
+  AdminOrderStatusUpdate
 } from '../models/admin-order.model';
 
 @Injectable({
@@ -37,5 +40,40 @@ export class AdminOrderService {
     }
 
     return this.http.get<AdminOrdersResponse>(this.baseUrl, { params });
+  }
+
+  getOrderById(orderId: string): Observable<AdminOrderDetailResponse> {
+    return this.http.get<AdminOrderDetailResponse>(`${this.baseUrl}/${encodeURIComponent(orderId)}`);
+  }
+
+  updateOrderStatus(
+    orderId: string,
+    status: AdminOrderStatusUpdate,
+    note?: string
+  ): Observable<{ message: string; data: AdminOrderDetail }> {
+    return this.http.put<{ message: string; data: AdminOrderDetail }>(
+      `${this.baseUrl}/${encodeURIComponent(orderId)}/status`,
+      { status, note }
+    );
+  }
+
+  approveRefund(
+    orderId: string,
+    reason: string
+  ): Observable<{ message: string; data: AdminOrderDetail }> {
+    return this.http.post<{ message: string; data: AdminOrderDetail }>(
+      `${this.baseUrl}/${encodeURIComponent(orderId)}/refund`,
+      { reason }
+    );
+  }
+
+  addInternalNote(
+    orderId: string,
+    note: string
+  ): Observable<{ message: string; data: AdminOrderDetail }> {
+    return this.http.post<{ message: string; data: AdminOrderDetail }>(
+      `${this.baseUrl}/${encodeURIComponent(orderId)}/notes`,
+      { note }
+    );
   }
 }

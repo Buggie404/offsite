@@ -256,6 +256,129 @@
   color: var(--color-forest-green);
 }
 
+.sign-out-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(26, 26, 26, 0.35);
+}
+
+.sign-out-modal {
+  position: relative;
+  width: min(100%, 400px);
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  background: var(--admin-surface-card);
+  border: 1px solid var(--admin-divider);
+  border-radius: 16px;
+  box-shadow: var(--admin-shadow-card);
+  text-align: center;
+}
+
+.sign-out-modal__close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-near-black);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.sign-out-modal__close:hover {
+  background: rgba(84, 74, 64, 0.08);
+}
+
+.sign-out-modal__icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--admin-surface-card);
+}
+
+.sign-out-modal__icon {
+  color: var(--admin-surface-card);
+}
+
+.sign-out-modal__title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-h3-size);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-forest-green);
+}
+
+.sign-out-modal__message {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-body);
+  font-size: var(--text-body-sm-size);
+  line-height: 1.5;
+  color: var(--color-near-black);
+}
+
+.sign-out-modal__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sign-out-modal__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-size: var(--text-cta-size);
+  font-weight: 500;
+  letter-spacing: var(--text-cta-tracking);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.sign-out-modal__btn--primary {
+  border: none;
+  background: var(--color-forest-green);
+  color: var(--color-cream);
+}
+
+.sign-out-modal__btn--primary:hover {
+  background: var(--color-forest-green-hover);
+}
+
+.sign-out-modal__btn--secondary {
+  border: 1px solid var(--admin-divider);
+  background: var(--admin-surface-card);
+  color: var(--color-near-black);
+  box-shadow: var(--admin-shadow-sm);
+}
+
+.sign-out-modal__btn--secondary:hover {
+  border-color: var(--color-forest-green);
+  color: var(--color-forest-green);
+  background: rgba(207, 225, 185, 0.15);
+}
+
 @media (max-width: 900px) {
   .admin-app {
     grid-template-columns: 1fr;
