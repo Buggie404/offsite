@@ -70,14 +70,34 @@ export interface AdminOrderStatusHistoryEntry {
   note?: string;
 }
 
+export interface AdminOrderRefundItem {
+  product_id: string;
+  variant_id: string;
+  product_name: string;
+  variant_name: string;
+  image?: { url: string; public_id?: string | null };
+  unit_price: number;
+  quantity: number;
+  subtotal: number;
+}
+
 export interface AdminOrderRefundRequest {
-  type?: string | null;
+  refund_request_id?: string;
+  order_id?: string;
   reason?: string | null;
+  other_reason?: string | null;
+  description?: string | null;
+  evidence?: string[];
+  refund_item?: AdminOrderRefundItem[];
+  payment?: {
+    method: string;
+    card_info?: { brand?: string | null; last4?: string | null };
+  };
   status?: 'pending' | 'approved' | 'rejected' | null;
-  requested_at?: string | null;
+  admin_reason?: string | null;
+  created_at?: string | null;
   reviewed_at?: string | null;
   reviewed_by?: string | null;
-  admin_note?: string;
 }
 
 export interface AdminInternalNote {
@@ -118,9 +138,4 @@ export interface AdminOrderDetailResponse {
   data: AdminOrderDetail;
 }
 
-export type AdminOrderStatusUpdate =
-  | 'processing'
-  | 'shipping'
-  | 'delivered'
-  | 'canceled'
-  | 'refund';
+export type AdminOrderStatusUpdate = 'processing' | 'shipping';

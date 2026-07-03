@@ -7,7 +7,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "build": "echo 'No build needed for Node.js'",
-    "seed:admin": "node seed_admin.js"
+    "seed:admin": "node seed_admin.js",
+    "seed:refund-requests": "node seed_refund_requests.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

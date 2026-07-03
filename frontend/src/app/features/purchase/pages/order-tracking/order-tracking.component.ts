@@ -289,7 +289,19 @@ export class OrderTrackingComponent implements OnInit {
       }
     }
 
+    if (ord.refund_request?.status === 'pending' || ord.order_status === 'refund') {
+      this.router.navigate(['/checkout/refund'], { state: { order: ord } });
+      return;
+    }
+
     this.router.navigate([`/orders/${ord.order_id || ord._id}/return`], { state: { order: ord } });
+  }
+
+  canRequestRefund(): boolean {
+    const ord = this.order();
+    if (!ord || ord.order_status !== 'delivered') return false;
+    const refundStatus = ord.refund_request?.status;
+    return !refundStatus || refundStatus === 'rejected';
   }
 
   getItemCount(): number {
@@ -362,8 +374,12 @@ export class OrderTrackingComponent implements OnInit {
     } else if (status === 'shipping') {
       this.router.navigate(['/checkout/shipping'], { state: { order: ord } });
     } else if (status === 'delivered') {
-      this.router.navigate(['/checkout/delivered'], { state: { order: ord } });
-    } else if (status === 'refund') {
+      if (ord.refund_request?.status === 'pending') {
+        this.router.navigate(['/checkout/refund'], { state: { order: ord } });
+      } else {
+        this.router.navigate(['/checkout/delivered'], { state: { order: ord } });
+      }
+    } else if (status === 'refund' || ord.refund_request?.status === 'approved') {
       this.router.navigate(['/checkout/refund'], { state: { order: ord } });
     } else {
       this.router.navigate(['/checkout/confirmed'], { state: { order: ord, showModal: false } });

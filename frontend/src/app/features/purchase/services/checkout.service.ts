@@ -205,9 +205,12 @@ export class CheckoutService {
     );
   }
 
-  async requestRefund(id: string, payload: any): Promise<any> {
+  async requestRefund(id: string, payload: any, sessionId?: string | null): Promise<any> {
     return await firstValueFrom(
-      this.http.post<any>(`/api/orders/${id}/refund`, payload)
+      this.http.post<any>(`/api/orders/${id}/refund`, {
+        ...payload,
+        session_id: sessionId || undefined
+      })
     );
   }
 

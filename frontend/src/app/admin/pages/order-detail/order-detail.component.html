@@ -22,8 +22,31 @@
     </div>
   </div>
 
+  @if (hasPendingRefundRequest) {
+    <div class="refund-request-banner" role="status">
+      <div class="refund-request-banner__icon" aria-hidden="true">
+        <svg lucideAlertCircle [size]="22"></svg>
+      </div>
+      <div class="refund-request-banner__content">
+        <p class="refund-request-banner__title">Refund request pending</p>
+        <p class="refund-request-banner__meta">
+          Submitted {{ formatDateTime(activeRefundRequest?.created_at) }} ·
+          {{ refundReasonLabel(activeRefundRequest) }}
+        </p>
+      </div>
+      <button type="button" class="btn btn-secondary" (click)="openRefundModal()">
+        <svg lucideEye aria-hidden="true" [size]="16"></svg>
+        View request
+      </button>
+    </div>
+  }
+
   @if (actionError) {
     <p class="action-feedback action-feedback--error" role="alert">{{ actionError }}</p>
+  }
+
+  @if (refundMessage) {
+    <p class="action-feedback action-feedback--success">{{ refundMessage }}</p>
   }
 
   <div class="detail-layout">
@@ -121,7 +144,7 @@
               <div class="timeline__item timeline__item--refunded">
                 <div class="timeline__marker">
                   <div class="timeline__dot timeline__dot--refunded"></div>
-                  @if (showRefundProcessing || showCanceled) {
+                  @if (showRefundProcessing) {
                     <div class="timeline__stem timeline__stem--refund-done" aria-hidden="true"></div>
                   }
                 </div>
@@ -135,6 +158,23 @@
               </div>
             }
 
+            @if (showRefundRejected) {
+              <div class="timeline__item timeline__item--refund-rejected">
+                <div class="timeline__marker">
+                  <div class="timeline__dot timeline__dot--refunded"></div>
+                  @if (showRefundProcessing) {
+                    <div class="timeline__stem timeline__stem--refund-done" aria-hidden="true"></div>
+                  }
+                </div>
+                <div class="timeline__body">
+                  <p class="timeline__label">Refund rejected</p>
+                  <p class="timeline__time">
+                    No refund because {{ order.refund_request?.admin_reason }}
+                  </p>
+                </div>
+              </div>
+            }
+
             @if (showRefundProcessing) {
               <div class="timeline__item timeline__item--refund-processing">
                 <div class="timeline__marker">
@@ -143,8 +183,10 @@
                 <div class="timeline__body">
                   <p class="timeline__label">Refund processing</p>
                   <p class="timeline__time">
-                    Awaiting admin confirmation ·
-                    {{ formatDateTime(order.refund_request?.requested_at) }}
+                    @if (showRefundProcessingActive) {
+                      Awaiting admin confirmation ·
+                    }
+                    {{ formatDateTime(order.refund_request?.created_at) }}
                   </p>
                 </div>
               </div>
@@ -162,75 +204,85 @@
           </div>
         }
       </section>
+
+      @if (hasResolvedRefundRequest && activeRefundRequest) {
+        <section class="detail-card refund-record-card">
+          <div class="refund-record-card__header">
+            <div>
+              <h2 class="detail-card__title">Refund record</h2>
+              <p class="field-hint field-hint--spaced">
+                {{ refundRecordStatusLabel }} on
+                {{ formatDateTime(activeRefundRequest.reviewed_at) }}
+              </p>
+            </div>
+            <span
+              class="refund-record-card__badge"
+              [class.refund-record-card__badge--approved]="activeRefundRequest.status === 'approved'"
+              [class.refund-record-card__badge--rejected]="activeRefundRequest.status === 'rejected'"
+            >
+              {{ refundRecordStatusLabel }}
+            </span>
+          </div>
+
+          <div class="refund-record-card__summary">
+            <div>
+              <span class="modal-label">Reason</span>
+              <p>{{ refundReasonLabel(activeRefundRequest) }}</p>
+            </div>
+            @if (activeRefundRequest.status === 'rejected' && activeRefundRequest.admin_reason) {
+              <div>
+                <span class="modal-label">Admin rejection reason</span>
+                <p>{{ activeRefundRequest.admin_reason }}</p>
+              </div>
+            }
+          </div>
+
+          <button type="button" class="btn btn-secondary btn-block" (click)="openRefundModal()">
+            <svg lucideEye aria-hidden="true" [size]="16"></svg>
+            View refund details &amp; evidence
+          </button>
+        </section>
+      }
     </div>
 
     <aside class="detail-sidebar">
       <section class="detail-card">
         <h2 class="detail-card__title">Update Status</h2>
-        <p class="field-hint field-hint--spaced">Customer receives an email notification on save.</p>
-        <div class="field">
-          <label class="field-label" for="status">New status</label>
-          <div class="select-wrap">
-            <select
-              id="status"
-              class="field-select"
-              [value]="selectedStatus"
-              (change)="selectedStatus = $any($event.target).value"
-            >
-              @for (option of statusOptions; track option.value) {
-                <option [value]="option.value">{{ option.label }}</option>
-              }
-            </select>
-            <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+        @if (canUpdateStatus) {
+          <p class="field-hint field-hint--spaced">Customer receives an email notification on save.</p>
+          <div class="field">
+            <label class="field-label" for="status">New status</label>
+            <div class="select-wrap">
+              <select
+                id="status"
+                class="field-select"
+                [value]="selectedStatus"
+                (change)="selectedStatus = $any($event.target).value"
+              >
+                @for (option of statusOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                }
+              </select>
+              <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+            </div>
           </div>
-        </div>
-        <button
-          type="button"
-          class="btn btn-primary btn-block"
-          (click)="saveStatus()"
-          [disabled]="statusSaving"
-        >
-          <svg lucideSave aria-hidden="true" [size]="16"></svg>
-          Save &amp; notify
-        </button>
+          <button
+            type="button"
+            class="btn btn-primary btn-block"
+            (click)="saveStatus()"
+            [disabled]="statusSaving"
+          >
+            <svg lucideSave aria-hidden="true" [size]="16"></svg>
+            Save &amp; notify
+          </button>
+        } @else {
+          <p class="field-hint field-hint--spaced">
+            Status changes to <strong>Delivered</strong>, <strong>Cancelled</strong>, and
+            <strong>Refund</strong> are handled by the customer or by reviewing refund requests.
+          </p>
+        }
         @if (statusMessage) {
           <p class="action-feedback action-feedback--success">{{ statusMessage }}</p>
-        }
-      </section>
-
-      <section class="detail-card">
-        <h2 class="detail-card__title">Return &amp; Refund</h2>
-        <p class="field-hint field-hint--spaced">
-          Confirm reason → Approve → Refund via payment gateway.
-        </p>
-        <div class="field">
-          <label class="field-label" for="refund-reason">Refund reason</label>
-          <div class="select-wrap">
-            <select
-              id="refund-reason"
-              class="field-select"
-              [value]="refundReason"
-              (change)="refundReason = $any($event.target).value"
-            >
-              <option value="">Select reason…</option>
-              @for (reason of refundReasons; track reason) {
-                <option [value]="reason">{{ reason }}</option>
-              }
-            </select>
-            <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
-          </div>
-        </div>
-        <button
-          type="button"
-          class="btn btn-secondary btn-secondary--cta btn-block"
-          (click)="approveRefund()"
-          [disabled]="refundSaving"
-        >
-          <svg lucideUndo2 aria-hidden="true" [size]="16"></svg>
-          Approve refund
-        </button>
-        @if (refundMessage) {
-          <p class="action-feedback action-feedback--success">{{ refundMessage }}</p>
         }
       </section>
 
@@ -272,4 +324,168 @@
       </section>
     </aside>
   </div>
+
+  @if (showRefundModal && activeRefundRequest) {
+    <div class="modal-backdrop" (click)="closeRefundModal()">
+      <div
+        class="modal-card modal-card--refund"
+        role="dialog"
+        aria-labelledby="refund-modal-title"
+        aria-modal="true"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="modal-card__header">
+          <h2 id="refund-modal-title" class="modal-card__title">Refund request details</h2>
+          <button type="button" class="modal-card__close" (click)="closeRefundModal()" aria-label="Close">
+            <svg lucideX [size]="18"></svg>
+          </button>
+        </header>
+
+        <div class="modal-card__body">
+          @if (isRefundModalReadonly && activeRefundRequest.status === 'rejected' && activeRefundRequest.admin_reason) {
+            <div class="modal-block modal-block--highlight">
+              <span class="modal-label">Admin rejection reason</span>
+              <p>{{ activeRefundRequest.admin_reason }}</p>
+            </div>
+          }
+
+          @if (isRefundModalReadonly && activeRefundRequest.status === 'approved') {
+            <div class="modal-block modal-block--highlight">
+              <span class="modal-label">Decision</span>
+              <p>Refund approved by admin on {{ formatDateTime(activeRefundRequest.reviewed_at) }}</p>
+            </div>
+          }
+
+          <div class="modal-info-grid">
+            <div>
+              <span class="modal-label">Reason</span>
+              <p>{{ refundReasonLabel(activeRefundRequest) }}</p>
+            </div>
+            <div>
+              <span class="modal-label">Submitted</span>
+              <p>{{ formatDateTime(activeRefundRequest.created_at) }}</p>
+            </div>
+            <div>
+              <span class="modal-label">Payment method</span>
+              <p>{{ order.payment_label }}</p>
+            </div>
+          </div>
+
+          @if (activeRefundRequest.description) {
+            <div class="modal-block">
+              <span class="modal-label">Description</span>
+              <p>{{ activeRefundRequest.description }}</p>
+            </div>
+          }
+
+          <div class="modal-block">
+            <span class="modal-label">Items to refund</span>
+            <div class="modal-items">
+              @for (item of activeRefundRequest.refund_item || []; track item.variant_id) {
+                <div class="modal-item-row">
+                  <span>{{ item.product_name }} · {{ item.variant_name }}</span>
+                  <span>× {{ item.quantity }}</span>
+                </div>
+              }
+            </div>
+          </div>
+
+          @if (activeRefundRequest.evidence?.length) {
+            <div class="modal-block">
+              <span class="modal-label">Supporting evidence</span>
+              <div class="evidence-gallery">
+                @for (file of activeRefundRequest.evidence; track file) {
+                  @if (isImageEvidence(file)) {
+                    <a [href]="file" target="_blank" rel="noopener" class="evidence-thumb">
+                      <img [src]="file" [alt]="evidenceFileName(file)" />
+                    </a>
+                  } @else if (isVideoEvidence(file)) {
+                    <div class="evidence-video-wrap">
+                      <video [src]="file" controls class="evidence-video"></video>
+                    </div>
+                  } @else {
+                    <div class="evidence-file">
+                      <span>{{ evidenceFileName(file) }}</span>
+                    </div>
+                  }
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <footer class="modal-card__footer">
+          @if (!isRefundModalReadonly) {
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="openRejectModal()"
+              [disabled]="refundSaving"
+            >
+              Reject request
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="approveRefundRequest()"
+              [disabled]="refundSaving"
+            >
+              <svg lucideCheck aria-hidden="true" [size]="16"></svg>
+              Approve request
+            </button>
+          } @else {
+            <button type="button" class="btn btn-primary" (click)="closeRefundModal()">
+              Close
+            </button>
+          }
+        </footer>
+      </div>
+    </div>
+  }
+
+  @if (showRejectModal) {
+    <div class="modal-backdrop" (click)="closeRejectModal()">
+      <div
+        class="modal-card modal-card--reject"
+        role="dialog"
+        aria-labelledby="reject-modal-title"
+        aria-modal="true"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="modal-card__header">
+          <h2 id="reject-modal-title" class="modal-card__title">Reject refund request</h2>
+          <button type="button" class="modal-card__close" (click)="closeRejectModal()" aria-label="Close">
+            <svg lucideX [size]="18"></svg>
+          </button>
+        </header>
+
+        <div class="modal-card__body">
+          <p class="field-hint">Please explain why this refund request is being rejected.</p>
+          <label class="field-label" for="reject-reason">Rejection reason</label>
+          <textarea
+            id="reject-reason"
+            class="field-textarea"
+            placeholder="Enter rejection reason…"
+            [value]="rejectReason"
+            (input)="rejectReason = $any($event.target).value"
+          ></textarea>
+        </div>
+
+        <footer class="modal-card__footer">
+          <button type="button" class="btn btn-secondary" (click)="closeRejectModal()">
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary btn-primary--danger"
+            (click)="submitRejectRefund()"
+            [disabled]="refundSaving"
+          >
+            <svg lucideUndo2 aria-hidden="true" [size]="16"></svg>
+            Send rejection
+          </button>
+        </footer>
+      </div>
+    </div>
+  }
 }

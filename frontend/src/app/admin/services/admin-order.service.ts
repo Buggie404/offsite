@@ -58,11 +58,20 @@ export class AdminOrderService {
   }
 
   approveRefund(
+    orderId: string
+  ): Observable<{ message: string; data: AdminOrderDetail }> {
+    return this.http.post<{ message: string; data: AdminOrderDetail }>(
+      `${this.baseUrl}/${encodeURIComponent(orderId)}/refund/approve`,
+      {}
+    );
+  }
+
+  rejectRefund(
     orderId: string,
     reason: string
   ): Observable<{ message: string; data: AdminOrderDetail }> {
     return this.http.post<{ message: string; data: AdminOrderDetail }>(
-      `${this.baseUrl}/${encodeURIComponent(orderId)}/refund`,
+      `${this.baseUrl}/${encodeURIComponent(orderId)}/refund/reject`,
       { reason }
     );
   }

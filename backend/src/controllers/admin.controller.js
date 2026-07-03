@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const User = require('../models/User');
+const RefundRequest = require('../models/RefundRequest');
 const mongoose = require('mongoose');
 
 function getDateFromRange(dateRange) {
@@ -106,6 +107,31 @@ async function buildUserMap(orders) {
   return new Map(users.map((user) => [user.user_id, user]));
 }
 
+async function getLatestRefundRequest(orderId) {
+  return RefundRequest.findOne({ order_id: orderId }).sort({ created_at: -1 });
+}
+
+function formatRefundRequestForAdmin(doc) {
+  if (!doc) return null;
+  const plain = doc.toObject ? doc.toObject() : doc;
+  return {
+    refund_request_id: plain.refund_request_id,
+    order_id: plain.order_id,
+    reason: plain.reason,
+    other_reason: plain.other_reason,
+    description: plain.description,
+    evidence: plain.evidence || [],
+    refund_item: plain.refund_item || [],
+    payment: plain.payment,
+    status: plain.status,
+    admin_reason: plain.admin_reason,
+    status_history: plain.status_history || [],
+    created_at: plain.created_at,
+    reviewed_at: plain.reviewed_at,
+    reviewed_by: plain.reviewed_by
+  };
+}
+
 function findOrderQuery(id) {
   if (mongoose.Types.ObjectId.isValid(id)) {
     return { _id: id };
@@ -175,6 +201,8 @@ async function buildOrderDetail(order) {
     }
   }
 
+  const refundRequestDoc = await getLatestRefundRequest(order.order_id);
+
   return {
     _id: order._id,
     order_id: order.order_id,
@@ -204,7 +232,7 @@ async function buildOrderDetail(order) {
     customer_phone: customerPhone,
     shipping_address: formatShippingAddress(order.delivery_info),
     status_history: order.status_history || [],
-    refund_request: order.refund_request,
+    refund_request: formatRefundRequestForAdmin(refundRequestDoc),
     internal_notes: parseInternalNotes(order.internal_notes)
   };
 }
@@ -212,19 +240,18 @@ async function buildOrderDetail(order) {
 async function computeStats(createdAtFilter) {
   const baseFilter = { created_at: createdAtFilter };
 
-  const [total, processing, shipped, needsAttention] = await Promise.all([
+  const [total, processing, shipped, canceledOrRefund, pendingRefundOrders] = await Promise.all([
     Order.countDocuments(baseFilter),
     Order.countDocuments({ ...baseFilter, order_status: { $in: ['pending', 'processing'] } }),
     Order.countDocuments({ ...baseFilter, order_status: 'shipping' }),
     Order.countDocuments({
       ...baseFilter,
-      $or: [
-        { order_status: 'canceled' },
-        { order_status: 'refund' },
-        { 'refund_request.status': 'pending' }
-      ]
-    })
+      order_status: { $in: ['canceled', 'refund'] }
+    }),
+    RefundRequest.distinct('order_id', { status: 'pending' })
   ]);
+
+  const needsAttention = canceledOrRefund + pendingRefundOrders.length;
 
   return { total, processing, shipped, needsAttention };
 }
@@ -311,17 +338,26 @@ async function updateOrderStatus(req, res) {
     }
 
     const adminId = await getAdminActorId(req);
+    const currentStatus = order.order_status;
 
-    order._changedBy = adminId;
-    order._statusChangeNote = note || `Order status updated to ${status}.`;
+    if (status && status !== currentStatus) {
+      const allowedTransitions = {
+        processing: ['shipping']
+      };
 
-    if (status) {
-      order.order_status = status;
-      if (status === 'delivered') {
-        order.delivered_at = new Date();
-      } else if (status === 'canceled') {
-        order.canceled_at = new Date();
+      const allowed = allowedTransitions[currentStatus] || [];
+      if (!allowed.includes(status)) {
+        return res.status(400).json({
+          error: `Admin cannot change order status from ${currentStatus} to ${status}. Customers must confirm delivery or cancellation. Refunds require approving a refund request.`
+        });
       }
+
+      order._changedBy = adminId;
+      order._statusChangeNote = note || `Order status updated to ${status} by admin.`;
+      order.order_status = status;
+    } else if (note) {
+      order._changedBy = adminId;
+      order._statusChangeNote = note;
     }
 
     if (payment_status) {
@@ -349,36 +385,41 @@ async function updateOrderStatus(req, res) {
   }
 }
 
-// Admin - Approve refund (POST /api/admin/orders/:id/refund)
-async function approveRefund(req, res) {
+// Admin - Approve refund request (POST /api/admin/orders/:id/refund/approve)
+async function approveRefundRequest(req, res) {
   try {
-    const { reason } = req.body;
-    if (!reason) {
-      return res.status(400).json({ error: 'Refund reason is required.' });
-    }
-
     const order = await Order.findOne(findOrderQuery(req.params.id));
     if (!order) {
       return res.status(404).json({ error: 'Order not found.' });
     }
 
+    const refundRequest = await RefundRequest.findOne({
+      order_id: order.order_id,
+      status: 'pending'
+    }).sort({ created_at: -1 });
+
+    if (!refundRequest) {
+      return res.status(400).json({ error: 'No pending refund request found for this order.' });
+    }
+
     const adminId = await getAdminActorId(req);
     const now = new Date();
 
-    order.refund_request = order.refund_request || {};
-    order.refund_request.reason = reason;
-    order.refund_request.status = 'approved';
-    order.refund_request.reviewed_by = adminId;
-    order.refund_request.reviewed_at = now;
-    if (!order.refund_request.requested_at) {
-      order.refund_request.requested_at = now;
-    }
+    refundRequest.status = 'approved';
+    refundRequest.reviewed_by = adminId;
+    refundRequest.reviewed_at = now;
+    refundRequest.status_history.push({
+      status: 'approved',
+      changed_at: now,
+      changed_by: adminId,
+      note: 'Refund request approved by admin'
+    });
+    await refundRequest.save();
 
     order._changedBy = adminId;
-    order._statusChangeNote = `Refund approved: ${reason}`;
+    order._statusChangeNote = 'Refund approved by admin';
     order.order_status = 'refund';
     order.payment_status = 'refunded';
-
     await order.save();
 
     const data = await buildOrderDetail(order);
@@ -389,6 +430,55 @@ async function approveRefund(req, res) {
   } catch (error) {
     console.error('Error approving refund:', error);
     res.status(500).json({ error: error.message || 'Failed to approve refund.' });
+  }
+}
+
+// Admin - Reject refund request (POST /api/admin/orders/:id/refund/reject)
+async function rejectRefundRequest(req, res) {
+  try {
+    const { reason } = req.body;
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ error: 'Rejection reason is required.' });
+    }
+
+    const order = await Order.findOne(findOrderQuery(req.params.id));
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    const refundRequest = await RefundRequest.findOne({
+      order_id: order.order_id,
+      status: 'pending'
+    }).sort({ created_at: -1 });
+
+    if (!refundRequest) {
+      return res.status(400).json({ error: 'No pending refund request found for this order.' });
+    }
+
+    const adminId = await getAdminActorId(req);
+    const now = new Date();
+    const rejectionReason = String(reason).trim();
+
+    refundRequest.status = 'rejected';
+    refundRequest.admin_reason = rejectionReason;
+    refundRequest.reviewed_by = adminId;
+    refundRequest.reviewed_at = now;
+    refundRequest.status_history.push({
+      status: 'rejected',
+      changed_at: now,
+      changed_by: adminId,
+      note: rejectionReason
+    });
+    await refundRequest.save();
+
+    const data = await buildOrderDetail(order);
+    res.json({
+      message: 'Refund request rejected',
+      data
+    });
+  } catch (error) {
+    console.error('Error rejecting refund:', error);
+    res.status(500).json({ error: error.message || 'Failed to reject refund.' });
   }
 }
 
@@ -424,6 +514,7 @@ module.exports = {
   getAllOrders,
   getOrderById,
   updateOrderStatus,
-  approveRefund,
+  approveRefundRequest,
+  rejectRefundRequest,
   addInternalNote
 };

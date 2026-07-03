@@ -117,6 +117,17 @@ export class OrderReturnComponent implements OnInit {
         return;
       }
 
+      if (ord.refund_request?.status === 'pending') {
+        alert('A refund request is already pending review for this order.');
+        this.router.navigate(['/checkout/refund'], { state: { order: ord } });
+        return;
+      }
+
+      if (ord.refund_request?.status === 'approved' || ord.order_status === 'refund') {
+        this.router.navigate(['/checkout/refund'], { state: { order: ord } });
+        return;
+      }
+
       // Initialize all items as selected by default
       const initialSelection: Record<string, boolean> = {};
       if (ord.items) {
@@ -228,30 +239,37 @@ export class OrderReturnComponent implements OnInit {
     try {
       this.loading.set(true);
 
-      const refundReason = this.reason() === 'Other'
-        ? `Other: ${this.otherReasonText().trim()}`
-        : this.reason();
-
-      const payload = {
-        reason: refundReason,
-        description: this.description(),
-        evidence: this.evidenceFiles().map(f => f.name), // simulate sending file names or dummy urls
-        items: this.selectedItemsList.map((item: any) => ({
-          product_id: item.product_id,
-          variant_id: item.variant_id,
-          quantity: item.quantity,
-          reason: refundReason
-        }))
-      };
-
       const id = this.orderId();
       if (!id) return;
 
-      const res = await this.checkoutService.requestRefund(id, payload);
+      let sessionId: string | null = null;
+      const savedInfo = localStorage.getItem('last_order_info');
+      if (savedInfo) {
+        try {
+          const parsed = JSON.parse(savedInfo);
+          if (parsed && (parsed.orderId === id || parsed.order_id === id)) {
+            sessionId = parsed.sessionId || null;
+          }
+        } catch (e) {}
+      }
+
+      const payload = {
+        reason: this.reason(),
+        other_reason: this.reason() === 'Other' ? this.otherReasonText().trim() : undefined,
+        description: this.description()?.trim() || undefined,
+        evidence: this.evidenceFiles().map((f) => f.url || f.name),
+        refund_item: this.selectedItemsList.map((item: any) => ({
+          product_id: item.product_id,
+          variant_id: item.variant_id,
+          quantity: item.quantity
+        }))
+      };
+
+      const res = await this.checkoutService.requestRefund(id, payload, sessionId);
       alert('Refund/return request submitted successfully!');
       
       const ord = res.data;
-      this.router.navigate([`/checkout/refund`], { state: { order: ord } });
+      this.router.navigate(['/checkout/refund'], { state: { order: ord } });
     } catch (err: any) {
       console.error('Failed to submit refund request:', err);
       alert(err.error?.error || 'Failed to submit request. Please try again.');

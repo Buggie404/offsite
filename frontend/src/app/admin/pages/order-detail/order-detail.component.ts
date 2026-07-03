@@ -5,14 +5,19 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   LucideSave,
   LucideChevronDown,
-  LucideUndo2,
   LucideStickyNote,
-  LucideXCircle
+  LucideXCircle,
+  LucideAlertCircle,
+  LucideEye,
+  LucideCheck,
+  LucideX,
+  LucideUndo2
 } from '@lucide/angular';
 import { AdminOrderService } from '../../services/admin-order.service';
 import {
   AdminInternalNote,
   AdminOrderDetail,
+  AdminOrderRefundRequest,
   AdminOrderStatus,
   AdminOrderStatusUpdate
 } from '../../models/admin-order.model';
@@ -36,9 +41,13 @@ interface TimelineStep {
     RouterLink,
     LucideSave,
     LucideChevronDown,
-    LucideUndo2,
     LucideStickyNote,
-    LucideXCircle
+    LucideXCircle,
+    LucideAlertCircle,
+    LucideEye,
+    LucideCheck,
+    LucideX,
+    LucideUndo2
   ],
   templateUrl: './order-detail.component.html',
   styleUrl: './order-detail.component.scss'
@@ -54,7 +63,6 @@ export class OrderDetailComponent implements OnInit {
   error: string | null = null;
 
   selectedStatus: AdminOrderStatusUpdate = 'processing';
-  refundReason = '';
   noteText = '';
 
   statusSaving = false;
@@ -66,20 +74,9 @@ export class OrderDetailComponent implements OnInit {
   noteMessage: string | null = null;
   actionError: string | null = null;
 
-  readonly statusOptions: StatusOption[] = [
-    { value: 'processing', label: 'Processing' },
-    { value: 'shipping', label: 'Shipping' },
-    { value: 'delivered', label: 'Delivered' },
-    { value: 'canceled', label: 'Cancelled' },
-    { value: 'refund', label: 'Refund' }
-  ];
-
-  readonly refundReasons = [
-    'Damaged item',
-    'Wrong item received',
-    'Order cancelled',
-    'Other'
-  ];
+  showRefundModal = false;
+  showRejectModal = false;
+  rejectReason = '';
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
@@ -98,6 +95,24 @@ export class OrderDetailComponent implements OnInit {
     return this.order?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
   }
 
+  get statusOptions(): StatusOption[] {
+    if (!this.order) return [];
+
+    if (this.order.order_status === 'processing' || this.order.order_status === 'pending') {
+      return [{ value: 'shipping', label: 'Shipping' }];
+    }
+
+    return [];
+  }
+
+  get canUpdateStatus(): boolean {
+    return this.statusOptions.length > 0;
+  }
+
+  get hasPendingRefundRequest(): boolean {
+    return this.order?.refund_request?.status === 'pending';
+  }
+
   get mainTimelineSteps(): TimelineStep[] {
     if (!this.order) return [];
 
@@ -109,15 +124,21 @@ export class OrderDetailComponent implements OnInit {
       return entry ? this.formatDateTime(entry.changed_at) : null;
     };
 
-    const isDelivered = status === 'delivered';
-    const isShipping = status === 'shipping' || isDelivered;
+    const reachedDelivered =
+      status === 'delivered' ||
+      status === 'refund' ||
+      !!this.order.delivered_at ||
+      this.order.refund_request?.status === 'rejected';
+
+    const isShipping =
+      status === 'shipping' || reachedDelivered;
     const isProcessed = ['processing', 'shipping', 'delivered', 'refund', 'canceled'].includes(status);
 
     return [
       {
         label: 'Delivered',
-        done: isDelivered,
-        time: isDelivered
+        done: reachedDelivered,
+        time: reachedDelivered
           ? this.formatDateTime(this.order.delivered_at) || findHistoryTime('delivered') || '—'
           : 'Pending'
       },
@@ -140,23 +161,40 @@ export class OrderDetailComponent implements OnInit {
   }
 
   get showExceptionSection(): boolean {
-    return this.showRefundProcessing || this.showRefunded || this.showCanceled;
+    return (
+      this.showRefundProcessing ||
+      this.showRefunded ||
+      this.showRefundRejected ||
+      this.showCanceled
+    );
   }
 
   get showRefundProcessing(): boolean {
+    const refundStatus = this.order?.refund_request?.status;
+    return refundStatus === 'pending' || refundStatus === 'approved' || refundStatus === 'rejected';
+  }
+
+  get showRefundProcessingActive(): boolean {
     return this.order?.refund_request?.status === 'pending';
   }
 
   get showRefunded(): boolean {
     return (
       this.order?.refund_request?.status === 'approved' ||
-      this.order?.order_status === 'refund' ||
-      this.order?.payment_status === 'refunded'
+      this.order?.order_status === 'refund'
     );
+  }
+
+  get showRefundRejected(): boolean {
+    return this.order?.refund_request?.status === 'rejected';
   }
 
   get showCanceled(): boolean {
     return this.order?.order_status === 'canceled' || !!this.order?.canceled_at;
+  }
+
+  get activeRefundRequest(): AdminOrderRefundRequest | null {
+    return this.order?.refund_request || null;
   }
 
   loadOrder(orderId: string): void {
@@ -166,7 +204,7 @@ export class OrderDetailComponent implements OnInit {
     this.adminOrderService.getOrderById(orderId).subscribe({
       next: (response) => {
         this.order = response.data;
-        this.selectedStatus = this.mapStatusToUpdate(this.order.order_status);
+        this.selectedStatus = this.statusOptions[0]?.value || 'processing';
         this.loading = false;
         this.cdr.markForCheck();
       },
@@ -179,7 +217,7 @@ export class OrderDetailComponent implements OnInit {
   }
 
   saveStatus(): void {
-    if (!this.order || this.statusSaving) return;
+    if (!this.order || this.statusSaving || !this.canUpdateStatus) return;
 
     this.statusSaving = true;
     this.actionError = null;
@@ -190,24 +228,84 @@ export class OrderDetailComponent implements OnInit {
       .subscribe({
         next: (response) => {
           this.order = response.data;
-          this.selectedStatus = this.mapStatusToUpdate(this.order.order_status);
+          this.selectedStatus = this.statusOptions[0]?.value || 'processing';
           this.statusMessage = 'Status saved. Customer notification queued.';
           this.statusSaving = false;
           this.cdr.markForCheck();
         },
-        error: () => {
-          this.actionError = 'Failed to update order status.';
+        error: (err) => {
+          this.actionError = err.error?.error || 'Failed to update order status.';
           this.statusSaving = false;
           this.cdr.markForCheck();
         }
       });
   }
 
-  approveRefund(): void {
+  get hasResolvedRefundRequest(): boolean {
+    const status = this.order?.refund_request?.status;
+    return status === 'approved' || status === 'rejected';
+  }
+
+  get isRefundModalReadonly(): boolean {
+    return this.hasResolvedRefundRequest && !this.hasPendingRefundRequest;
+  }
+
+  get refundRecordStatusLabel(): string {
+    const status = this.order?.refund_request?.status;
+    if (status === 'approved') return 'Approved';
+    if (status === 'rejected') return 'Rejected';
+    return 'Pending';
+  }
+
+  openRefundModal(): void {
+    this.showRefundModal = true;
+    this.actionError = null;
+  }
+
+  closeRefundModal(): void {
+    this.showRefundModal = false;
+  }
+
+  approveRefundRequest(): void {
     if (!this.order || this.refundSaving) return;
 
-    if (!this.refundReason) {
-      this.actionError = 'Please select a refund reason.';
+    this.refundSaving = true;
+    this.actionError = null;
+    this.refundMessage = null;
+
+    this.adminOrderService.approveRefund(this.order.order_id).subscribe({
+      next: (response) => {
+        this.order = response.data;
+        this.refundMessage = 'Refund approved successfully.';
+        this.refundSaving = false;
+        this.showRefundModal = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.actionError = err.error?.error || 'Failed to approve refund.';
+        this.refundSaving = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  openRejectModal(): void {
+    this.rejectReason = '';
+    this.showRejectModal = true;
+    this.showRefundModal = false;
+  }
+
+  closeRejectModal(): void {
+    this.showRejectModal = false;
+    this.rejectReason = '';
+  }
+
+  submitRejectRefund(): void {
+    if (!this.order || this.refundSaving) return;
+
+    const trimmed = this.rejectReason.trim();
+    if (!trimmed) {
+      this.actionError = 'Please provide a rejection reason.';
       return;
     }
 
@@ -215,16 +313,17 @@ export class OrderDetailComponent implements OnInit {
     this.actionError = null;
     this.refundMessage = null;
 
-    this.adminOrderService.approveRefund(this.order.order_id, this.refundReason).subscribe({
+    this.adminOrderService.rejectRefund(this.order.order_id, trimmed).subscribe({
       next: (response) => {
         this.order = response.data;
-        this.selectedStatus = this.mapStatusToUpdate(this.order.order_status);
-        this.refundMessage = 'Refund approved successfully.';
+        this.refundMessage = 'Refund request rejected.';
         this.refundSaving = false;
+        this.showRejectModal = false;
+        this.rejectReason = '';
         this.cdr.markForCheck();
       },
-      error: () => {
-        this.actionError = 'Failed to approve refund.';
+      error: (err) => {
+        this.actionError = err.error?.error || 'Failed to reject refund.';
         this.refundSaving = false;
         this.cdr.markForCheck();
       }
@@ -258,6 +357,37 @@ export class OrderDetailComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  refundReasonLabel(request: AdminOrderRefundRequest | null): string {
+    if (!request?.reason) return '—';
+    if (request.reason === 'Other' && request.other_reason) {
+      return `Other: ${request.other_reason}`;
+    }
+    return request.reason;
+  }
+
+  isImageEvidence(url: string): boolean {
+    if (!url) return false;
+    if (url.startsWith('blob:') || url.startsWith('data:image/')) return true;
+    return /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i.test(url);
+  }
+
+  isVideoEvidence(url: string): boolean {
+    if (!url) return false;
+    if (url.startsWith('data:video/')) return true;
+    return /\.(mp4|webm|mov|ogg|m4v)(\?|$)/i.test(url);
+  }
+
+  evidenceFileName(url: string): string {
+    if (!url) return 'File';
+    if (url.startsWith('blob:')) return 'Uploaded file';
+    try {
+      const parts = url.split('/');
+      return decodeURIComponent(parts[parts.length - 1].split('?')[0]) || url;
+    } catch {
+      return url;
+    }
   }
 
   formatDateTime(value: string | null | undefined): string {
@@ -315,11 +445,5 @@ export class OrderDetailComponent implements OnInit {
   shippingAddressLines(): string[] {
     if (!this.order?.shipping_address) return [];
     return this.order.shipping_address.split('\n').filter(Boolean);
-  }
-
-  private mapStatusToUpdate(status: AdminOrderStatus): AdminOrderStatusUpdate {
-    if (status === 'pending') return 'processing';
-    if (status === 'canceled') return 'canceled';
-    return status as AdminOrderStatusUpdate;
   }
 }

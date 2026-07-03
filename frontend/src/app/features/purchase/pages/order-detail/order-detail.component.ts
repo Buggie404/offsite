@@ -154,6 +154,33 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     if (!ord) return null;
 
     const status = (ord.order_status || ord.status || '').toLowerCase();
+    const refundStatus = ord.refund_request?.status;
+
+    if (status === 'delivered' && refundStatus === 'pending') {
+      return {
+        ...this.configMap.refund,
+        bannerStyle: 'refund',
+        bannerLabel: 'REFUND REQUESTED',
+        bannerTitle: 'Under Review',
+        trackingDotClass: 'warning-dot',
+        showStepper: true,
+        chargeText: 'Pending Refund',
+        showRefundActions: false
+      };
+    }
+
+    if (status === 'delivered' && refundStatus === 'rejected') {
+      return {
+        ...this.configMap.refund,
+        bannerStyle: 'refund',
+        bannerLabel: 'REFUND REQUESTED',
+        bannerTitle: 'Refund Declined',
+        trackingDotClass: 'red-dot',
+        showStepper: true,
+        chargeText: ord.payment?.method === 'cod' ? 'Paid (COD)' : 'Paid',
+        showRefundActions: false
+      };
+    }
     if (status === 'canceled' || status === 'cancelled') {
       const base = this.configMap.canceled;
       return {
@@ -190,6 +217,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       const base = this.configMap.refund;
       return {
         ...base,
+        showStepper: true,
         chargeText: ord.payment?.method === 'cod' ? 'Refunded (COD)' : 'Refunded'
       };
     }
@@ -210,7 +238,6 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
     if (state && state.order) {
       this.order.set(state.order);
-      // Persist order_id and session_id for reload support (crucial for guest checkouts)
       localStorage.setItem('last_order_info', JSON.stringify({
         orderId: state.order.order_id,
         sessionId: state.order.session_id || ''
@@ -220,6 +247,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
         this.showFailedModal.set(true);
       }
 
+      await this.refreshOrderIfNeeded();
       this.checkAndStartTimer();
     } else {
       // Attempt recovery from localStorage
@@ -236,6 +264,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
               this.showFailedModal.set(true);
             }
 
+            await this.refreshOrderIfNeeded();
             this.checkAndStartTimer();
             return;
           }
@@ -251,6 +280,70 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopCountdown();
+  }
+
+  private async refreshOrderIfNeeded(): Promise<void> {
+    const ord = this.order();
+    if (!ord?.order_id) return;
+
+    const path = this.router.url;
+    const needsFreshRefund =
+      path.includes('/checkout/refund') ||
+      path.includes('/checkout/delivered') ||
+      ord.refund_request?.status;
+
+    if (!needsFreshRefund) return;
+
+    try {
+      const fresh = await this.checkoutService.getOrderStatus(ord.order_id, this.getSessionId(ord));
+      this.order.set(fresh);
+    } catch (e) {
+      console.error('Failed to refresh order status:', e);
+    }
+  }
+
+  getRefundTrackingMessage(): string | null {
+    const ord = this.order();
+    if (!ord) return null;
+
+    const refund = ord.refund_request;
+    const status = (ord.order_status || '').toLowerCase();
+
+    if (refund?.status === 'pending') {
+      return 'Your refund request has been submitted and is awaiting admin review.';
+    }
+
+    if (refund?.status === 'approved' || status === 'refund') {
+      const processedDate = this.getOrderDateFormatted(refund?.reviewed_at || ord.updated_at || ord.updatedAt);
+      const amount = ord.pricing?.total || ord.total || 0;
+      return `Your refund has been approved. Refund of $${Number(amount).toFixed(2)} processed on ${processedDate}. Allow 3–5 business days for it to appear on your statement.`;
+    }
+
+    if (refund?.status === 'rejected') {
+      return `Your refund request was rejected. Reason: ${refund.admin_reason}. Please contact +84 123 456 789 for more details.`;
+    }
+
+    return null;
+  }
+
+  hasRefundTrackingMessage(): boolean {
+    return !!this.getRefundTrackingMessage();
+  }
+
+  shouldShowTrackingAlert(): boolean {
+    const style = this.config()?.bannerStyle;
+    if (style === 'refund') {
+      return this.hasRefundTrackingMessage();
+    }
+    return style !== 'processing' && style !== 'shipping' && style !== 'delivered';
+  }
+
+  canRequestRefund(): boolean {
+    const ord = this.order();
+    if (!ord) return false;
+    if ((ord.order_status || '').toLowerCase() !== 'delivered') return false;
+    const refundStatus = ord.refund_request?.status;
+    return !refundStatus || refundStatus === 'rejected';
   }
 
   private checkAndStartTimer(): void {
@@ -502,11 +595,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     try {
       const res = await this.checkoutService.receiveOrder(ord.order_id, this.getSessionId(ord));
       this.order.set(res.data);
-      if (this.authService.isAuthenticated() || !ord.user_id) {
-        this.showReviewModal.set(true);
-      } else {
-        this.authPromptModalService.open();
-      }
+      this.router.navigate(['/checkout/delivered'], { state: { order: res.data } });
     } catch (err: any) {
       console.error('Failed to mark order as received:', err);
       alert(err.error?.error || 'Failed to update order status. Please try again.');
@@ -550,7 +639,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       return status === 'shipping' || status === 'delivered';
     }
     if (stepNum === 3) {
-      return status === 'delivered';
+      return status === 'delivered' || status === 'refund' || !!this.order()?.delivered_at;
     }
     return false;
   }

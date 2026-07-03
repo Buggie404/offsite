@@ -199,8 +199,8 @@
             </div>
           </div>
 
-          <!-- Progress Stepper Graph (Shown for processing/shipping/delivered states) -->
-          <div class="progress-stepper" *ngIf="config()?.showStepper && (config()?.bannerStyle === 'processing' || config()?.bannerStyle === 'shipping' || config()?.bannerStyle === 'delivered')">
+          <!-- Progress Stepper Graph (Shown for processing/shipping/delivered/refund states) -->
+          <div class="progress-stepper" *ngIf="config()?.showStepper && (config()?.bannerStyle === 'processing' || config()?.bannerStyle === 'shipping' || config()?.bannerStyle === 'delivered' || config()?.bannerStyle === 'refund')">
             <!-- Step 1 (Order Placed) -->
             <div class="step step--active">
               <div class="step-icon-wrap">
@@ -261,7 +261,11 @@
           </div>
 
           <!-- Alert Banner (dynamic styling/content) -->
-          <div class="alert-banner-inner" [ngClass]="'alert-banner-inner--' + config()?.bannerStyle" *ngIf="config()?.bannerStyle !== 'processing' && config()?.bannerStyle !== 'shipping' && config()?.bannerStyle !== 'delivered'">
+          <div
+            class="alert-banner-inner"
+            [ngClass]="'alert-banner-inner--' + config()?.bannerStyle"
+            *ngIf="shouldShowTrackingAlert()"
+          >
             <div class="alert-icon-wrap">
               <!-- Cancel icon for canceled status -->
               <svg lucideX [size]="14" class="inner-alert-x" *ngIf="config()?.bannerStyle === 'canceled'"></svg>
@@ -286,7 +290,7 @@
                 <span class="timer-countdown font-mono">{{ timeLeft() }}</span>
               </ng-container>
               <ng-container *ngIf="config()?.bannerStyle === 'refund'">
-                Refund of {{ (order().payment?.amount || order().total) | currency:'USD':'symbol':'1.2-2' }} processed on {{ getOrderDateFormatted(order().updatedAt) }}. Allow 3–5 business days for it to appear on your statement.
+                {{ getRefundTrackingMessage() }}
               </ng-container>
             </div>
           </div>
@@ -455,9 +459,6 @@
           <button routerLink="/shop/best-seller" class="btn-continue-shopping font-body">
             CONTINUE SHOPPING
           </button>
-          <button (click)="cancelOrder()" class="btn-cancel-order btn-cancel-order--processing font-body">
-            CANCEL ORDER
-          </button>
         </footer>
 
         <!-- Action Buttons (Shipping status) -->
@@ -478,7 +479,7 @@
           <button (click)="openReviewModal()" class="btn-order-received font-body">
             LEAVE A REVIEW
           </button>
-          <button (click)="refundOrder()" class="btn-order-received font-body">
+          <button (click)="refundOrder()" class="btn-order-received font-body" *ngIf="canRequestRefund()">
             REFUND/RETURN
           </button>
         </footer>

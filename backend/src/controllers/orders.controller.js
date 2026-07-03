@@ -1,6 +1,34 @@
 const Order = require('../models/Order');
 const User = require('../models/User');
+const RefundRequest = require('../models/RefundRequest');
 const mongoose = require('mongoose');
+
+const REFUND_REASONS = ['Damaged item', 'Wrong item', 'Size/color mismatch', 'Other'];
+
+async function getLatestRefundRequest(orderId) {
+  return RefundRequest.findOne({ order_id: orderId })
+    .sort({ created_at: -1 })
+    .lean();
+}
+
+function formatRefundRequestForClient(doc) {
+  if (!doc) return null;
+  return {
+    refund_request_id: doc.refund_request_id,
+    order_id: doc.order_id,
+    reason: doc.reason,
+    other_reason: doc.other_reason,
+    description: doc.description,
+    evidence: doc.evidence || [],
+    refund_item: doc.refund_item || [],
+    payment: doc.payment,
+    status: doc.status,
+    admin_reason: doc.admin_reason,
+    created_at: doc.created_at,
+    reviewed_at: doc.reviewed_at,
+    reviewed_by: doc.reviewed_by
+  };
+}
 
 // Create Order (POST /api/orders)
 async function createOrder(req, res) {
@@ -281,7 +309,7 @@ async function cancelPendingOrder(req, res) {
       return res.status(404).json({ error: 'Order not found.' });
     }
 
-    if (order.order_status !== 'pending' && order.order_status !== 'processing') {
+    if (!['pending', 'processing'].includes(order.order_status)) {
       return res.status(400).json({ error: `Order is in ${order.order_status} status and cannot be canceled.` });
     }
 
@@ -303,7 +331,7 @@ async function cancelPendingOrder(req, res) {
     order.order_status = 'canceled';
     order.canceled_at = new Date();
     order._changedBy = order.is_guest ? 'guest' : order.user_id;
-    order._statusChangeNote = 'Order canceled by user via COD verification modal';
+    order._statusChangeNote = 'Order canceled by customer';
     await order.save();
 
     res.json({
@@ -457,6 +485,8 @@ async function getOrderStatus(req, res) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 
+    const refundRequest = await getLatestRefundRequest(order.order_id);
+
     res.json({
       order_id: order.order_id,
       order_status: order.order_status,
@@ -469,7 +499,11 @@ async function getOrderStatus(req, res) {
       shipping: order.shipping,
       session_id: order.session_id,
       user_id: order.user_id,
-      created_at: order.created_at
+      created_at: order.created_at,
+      delivered_at: order.delivered_at,
+      canceled_at: order.canceled_at,
+      updated_at: order.updated_at,
+      refund_request: formatRefundRequestForClient(refundRequest)
     });
   } catch (error) {
     console.error('Error fetching order status:', error);
@@ -483,13 +517,6 @@ async function receiveOrder(req, res) {
     const { id } = req.params;
     const { session_id, email, mobile } = req.body;
 
-    console.log('--- DEBUG receiveOrder ---');
-    console.log('Order ID param:', id);
-    console.log('Session ID from body:', session_id);
-    console.log('Email from body:', email);
-    console.log('Mobile from body:', mobile);
-    console.log('Request User (Token):', req.user);
-
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id)) {
       query = { _id: id };
@@ -499,35 +526,29 @@ async function receiveOrder(req, res) {
 
     const order = await Order.findOne(query);
     if (!order) {
-      console.log('Order not found in database');
       return res.status(404).json({ error: 'Order not found.' });
     }
 
-    console.log('Order found:', {
-      order_id: order.order_id,
-      user_id: order.user_id,
-      session_id: order.session_id,
-      is_guest: order.is_guest
-    });
+    if (order.order_status !== 'shipping') {
+      return res.status(400).json({
+        error: `Order must be in shipping status to confirm receipt. Current status: ${order.order_status}.`
+      });
+    }
 
     // Access control
     let isAuthorized = false;
-    if (order.user_id) {
-      if (req.user && req.user.user_id) {
-        const userDoc = await User.findById(req.user.user_id);
-        console.log('User doc found:', userDoc ? { user_id: userDoc.user_id } : null);
-        if (userDoc && order.user_id === userDoc.user_id) {
-          console.log('Authorized via registered user_id match');
-          isAuthorized = true;
-        }
+    if (session_id && order.session_id === session_id) {
+      isAuthorized = true;
+    } else if (order.user_id && req.user && req.user.user_id) {
+      const userDoc = await User.findById(req.user.user_id);
+      if (userDoc && order.user_id === userDoc.user_id) {
+        isAuthorized = true;
       }
-    } else {
-      console.log('Authorized: Only session_id in the order, anyone can check order received');
+    } else if (!order.user_id && session_id && order.session_id === session_id) {
       isAuthorized = true;
     }
 
     if (!isAuthorized) {
-      console.log('Access Denied: Not authorized');
       return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
     }
 
@@ -537,10 +558,14 @@ async function receiveOrder(req, res) {
     order._statusChangeNote = 'Order received by user';
     await order.save();
 
-    console.log('Order receipt confirmed successfully');
+    const refundRequest = await getLatestRefundRequest(order.order_id);
+
     res.json({
       message: 'Order status updated to delivered',
-      data: order
+      data: {
+        ...order.toObject(),
+        refund_request: formatRefundRequestForClient(refundRequest)
+      }
     });
   } catch (error) {
     console.error('Error receiving order:', error);
@@ -552,10 +577,31 @@ async function receiveOrder(req, res) {
 async function requestRefund(req, res) {
   try {
     const { id } = req.params;
-    const { reason, description, items, evidence } = req.body;
+    const {
+      reason,
+      other_reason,
+      description,
+      items,
+      refund_item,
+      evidence,
+      session_id
+    } = req.body;
 
-    if (!items || !items.length) {
+    const selectedItems = refund_item || items;
+    if (!selectedItems || !selectedItems.length) {
       return res.status(400).json({ error: 'Please select at least one item to return.' });
+    }
+
+    if (!reason || !REFUND_REASONS.includes(reason)) {
+      return res.status(400).json({ error: 'A valid refund reason is required.' });
+    }
+
+    if (reason === 'Other' && !String(other_reason || '').trim()) {
+      return res.status(400).json({ error: 'Please specify your refund reason.' });
+    }
+
+    if (!evidence || !evidence.length) {
+      return res.status(400).json({ error: 'Supporting evidence is required for refund requests.' });
     }
 
     let query = {};
@@ -572,56 +618,82 @@ async function requestRefund(req, res) {
 
     // Access control
     let isAuthorized = false;
-    let requested_by = '';
+    let userId = null;
+    let sessionId = null;
+
     if (order.user_id) {
       if (req.user && req.user.user_id) {
         const userDoc = await User.findById(req.user.user_id);
         if (userDoc && order.user_id === userDoc.user_id) {
           isAuthorized = true;
-          requested_by = userDoc.user_id;
+          userId = userDoc.user_id;
         }
       }
-    } else {
+    } else if (session_id && order.session_id === session_id) {
       isAuthorized = true;
-      requested_by = order.delivery_info.email || 'guest';
+      sessionId = session_id;
     }
 
     if (!isAuthorized) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to request refund for this order.' });
     }
 
-    // Check order status - must be completed (delivered) to request refund
     if (order.order_status !== 'delivered') {
       return res.status(400).json({ error: 'Refund/return can only be requested for delivered orders.' });
     }
 
-    // Populate refund_request object
-    order.refund_request = {
-      type: 'return_refund',
-      reason: reason || 'Other',
-      description: description || '',
-      evidence: evidence || [],
-      items: items.map(it => ({
-        product_id: it.product_id,
-        variant_id: it.variant_id,
-        quantity: it.quantity,
-        reason: it.reason || ''
-      })),
-      requested_at: new Date(),
-      requested_by: requested_by,
+    const existingPending = await RefundRequest.findOne({
+      order_id: order.order_id,
       status: 'pending'
-    };
+    });
 
-    // Transition order_status to 'refund' so it enters the refund pipeline
-    order.order_status = 'refund';
-    order._changedBy = requested_by;
-    order._statusChangeNote = 'Refund request submitted by user';
+    if (existingPending) {
+      return res.status(400).json({ error: 'A refund request is already pending review for this order.' });
+    }
 
-    await order.save();
+    const refundItems = selectedItems.map((selected) => {
+      const orderItem = order.items.find(
+        (item) =>
+          item.product_id === selected.product_id && item.variant_id === selected.variant_id
+      );
+
+      if (!orderItem) {
+        throw new Error('One or more selected items were not found in this order.');
+      }
+
+      const quantity = selected.quantity || orderItem.quantity;
+      return {
+        product_id: orderItem.product_id,
+        variant_id: orderItem.variant_id,
+        product_name: orderItem.product_name,
+        variant_name: orderItem.variant_name,
+        image: orderItem.image,
+        unit_price: orderItem.unit_price,
+        quantity,
+        subtotal: orderItem.unit_price * quantity
+      };
+    });
+
+    const refundRequest = new RefundRequest({
+      order_id: order.order_id,
+      user_id: userId,
+      session_id: sessionId,
+      reason,
+      other_reason: reason === 'Other' ? String(other_reason).trim() : null,
+      payment: order.payment,
+      description: description ? String(description).trim() : null,
+      evidence,
+      refund_item: refundItems
+    });
+
+    await refundRequest.save();
 
     res.json({
       message: 'Refund request submitted successfully.',
-      data: order
+      data: {
+        ...order.toObject(),
+        refund_request: formatRefundRequestForClient(refundRequest.toObject())
+      }
     });
   } catch (error) {
     console.error('Error requesting refund:', error);

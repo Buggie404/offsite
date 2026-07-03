@@ -173,7 +173,7 @@
             <svg lucideStar [size]="16" class="btn-icon"></svg>
             Leave a Review
           </button>
-          <button type="button" class="btn-outlined-action" (click)="refundOrder()">
+          <button type="button" class="btn-outlined-action" (click)="refundOrder()" *ngIf="canRequestRefund() || order().refund_request?.status === 'pending' || order().order_status === 'refund'">
             Refund/Return
           </button>
         </ng-container>
