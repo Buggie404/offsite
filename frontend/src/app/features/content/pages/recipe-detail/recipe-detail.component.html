@@ -166,67 +166,12 @@
       </div>
       
       <div class="product-grid">
-        <div class="card" *ngFor="let product of products">
-          <!-- Image wrap -->
-          <div class="card-image-wrap">
-            <img [src]="getPrimaryImage(product)" [alt]="getPrimaryImageAlt(product)" class="product-img" />
-
-            <button class="save-btn" (click)="onSaveProduct(product, $event)">
-              <svg lucideHeart [size]="16"></svg>
-            </button>
-
-            <!-- Optional badge -->
-            <div class="badge-wrap" *ngIf="product.product_id === 14001 || product.product_id === 12011">
-              <div class="badge"><span>Best seller</span></div>
-            </div>
-          </div>
-
-          <!-- Card body -->
-          <div class="card-body">
-            <div class="card-body-top"
-                 [class.gap-coffee]="product.category === 'coffee'">
-              
-              <!-- Title + Rating -->
-              <div class="title-rating-row">
-                <h3 class="product-title">{{ product.name }}</h3>
-                <div class="rating">
-                  <svg lucideStar [size]="12"></svg>
-                  <span>4.9</span>
-                </div>
-              </div>
-
-              <!-- Origin -->
-              <p class="origin-text" *ngIf="getOrigin(product)">
-                {{ getOrigin(product) }}
-              </p>
-
-              <!-- Tag pills -->
-              <div class="tags-row" *ngIf="getTags(product).length">
-                <div class="tag" *ngFor="let tag of getTags(product)">
-                  <span>{{ tag }}</span>
-                </div>
-              </div>
-
-              <!-- Roast Swatch bar -->
-              <div class="roast-bar" *ngIf="showRoastBar(product)">
-                <span
-                  *ngFor="let color of roastSwatches; let i = index"
-                  class="swatch"
-                  [class.swatch--highlight]="isHighlightSwatch(product, i)"
-                  [style.background]="isHighlightSwatch(product, i) ? '#E8E05A' : color"
-                ></span>
-              </div>
-            </div>
-
-            <!-- Price & Add -->
-            <div class="price-add-row">
-              <span class="price">{{ getPrice(product) }}</span>
-              <button class="add-btn" (click)="onAddToCart(product)">
-                <span>ADD</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <app-product-card
+          *ngFor="let product of products"
+          [product]="product"
+          [isSaved]="isProductSaved(product)"
+          (saveToggle)="onSaveProduct($event)"
+        ></app-product-card>
       </div>
     </div>
   </div>

@@ -23,6 +23,7 @@ import { AuthService } from '../../../../core/auth.service';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
+import { ProductCardComponent } from '../../../shop/components/product-card/product-card.component';
 
 @Component({
   selector: 'app-recipe-detail',
@@ -40,7 +41,8 @@ import { BackToTopComponent } from '../../../../shared/components/back-to-top/ba
     LucidePlay,
     LucidePause,
     LucideArrowRight,
-    BackToTopComponent
+    BackToTopComponent,
+    ProductCardComponent
   ],
   templateUrl: './recipe-detail.component.html',
   styleUrl: './recipe-detail.component.scss'
@@ -60,6 +62,7 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   recipe: Recipe | null = null;
   relatedRecipes: Recipe[] = [];
   savedRecipeIds = new Set<string>();
+  savedProductIds = new Set<number>();
   products: Product[] = [];
   isLoading = true;
   errorMessage = '';
@@ -85,6 +88,9 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
       const slug = params['slug'];
       if (slug) {
         this.loadRecipeDetail(slug);
+        if (isPlatformBrowser(this.platformId)) {
+          this.loadSavedProducts();
+        }
       }
     });
   }
@@ -432,14 +438,40 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     console.log('Add to cart:', p.name);
   }
 
-  onSaveProduct(p: Product, event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
+  isProductSaved(product: Product): boolean {
+    return this.savedProductIds.has(product.product_id);
+  }
+
+  async onSaveProduct(product: Product): Promise<void> {
     if (!this.authService.isAuthenticated()) {
       this.authPromptService.open();
       return;
     }
-    console.log('Save product:', p.name);
+
+    try {
+      const result = await this.authService.toggleSavedProduct(product.product_id);
+      if (result.saved) this.savedProductIds.add(product.product_id);
+      else this.savedProductIds.delete(product.product_id);
+      this.cdr.detectChanges();
+    } catch (err) {
+      console.error('Failed to save product:', err);
+    }
+  }
+
+  private async loadSavedProducts(): Promise<void> {
+    if (!this.authService.isAuthenticated()) return;
+
+    try {
+      const result = await this.authService.getSavedItems();
+      this.savedProductIds = new Set(
+        (result.saved_products || [])
+          .map((item: any) => Number(item.product?.product_id ?? item.product_id))
+          .filter((id: number) => !Number.isNaN(id))
+      );
+      this.cdr.detectChanges();
+    } catch (err) {
+      console.error('Failed to load saved products:', err);
+    }
   }
 
   goBack(): void {
