@@ -638,7 +638,7 @@ async function requestRefund(req, res) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to request refund for this order.' });
     }
 
-    if (order.order_status !== 'delivered') {
+    if (order.order_status !== 'delivered' && order.order_status !== 'refund_rejected') {
       return res.status(400).json({ error: 'Refund/return can only be requested for delivered orders.' });
     }
 
@@ -687,6 +687,11 @@ async function requestRefund(req, res) {
     });
 
     await refundRequest.save();
+
+    order.order_status = 'pending_refund';
+    order._changedBy = userId || sessionId || 'customer';
+    order._statusChangeNote = 'Refund request submitted by customer';
+    await order.save();
 
     res.json({
       message: 'Refund request submitted successfully.',

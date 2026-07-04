@@ -156,28 +156,28 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     const status = (ord.order_status || ord.status || '').toLowerCase();
     const refundStatus = ord.refund_request?.status;
 
-    if (status === 'delivered' && refundStatus === 'pending') {
+    if (status === 'pending_refund' || (status === 'delivered' && refundStatus === 'pending')) {
       return {
         ...this.configMap.refund,
         bannerStyle: 'refund',
         bannerLabel: 'REFUND REQUESTED',
         bannerTitle: 'Under Review',
         trackingDotClass: 'warning-dot',
-        showStepper: true,
+        showStepper: false,
         chargeText: 'Pending Refund',
         showRefundActions: false
       };
     }
 
-    if (status === 'delivered' && refundStatus === 'rejected') {
+    if (status === 'refund_rejected' || (status === 'delivered' && refundStatus === 'rejected')) {
       return {
         ...this.configMap.refund,
         bannerStyle: 'refund',
         bannerLabel: 'REFUND REQUESTED',
         bannerTitle: 'Refund Declined',
         trackingDotClass: 'red-dot',
-        showStepper: true,
-        chargeText: ord.payment?.method === 'cod' ? 'Paid (COD)' : 'Paid',
+        showStepper: false,
+        chargeText: 'Refund Rejected',
         showRefundActions: false
       };
     }
@@ -217,7 +217,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       const base = this.configMap.refund;
       return {
         ...base,
-        showStepper: true,
+        showStepper: false,
         chargeText: ord.payment?.method === 'cod' ? 'Refunded (COD)' : 'Refunded'
       };
     }
@@ -309,7 +309,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     const refund = ord.refund_request;
     const status = (ord.order_status || '').toLowerCase();
 
-    if (refund?.status === 'pending') {
+    if (status === 'pending_refund' || refund?.status === 'pending') {
       return 'Your refund request has been submitted and is awaiting admin review.';
     }
 
@@ -319,8 +319,9 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       return `Your refund has been approved. Refund of $${Number(amount).toFixed(2)} processed on ${processedDate}. Allow 3–5 business days for it to appear on your statement.`;
     }
 
-    if (refund?.status === 'rejected') {
-      return `Your refund request was rejected. Reason: ${refund.admin_reason}. Please contact +84 123 456 789 for more details.`;
+    if (status === 'refund_rejected' || refund?.status === 'rejected') {
+      const reason = refund?.admin_reason || 'No reason provided';
+      return `Your refund request was rejected. Reason: ${reason}. Please contact +84 123 456 789 for more details.`;
     }
 
     return null;
@@ -341,7 +342,9 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
   canRequestRefund(): boolean {
     const ord = this.order();
     if (!ord) return false;
-    if ((ord.order_status || '').toLowerCase() !== 'delivered') return false;
+    const status = (ord.order_status || '').toLowerCase();
+    if (status === 'refund_rejected') return true;
+    if (status !== 'delivered') return false;
     const refundStatus = ord.refund_request?.status;
     return !refundStatus || refundStatus === 'rejected';
   }
@@ -632,14 +635,15 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
   isStepCompleted(stepNum: number): boolean {
     const status = (this.order()?.order_status || this.order()?.status || '').toLowerCase();
+    const deliveredGroup = ['delivered', 'refund', 'pending_refund', 'refund_rejected'];
     if (stepNum === 1) {
-      return status === 'processing' || status === 'shipping' || status === 'delivered';
+      return status === 'processing' || status === 'shipping' || deliveredGroup.includes(status);
     }
     if (stepNum === 2) {
-      return status === 'shipping' || status === 'delivered';
+      return status === 'shipping' || deliveredGroup.includes(status);
     }
     if (stepNum === 3) {
-      return status === 'delivered' || status === 'refund' || !!this.order()?.delivered_at;
+      return deliveredGroup.includes(status) || !!this.order()?.delivered_at;
     }
     return false;
   }

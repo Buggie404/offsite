@@ -11,6 +11,7 @@ import {
   LucideX
 } from '@lucide/angular';
 import { AdminAuthService } from '../../services/admin-auth.service';
+import { AdminRefreshService } from '../../services/admin-refresh.service';
 
 @Component({
   selector: 'app-admin-layout',
@@ -30,6 +31,7 @@ import { AdminAuthService } from '../../services/admin-auth.service';
 })
 export class AdminLayoutComponent implements OnInit, AfterViewInit {
   private adminAuth = inject(AdminAuthService);
+  private adminRefresh = inject(AdminRefreshService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private destroyRef = inject(DestroyRef);
@@ -94,6 +96,14 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
       queryParams: { search: value || null },
       queryParamsHandling: 'merge'
     });
+  }
+
+  onOrdersLinkClick(event: MouseEvent): void {
+    const path = this.router.url.split('?')[0];
+    if (path === '/admin/orders') {
+      event.preventDefault();
+      this.adminRefresh.refreshOrdersList();
+    }
   }
 
   openSignOutModal(): void {

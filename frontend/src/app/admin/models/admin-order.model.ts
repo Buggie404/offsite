@@ -4,7 +4,9 @@ export type AdminOrderStatus =
   | 'shipping'
   | 'delivered'
   | 'canceled'
-  | 'refund';
+  | 'refund'
+  | 'pending_refund'
+  | 'refund_rejected';
 
 export type AdminOrderStatusFilter =
   | 'all'
@@ -12,7 +14,9 @@ export type AdminOrderStatusFilter =
   | 'shipping'
   | 'delivered'
   | 'cancelled'
-  | 'refund';
+  | 'refund'
+  | 'pending_refund'
+  | 'refund_rejected';
 
 export type AdminDateRange = 'today' | '7' | '30' | '90' | 'custom';
 

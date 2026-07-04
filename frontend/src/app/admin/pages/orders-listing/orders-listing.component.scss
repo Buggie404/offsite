@@ -361,6 +361,16 @@
   color: var(--status-refund-text);
 }
 
+.status-badge--pending-refund {
+  background: rgba(229, 193, 88, 0.15);
+  color: #8b6914;
+}
+
+.status-badge--refund-rejected {
+  background: rgba(142, 68, 173, 0.12);
+  color: #6c3483;
+}
+
 .status-badge--cancelled {
   background: var(--status-cancelled-bg);
   color: var(--status-cancelled-text);

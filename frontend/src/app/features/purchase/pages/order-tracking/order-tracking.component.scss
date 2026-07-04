@@ -425,6 +425,18 @@
     color: var(--status-refund-text);
     .status-dot { background-color: var(--status-refund-text); }
   }
+
+  &.status--pending-refund {
+    background-color: rgba(229, 193, 88, 0.15);
+    color: #8b6914;
+    .status-dot { background-color: #d4a017; }
+  }
+
+  &.status--refund-rejected {
+    background-color: rgba(142, 68, 173, 0.12);
+    color: #6c3483;
+    .status-dot { background-color: #8e44ad; }
+  }
 }
 
 /* Card Inner Body (Cream separated area) */

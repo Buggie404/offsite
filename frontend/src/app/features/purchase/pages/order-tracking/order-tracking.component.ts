@@ -299,7 +299,10 @@ export class OrderTrackingComponent implements OnInit {
 
   canRequestRefund(): boolean {
     const ord = this.order();
-    if (!ord || ord.order_status !== 'delivered') return false;
+    if (!ord) return false;
+    const status = (ord.order_status || '').toLowerCase();
+    if (status === 'refund_rejected') return true;
+    if (status !== 'delivered') return false;
     const refundStatus = ord.refund_request?.status;
     return !refundStatus || refundStatus === 'rejected';
   }
@@ -328,6 +331,8 @@ export class OrderTrackingComponent implements OnInit {
     if (st === 'delivered') return 'status--delivered';
     if (st === 'canceled' || st === 'cancelled') return 'status--canceled';
     if (st === 'refund') return 'status--refund';
+    if (st === 'pending_refund') return 'status--pending-refund';
+    if (st === 'refund_rejected') return 'status--refund-rejected';
     return 'status--pending';
   }
 
@@ -339,7 +344,9 @@ export class OrderTrackingComponent implements OnInit {
       delivered: 'DELIVERED',
       canceled: 'CANCELED',
       cancelled: 'CANCELED',
-      refund: 'REFUNDED'
+      refund: 'REFUNDED',
+      pending_refund: 'PENDING REFUND',
+      refund_rejected: 'REFUND REJECTED'
     };
     return labels[status.toLowerCase()] || status.toUpperCase();
   }

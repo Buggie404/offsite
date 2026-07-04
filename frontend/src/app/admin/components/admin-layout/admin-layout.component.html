@@ -6,6 +6,7 @@
         routerLink="/admin/orders"
         class="sidebar-link"
         [class.sidebar-link--active]="ordersLinkActive"
+        (click)="onOrdersLinkClick($event)"
       >
         <svg lucidePackage aria-hidden="true" [size]="18"></svg>
         Orders

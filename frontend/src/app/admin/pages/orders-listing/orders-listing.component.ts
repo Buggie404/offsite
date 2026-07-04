@@ -3,8 +3,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { LucideDownload, LucideEye, LucideChevronDown, LucideCalendar } from '@lucide/angular';
-import { Subject, catchError, distinctUntilChanged, map, of, switchMap } from 'rxjs';
+import { Subject, catchError, distinctUntilChanged, interval, map, of, switchMap } from 'rxjs';
 import { AdminOrderService } from '../../services/admin-order.service';
+import { AdminRefreshService } from '../../services/admin-refresh.service';
 import {
   AdminDateRange,
   AdminOrderListItem,
@@ -27,10 +28,12 @@ interface StatusFilterOption {
 })
 export class OrdersListingComponent implements OnInit {
   private adminOrderService = inject(AdminOrderService);
+  private adminRefresh = inject(AdminRefreshService);
   private route = inject(ActivatedRoute);
   private destroyRef = inject(DestroyRef);
   private cdr = inject(ChangeDetectorRef);
-  private readonly loadTrigger$ = new Subject<void>();
+  private readonly loadTrigger$ = new Subject<{ silent?: boolean }>();
+  private readonly pollIntervalMs = 20_000;
 
   orders: AdminOrderListItem[] = [];
   stats: AdminOrderStats = { total: 0, processing: 0, shipped: 0, needsAttention: 0 };
@@ -56,8 +59,10 @@ export class OrdersListingComponent implements OnInit {
     { value: 'processing', label: 'Processing' },
     { value: 'shipping', label: 'Shipping' },
     { value: 'delivered', label: 'Delivered' },
-    { value: 'cancelled', label: 'Cancelled' },
-    { value: 'refund', label: 'Refund' }
+    { value: 'pending_refund', label: 'Pending Refund' },
+    { value: 'refund', label: 'Refund' },
+    { value: 'refund_rejected', label: 'Refund Rejected' },
+    { value: 'cancelled', label: 'Cancelled' }
   ];
 
   ngOnInit(): void {
@@ -68,9 +73,11 @@ export class OrdersListingComponent implements OnInit {
 
     this.loadTrigger$
       .pipe(
-        switchMap(() => {
-          this.loading = true;
-          this.error = null;
+        switchMap((options) => {
+          if (!options?.silent) {
+            this.loading = true;
+            this.error = null;
+          }
 
           return this.adminOrderService
             .getOrders({
@@ -108,16 +115,28 @@ export class OrdersListingComponent implements OnInit {
       .subscribe((search) => {
         if (search === this.search) return;
         this.search = search;
-        this.loadTrigger$.next();
+        this.loadTrigger$.next({});
       });
 
-    this.loadTrigger$.next();
+    this.adminRefresh.onOrdersListRefresh$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.loadTrigger$.next({ silent: true }));
+
+    interval(this.pollIntervalMs)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (typeof document !== 'undefined' && !document.hidden) {
+          this.loadTrigger$.next({ silent: true });
+        }
+      });
+
+    this.loadTrigger$.next({});
   }
 
   setStatusFilter(status: AdminOrderStatusFilter): void {
     if (this.activeStatus === status) return;
     this.activeStatus = status;
-    this.loadTrigger$.next();
+    this.loadTrigger$.next({});
   }
 
   onDateChange(value: string): void {
@@ -145,7 +164,7 @@ export class OrdersListingComponent implements OnInit {
 
     if (this.dateRange === next) return;
     this.dateRange = next;
-    this.loadTrigger$.next();
+    this.loadTrigger$.next({});
   }
 
   applyCustomRange(): void {
@@ -163,7 +182,7 @@ export class OrdersListingComponent implements OnInit {
 
     this.appliedCustomFrom = this.customDateFrom;
     this.appliedCustomTo = this.customDateTo;
-    this.loadTrigger$.next();
+    this.loadTrigger$.next({});
   }
 
   cancelCustomRange(): void {
@@ -178,7 +197,7 @@ export class OrdersListingComponent implements OnInit {
     }
 
     this.dateRange = this.previousDateRange;
-    this.loadTrigger$.next();
+    this.loadTrigger$.next({});
   }
 
   onCustomDateFromChange(value: string): void {
@@ -243,7 +262,9 @@ export class OrdersListingComponent implements OnInit {
       shipping: 'Shipping',
       delivered: 'Delivered',
       canceled: 'Cancelled',
-      refund: 'Refund'
+      refund: 'Refund',
+      pending_refund: 'Pending Refund',
+      refund_rejected: 'Refund Rejected'
     };
     return labels[status] || status;
   }
@@ -254,6 +275,8 @@ export class OrdersListingComponent implements OnInit {
     if (status === 'delivered') return 'status-badge--delivered';
     if (status === 'canceled') return 'status-badge--cancelled';
     if (status === 'refund') return 'status-badge--refund';
+    if (status === 'pending_refund') return 'status-badge--pending-refund';
+    if (status === 'refund_rejected') return 'status-badge--refund-rejected';
     return 'status-badge--processing';
   }
 

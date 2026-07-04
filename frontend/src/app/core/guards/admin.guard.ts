@@ -9,13 +9,15 @@ export const adminGuard: CanActivateFn = () => {
   const adminAuth = inject(AdminAuthService);
 
   if (!isPlatformBrowser(platformId)) {
-    return router.createUrlTree(['/admin/login']);
+    return true;
   }
 
   if (adminAuth.isAdmin()) {
     return true;
   }
 
-  adminAuth.logout();
+  if (adminAuth.getToken()) {
+    adminAuth.logout();
+  }
   return router.createUrlTree(['/admin/login']);
 };

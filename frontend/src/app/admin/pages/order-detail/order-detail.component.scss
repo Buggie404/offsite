@@ -114,6 +114,16 @@
   color: var(--status-refund-text);
 }
 
+.status-badge--pending-refund {
+  background: rgba(229, 193, 88, 0.15);
+  color: #8b6914;
+}
+
+.status-badge--refund-rejected {
+  background: rgba(142, 68, 173, 0.12);
+  color: #6c3483;
+}
+
 .status-badge--cancelled {
   background: var(--status-cancelled-bg);
   color: var(--status-cancelled-text);
@@ -775,6 +785,17 @@
   border-radius: var(--radius-input);
   background: rgba(207, 225, 185, 0.2);
   border: 1px solid rgba(45, 74, 62, 0.12);
+}
+
+.field-textarea--error {
+  border-color: var(--state-error);
+}
+
+.modal-field-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--state-error);
+  line-height: 1.4;
 }
 
 .refund-record-card__header {

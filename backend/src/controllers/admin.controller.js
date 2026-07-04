@@ -57,6 +57,8 @@ function mapStatusFilter(orderStatus) {
   if (!orderStatus || orderStatus === 'all') return null;
   if (orderStatus === 'cancelled') return 'canceled';
   if (orderStatus === 'processing') return ['pending', 'processing'];
+  if (orderStatus === 'pending_refund') return 'pending_refund';
+  if (orderStatus === 'refund_rejected') return 'refund_rejected';
   return orderStatus;
 }
 
@@ -240,18 +242,15 @@ async function buildOrderDetail(order) {
 async function computeStats(createdAtFilter) {
   const baseFilter = { created_at: createdAtFilter };
 
-  const [total, processing, shipped, canceledOrRefund, pendingRefundOrders] = await Promise.all([
+  const [total, processing, shipped, needsAttention] = await Promise.all([
     Order.countDocuments(baseFilter),
     Order.countDocuments({ ...baseFilter, order_status: { $in: ['pending', 'processing'] } }),
     Order.countDocuments({ ...baseFilter, order_status: 'shipping' }),
     Order.countDocuments({
       ...baseFilter,
-      order_status: { $in: ['canceled', 'refund'] }
-    }),
-    RefundRequest.distinct('order_id', { status: 'pending' })
+      order_status: { $in: ['canceled', 'refund', 'pending_refund', 'refund_rejected'] }
+    })
   ]);
-
-  const needsAttention = canceledOrRefund + pendingRefundOrders.length;
 
   return { total, processing, shipped, needsAttention };
 }
@@ -470,6 +469,11 @@ async function rejectRefundRequest(req, res) {
       note: rejectionReason
     });
     await refundRequest.save();
+
+    order.order_status = 'refund_rejected';
+    order._changedBy = adminId;
+    order._statusChangeNote = `Refund rejected: ${rejectionReason}`;
+    await order.save();
 
     const data = await buildOrderDetail(order);
     res.json({

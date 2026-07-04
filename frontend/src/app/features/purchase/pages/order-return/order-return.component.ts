@@ -111,7 +111,7 @@ export class OrderReturnComponent implements OnInit {
       }
 
       // Check order status
-      if (ord.order_status !== 'delivered') {
+      if (ord.order_status !== 'delivered' && ord.order_status !== 'refund_rejected') {
         alert('Refund/return can only be requested for delivered orders.');
         this.router.navigate(['/order-tracking']);
         return;

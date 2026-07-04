@@ -465,10 +465,14 @@
           <textarea
             id="reject-reason"
             class="field-textarea"
+            [class.field-textarea--error]="rejectModalError"
             placeholder="Enter rejection reason…"
             [value]="rejectReason"
-            (input)="rejectReason = $any($event.target).value"
+            (input)="onRejectReasonInput($any($event.target).value)"
           ></textarea>
+          @if (rejectModalError) {
+            <p class="modal-field-error" role="alert">{{ rejectModalError }}</p>
+          }
         </div>
 
         <footer class="modal-card__footer">

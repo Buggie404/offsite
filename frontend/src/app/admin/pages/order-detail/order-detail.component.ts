@@ -2,6 +2,7 @@ import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angul
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { interval } from 'rxjs';
 import {
   LucideSave,
   LucideChevronDown,
@@ -14,6 +15,7 @@ import {
   LucideUndo2
 } from '@lucide/angular';
 import { AdminOrderService } from '../../services/admin-order.service';
+import { AdminRefreshService } from '../../services/admin-refresh.service';
 import {
   AdminInternalNote,
   AdminOrderDetail,
@@ -55,8 +57,10 @@ interface TimelineStep {
 export class OrderDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private adminOrderService = inject(AdminOrderService);
+  private adminRefresh = inject(AdminRefreshService);
   private destroyRef = inject(DestroyRef);
   private cdr = inject(ChangeDetectorRef);
+  private readonly pollIntervalMs = 20_000;
 
   order: AdminOrderDetail | null = null;
   loading = true;
@@ -77,6 +81,7 @@ export class OrderDetailComponent implements OnInit {
   showRefundModal = false;
   showRejectModal = false;
   rejectReason = '';
+  rejectModalError: string | null = null;
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
@@ -85,6 +90,23 @@ export class OrderDetailComponent implements OnInit {
         this.loadOrder(orderId);
       }
     });
+
+    this.adminRefresh.onOrderDetailRefresh$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        const orderId = this.orderId;
+        if (orderId) {
+          this.loadOrder(orderId, true);
+        }
+      });
+
+    interval(this.pollIntervalMs)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (typeof document !== 'undefined' && !document.hidden && this.orderId) {
+          this.loadOrder(this.orderId, true);
+        }
+      });
   }
 
   get orderId(): string {
@@ -110,7 +132,10 @@ export class OrderDetailComponent implements OnInit {
   }
 
   get hasPendingRefundRequest(): boolean {
-    return this.order?.refund_request?.status === 'pending';
+    return (
+      this.order?.refund_request?.status === 'pending' ||
+      this.order?.order_status === 'pending_refund'
+    );
   }
 
   get mainTimelineSteps(): TimelineStep[] {
@@ -127,12 +152,13 @@ export class OrderDetailComponent implements OnInit {
     const reachedDelivered =
       status === 'delivered' ||
       status === 'refund' ||
-      !!this.order.delivered_at ||
-      this.order.refund_request?.status === 'rejected';
+      status === 'pending_refund' ||
+      status === 'refund_rejected' ||
+      !!this.order.delivered_at;
 
     const isShipping =
       status === 'shipping' || reachedDelivered;
-    const isProcessed = ['processing', 'shipping', 'delivered', 'refund', 'canceled'].includes(status);
+    const isProcessed = ['processing', 'shipping', 'delivered', 'refund', 'canceled', 'pending_refund', 'refund_rejected'].includes(status);
 
     return [
       {
@@ -175,7 +201,10 @@ export class OrderDetailComponent implements OnInit {
   }
 
   get showRefundProcessingActive(): boolean {
-    return this.order?.refund_request?.status === 'pending';
+    return (
+      this.order?.refund_request?.status === 'pending' ||
+      this.order?.order_status === 'pending_refund'
+    );
   }
 
   get showRefunded(): boolean {
@@ -186,7 +215,10 @@ export class OrderDetailComponent implements OnInit {
   }
 
   get showRefundRejected(): boolean {
-    return this.order?.refund_request?.status === 'rejected';
+    return (
+      this.order?.refund_request?.status === 'rejected' ||
+      this.order?.order_status === 'refund_rejected'
+    );
   }
 
   get showCanceled(): boolean {
@@ -197,9 +229,11 @@ export class OrderDetailComponent implements OnInit {
     return this.order?.refund_request || null;
   }
 
-  loadOrder(orderId: string): void {
-    this.loading = true;
-    this.error = null;
+  loadOrder(orderId: string, silent = false): void {
+    if (!silent) {
+      this.loading = true;
+      this.error = null;
+    }
 
     this.adminOrderService.getOrderById(orderId).subscribe({
       next: (response) => {
@@ -209,7 +243,9 @@ export class OrderDetailComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: () => {
-        this.error = 'Failed to load order details. Please try again.';
+        if (!silent) {
+          this.error = 'Failed to load order details. Please try again.';
+        }
         this.loading = false;
         this.cdr.markForCheck();
       }
@@ -291,6 +327,7 @@ export class OrderDetailComponent implements OnInit {
 
   openRejectModal(): void {
     this.rejectReason = '';
+    this.rejectModalError = null;
     this.showRejectModal = true;
     this.showRefundModal = false;
   }
@@ -298,6 +335,14 @@ export class OrderDetailComponent implements OnInit {
   closeRejectModal(): void {
     this.showRejectModal = false;
     this.rejectReason = '';
+    this.rejectModalError = null;
+  }
+
+  onRejectReasonInput(value: string): void {
+    this.rejectReason = value;
+    if (this.rejectModalError) {
+      this.rejectModalError = null;
+    }
   }
 
   submitRejectRefund(): void {
@@ -305,12 +350,12 @@ export class OrderDetailComponent implements OnInit {
 
     const trimmed = this.rejectReason.trim();
     if (!trimmed) {
-      this.actionError = 'Please provide a rejection reason.';
+      this.rejectModalError = 'Please provide a rejection reason.';
       return;
     }
 
     this.refundSaving = true;
-    this.actionError = null;
+    this.rejectModalError = null;
     this.refundMessage = null;
 
     this.adminOrderService.rejectRefund(this.order.order_id, trimmed).subscribe({
@@ -320,10 +365,11 @@ export class OrderDetailComponent implements OnInit {
         this.refundSaving = false;
         this.showRejectModal = false;
         this.rejectReason = '';
+        this.rejectModalError = null;
         this.cdr.markForCheck();
       },
       error: (err) => {
-        this.actionError = err.error?.error || 'Failed to reject refund.';
+        this.rejectModalError = err.error?.error || 'Failed to reject refund.';
         this.refundSaving = false;
         this.cdr.markForCheck();
       }
@@ -428,7 +474,9 @@ export class OrderDetailComponent implements OnInit {
       shipping: 'Shipping',
       delivered: 'Delivered',
       canceled: 'Cancelled',
-      refund: 'Refund'
+      refund: 'Refund',
+      pending_refund: 'Pending Refund',
+      refund_rejected: 'Refund Rejected'
     };
     return labels[status] || status;
   }
@@ -439,6 +487,8 @@ export class OrderDetailComponent implements OnInit {
     if (status === 'delivered') return 'status-badge--delivered';
     if (status === 'canceled') return 'status-badge--cancelled';
     if (status === 'refund') return 'status-badge--refund';
+    if (status === 'pending_refund') return 'status-badge--pending-refund';
+    if (status === 'refund_rejected') return 'status-badge--refund-rejected';
     return 'status-badge--processing';
   }
 

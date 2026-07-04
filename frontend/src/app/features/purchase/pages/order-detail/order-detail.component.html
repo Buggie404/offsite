@@ -199,8 +199,8 @@
             </div>
           </div>
 
-          <!-- Progress Stepper Graph (Shown for processing/shipping/delivered/refund states) -->
-          <div class="progress-stepper" *ngIf="config()?.showStepper && (config()?.bannerStyle === 'processing' || config()?.bannerStyle === 'shipping' || config()?.bannerStyle === 'delivered' || config()?.bannerStyle === 'refund')">
+          <!-- Progress Stepper Graph (Shown for processing/shipping/delivered states) -->
+          <div class="progress-stepper" *ngIf="config()?.showStepper && (config()?.bannerStyle === 'processing' || config()?.bannerStyle === 'shipping' || config()?.bannerStyle === 'delivered')">
             <!-- Step 1 (Order Placed) -->
             <div class="step step--active">
               <div class="step-icon-wrap">
