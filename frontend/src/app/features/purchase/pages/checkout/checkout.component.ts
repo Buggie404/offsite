@@ -417,6 +417,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   get isFormInvalid(): boolean {
+    if (this.authService.isAuthenticated() && this.paymentMethod() === 'card') {
+      if (this.showInlineCardForm() || this.savedCards().length === 0) {
+        return true;
+      }
+    }
+
     if (this.paymentMethod() === 'card' && this.userProfile() && this.savedCards().length > 0 && !this.showInlineCardForm() && !this.selectedCardId()) {
       return true;
     }
@@ -511,6 +517,45 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     if (this.validateAddress() !== null) return true;
 
     return false;
+  }
+
+  get isCardFormValid(): boolean {
+    const c = this.cardForm;
+    const cardholderName = c.cardholder_name || '';
+    if (!cardholderName.trim() || cardholderName.trim().split(/\s+/).filter(Boolean).length < 2 || /[0-9]/.test(cardholderName)) {
+      return false;
+    }
+    const cardNumber = c.card_number || '';
+    const cardNumClean = cardNumber.replace(/\s+/g, '');
+    if (!cardNumClean || /[^0-9]/.test(cardNumClean)) return false;
+    if (c.card_type === 'NAPAS') {
+      if (!cardNumClean.startsWith('9704') || cardNumClean.length < 16 || cardNumClean.length > 19) return false;
+    } else {
+      const isVisa = cardNumClean.startsWith('4') && (cardNumClean.length === 13 || cardNumClean.length === 16);
+      const p2Val = parseInt(cardNumClean.slice(0, 2), 10);
+      const prefix4 = parseInt(cardNumClean.slice(0, 4), 10);
+      const isMaster = ((p2Val >= 51 && p2Val <= 55) || (prefix4 >= 2221 && prefix4 <= 2720)) && cardNumClean.length === 16;
+      if (!isVisa && !isMaster) return false;
+    }
+    const expireDate = c.expire_date || '';
+    const cleanExp = expireDate.trim();
+    const matchExp = cleanExp.match(/^(0[1-9]|1[0-2])\s*\/\s*(\d{2})$/);
+    if (!matchExp) return false;
+    const expMonth = parseInt(matchExp[1], 10);
+    const expYear = parseInt('20' + matchExp[2], 10);
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    if (expYear < currentYear || (expYear === currentYear && expMonth < currentMonth)) return false;
+    if (c.card_type !== 'NAPAS') {
+      const cvc = c.cvc || '';
+      const cvcClean = cvc.trim();
+      if (!cvcClean || !/^\d{3,4}$/.test(cvcClean)) return false;
+    } else {
+      const issuedBank = c.issued_bank || '';
+      if (!issuedBank.trim() || !this.isValidBankLocal(issuedBank)) return false;
+    }
+    return true;
   }
 
   shippingMethod = signal<ShippingMethod>('fast');

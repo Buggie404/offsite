@@ -333,6 +333,11 @@
                 <div id="card-cvc-error" class="field-error animate-fade-in"></div>
               </div>
             </div>
+            <div class="inline-form-actions" *ngIf="authService.isAuthenticated()">
+              <button type="button" class="btn btn-primary btn-save-new-card" [disabled]="!isCardFormValid" (click)="saveCard()">
+                SAVE CARD TO PROFILE
+              </button>
+            </div>
           </div>
         </div>
 
@@ -454,6 +459,14 @@
                   <div *ngIf="cardForm.card_type === 'NAPAS'" id="card-bank-error" class="field-error animate-fade-in"></div>
                 </div>
               </div>
+            </div>
+            <div class="inline-form-actions">
+              <button type="button" class="btn btn-primary btn-save-new-card" [disabled]="!isCardFormValid" (click)="saveCard()">
+                SAVE CARD
+              </button>
+              <button type="button" class="btn btn-secondary btn-cancel-card" (click)="cancelAddCard()">
+                CANCEL
+              </button>
             </div>
           </div>
         </div>

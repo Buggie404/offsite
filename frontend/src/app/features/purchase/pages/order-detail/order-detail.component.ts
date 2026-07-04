@@ -79,6 +79,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
   timeLeft = signal<string>('24:00:00');
   showReviewModal = signal<boolean>(false);
   private timerInterval: any = null;
+  private refreshInterval: any = null;
 
   // Configuration map for statuses
   private readonly configMap: Record<'pending' | 'canceled' | 'processing' | 'shipping' | 'delivered' | 'refund', StatusConfig> = {
@@ -249,6 +250,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
       await this.refreshOrderIfNeeded();
       this.checkAndStartTimer();
+      this.startPolling();
     } else {
       // Attempt recovery from localStorage
       const stored = localStorage.getItem('last_order_info');
@@ -266,6 +268,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
             await this.refreshOrderIfNeeded();
             this.checkAndStartTimer();
+            this.startPolling();
             return;
           }
         } catch (e) {
@@ -280,25 +283,62 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopCountdown();
+    this.stopPolling();
   }
 
   private async refreshOrderIfNeeded(): Promise<void> {
     const ord = this.order();
     if (!ord?.order_id) return;
 
-    const path = this.router.url;
-    const needsFreshRefund =
-      path.includes('/checkout/refund') ||
-      path.includes('/checkout/delivered') ||
-      ord.refund_request?.status;
-
-    if (!needsFreshRefund) return;
-
     try {
       const fresh = await this.checkoutService.getOrderStatus(ord.order_id, this.getSessionId(ord));
       this.order.set(fresh);
+      this.syncUrlWithStatus(fresh);
     } catch (e) {
       console.error('Failed to refresh order status:', e);
+    }
+  }
+
+  private syncUrlWithStatus(ord: any): void {
+    if (!ord) return;
+    const status = (ord.order_status || ord.status || '').toLowerCase();
+    const currentUrl = this.router.url;
+
+    let targetPath = '/checkout/confirmed';
+    if (status === 'pending') {
+      targetPath = '/checkout/pending';
+    } else if (status === 'canceled' || status === 'cancelled') {
+      targetPath = '/checkout/canceled';
+    } else if (status === 'processing') {
+      targetPath = '/checkout/processing';
+    } else if (status === 'shipping') {
+      targetPath = '/checkout/shipping';
+    } else if (status === 'delivered') {
+      if (ord.refund_request?.status === 'pending') {
+        targetPath = '/checkout/refund';
+      } else {
+        targetPath = '/checkout/delivered';
+      }
+    } else if (status === 'refund' || ord.refund_request?.status === 'approved') {
+      targetPath = '/checkout/refund';
+    }
+
+    if (!currentUrl.includes(targetPath)) {
+      this.router.navigate([targetPath], { replaceUrl: true, state: { order: ord } });
+    }
+  }
+
+  private startPolling(): void {
+    this.stopPolling();
+    this.refreshInterval = setInterval(async () => {
+      await this.refreshOrderIfNeeded();
+    }, 5000);
+  }
+
+  private stopPolling(): void {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
     }
   }
 

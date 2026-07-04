@@ -1596,3 +1596,23 @@
     }
   }
 }
+
+.inline-form-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  border-top: 1px dashed rgba(84, 74, 64, 0.15);
+  padding-top: var(--space-3);
+}
+
+.btn:disabled {
+  background: #cbd5e1 !important;
+  color: #64748b !important;
+  border-color: #cbd5e1 !important;
+  cursor: not-allowed !important;
+  opacity: 0.8 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
