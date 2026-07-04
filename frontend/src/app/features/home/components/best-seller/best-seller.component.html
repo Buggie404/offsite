@@ -106,7 +106,7 @@
             [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'"
             (click)="onAddToCart(product)"
           >
-            <span>Add</span>
+            <span>{{ isOutOfStock(product) ? 'Out of stock' : 'Add' }}</span>
           </button>
         </div>
 

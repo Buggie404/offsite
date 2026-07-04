@@ -303,6 +303,7 @@ $pill-bg:   #EAE1DC;
     letter-spacing: 1.4px;
     text-transform: uppercase;
     color: #FFF8F5;
+    white-space: nowrap;
   }
 
   &:hover:not(:disabled) { opacity: 0.85; }
