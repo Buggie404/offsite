@@ -1,20 +1,29 @@
 // shop/components/product-card/product-card.component.ts
 
-import { Component, Input } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Product, getDefaultPrice } from '../../../home/models/product.model';
-import { LucideHeart } from '@lucide/angular';
+import {
+  Product,
+  getDefaultPrice,
+  isProductNewArrivalEligible,
+  isProductOutOfStock
+} from '../../../home/models/product.model';
+import { LucideHeart, LucideStar } from '@lucide/angular';
+import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
+import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
 
 @Component({
   selector: 'app-product-card',
   standalone: true,
-  imports: [CommonModule, LucideHeart],
+  imports: [CommonModule, LucideHeart, LucideStar, DragScrollDirective, AnimateInViewDirective],
   templateUrl: './product-card.component.html',
   styleUrls: ['./product-card.component.scss']
 })
 export class ProductCardComponent {
   @Input() product!: Product;
   @Input() showBestSellerBadge = false;
+  @Input() isSaved = false;
+  @Output() saveToggle = new EventEmitter<Product>();
 
   roastSwatches = [
     '#f3f8ec', '#e5f1d5', '#d7eabf', '#c9e3a9', '#b5d48a',
@@ -37,7 +46,7 @@ export class ProductCardComponent {
   getTags(p: Product): string[] {
     switch (p.category) {
       case 'matcha':
-        return p.matcha?.product_grade ? [p.matcha.product_grade] : [];
+        return [p.matcha?.product_grade || 'related tea'];
       case 'coffee':
         return p.coffee?.tasting_notes?.slice(0, 3) ?? [];
       case 'tools':
@@ -45,8 +54,9 @@ export class ProductCardComponent {
       case 'drinkware':
         return p.drinkware?.material ? [p.drinkware.material] : [];
       case 'sets_bundles': {
-        const count = p.product_tag?.filter(t => !t.includes('sets')).length ?? 2;
-        return [`${count} products`];
+        if (p.sets_bundles?.is_exclusive === true) return ['Exclusive set'];
+        const count = p.sets_bundles?.composition?.length ?? 0;
+        return [`${count} ${count === 1 ? 'product' : 'products'}`];
       }
       default:
         return p.product_tag ?? [];
@@ -84,11 +94,22 @@ export class ProductCardComponent {
     return `$${getDefaultPrice(p).toFixed(2)}`;
   }
 
+  isOutOfStock(p: Product): boolean {
+    return isProductOutOfStock(p);
+  }
+
+  showNewArrivalBadge(p: Product): boolean {
+    return p.is_new_arrival === true && isProductNewArrivalEligible(p);
+  }
+
   onAddToCart(p: Product): void {
+    if (this.isOutOfStock(p)) return;
     console.log('Add to cart:', p.name);
   }
 
-  onSave(p: Product): void {
-    console.log('Save:', p.name);
+  onSave(p: Product, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.saveToggle.emit(p);
   }
 }

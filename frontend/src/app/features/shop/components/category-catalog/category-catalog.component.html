@@ -24,7 +24,12 @@
         @if (group.isOpen) {
           <div class="filter-group__options">
             @for (option of group.options; track option.value) {
-              <label class="filter-option" (click)="toggleOption(option)">
+              <label
+                class="filter-option"
+                role="checkbox"
+                [attr.aria-checked]="option.checked"
+                (click)="toggleOption(option)"
+              >
                 <span class="filter-option__checkbox" [class.is-checked]="option.checked">
                   @if (option.checked) {
                     <svg lucideCheck [size]="11" class="filter-option__check-icon" aria-hidden="true"></svg>
@@ -46,30 +51,62 @@
   ════════════════════════════════════════ -->
   <div class="catalog__main">
 
-    <!-- ── TOP BAR: result count + sort ── -->
+    <!-- ── TOP BAR: search + sort, then result count ── -->
     <div class="catalog__topbar">
-      <span class="catalog__count">
-        {{ filteredProducts.length }} products
-      </span>
+      <div class="catalog__controls">
+        <div class="search-wrapper">
+          <svg lucideSearch [size]="18" class="search-icon" aria-hidden="true"></svg>
+          <input
+            type="search"
+            class="search-input"
+            placeholder="Search products..."
+            aria-label="Search products"
+            [(ngModel)]="searchQuery"
+            (ngModelChange)="onSearchChange()"
+          />
+          @if (searchQuery) {
+            <button
+              type="button"
+              class="search-clear-btn"
+              aria-label="Clear search"
+              (click)="clearSearch()"
+            >
+              <svg lucideX [size]="16" class="search-clear-icon" aria-hidden="true"></svg>
+            </button>
+          }
+        </div>
 
-      <!-- Sort Dropdown -->
-      <div class="sort-dropdown" [class.is-open]="isSortOpen">
-        <button class="sort-dropdown__trigger" (click)="toggleSort()">
-          <span>{{ selectedSort }}</span>
-          <svg lucideChevronDown [size]="14" class="sort-dropdown__icon" aria-hidden="true"></svg>
-        </button>
-        @if (isSortOpen) {
-          <ul class="sort-dropdown__menu">
-            @for (opt of sortOptions; track opt) {
-              <li class="sort-dropdown__item"
-                  [class.is-active]="opt === selectedSort"
-                  (click)="selectSort(opt)">
-                {{ opt }}
-              </li>
-            }
-          </ul>
-        }
+        <div class="sort-dropdown" [class.is-open]="isSortOpen">
+          <button type="button" class="sort-dropdown__trigger" (click)="toggleSort()">
+            <span>SORT: {{ selectedSort }}</span>
+            <svg
+              lucideChevronDown
+              [size]="16"
+              class="sort-dropdown__icon"
+              [class.is-open]="isSortOpen"
+              aria-hidden="true"
+            ></svg>
+          </button>
+          @if (isSortOpen) {
+            <ul class="sort-dropdown__menu">
+              @for (opt of sortOptions; track opt) {
+                <li>
+                  <button
+                    type="button"
+                    class="sort-dropdown__item"
+                    [class.is-active]="opt === selectedSort"
+                    (click)="selectSort(opt)"
+                  >
+                    {{ opt }}
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
       </div>
+
+      <h2 class="catalog__count">FOUND {{ filteredProducts.length }} PRODUCTS</h2>
     </div>
 
     <!-- ── LOADING ── -->
@@ -79,12 +116,43 @@
 
     <!-- ── PRODUCT GRID ── -->
     @if (!isLoading) {
-      <div class="catalog__grid">
+      <div #productGrid class="catalog__grid">
         @for (product of pagedProducts; track product.product_id) {
-          <app-product-card [product]="product"></app-product-card>
+          <app-product-card
+            [product]="product"
+            [isSaved]="isProductSaved(product)"
+            (saveToggle)="onProductSave($event)"
+          ></app-product-card>
         }
         @if (pagedProducts.length === 0) {
-          <div class="catalog__empty">No products found.</div>
+          <div class="catalog__empty">
+            <div class="catalog__empty-icon-wrap">
+              <svg lucideSearchX [size]="48" class="catalog__empty-icon" aria-hidden="true"></svg>
+            </div>
+            <h3>NO PRODUCTS FOUND</h3>
+            <p>
+              @if (searchQuery.trim() && hasActiveFilters) {
+                We couldn't find any products matching "{{ searchQuery }}" and your selected filters.
+              } @else if (searchQuery.trim()) {
+                We couldn't find any products matching "{{ searchQuery }}".
+              } @else {
+                We couldn't find any products matching your selected filters.
+              }
+              Try a different keyword or clear your search and filters.
+            </p>
+            @if (searchQuery || hasActiveFilters) {
+              <button type="button" class="catalog__clear-search" (click)="clearSearchAndFilters()">
+                <svg lucideRotateCcw [size]="16" aria-hidden="true"></svg>
+                @if (searchQuery && hasActiveFilters) {
+                  CLEAR SEARCH & FILTERS
+                } @else if (searchQuery) {
+                  CLEAR SEARCH
+                } @else {
+                  CLEAR FILTERS
+                }
+              </button>
+            }
+          </div>
         }
       </div>
     }

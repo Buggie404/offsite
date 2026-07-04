@@ -30,6 +30,7 @@ import { FormsModule } from '@angular/forms';
   imports: [
     CommonModule,
     RouterLink,
+    RouterLinkActive,
     LucideSearch,
     LucideShoppingCart,
     LucideShoppingBag,

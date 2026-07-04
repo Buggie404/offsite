@@ -39,7 +39,8 @@ const drinkwareDetailsSchema = new mongoose.Schema({
 const setsBundlesDetailsSchema = new mongoose.Schema({
   set_type: { type: String },
   is_exclusive: { type: Boolean, default: false },
-  composition: { type: [String], default: [] }
+  // Composition entries are embedded objects in MongoDB, not string IDs.
+  composition: { type: [mongoose.Schema.Types.Mixed], default: [] }
 }, { _id: false });
 
 const toolsDetailsSchema = new mongoose.Schema({
@@ -79,6 +80,15 @@ const productSchema = new mongoose.Schema({
   tools: { type: toolsDetailsSchema }
 }, {
   collection: 'Products'
+});
+
+productSchema.pre('validate', function preventUnavailableNewArrivals() {
+  const hasUnavailableVariant = this.variants.length === 0
+    || this.variants.some(variant => (variant.stock ?? 0) <= 0);
+
+  if (hasUnavailableVariant) {
+    this.is_new_arrival = false;
+  }
 });
 
 module.exports = mongoose.model('Product', productSchema);

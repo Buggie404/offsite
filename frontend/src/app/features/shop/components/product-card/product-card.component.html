@@ -6,15 +6,24 @@
   <div class="card-image-wrap">
     <img [src]="getPrimaryImage(product)" [alt]="getPrimaryImageAlt(product)" class="product-img" />
 
-    <button class="save-btn" (click)="onSave(product)">
-      <svg lucideHeart [size]="16" aria-hidden="true"></svg>
+    <button
+      type="button"
+      class="save-btn"
+      [class.save-btn--active]="isSaved"
+      (click)="onSave(product, $event)"
+      [attr.aria-label]="isSaved ? 'Remove from saved products' : 'Save product'"
+    >
+      <svg lucideHeart [size]="16" [attr.fill]="isSaved ? 'currentColor' : 'none'" aria-hidden="true"></svg>
     </button>
 
-    @if (showBestSellerBadge) {
-      <div class="badge-wrap">
-        <div class="badge"><span>Best seller</span></div>
-      </div>
-    }
+    <div class="status-badges">
+      @if (showBestSellerBadge || product.is_best_seller) {
+        <span class="status-badge status-badge--best-seller">BEST SELLER</span>
+      }
+      @if (showNewArrivalBadge(product)) {
+        <span class="status-badge status-badge--new-arrival">NEW ARRIVAL</span>
+      }
+    </div>
   </div>
 
   <!-- ── CARD BODY ── -->
@@ -27,23 +36,22 @@
 
       <!-- Title + Rating -->
       <div class="title-rating-row">
-        <h3 class="product-title">{{ product.name }}</h3>
+        <h3 class="product-title"><span>{{ product.name }}</span></h3>
         <div class="rating">
-          <svg viewBox="0 0 16 16">
-            <polygon points="8,1 10,6 15,6 11,9.5 12.5,15 8,11.8 3.5,15 5,9.5 1,6 6,6"/>
-          </svg>
+          <svg lucideStar [size]="14" aria-hidden="true"></svg>
           <span>{{ product.rating_avg ?? '4.9' }}</span>
         </div>
       </div>
 
       <!-- Origin (ẩn với sets_bundles) -->
+      <div class="product-details">
       @if (product.category !== 'sets_bundles' && getOrigin(product)) {
-        <p class="origin-text">{{ getOrigin(product) }}</p>
+        <p appDragScroll class="origin-text">{{ getOrigin(product) }}</p>
       }
 
       <!-- Tag pills -->
       @if (getTags(product).length) {
-        <div class="tags-row">
+        <div appDragScroll class="tags-row">
           @for (tag of getTags(product); track tag) {
             <div class="tag"><span>{{ tag }}</span></div>
           }
@@ -52,22 +60,37 @@
 
       <!-- Roast bar — coffee only -->
       @if (showRoastBar(product)) {
-        <div class="roast-bar">
+        <div
+          class="roast-bar"
+          appAnimateInView
+        >
           @for (color of roastSwatches; track $index) {
             <span class="swatch"
                   [class.swatch--highlight]="isHighlightSwatch(product, $index)"
-                  [style.background]="isHighlightSwatch(product, $index) ? '#E8E05A' : color">
+                  [style.--swatch-color]="color">
             </span>
           }
+          <span
+            class="roast-indicator"
+            [style.--roast-column]="getHighlightIndex(product) + 1"
+            aria-hidden="true"
+          ></span>
         </div>
       }
 
+      </div>
     </div><!-- /card-body-top -->
 
     <!-- BOTTOM: price + add -->
     <div class="price-add-row">
       <span class="price">{{ getPrice(product) }}</span>
-      <button class="add-btn" (click)="onAddToCart(product)">
+      <button
+        type="button"
+        class="add-btn"
+        [disabled]="isOutOfStock(product)"
+        [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'"
+        (click)="onAddToCart(product)"
+      >
         <span>Add</span>
       </button>
     </div>

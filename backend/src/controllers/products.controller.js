@@ -17,15 +17,21 @@ async function getAllProducts(req, res) {
       ? { total_sold_quantity: -1, product_id: 1 }
       : {};
 
-    let query = Product.find(filter).sort(sort);
-    if (limit > 0) query = query.limit(limit);
+    const products = await Product.find(filter).sort(sort);
+    const availabilitySorted = products.sort((a, b) =>
+      Number(isProductOutOfStock(a)) - Number(isProductOutOfStock(b))
+    );
 
-    const products = await query;
-    res.json(products);
+    res.json(limit > 0 ? availabilitySorted.slice(0, limit) : availabilitySorted);
   } catch (error) {
     console.error('Error fetching products:', error);
     res.status(500).json({ error: 'Failed to retrieve products' });
   }
+}
+
+function isProductOutOfStock(product) {
+  return product.variants.length === 0
+    || product.variants.every(variant => (variant.stock ?? 0) <= 0);
 }
 
 async function getProductCategoryCounts(req, res) {

@@ -56,12 +56,12 @@ export class AuthService {
     return await this.http.get('/auth/saved-items');
   }
 
-  async toggleSavedProduct(productId: number): Promise<{ saved: boolean; product_id: string }> {
-    return await this.http.put(`/auth/saved-products/${productId}`, {});
+  async toggleSavedProduct(productId: number): Promise<{ saved: boolean; message?: string }> {
+    return await this.http.post('/auth/saved-products', { productId });
   }
 
-  async toggleSavedRecipe(recipeId: string): Promise<{ saved: boolean; recipe_id: string; saves: number }> {
-    return await this.http.put(`/auth/saved-recipes/${recipeId}`, {});
+  async toggleSavedRecipe(recipeId: string): Promise<{ saved: boolean; message?: string }> {
+    return await this.http.post('/auth/saved-recipes', { recipeId });
   }
 
   // LOGOUT

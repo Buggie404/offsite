@@ -3,17 +3,19 @@
 import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ProductService } from '../../services/product.service';
-import { Product, getDefaultPrice } from '../../models/product.model';
+import { Product, getDefaultPrice, isProductOutOfStock } from '../../models/product.model';
 import { CartService } from '../../../purchase/services/cart.service';
-import { LucideArrowRight, LucideHeart } from '@lucide/angular';
+import { LucideArrowRight, LucideHeart, LucideStar } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
+import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
+import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
 
 @Component({
   selector: 'app-best-seller',
   standalone: true,
-  imports: [CommonModule, RouterLink, LucideArrowRight, LucideHeart],
+  imports: [CommonModule, RouterLink, LucideArrowRight, LucideHeart, LucideStar, DragScrollDirective, AnimateInViewDirective],
   templateUrl: './best-seller.component.html',
   styleUrls: ['./best-seller.component.scss'],
 })
@@ -43,7 +45,9 @@ export class BestSellerComponent implements OnInit {
     this.loadSavedProducts();
     this.productService.getBestSellers(4).subscribe({
       next: (data: Product[]) => {
-        this.products = data;
+        this.products = [...data].sort((a, b) =>
+          Number(isProductOutOfStock(a)) - Number(isProductOutOfStock(b))
+        );
         this.isLoading = false;
         this.cdr.markForCheck();
       },
@@ -71,7 +75,7 @@ export class BestSellerComponent implements OnInit {
   getTags(p: Product): string[] {
     switch (p.category) {
       case 'matcha':
-        return p.matcha?.product_grade ? [p.matcha.product_grade] : [];
+        return [p.matcha?.product_grade || 'related tea'];
       case 'coffee':
         return p.coffee?.tasting_notes?.slice(0, 3) ?? [];
       case 'tools':
@@ -80,10 +84,9 @@ export class BestSellerComponent implements OnInit {
         return p.drinkware?.material ? [p.drinkware.material] : [];
       case 'sets_bundles':
         // Đếm số product trong composition, fallback về product_tag
-        const count = (p as any).sets_bundles?.composition?.length
-          || p.product_tag?.filter(t => !t.includes('sets')).length
-          || 2;
-        return [`${count} products`];
+        if (p.sets_bundles?.is_exclusive === true) return ['Exclusive set'];
+        const count = p.sets_bundles?.composition?.length ?? 0;
+        return [`${count} ${count === 1 ? 'product' : 'products'}`];
       default:
         return p.product_tag ?? [];
     }
@@ -122,7 +125,12 @@ export class BestSellerComponent implements OnInit {
     return `$${getDefaultPrice(p).toFixed(2)}`;
   }
 
+  isOutOfStock(p: Product): boolean {
+    return isProductOutOfStock(p);
+  }
+
   onAddToCart(p: Product): void {
+    if (this.isOutOfStock(p)) return;
     console.log('Add to cart:', p.name);
     this.cartService.addToCart(p as any);
   }
@@ -156,7 +164,9 @@ export class BestSellerComponent implements OnInit {
     try {
       const result = await this.authService.getSavedItems();
       this.savedProductIds = new Set(
-        (result.saved_products || []).map((item: { product_id: string }) => Number(item.product_id))
+        (result.saved_products || [])
+          .map((item: any) => Number(item.product?.product_id ?? item.product_id))
+          .filter((id: number) => !Number.isNaN(id))
       );
       this.cdr.markForCheck();
     } catch (err) {

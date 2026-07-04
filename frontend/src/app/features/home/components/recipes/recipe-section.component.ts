@@ -94,7 +94,7 @@ export class RecipeSectionComponent implements OnInit {
       const result = await this.authService.toggleSavedRecipe(recipe.recipe_id);
       if (result.saved) this.savedRecipeIds.add(recipe.recipe_id);
       else this.savedRecipeIds.delete(recipe.recipe_id);
-      recipe.saves = result.saves;
+      recipe.saves = Math.max(0, (recipe.saves || 0) + (result.saved ? 1 : -1));
       this.cdr.markForCheck();
     } catch (err) {
       console.error('Failed to save recipe:', err);
@@ -128,7 +128,9 @@ export class RecipeSectionComponent implements OnInit {
     try {
       const result = await this.authService.getSavedItems();
       this.savedRecipeIds = new Set(
-        (result.saved_recipes || []).map((item: { recipe_id: string }) => item.recipe_id)
+        (result.saved_recipes || [])
+          .map((item: any) => item.recipe?.recipe_id ?? item.recipe_id)
+          .filter(Boolean)
       );
       this.cdr.markForCheck();
     } catch (err) {

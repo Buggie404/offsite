@@ -53,44 +53,59 @@
 
           <!-- Title + Rating -->
           <div class="title-rating-row">
-            <h3 class="product-title">{{ product.name }}</h3>
+            <h3 class="product-title"><span>{{ product.name }}</span></h3>
             <div class="rating">
-              <svg viewBox="0 0 16 16">
-                <polygon points="8,1 10,6 15,6 11,9.5 12.5,15 8,11.8 3.5,15 5,9.5 1,6 6,6"/>
-              </svg>
+              <svg lucideStar [size]="14" aria-hidden="true"></svg>
               <!-- Hardcode 4.9 tạm — đổi thành product.rating_avg khi DB có data -->
               <span>4.9</span>
             </div>
           </div>
 
           <!-- Origin (ẩn với sets_bundles) -->
-          <p class="origin-text" *ngIf="product.category !== 'sets_bundles' && getOrigin(product)">
+          <div class="product-details">
+          <p appDragScroll class="origin-text" *ngIf="product.category !== 'sets_bundles' && getOrigin(product)">
             {{ getOrigin(product) }}
           </p>
 
           <!-- Tag pills -->
-          <div class="tags-row" *ngIf="getTags(product).length">
+          <div appDragScroll class="tags-row" *ngIf="getTags(product).length">
             <div class="tag" *ngFor="let tag of getTags(product)">
               <span>{{ tag }}</span>
             </div>
           </div>
 
           <!-- Roast bar — coffee only -->
-          <div class="roast-bar" *ngIf="showRoastBar(product)">
+          <div
+            class="roast-bar"
+            *ngIf="showRoastBar(product)"
+            appAnimateInView
+          >
             <span
               *ngFor="let color of roastSwatches; let i = index"
               class="swatch"
               [class.swatch--highlight]="isHighlightSwatch(product, i)"
-              [style.background]="isHighlightSwatch(product, i) ? '#E8E05A' : color"
+              [style.--swatch-color]="color"
+            ></span>
+            <span
+              class="roast-indicator"
+              [style.--roast-column]="getHighlightIndex(product) + 1"
+              aria-hidden="true"
             ></span>
           </div>
 
+          </div>
         </div><!-- /card-body-top -->
 
         <!-- BOTTOM: price + add — luôn stick đáy nhờ space-between -->
         <div class="price-add-row">
           <span class="price">{{ getPrice(product) }}</span>
-          <button class="add-btn" (click)="onAddToCart(product)">
+          <button
+            type="button"
+            class="add-btn"
+            [disabled]="isOutOfStock(product)"
+            [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'"
+            (click)="onAddToCart(product)"
+          >
             <span>Add</span>
           </button>
         </div>

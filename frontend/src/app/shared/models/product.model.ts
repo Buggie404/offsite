@@ -36,7 +36,7 @@ export interface DrinkwareDetails {
 export interface SetsBundlesDetails {
   set_type?: string;
   is_exclusive?: boolean;
-  composition?: string[];
+  composition?: unknown[];
 }
 
 export interface ToolsDetails {
@@ -58,6 +58,8 @@ export interface Product {
   variants: ProductVariant[];
   rating_avg?: number | null;
   review_count: number;
+  is_best_seller?: boolean;
+  is_new_arrival?: boolean;
   createdAt: string;
   updatedAt: string;
   is_active: boolean;
