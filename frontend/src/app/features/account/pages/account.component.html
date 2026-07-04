@@ -203,7 +203,17 @@
                   </div>
 
                   <div class="card-details">
-                    <span class="item-meta">{{ item.product.category | uppercase }} • {{ item.product.matcha?.origin || item.product.coffee?.product_origin || 'Offsite' }}</span>
+                    <span class="item-meta">
+                      <ng-container *ngIf="item.product.category.toLowerCase() === 'matcha' || item.product.matcha">
+                        {{ (item.product.matcha?.product_grade || 'Matcha') | uppercase }} · {{ (item.product.matcha?.origin || 'Japan') | uppercase }}
+                      </ng-container>
+                      <ng-container *ngIf="item.product.category.toLowerCase() === 'coffee' || item.product.coffee">
+                        {{ (item.product.coffee?.roast_level || 'Coffee') | uppercase }} · {{ (item.product.coffee?.product_origin || 'Ethiopia') | uppercase }}
+                      </ng-container>
+                      <ng-container *ngIf="item.product.category.toLowerCase() !== 'matcha' && !item.product.matcha && item.product.category.toLowerCase() !== 'coffee' && !item.product.coffee">
+                        {{ item.product.category | uppercase }}
+                      </ng-container>
+                    </span>
                     <h3 class="item-name"><a [routerLink]="['/shop', item.product.slug]" (click)="saveScrollAnchor('product', item.product.product_id)">{{ item.product.name }}</a></h3>
                     <span class="item-price">${{ item.product.variants[0]?.price | number:'1.2-2' }}</span>
                   </div>
@@ -266,7 +276,9 @@
                     <h3 class="item-name">{{ item.recipe.title }}</h3>
                     <div class="item-meta recipe-meta-row">
                       <span class="meta-item">
-                        <svg lucideDroplet [size]="14" class="meta-icon"></svg>
+                        <svg *ngIf="item.recipe.metadata?.tags && (item.recipe.metadata.tags[0]?.toLowerCase() === 'hot' || item.recipe.metadata.tags[0]?.toLowerCase() === 'cold')" lucideCoffee [size]="14" class="meta-icon"></svg>
+                        <svg *ngIf="item.recipe.metadata?.tags && item.recipe.metadata.tags[0]?.toLowerCase() === 'dessert'" lucideDessert [size]="14" class="meta-icon"></svg>
+                        <svg *ngIf="!item.recipe.metadata?.tags || (item.recipe.metadata.tags[0]?.toLowerCase() !== 'hot' && item.recipe.metadata.tags[0]?.toLowerCase() !== 'cold' && item.recipe.metadata.tags[0]?.toLowerCase() !== 'dessert')" lucideCoffee [size]="14" class="meta-icon"></svg>
                         <span>{{ (item.recipe.metadata?.tags && item.recipe.metadata.tags[0]) || 'COFFEE' | uppercase }}</span>
                       </span>
                       <span class="meta-separator">·</span>

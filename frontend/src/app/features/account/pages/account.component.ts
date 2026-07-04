@@ -44,7 +44,8 @@ import {
   LucideChevronsUpDown,
   LucideChevronsDownUp,
   LucideEye,
-  LucideEyeOff
+  LucideEyeOff,
+  LucideDessert
 } from '@lucide/angular';
 
 @Component({
@@ -87,7 +88,8 @@ import {
     LucideChevronsUpDown,
     LucideChevronsDownUp,
     LucideEye,
-    LucideEyeOff
+    LucideEyeOff,
+    LucideDessert
   ],
   templateUrl: './account.component.html',
   styleUrl: './account.component.scss'
@@ -622,6 +624,9 @@ export class AccountComponent implements OnInit, OnDestroy {
           console.error('Failed to load profile:', err);
           this.errorMessage.set(err.error?.error || 'Failed to load profile information.');
           this.isLoading.set(false);
+          if (err.status === 401 || err.status === 403) {
+            this.signOut();
+          }
         }
       });
     } catch (e) {
