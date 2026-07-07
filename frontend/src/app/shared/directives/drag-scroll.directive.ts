@@ -11,31 +11,56 @@ export class DragScrollDirective {
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private startX = 0;
   private startScrollLeft = 0;
+  private isPointerDown = false;
+  private activePointerId: number | null = null;
+  private readonly dragThreshold = 5;
 
   @HostListener('pointerdown', ['$event'])
   onPointerDown(event: PointerEvent): void {
     if (event.pointerType !== 'mouse' || event.button !== 0) return;
 
-    event.preventDefault();
-    this.isDragging = true;
+    // Do not prevent the initial pointer event: buttons inside a horizontal
+    // scroller must remain clickable. Drag mode starts only after movement.
+    this.isPointerDown = true;
+    this.activePointerId = event.pointerId;
+    this.isDragging = false;
     this.startX = event.clientX;
     this.startScrollLeft = this.element.scrollLeft;
-    this.element.setPointerCapture(event.pointerId);
   }
 
   @HostListener('pointermove', ['$event'])
   onPointerMove(event: PointerEvent): void {
-    if (!this.isDragging) return;
-    this.element.scrollLeft = this.startScrollLeft - (event.clientX - this.startX);
+    if (!this.isPointerDown || event.pointerId !== this.activePointerId) return;
+
+    const distance = event.clientX - this.startX;
+    if (!this.isDragging && Math.abs(distance) < this.dragThreshold) return;
+
+    if (!this.isDragging) {
+      this.isDragging = true;
+      this.element.setPointerCapture(event.pointerId);
+    }
+
+    event.preventDefault();
+    this.element.scrollLeft = this.startScrollLeft - distance;
   }
 
   @HostListener('pointerup', ['$event'])
   @HostListener('pointercancel', ['$event'])
   onPointerEnd(event: PointerEvent): void {
-    if (!this.isDragging) return;
+    if (event.pointerId !== this.activePointerId) return;
+
+    this.isPointerDown = false;
+    this.activePointerId = null;
     this.isDragging = false;
     if (this.element.hasPointerCapture(event.pointerId)) {
       this.element.releasePointerCapture(event.pointerId);
     }
+  }
+
+  @HostListener('pointerleave')
+  onPointerLeave(): void {
+    if (this.isDragging) return;
+    this.isPointerDown = false;
+    this.activePointerId = null;
   }
 }

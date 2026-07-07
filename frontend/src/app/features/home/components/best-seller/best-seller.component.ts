@@ -3,19 +3,20 @@
 import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ProductService } from '../../services/product.service';
-import { Product, getDefaultPrice, isProductOutOfStock } from '../../models/product.model';
+import { Product, getDefaultPrice, getPrimaryProductImage, isProductOutOfStock } from '../../models/product.model';
 import { CartService } from '../../../purchase/services/cart.service';
-import { LucideArrowRight, LucideHeart, LucideStar } from '@lucide/angular';
+import { LucideArrowRight, LucideEye, LucideHeart, LucideStar } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
+import { QuickViewModalComponent } from '../../../shop/components/quick-view-modal/quick-view-modal.component';
 
 @Component({
   selector: 'app-best-seller',
   standalone: true,
-  imports: [CommonModule, RouterLink, LucideArrowRight, LucideHeart, LucideStar, DragScrollDirective, AnimateInViewDirective],
+  imports: [CommonModule, RouterLink, LucideArrowRight, LucideEye, LucideHeart, LucideStar, DragScrollDirective, AnimateInViewDirective, QuickViewModalComponent],
   templateUrl: './best-seller.component.html',
   styleUrls: ['./best-seller.component.scss'],
 })
@@ -24,10 +25,11 @@ export class BestSellerComponent implements OnInit {
   products: Product[] = [];
   isLoading = true;
   savedProductIds = new Set<number>();
+  quickViewProduct: Product | null = null;
 
   roastSwatches = [
-    '#f3f8ec','#e5f1d5','#d7eabf','#c9e3a9','#b5d48a',
-    '#96bf62','#74a340','#567d2e','#43631f','#375534'
+    '#f3f8ec', '#e5f1d5', '#d7eabf', '#c9e3a9', '#b5d48a',
+    '#96bf62', '#74a340', '#567d2e', '#43631f', '#375534'
   ];
 
   private platformId = inject(PLATFORM_ID);
@@ -38,7 +40,7 @@ export class BestSellerComponent implements OnInit {
     private cartService: CartService,
     private authService: AuthService,
     private authPromptService: AuthPromptModalService
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
@@ -62,12 +64,12 @@ export class BestSellerComponent implements OnInit {
   // ── ORIGIN LINE ──
   getOrigin(p: Product): string {
     switch (p.category) {
-      case 'matcha':     return p.matcha?.origin ?? '';
-      case 'coffee':     return [p.coffee?.product_origin, p.coffee?.process_type]
-                                .filter(Boolean).join(' · ').toUpperCase();
-      case 'tools':      return (p.tools?.tool_category ?? '').toUpperCase();
-      case 'drinkware':  return (p.drinkware?.ware_type ?? '').toUpperCase();
-      default:           return '';
+      case 'matcha': return p.matcha?.origin ?? '';
+      case 'coffee': return [p.coffee?.product_origin, p.coffee?.process_type]
+        .filter(Boolean).join(' · ').toUpperCase();
+      case 'tools': return (p.tools?.tool_category ?? '').toUpperCase();
+      case 'drinkware': return (p.drinkware?.ware_type ?? '').toUpperCase();
+      default: return '';
     }
   }
 
@@ -102,7 +104,7 @@ export class BestSellerComponent implements OnInit {
   getHighlightIndex(p: Product): number {
     const roast = (p.coffee?.roast_level ?? '').toLowerCase();
     if (roast.includes('dark') && roast.includes('medium')) return 6;  // medium dark
-    if (roast.includes('dark'))   return 8;   // dark
+    if (roast.includes('dark')) return 8;   // dark
     if (roast.includes('medium') && roast.includes('light')) return 3; // medium light
     if (roast.includes('medium')) return 5;   // medium
     return 1;                                  // light (default)
@@ -114,11 +116,11 @@ export class BestSellerComponent implements OnInit {
 
   // ── MISC ──
   getPrimaryImage(p: Product): string {
-    return p.images[0]?.url ?? '';
+    return getPrimaryProductImage(p)?.url ?? '';
   }
 
   getPrimaryImageAlt(p: Product): string {
-    return p.images[0]?.alt_text ?? p.name;
+    return getPrimaryProductImage(p)?.alt_text ?? p.name;
   }
 
   getPrice(p: Product): string {
@@ -139,9 +141,9 @@ export class BestSellerComponent implements OnInit {
     return this.savedProductIds.has(p.product_id);
   }
 
-  async onSave(p: Product, event: Event): Promise<void> {
-    event.preventDefault();
-    event.stopPropagation();
+  async onSave(p: Product, event?: Event): Promise<void> {
+    event?.preventDefault();
+    event?.stopPropagation();
 
     if (!this.authService.isAuthenticated()) {
       this.authPromptService.open();
@@ -155,6 +157,25 @@ export class BestSellerComponent implements OnInit {
       this.cdr.markForCheck();
     } catch (err) {
       console.error('Failed to save product:', err);
+    }
+  }
+
+  openQuickView(product: Product, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.isOutOfStock(product)) this.quickViewProduct = product;
+  }
+
+  closeQuickView(): void {
+    this.quickViewProduct = null;
+
+    if (typeof document !== 'undefined') {
+      setTimeout(() => {
+        const activeElement = document.activeElement;
+        if (activeElement instanceof HTMLElement && activeElement.classList.contains('quick-view-trigger')) {
+          activeElement.blur();
+        }
+      });
     }
   }
 

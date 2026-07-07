@@ -9,15 +9,17 @@ export interface CartItem {
   selected: boolean;
 }
 
+type ProductIdentifier = string | number | null | undefined;
+
 @Injectable({
   providedIn: 'root'
 })
 export class CartService {
   private platformId = inject(PLATFORM_ID);
-  
+
   // Cart items signal
   cartItems = signal<CartItem[]>([]);
-  
+
   // Cart drawer open state
   isOpen = signal<boolean>(false);
 
@@ -98,21 +100,23 @@ export class CartService {
     this.isOpen.set(false);
   }
 
-  addToCart(product: Product, variantSku?: string): void {
-    const sku = variantSku || product.variants.find(v => v.is_default)?.sku || product.variants[0]?.sku;
-    if (!sku) return;
+  addToCart(product: Product, variantSku?: string, quantity = 1): void {
+    const variant = this.getInStockVariant(product, variantSku);
+    if (!variant) return;
+    const sku = variant.sku;
 
     const currentItems = [...this.cartItems()];
+    const productKey = this.getProductKey(product);
     const existingIndex = currentItems.findIndex(
-      item => item.product._id === product._id && item.variantSku === sku
+      item => this.getProductKey(item.product) === productKey && item.variantSku === sku
     );
 
-    const variant = product.variants.find(v => v.sku === sku);
-    const maxStock = variant ? variant.stock : 99;
+    const maxStock = variant.stock ?? 0;
+    if (maxStock <= 0) return;
 
     if (existingIndex > -1) {
       const existingItem = currentItems[existingIndex];
-      const newQty = existingItem.quantity + 1;
+      const newQty = Math.min(existingItem.quantity + Math.max(1, quantity), maxStock);
       if (newQty <= maxStock) {
         currentItems[existingIndex] = {
           ...existingItem,
@@ -124,7 +128,7 @@ export class CartService {
       currentItems.push({
         product,
         variantSku: sku,
-        quantity: 1,
+        quantity: Math.min(Math.max(1, quantity), maxStock),
         selected: maxStock > 0 // Only select initially if in stock
       });
     }
@@ -133,17 +137,50 @@ export class CartService {
     this.openCart();
   }
 
-  removeFromCart(productId: string, variantSku: string): void {
+  private getInStockVariant(product: Product, variantSku?: string): ProductVariant | undefined {
+    const requestedVariant = variantSku
+      ? product.variants.find(variant => variant.sku === variantSku && (variant.stock ?? 0) > 0)
+      : undefined;
+
+    return requestedVariant
+      ?? product.variants.find(variant => variant.is_default && (variant.stock ?? 0) > 0)
+      ?? product.variants.find(variant => (variant.stock ?? 0) > 0);
+  }
+
+  private getProductKey(product: Product): string {
+    return product._id || String(product.product_id);
+  }
+
+  private matchesProduct(product: Product, productId: ProductIdentifier): boolean {
+    const id = productId == null ? '' : String(productId);
+    return this.getProductKey(product) === id || String(product.product_id) === id;
+  }
+
+  buyNow(product: Product, variantSku: string, quantity = 1): void {
+    const variant = product.variants.find(v => v.sku === variantSku);
+    if (!variant || variant.stock <= 0) return;
+
+    this.saveCheckoutSummary([{
+      product,
+      variantSku,
+      quantity: Math.min(Math.max(1, quantity), variant.stock),
+      selected: true
+    }]);
+    this.setCheckoutProcessed(true);
+    this.closeCart();
+  }
+
+  removeFromCart(productId: ProductIdentifier, variantSku: string): void {
     const filtered = this.cartItems().filter(
-      item => !(item.product._id === productId && item.variantSku === variantSku)
+      item => !(this.matchesProduct(item.product, productId) && item.variantSku === variantSku)
     );
     this.saveCart(filtered);
   }
 
-  updateQuantity(productId: string, variantSku: string, quantity: number): void {
+  updateQuantity(productId: ProductIdentifier, variantSku: string, quantity: number): void {
     const currentItems = [...this.cartItems()];
     const index = currentItems.findIndex(
-      item => item.product._id === productId && item.variantSku === variantSku
+      item => this.matchesProduct(item.product, productId) && item.variantSku === variantSku
     );
 
     if (index > -1) {
@@ -166,17 +203,17 @@ export class CartService {
     }
   }
 
-  updateVariant(productId: string, oldVariantSku: string, newVariantSku: string): void {
+  updateVariant(productId: ProductIdentifier, oldVariantSku: string, newVariantSku: string): void {
     const currentItems = [...this.cartItems()];
     const index = currentItems.findIndex(
-      item => item.product._id === productId && item.variantSku === oldVariantSku
+      item => this.matchesProduct(item.product, productId) && item.variantSku === oldVariantSku
     );
 
     if (index > -1) {
       const item = currentItems[index];
       // Check if the new variant is already in the cart
       const existingNewIndex = currentItems.findIndex(
-        it => it.product._id === productId && it.variantSku === newVariantSku
+        it => this.matchesProduct(it.product, productId) && it.variantSku === newVariantSku
       );
 
       if (existingNewIndex > -1 && existingNewIndex !== index) {
@@ -184,7 +221,7 @@ export class CartService {
         const existingNewItem = currentItems[existingNewIndex];
         const variant = item.product.variants.find(v => v.sku === newVariantSku);
         const maxStock = variant ? variant.stock : 99;
-        
+
         let mergedQty = existingNewItem.quantity + item.quantity;
         if (mergedQty > maxStock) mergedQty = maxStock;
 
@@ -204,17 +241,17 @@ export class CartService {
     }
   }
 
-  toggleSelection(productId: string, variantSku: string): void {
+  toggleSelection(productId: ProductIdentifier, variantSku: string): void {
     const currentItems = [...this.cartItems()];
     const index = currentItems.findIndex(
-      item => item.product._id === productId && item.variantSku === variantSku
+      item => this.matchesProduct(item.product, productId) && item.variantSku === variantSku
     );
 
     if (index > -1) {
       const item = currentItems[index];
       const variant = item.product.variants.find(v => v.sku === variantSku);
       const inStock = variant ? variant.stock > 0 : false;
-      
+
       // If out of stock, it cannot be selected
       if (!inStock) {
         currentItems[index] = {
@@ -260,7 +297,7 @@ export class CartService {
     const currentSummary = [...this.checkoutSummaryItems()];
     for (const selItem of selected) {
       const existingIdx = currentSummary.findIndex(
-        it => it.product._id === selItem.product._id && it.variantSku === selItem.variantSku
+        it => this.getProductKey(it.product) === this.getProductKey(selItem.product) && it.variantSku === selItem.variantSku
       );
       if (existingIdx > -1) {
         currentSummary[existingIdx].quantity += selItem.quantity;
@@ -286,7 +323,7 @@ export class CartService {
     const currentCart = [...this.cartItems()];
     for (const sumItem of summary) {
       const existingIdx = currentCart.findIndex(
-        it => it.product._id === sumItem.product._id && it.variantSku === sumItem.variantSku
+        it => this.getProductKey(it.product) === this.getProductKey(sumItem.product) && it.variantSku === sumItem.variantSku
       );
       if (existingIdx > -1) {
         currentCart[existingIdx].quantity += sumItem.quantity;
@@ -315,10 +352,10 @@ export class CartService {
     }
   }
 
-  updateSummaryQuantity(productId: string, variantSku: string, quantity: number): void {
+  updateSummaryQuantity(productId: ProductIdentifier, variantSku: string, quantity: number): void {
     const currentSummary = [...this.checkoutSummaryItems()];
     const index = currentSummary.findIndex(
-      item => item.product._id === productId && item.variantSku === variantSku
+      item => this.matchesProduct(item.product, productId) && item.variantSku === variantSku
     );
 
     if (index > -1) {
@@ -334,23 +371,23 @@ export class CartService {
     }
   }
 
-  updateSummaryVariant(productId: string, oldVariantSku: string, newVariantSku: string): void {
+  updateSummaryVariant(productId: ProductIdentifier, oldVariantSku: string, newVariantSku: string): void {
     const currentSummary = [...this.checkoutSummaryItems()];
     const index = currentSummary.findIndex(
-      item => item.product._id === productId && item.variantSku === oldVariantSku
+      item => this.matchesProduct(item.product, productId) && item.variantSku === oldVariantSku
     );
 
     if (index > -1) {
       const item = currentSummary[index];
       const existingNewIndex = currentSummary.findIndex(
-        it => it.product._id === productId && it.variantSku === newVariantSku
+        it => this.matchesProduct(it.product, productId) && it.variantSku === newVariantSku
       );
 
       if (existingNewIndex > -1 && existingNewIndex !== index) {
         const existingNewItem = currentSummary[existingNewIndex];
         const variant = item.product.variants.find((v: any) => v.sku === newVariantSku);
         const maxStock = variant ? variant.stock : 99;
-        
+
         let mergedQty = existingNewItem.quantity + item.quantity;
         if (mergedQty > maxStock) mergedQty = maxStock;
 
@@ -369,17 +406,18 @@ export class CartService {
     }
   }
 
-  removeFromSummary(productId: string, variantSku: string): void {
+  removeFromSummary(productId: ProductIdentifier, variantSku: string): void {
     const filtered = this.checkoutSummaryItems().filter(
-      item => !(item.product._id === productId && item.variantSku === variantSku)
+      item => !(this.matchesProduct(item.product, productId) && item.variantSku === variantSku)
     );
     this.saveCheckoutSummary(filtered);
   }
 
   addComplementToSummary(product: Product, variantSku: string): void {
     const currentSummary = [...this.checkoutSummaryItems()];
+    const productKey = this.getProductKey(product);
     const existingIdx = currentSummary.findIndex(
-      item => item.product._id === product._id && item.variantSku === variantSku
+      item => this.getProductKey(item.product) === productKey && item.variantSku === variantSku
     );
 
     if (existingIdx > -1) {

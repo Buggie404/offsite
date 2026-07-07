@@ -86,6 +86,16 @@ export function getDefaultPrice(p: Product): number {
   return def?.price ?? 0;
 }
 
+// The representative image is explicitly the image with sort_order 0.
+// Keep a safe fallback for legacy records that do not have that value.
+export function getPrimaryProductImage(p: Product): ProductImage | undefined {
+  return p.images.find(image => image.sort_order === 0)
+    ?? [...p.images].sort((a, b) =>
+      (a.sort_order ?? Number.MAX_SAFE_INTEGER)
+      - (b.sort_order ?? Number.MAX_SAFE_INTEGER)
+    )[0];
+}
+
 export function isProductOutOfStock(p: Product): boolean {
   return p.variants.length === 0
     || p.variants.every(variant => (variant.stock ?? 0) <= 0);

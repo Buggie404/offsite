@@ -1,14 +1,14 @@
 // home/components/best-seller/best-seller.component.scss
 
-$wheat:     #E8D5B0;
-$warm-mid:  #544A40;
-$cream:     #FCF2ED;
-$blush:     #EFB5D0;
-$dark:      #1F1B18;
+$wheat: #E8D5B0;
+$warm-mid: #544A40;
+$cream: #FCF2ED;
+$blush: #EFB5D0;
+$dark: #1F1B18;
 $text-dark: #1A1A1A;
-$origin:    #434840;
-$forest:    #213E1F;
-$pill-bg:   #EAE1DC;
+$origin: #434840;
+$forest: #213E1F;
+$pill-bg: #EAE1DC;
 
 // ── SECTION ──
 :host {
@@ -28,7 +28,7 @@ $pill-bg:   #EAE1DC;
   width: 100%;
   max-width: 1440px;
   min-height: 828px;
-  padding: 88px 16px;   // giảm padding 2 bên (32→16) để nhường width cho card
+  padding: 88px 16px; // giảm padding 2 bên (32→16) để nhường width cho card
   gap: 24px;
   margin: 0 auto;
 }
@@ -116,7 +116,9 @@ $pill-bg:   #EAE1DC;
     transition: transform 0.2s ease;
   }
 
-  &:hover svg { transform: translateX(3px); }
+  &:hover svg {
+    transform: translateX(3px);
+  }
 }
 
 // ── LOADING ──
@@ -144,12 +146,18 @@ $pill-bg:   #EAE1DC;
   align-items: flex-start;
   flex: 1 1 280px;
   min-width: 280px;
-  max-width: 360px;          // tăng từ 329 → 360, cho title dài có thêm không gian
-  padding: 6px;               // giảm nhẹ từ 8 → 6, dồn thêm width cho content bên trong
-  gap: 0;                    // gap=0, dùng flex trong body để control spacing
+  max-width: 360px; // tăng từ 329 → 360, cho title dài có thêm không gian
+  padding: 6px; // giảm nhẹ từ 8 → 6, dồn thêm width cho content bên trong
+  gap: 0; // gap=0, dùng flex trong body để control spacing
   background: $cream;
   border: 2px solid $wheat;
   box-sizing: border-box;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  }
 }
 
 // ── IMAGE ──
@@ -157,7 +165,7 @@ $pill-bg:   #EAE1DC;
   position: relative;
   width: 100%;
   height: auto;
-  aspect-ratio: 329 / 267;
+  aspect-ratio: 313 / 267;
   background-color: #d9d3c8;
   overflow: hidden;
   flex: none;
@@ -166,6 +174,87 @@ $pill-bg:   #EAE1DC;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.3s ease;
+  }
+}
+
+.card:hover .product-img {
+  transform: scale(1.03);
+}
+
+.quick-view-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(26, 26, 26, 0.34);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.quick-view-trigger {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  min-height: 52px;
+  padding: 0;
+  color: $text-dark;
+  background: #fff8f4;
+  border: 0;
+  border-radius: 9999px;
+  font-family: var(--font-mono, 'DM Mono', monospace);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transform: translateY(8px);
+  transition: transform 180ms ease, color 160ms ease, background 160ms ease;
+
+  span {
+    white-space: nowrap;
+  }
+
+  &:disabled {
+    width: min(190px, 100%);
+    padding: 12px 20px;
+  }
+
+  &:hover:not(:disabled) {
+    color: #faf0eb;
+    background: #375534;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.75;
+  }
+}
+
+.card-image-wrap:hover .quick-view-overlay {
+  opacity: 1;
+  pointer-events: auto;
+
+  .quick-view-trigger {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .card,
+  .product-img,
+  .quick-view-trigger {
+    transition: none;
+  }
+
+  .card:hover,
+  .card:hover .product-img {
+    transform: none;
   }
 }
 
@@ -209,20 +298,29 @@ $pill-bg:   #EAE1DC;
   }
 }
 
-.badge {
+.status-badges {
   position: absolute;
-  top: 14px;
-  left: 14px;
+  top: 16px;
+  left: 16px;
   z-index: 2;
+  display: flex;
+  gap: 6px;
+}
+
+.status-badge {
   display: inline-block;
   padding: 4px 10px;
-  background: $blush;
+  border: 1px solid $dark;
   font-family: 'DM Mono', monospace;
-  font-weight: 500;
   font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #1a1a1a;
+  font-weight: 600;
+  line-height: normal;
+  letter-spacing: 0.1em;
+  color: $dark;
+
+  &--best-seller {
+    background: var(--color-blush-pink);
+  }
 }
 
 // ── BODY ──
@@ -231,9 +329,9 @@ $pill-bg:   #EAE1DC;
 .card-body {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;  // đẩy price-add-row xuống đáy
+  justify-content: space-between; // đẩy price-add-row xuống đáy
   width: 100%;
-  flex: 1;                          // fill toàn bộ height còn lại của card
+  flex: 1; // fill toàn bộ height còn lại của card
   padding: 12px 8px 8px;
 }
 
@@ -242,14 +340,14 @@ $pill-bg:   #EAE1DC;
 .card-body-top {
   display: flex;
   flex-direction: column;
-  gap: 20px;          // default — matcha, tools, drinkware
+  gap: 20px; // default — matcha, tools, drinkware
 
   &.gap-coffee {
-    gap: 12px;        // coffee có thêm roast-bar nên content đã dày, gap nhỏ lại
+    gap: 12px; // coffee có thêm roast-bar nên content đã dày, gap nhỏ lại
   }
 
   &.gap-bundle {
-    gap: 40px;        // sets_bundles ít thành phần, gap lớn để lấp khoảng trống
+    gap: 40px; // sets_bundles ít thành phần, gap lớn để lấp khoảng trống
   }
 }
 
@@ -260,7 +358,7 @@ $pill-bg:   #EAE1DC;
   justify-content: space-between;
   align-items: flex-start;
   width: 100%;
-  min-height: 102px;    // đủ chỗ cho title tối đa 3 dòng (34px line-height × 3), tên dài không bị cắt
+  min-height: 102px; // đủ chỗ cho title tối đa 3 dòng (34px line-height × 3), tên dài không bị cắt
 }
 
 .product-title {
@@ -269,7 +367,7 @@ $pill-bg:   #EAE1DC;
   font-size: 24px;
   line-height: 34px;
   color: $dark;
-  max-width: 230px;   // tăng từ 200 → 230, khớp với card rộng hơn (360px)
+  max-width: 230px; // tăng từ 200 → 230, khớp với card rộng hơn (360px)
   // Không giới hạn số dòng nữa — hiển thị đủ tên, tối đa 3 dòng tự nhiên theo max-width
 }
 
@@ -278,7 +376,7 @@ $pill-bg:   #EAE1DC;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  margin-top: 6px;    // align với dòng đầu của title, không phụ thuộc title mấy dòng
+  margin-top: 6px; // align với dòng đầu của title, không phụ thuộc title mấy dòng
   color: $forest;
 
   svg {
@@ -380,14 +478,30 @@ $pill-bg:   #EAE1DC;
 }
 
 @keyframes roast-slide-cell {
-  0%, 96% { opacity: 1; }
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); opacity: 0; }
+
+  0%,
+  96% {
+    opacity: 1;
+  }
+
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 0;
+  }
 }
 
 @keyframes roast-target-fill {
-  from { background: var(--swatch-color); }
-  to { background: #E8E05A; }
+  from {
+    background: var(--swatch-color);
+  }
+
+  to {
+    background: #E8E05A;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -408,7 +522,7 @@ $pill-bg:   #EAE1DC;
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  padding-top: 8px;   // khoảng cách nhỏ với content trên
+  padding-top: 8px; // khoảng cách nhỏ với content trên
 }
 
 .price {
@@ -440,7 +554,9 @@ $pill-bg:   #EAE1DC;
     white-space: nowrap;
   }
 
-  &:hover:not(:disabled) { opacity: 0.85; }
+  &:hover:not(:disabled) {
+    opacity: 0.85;
+  }
 
   &:disabled {
     background: #a7a7a7;
@@ -451,17 +567,17 @@ $pill-bg:   #EAE1DC;
 
 // Keep variable product content within a compact, consistent card layout.
 .title-rating-row {
-  height: 68px;
-  min-height: 68px;
-  overflow: hidden;
+  height: auto;
+  min-height: 102px;
+  overflow: visible;
 }
 
 .product-title {
   flex: 1;
   min-width: 0;
-  max-width: 230px;
-  height: 68px;
-  overflow: hidden;
+  max-width: none;
+  height: auto;
+  overflow: visible;
 }
 
 .origin-text {
@@ -474,7 +590,9 @@ $pill-bg:   #EAE1DC;
   height: 29px;
 }
 
-.tag { flex: 0 0 auto; }
+.tag {
+  flex: 0 0 auto;
+}
 
 .drag-scroll {
   overflow-x: auto;
@@ -484,8 +602,13 @@ $pill-bg:   #EAE1DC;
   user-select: none;
   overscroll-behavior-inline: contain;
 
-  &::-webkit-scrollbar { display: none; }
-  &.is-dragging { cursor: grabbing; }
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  &.is-dragging {
+    cursor: grabbing;
+  }
 }
 
 .card {
@@ -494,11 +617,13 @@ $pill-bg:   #EAE1DC;
   min-width: 0;
   max-width: none;
   height: auto;
-  aspect-ratio: 329 / 533;
-  overflow: hidden;
+  aspect-ratio: auto;
+  overflow: visible;
 }
 
-.card-body { min-height: 0; }
+.card-body {
+  min-height: 0;
+}
 
 .card-body-top {
   flex: 1;
@@ -506,15 +631,17 @@ $pill-bg:   #EAE1DC;
   gap: 0 !important;
 }
 
-.title-rating-row { align-items: center; }
+.title-rating-row {
+  align-items: center;
+}
 
 .product-title {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 
   span {
-    max-height: 68px;
-    overflow: hidden;
+    max-height: none;
+    overflow: visible;
   }
 }
 
@@ -530,10 +657,12 @@ $pill-bg:   #EAE1DC;
   flex-direction: column;
   justify-content: center;
   gap: 12px;
-  overflow: hidden;
+  overflow: visible;
 }
 
-.price-add-row { flex: none; }
+.price-add-row {
+  flex: none;
+}
 
 // Keep all four canonical cards on one row at 100% zoom on 1366px+ screens.
 .main-frame {
@@ -549,15 +678,25 @@ $pill-bg:   #EAE1DC;
   overflow: visible;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1200px) {
+  .product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
   .main-frame {
     padding-right: 16px;
     padding-left: 16px;
   }
 
-  .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-@media (max-width: 480px) {
-  .product-grid { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 600px) {
+  .product-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

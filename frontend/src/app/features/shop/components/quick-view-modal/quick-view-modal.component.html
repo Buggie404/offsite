@@ -1,0 +1,166 @@
+<!-- Modal backdrop: click outside the dialog to close -->
+<div class="quick-view-backdrop" (mousedown)="onBackdropClick($event)">
+  <section
+    class="quick-view-modal"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-labelledby]="'quick-view-title-' + product.product_id"
+  >
+    <button #closeButton type="button" class="modal-close" (click)="close()" aria-label="Close quick view">
+      <svg lucideX [size]="24" aria-hidden="true"></svg>
+    </button>
+
+    <!-- Product image carousel -->
+    <div
+      class="quick-view-gallery"
+      (mouseenter)="pauseCarousel()"
+      (mouseleave)="resumeCarousel()"
+      (focusin)="pauseCarousel()"
+      (focusout)="resumeCarousel()"
+    >
+      <div class="quick-view-image-frame">
+        @if (images.length) {
+          <div
+            class="quick-view-track"
+            [class.without-transition]="!isSlideTransitionEnabled"
+            [style.transform]="'translate3d(-' + ((images.length > 1 ? slidePosition : 0) * 100) + '%, 0, 0)'"
+            (transitionend)="onSlideTransitionEnd()"
+          >
+            @if (images.length > 1) {
+              <img
+                class="quick-view-image"
+                [src]="images[images.length - 1].url"
+                [alt]="''"
+                aria-hidden="true"
+              />
+            }
+
+            @for (image of images; track image.public_id || image.url; let index = $index) {
+              <img
+                class="quick-view-image"
+                [src]="image.url"
+                [alt]="image.alt_text || product.name"
+                [attr.aria-hidden]="index === activeImageIndex ? null : 'true'"
+              />
+            }
+
+            @if (images.length > 1) {
+              <img
+                class="quick-view-image"
+                [src]="images[0].url"
+                [alt]="''"
+                aria-hidden="true"
+              />
+            }
+          </div>
+        } @else {
+          <div class="quick-view-image-placeholder" aria-label="Product image unavailable"></div>
+        }
+
+        <button
+          type="button"
+          class="gallery-save"
+          [class.is-saved]="isSaved"
+          (click)="onSave()"
+          [attr.aria-label]="isSaved ? 'Remove from saved products' : 'Save product'"
+        >
+          <svg lucideHeart [size]="18" [attr.fill]="isSaved ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+        </button>
+
+        @if (images.length > 1) {
+          <button type="button" class="gallery-arrow gallery-arrow--previous" (click)="previousImage()" aria-label="Previous image">
+            <svg lucideChevronLeft [size]="22" aria-hidden="true"></svg>
+          </button>
+          <button type="button" class="gallery-arrow gallery-arrow--next" (click)="nextImage()" aria-label="Next image">
+            <svg lucideChevronRight [size]="22" aria-hidden="true"></svg>
+          </button>
+        }
+
+        @if (showGalleryDots) {
+          <div class="gallery-dots" aria-label="Choose product image">
+            @for (image of images; track image.public_id || image.url; let index = $index) {
+              <button
+                type="button"
+                class="gallery-dot"
+                [class.is-active]="index === activeImageIndex"
+                (click)="goToImage(index)"
+                [attr.aria-label]="'Show image ' + (index + 1) + ' of ' + images.length"
+                [attr.aria-current]="index === activeImageIndex ? 'true' : null"
+              ></button>
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Product details -->
+    <div class="quick-view-details">
+      <div class="quick-view-content">
+        <header class="product-header">
+          <h2 [id]="'quick-view-title-' + product.product_id"><span>{{ product.name }}</span></h2>
+          <p class="product-price">{{ totalPrice | currency:'USD':'symbol':'1.2-2' }}</p>
+        </header>
+
+        <!-- Variant selector -->
+        @if (product.variants.length) {
+          <fieldset class="variant-selector">
+            <legend>{{ product.variant_type === 'none' ? 'SELECT OPTION' : 'SELECT ' + (product.variant_type | uppercase) }}</legend>
+            <div appDragScroll class="variant-options">
+              @for (variant of product.variants; track variant.sku; let index = $index) {
+                <button
+                  type="button"
+                  class="variant-option"
+                  [class.is-selected]="index === selectedVariantIndex"
+                  [class.is-unavailable]="(variant.stock ?? 0) <= 0"
+                  [disabled]="(variant.stock ?? 0) <= 0"
+                  (click)="selectVariant(index)"
+                >
+                  {{ getVariantLabel(variant) }}
+                </button>
+              }
+            </div>
+          </fieldset>
+        }
+
+        <!-- Quantity -->
+        <div class="quantity-field">
+          <div class="quantity-selector" aria-label="Quantity selector" [class.has-error]="quantityError">
+            <button type="button" (click)="decreaseQuantity()" [disabled]="quantity <= 1 || isUnavailable" aria-label="Decrease quantity">
+              <svg lucideMinus [size]="16" aria-hidden="true"></svg>
+            </button>
+            <input
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              [value]="quantity"
+              (input)="onQuantityInput($event)"
+              (blur)="normalizeQuantity()"
+              [disabled]="isUnavailable"
+              [attr.aria-invalid]="quantityError ? 'true' : null"
+              [attr.aria-describedby]="quantityError ? 'quick-view-quantity-error-' + product.product_id : null"
+              aria-label="Quantity"
+            />
+            <button type="button" (click)="increaseQuantity()" [disabled]="quantity >= maxQuantity || isUnavailable" aria-label="Increase quantity">
+              <svg lucidePlus [size]="16" aria-hidden="true"></svg>
+            </button>
+          </div>
+          @if (quantityError) {
+            <p class="quantity-error" [id]="'quick-view-quantity-error-' + product.product_id" role="alert">{{ quantityError }}</p>
+          }
+        </div>
+
+        <!-- Purchase actions -->
+        <div class="purchase-actions">
+          <button type="button" class="cta-button cta-button--secondary" [disabled]="isUnavailable || !!quantityError" (click)="buyNow()">
+            <span>Buy now</span>
+            <svg lucideShoppingBag [size]="20" aria-hidden="true"></svg>
+          </button>
+          <button type="button" class="cta-button cta-button--primary" [disabled]="isUnavailable || !!quantityError" (click)="addToCart()">
+            <span>{{ isUnavailable ? 'Out of stock' : 'Add to cart' }}</span>
+            <svg lucideShoppingCart [size]="20" aria-hidden="true"></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

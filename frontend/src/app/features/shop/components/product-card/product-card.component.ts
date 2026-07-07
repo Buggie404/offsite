@@ -5,17 +5,20 @@ import { CommonModule } from '@angular/common';
 import {
   Product,
   getDefaultPrice,
+  getPrimaryProductImage,
   isProductNewArrivalEligible,
   isProductOutOfStock
 } from '../../../home/models/product.model';
-import { LucideHeart, LucideStar } from '@lucide/angular';
+import { LucideEye, LucideHeart, LucideStar } from '@lucide/angular';
 import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
+import { QuickViewModalComponent } from '../quick-view-modal/quick-view-modal.component';
+import { CartService } from '../../../purchase/services/cart.service';
 
 @Component({
   selector: 'app-product-card',
   standalone: true,
-  imports: [CommonModule, LucideHeart, LucideStar, DragScrollDirective, AnimateInViewDirective],
+  imports: [CommonModule, LucideEye, LucideHeart, LucideStar, DragScrollDirective, AnimateInViewDirective, QuickViewModalComponent],
   templateUrl: './product-card.component.html',
   styleUrls: ['./product-card.component.scss']
 })
@@ -24,6 +27,9 @@ export class ProductCardComponent {
   @Input() showBestSellerBadge = false;
   @Input() isSaved = false;
   @Output() saveToggle = new EventEmitter<Product>();
+  isQuickViewOpen = false;
+
+  constructor(private readonly cartService: CartService) {}
 
   roastSwatches = [
     '#f3f8ec', '#e5f1d5', '#d7eabf', '#c9e3a9', '#b5d48a',
@@ -83,11 +89,11 @@ export class ProductCardComponent {
 
   // ── MISC ──
   getPrimaryImage(p: Product): string {
-    return p.images[0]?.url ?? '';
+    return getPrimaryProductImage(p)?.url ?? '';
   }
 
   getPrimaryImageAlt(p: Product): string {
-    return p.images[0]?.alt_text ?? p.name;
+    return getPrimaryProductImage(p)?.alt_text ?? p.name;
   }
 
   getPrice(p: Product): string {
@@ -102,14 +108,38 @@ export class ProductCardComponent {
     return p.is_new_arrival === true && isProductNewArrivalEligible(p);
   }
 
-  onAddToCart(p: Product): void {
+  onAddToCart(p: Product, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
     if (this.isOutOfStock(p)) return;
-    console.log('Add to cart:', p.name);
+    this.cartService.addToCart(p as any);
   }
 
   onSave(p: Product, event: Event): void {
     event.preventDefault();
     event.stopPropagation();
     this.saveToggle.emit(p);
+  }
+
+  openQuickView(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.isOutOfStock(this.product)) this.isQuickViewOpen = true;
+  }
+
+  closeQuickView(): void {
+    this.isQuickViewOpen = false;
+
+    // The modal restores focus to its opener on destroy. Clear that focus on
+    // the next task so the closed card cannot retain a browser focus ring or
+    // any focus-driven visual state after the pointer moves away.
+    if (typeof document !== 'undefined') {
+      setTimeout(() => {
+        const activeElement = document.activeElement;
+        if (activeElement instanceof HTMLElement && activeElement.classList.contains('quick-view-trigger')) {
+          activeElement.blur();
+        }
+      });
+    }
   }
 }

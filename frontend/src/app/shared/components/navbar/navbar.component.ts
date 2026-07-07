@@ -322,23 +322,23 @@ export class NavbarComponent implements OnInit {
   }
 
   incrementQuantity(item: CartItem): void {
-    this.cartService.updateQuantity(item.product._id, item.variantSku, item.quantity + 1);
+    this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, item.quantity + 1);
   }
 
   decrementQuantity(item: CartItem): void {
-    this.cartService.updateQuantity(item.product._id, item.variantSku, item.quantity - 1);
+    this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, item.quantity - 1);
   }
 
   removeFromCart(item: CartItem): void {
-    this.cartService.removeFromCart(item.product._id, item.variantSku);
+    this.cartService.removeFromCart(this.getProductIdentifier(item), item.variantSku);
   }
 
   toggleSelection(item: CartItem): void {
-    this.cartService.toggleSelection(item.product._id, item.variantSku);
+    this.cartService.toggleSelection(this.getProductIdentifier(item), item.variantSku);
   }
 
   changeVariant(item: CartItem, newSku: string): void {
-    this.cartService.updateVariant(item.product._id, item.variantSku, newSku);
+    this.cartService.updateVariant(this.getProductIdentifier(item), item.variantSku, newSku);
   }
 
   checkout(event?: Event): void {
@@ -347,5 +347,9 @@ export class NavbarComponent implements OnInit {
     }
     this.cartService.processCheckout();
     this.router.navigate(['/checkout']);
+  }
+
+  private getProductIdentifier(item: CartItem): string | number {
+    return item.product._id || item.product.product_id;
   }
 }

@@ -6,22 +6,28 @@
   <div class="card-image-wrap">
     <img [src]="getPrimaryImage(product)" [alt]="getPrimaryImageAlt(product)" class="product-img" />
 
-    <button
-      type="button"
-      class="save-btn"
-      [class.save-btn--active]="isSaved"
-      (click)="onSave(product, $event)"
-      [attr.aria-label]="isSaved ? 'Remove from saved products' : 'Save product'"
-    >
+    <div class="quick-view-overlay">
+      <button type="button" class="quick-view-trigger" [disabled]="isOutOfStock(product)"
+        (click)="openQuickView($event)">
+        @if (isOutOfStock(product)) {
+          <span>OUT OF STOCK</span>
+        } @else {
+          <svg lucideEye [size]="22" aria-hidden="true"></svg>
+        }
+      </button>
+    </div>
+
+    <button type="button" class="save-btn" [class.save-btn--active]="isSaved" (click)="onSave(product, $event)"
+      [attr.aria-label]="isSaved ? 'Remove from saved products' : 'Save product'">
       <svg lucideHeart [size]="16" [attr.fill]="isSaved ? 'currentColor' : 'none'" aria-hidden="true"></svg>
     </button>
 
     <div class="status-badges">
       @if (showBestSellerBadge || product.is_best_seller) {
-        <span class="status-badge status-badge--best-seller">BEST SELLER</span>
+      <span class="status-badge status-badge--best-seller">BEST SELLER</span>
       }
       @if (showNewArrivalBadge(product)) {
-        <span class="status-badge status-badge--new-arrival">NEW ARRIVAL</span>
+      <span class="status-badge status-badge--new-arrival">NEW ARRIVAL</span>
       }
     </div>
   </div>
@@ -30,9 +36,8 @@
   <div class="card-body">
 
     <!-- TOP: title, origin, tags, roast bar -->
-    <div class="card-body-top"
-         [class.gap-coffee]="product.category === 'coffee'"
-         [class.gap-bundle]="product.category === 'sets_bundles'">
+    <div class="card-body-top" [class.gap-coffee]="product.category === 'coffee'"
+      [class.gap-bundle]="product.category === 'sets_bundles'">
 
       <!-- Title + Rating -->
       <div class="title-rating-row">
@@ -45,38 +50,31 @@
 
       <!-- Origin (ẩn với sets_bundles) -->
       <div class="product-details">
-      @if (product.category !== 'sets_bundles' && getOrigin(product)) {
+        @if (product.category !== 'sets_bundles' && getOrigin(product)) {
         <p appDragScroll class="origin-text">{{ getOrigin(product) }}</p>
-      }
+        }
 
-      <!-- Tag pills -->
-      @if (getTags(product).length) {
+        <!-- Tag pills -->
+        @if (getTags(product).length) {
         <div appDragScroll class="tags-row">
           @for (tag of getTags(product); track tag) {
-            <div class="tag"><span>{{ tag }}</span></div>
+          <div class="tag"><span>{{ tag }}</span></div>
           }
         </div>
-      }
+        }
 
-      <!-- Roast bar — coffee only -->
-      @if (showRoastBar(product)) {
-        <div
-          class="roast-bar"
-          appAnimateInView
-        >
+        <!-- Roast bar — coffee only -->
+        @if (showRoastBar(product)) {
+        <div class="roast-bar" appAnimateInView>
           @for (color of roastSwatches; track $index) {
-            <span class="swatch"
-                  [class.swatch--highlight]="isHighlightSwatch(product, $index)"
-                  [style.--swatch-color]="color">
-            </span>
+          <span class="swatch" [class.swatch--highlight]="isHighlightSwatch(product, $index)"
+            [style.--swatch-color]="color">
+          </span>
           }
-          <span
-            class="roast-indicator"
-            [style.--roast-column]="getHighlightIndex(product) + 1"
-            aria-hidden="true"
-          ></span>
+          <span class="roast-indicator" [style.--roast-column]="getHighlightIndex(product) + 1"
+            aria-hidden="true"></span>
         </div>
-      }
+        }
 
       </div>
     </div><!-- /card-body-top -->
@@ -84,13 +82,8 @@
     <!-- BOTTOM: price + add -->
     <div class="price-add-row">
       <span class="price">{{ getPrice(product) }}</span>
-      <button
-        type="button"
-        class="add-btn"
-        [disabled]="isOutOfStock(product)"
-        [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'"
-        (click)="onAddToCart(product)"
-      >
+      <button type="button" class="add-btn" [disabled]="isOutOfStock(product)"
+        [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'" (click)="onAddToCart(product, $event)">
         <span>{{ isOutOfStock(product) ? 'Out of stock' : 'Add' }}</span>
       </button>
     </div>
@@ -98,3 +91,8 @@
   </div><!-- /card-body -->
 
 </div><!-- /card -->
+
+@if (isQuickViewOpen) {
+<app-quick-view-modal [product]="product" [isSaved]="isSaved" (closed)="closeQuickView()"
+  (saveToggle)="saveToggle.emit($event)"></app-quick-view-modal>
+}
