@@ -1,7 +1,7 @@
 .policy-container {
   background-color: var(--color-cream);
   min-height: 100vh;
-  padding: var(--space-6) 0;
+  padding: 0 0 var(--space-6) 0;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -18,14 +18,14 @@
   max-width: var(--container-max);
   width: 100%;
   margin: 0 auto;
-  padding: 0 var(--container-padding-desktop);
+  padding: var(--space-6) var(--container-padding-desktop) 0;
   align-items: start;
 }
 
 /* Sidebar - Sticky Directory */
 .policy-sidebar {
   position: sticky;
-  top: 135px; // sticky offset below the desktop header + promobar
+  top: 80px; // aligned exactly below the desktop navbar
   align-self: start; // locks boundaries to content height, allowing it to slide inside grid cell
   background-color: #D2E4C4; // Sage green mockup color
   border-radius: 12px;
@@ -250,17 +250,18 @@
 @media (max-width: 768px) {
   .policy-layout {
     display: block;
-    padding: 0 var(--container-padding-mobile);
+    padding: var(--space-4) var(--container-padding-mobile);
   }
 
   .policy-sidebar {
     position: sticky;
-    top: 120px; // sticks to mobile header + promobar, ensuring it stays on screen
+    top: 70px; // aligned exactly below the mobile header
     z-index: 99; // stay below mobile drawer but above content
     width: 100%;
     margin-bottom: var(--space-3);
     padding: var(--space-3);
     border-radius: 8px;
+    background-color: #D2E4C4;
     box-shadow: 0 4px 15px rgba(84, 74, 64, 0.08);
   }
 

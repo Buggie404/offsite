@@ -281,24 +281,40 @@
 .about-values {
   max-width: var(--container-max);
   margin: 0 auto;
-  padding: 0 var(--container-padding-desktop) var(--space-7);
+  padding: var(--space-6) var(--container-padding-desktop);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-5);
+  gap: 0;
+  border-top: 1px solid var(--divider-color);
+  border-bottom: 1px solid var(--divider-color);
 
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
-    padding: 0 var(--container-padding-mobile) var(--space-6);
+    padding: var(--space-5) var(--container-padding-mobile);
+    border-bottom: none;
   }
 
   .value-item {
-    border-top: 1px solid var(--divider-color);
-    padding-top: var(--space-4);
+    padding: 0 var(--space-5) var(--space-4) 0;
+    border-top: none;
+
+    &:not(:first-child) {
+      border-left: 1px solid var(--divider-color);
+      padding-left: var(--space-5);
+    }
+
+    @media (max-width: 768px) {
+      padding: var(--space-4) 0;
+      border-left: none !important;
+      padding-left: 0 !important;
+      border-bottom: 1px solid var(--divider-color);
+    }
   }
 
   .value-num {
     display: block;
-    font-size: var(--text-body-size);
+    font-size: 1.15rem;
+    font-weight: 700;
     font-family: var(--font-mono);
     color: var(--color-latte);
     margin-bottom: var(--space-2);
@@ -307,7 +323,7 @@
   .value-title {
     font-size: 1.25rem;
     font-weight: 700;
-    color: var(--color-near-black);
+    color: var(--color-forest-green);
     margin-bottom: var(--space-3);
   }
 
@@ -326,7 +342,7 @@
   text-align: center;
   position: relative;
   overflow: hidden;
-  margin-bottom: var(--space-4); /* Reduced cream color gap before the site footer */
+  margin-bottom: var(--space-4);
 
   @media (max-width: 768px) {
     padding: var(--space-6) var(--container-padding-mobile);
@@ -397,6 +413,8 @@
     .arrow {
       margin-left: var(--space-2);
       transition: transform 0.3s ease;
+      display: inline-block;
+      vertical-align: middle;
     }
 
     &:hover {

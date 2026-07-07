@@ -53,26 +53,36 @@ $transition-speed: 0.25s;
   .hero-content-grid {
     display: grid;
     grid-template-columns: 1.2fr 1fr;
-    gap: 40px;
-    align-items: center;
+    grid-template-areas:
+      "title image"
+      "info image";
+    gap: 20px 40px;
+    align-items: start;
 
     @media (max-width: 992px) {
       grid-template-columns: 1fr;
+      grid-template-areas:
+        "title"
+        "image"
+        "info";
+      gap: 24px;
     }
   }
 
   .hero-info {
+    grid-area: info;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
   }
 
   .hero-title {
+    grid-area: title;
     font-family: var(--font-display), 'Russo One', sans-serif;
     font-size: 3.2rem;
     font-weight: 700;
     line-height: 1.1;
-    margin: 0 0 16px 0;
+    margin: 0;
     letter-spacing: -0.02em;
     text-transform: uppercase;
 
@@ -167,6 +177,7 @@ $transition-speed: 0.25s;
   }
 
   .hero-image-wrapper {
+    grid-area: image;
     width: 100%;
     aspect-ratio: 1.4 / 1;
     border-radius: 12px;
@@ -371,6 +382,10 @@ $transition-speed: 0.25s;
 .content-right {
   position: relative;
 
+  @media (max-width: 992px) {
+    display: none;
+  }
+
   .timer-card {
     background-color: $gold-timer-bg;
     border-radius: 12px;
@@ -447,6 +462,134 @@ $transition-speed: 0.25s;
       }
     }
   }
+}
+
+// ── FLOATING MOBILE TIMER ──
+.floating-mobile-timer {
+  position: fixed;
+  bottom: 32px;
+  left: 32px;
+  right: 96px; // Leave space for back-to-top button on tablet (32px offset + 48px width + 16px gap)
+  z-index: 999;
+  display: none;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(20px);
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+
+  @media (max-width: 992px) {
+    display: block;
+  }
+
+  @media (max-width: 768px) {
+    bottom: 24px;
+    left: 20px;
+    right: 76px; // Leave space for back-to-top button on mobile (20px offset + 44px width + 12px gap)
+  }
+
+  &.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .fmt-container {
+    background-color: rgba($gold-timer-bg, 0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba($forest-green, 0.2);
+    border-radius: 16px;
+    padding: 12px 20px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .fmt-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .fmt-icon {
+    color: $forest-green;
+    animation: pulse FMT-pulse 2s infinite;
+  }
+
+  .fmt-text-wrapper {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .fmt-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: rgba($forest-green, 0.7);
+    letter-spacing: 0.05em;
+  }
+
+  .fmt-digits {
+    font-family: var(--font-mono), 'DM Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: $forest-green;
+    line-height: 1.1;
+  }
+
+  .fmt-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .fmt-btn {
+    border: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+
+    &--primary {
+      background-color: $forest-green;
+      color: $white;
+
+      &:active {
+        transform: scale(0.95);
+      }
+    }
+
+    &--secondary {
+      background-color: $white;
+      color: $forest-green;
+      border: 1px solid rgba($forest-green, 0.2);
+
+      &:active {
+        transform: scale(0.95);
+      }
+    }
+  }
+}
+
+@keyframes FMT-slide-in {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes FMT-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 // ── COMPLETE THE RITUAL ──
@@ -980,4 +1123,15 @@ $transition-speed: 0.25s;
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Vertically center the Back to Top button relative to the floating mobile timer */
+.recipe-detail-page.has-floating-timer ::ng-deep .back-to-top-btn {
+  @media (max-width: 992px) {
+    bottom: 42px !important; // Vertically center 48px button against ~68px timer (32px bottom + 10px offset)
+  }
+
+  @media (max-width: 768px) {
+    bottom: 36px !important; // Vertically center 44px button against ~68px timer (24px bottom + 12px offset)
+  }
 }

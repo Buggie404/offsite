@@ -47,12 +47,18 @@
           </div>
 
           <div class="form-group">
-            <label for="subject">SUBJECT</label>
-            <div class="select-wrapper">
-              <select id="subject" name="subject" [(ngModel)]="subject">
-                <option *ngFor="let opt of subjects" [value]="opt">{{ opt }}</option>
-              </select>
-              <svg lucideChevronDown [size]="16" class="chevron-icon"></svg>
+            <label>SUBJECT</label>
+            <input type="hidden" name="subject" [(ngModel)]="subject">
+            <div class="custom-dropdown-wrapper">
+              <button type="button" class="custom-dropdown-btn" (click)="toggleSubjectDropdown()">
+                <span>{{ subject }}</span>
+                <svg lucideChevronDown [size]="16" class="chevron-icon" [class.open]="isSubjectDropdownOpen"></svg>
+              </button>
+              <div class="custom-dropdown-menu" *ngIf="isSubjectDropdownOpen">
+                <button type="button" class="custom-dropdown-item" *ngFor="let opt of subjects" (click)="selectSubject(opt)">
+                  {{ opt }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -150,6 +156,13 @@
 
   <!-- FAQ Section -->
   <section class="faq-section">
+    <!-- Geometric decorative shapes matching the mockup background -->
+    <div class="shape shape-circle-1"></div>
+    <div class="shape shape-circle-2"></div>
+    <div class="shape shape-diamond-left"></div>
+    <div class="shape shape-diamond-right-1"></div>
+    <div class="shape shape-diamond-right-2"></div>
+
     <div class="faq-container">
       <h2 class="faq-title">Frequently Asked Questions</h2>
       <p class="faq-subtitle">Quick answers to common inquiries.</p>
@@ -181,6 +194,6 @@
       </div>
     </div>
   </section>
-</div>
 
-<app-footer></app-footer>
+  <app-back-to-top></app-back-to-top>
+</div>

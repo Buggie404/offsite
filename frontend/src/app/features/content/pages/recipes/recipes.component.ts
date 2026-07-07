@@ -162,8 +162,10 @@ export class RecipesComponent implements OnInit {
       result.sort((a, b) => (b.saves || 0) - (a.saves || 0));
     } else if (this.selectedSort === 'newest') {
       result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    } else if (this.selectedSort === 'name') {
+    } else if (this.selectedSort === 'name-asc') {
       result.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (this.selectedSort === 'name-desc') {
+      result.sort((a, b) => b.title.localeCompare(a.title));
     }
 
     this.filteredRecipes = result;
@@ -201,7 +203,8 @@ export class RecipesComponent implements OnInit {
   getSortLabel(): string {
     if (this.selectedSort === 'popularity') return 'POPULARITY';
     if (this.selectedSort === 'newest') return 'NEWEST';
-    if (this.selectedSort === 'name') return 'NAME';
+    if (this.selectedSort === 'name-asc') return 'NAME (A-Z)';
+    if (this.selectedSort === 'name-desc') return 'NAME (Z-A)';
     return this.selectedSort.toUpperCase();
   }
 

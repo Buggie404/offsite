@@ -42,7 +42,7 @@
           </div>
 
           <!-- BASE filter -->
-          <div class="filter-group">
+          <div class="filter-group base-filter">
             <span class="filter-label">BASE:</span>
             <div class="filter-options">
               <button 
@@ -67,12 +67,13 @@
             <div class="sort-menu" *ngIf="isSortDropdownOpen">
               <button class="sort-item" (click)="selectSort('popularity')">POPULARITY</button>
               <button class="sort-item" (click)="selectSort('newest')">NEWEST</button>
-              <button class="sort-item" (click)="selectSort('name')">NAME</button>
+              <button class="sort-item" (click)="selectSort('name-asc')">NAME (A-Z)</button>
+              <button class="sort-item" (click)="selectSort('name-desc')">NAME (Z-A)</button>
             </div>
           </div>
 
           <!-- STYLE filter -->
-          <div class="filter-group">
+          <div class="filter-group style-filter">
             <span class="filter-label">STYLE:</span>
             <div class="filter-options">
               <button 

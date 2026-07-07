@@ -12,6 +12,8 @@ import {
   LucideTruck
 } from '@lucide/angular';
 
+import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
+
 @Component({
   selector: 'app-policy',
   standalone: true,
@@ -24,7 +26,8 @@ import {
     LucideShieldCheck,
     LucideRotateCcw,
     LucideSparkles,
-    LucideTruck
+    LucideTruck,
+    BackToTopComponent
   ],
   templateUrl: './policy.component.html',
   styleUrl: './policy.component.scss'

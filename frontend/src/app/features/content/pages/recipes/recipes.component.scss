@@ -197,6 +197,13 @@
   justify-content: space-between;
   gap: 24px;
   flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    display: grid;
+    grid-template-columns: 1fr 165px;
+    gap: 16px;
+    align-items: center;
+  }
 }
 
 .filter-column {
@@ -218,6 +225,10 @@
       align-items: flex-start;
     }
   }
+
+  @media (max-width: 768px) {
+    display: contents;
+  }
 }
 
 // Search & Sort Elements
@@ -225,6 +236,11 @@
   position: relative;
   width: 100%;
   max-width: 360px;
+
+  @media (max-width: 768px) {
+    order: 1;
+    max-width: 100%;
+  }
 
   .search-icon {
     position: absolute;
@@ -294,13 +310,17 @@
 
   @media (max-width: 768px) {
     width: 100%;
-    max-width: 360px;
+    order: 2;
   }
 
   .sort-dropdown-btn {
     width: 100%;
     height: 48px;
     padding: 12px 20px;
+
+    @media (max-width: 768px) {
+      padding: 12px 10px;
+    }
     border: none;
     border-radius: 8px;
     background-color: var(--clr-white);
@@ -371,6 +391,20 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+
+  &.base-filter {
+    @media (max-width: 768px) {
+      order: 3;
+      grid-column: span 2;
+    }
+  }
+
+  &.style-filter {
+    @media (max-width: 768px) {
+      order: 4;
+      grid-column: span 2;
+    }
+  }
 
   .filter-label {
     font-family: var(--font-body), sans-serif;
@@ -592,6 +626,12 @@
     gap:         12px;
     margin-bottom: 16px;
     flex-wrap: wrap;
+
+    @media (max-width: 992px) {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px 16px;
+    }
   }
 
   &__desc {
@@ -723,8 +763,8 @@
     border: none;
     border-radius: 50px;
     cursor: pointer;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;

@@ -1,4 +1,4 @@
-<div class="recipe-detail-page" *ngIf="recipe">
+<div class="recipe-detail-page" [class.has-floating-timer]="timeLeft > 0 && showFloatingTimer" *ngIf="recipe">
   <!-- ── HERO / HEADER SECTION ────────────────────────────────────────── -->
   <div class="hero-section">
     <div class="hero-container">
@@ -10,8 +10,9 @@
 
       <div class="hero-content-grid">
         <!-- Hero Left: Info -->
+        <h1 class="hero-title">{{ recipe.title }}</h1>
+
         <div class="hero-info">
-          <h1 class="hero-title">{{ recipe.title }}</h1>
           <p class="hero-description">{{ recipe.description }}</p>
 
           <!-- Meta chips (SAVES, BASE, TIME, DIFFICULTY) -->
@@ -261,6 +262,28 @@
       </button>
     </div>
   </section>
+
+  <!-- Floating Mobile Timer (visible on mobile only when active) -->
+  <div class="floating-mobile-timer" [class.visible]="timeLeft > 0 && showFloatingTimer">
+    <div class="fmt-container">
+      <div class="fmt-info">
+        <svg lucideClock [size]="18" class="fmt-icon"></svg>
+        <div class="fmt-text-wrapper">
+          <span class="fmt-label">TIMER</span>
+          <span class="fmt-digits">{{ formatTime(timeLeft) }}</span>
+        </div>
+      </div>
+      <div class="fmt-actions">
+        <button class="fmt-btn fmt-btn--primary" (click)="toggleTimer()" aria-label="Toggle Timer">
+          <svg *ngIf="!timerRunning" lucidePlay [size]="16"></svg>
+          <svg *ngIf="timerRunning" lucidePause [size]="16"></svg>
+        </button>
+        <button class="fmt-btn fmt-btn--secondary" (click)="resetTimer()" aria-label="Reset Timer">
+          <svg lucideRotateCcw [size]="16"></svg>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <app-back-to-top></app-back-to-top>
 </div>

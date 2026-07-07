@@ -161,15 +161,18 @@
 
       <!-- Empty State (only show when searching/filtering with no results) -->
       <div class="empty-state" *ngIf="showEmptyState">
-        <div class="empty-state-icon">
-          <svg lucideSearch [size]="48"></svg>
+        <div class="empty-icon-wrapper">
+          <svg lucideSearchX [size]="48" class="empty-icon"></svg>
         </div>
-        <h3 class="empty-state-title">No results found</h3>
-        <p class="empty-state-message">
+        <h3 class="empty-title">NO BLOGS FOUND</h3>
+        <p class="empty-subtitle">
           We couldn't find any articles matching your search.
+          <br class="desktop-only-br" />
+          Try different keywords or clear your search to explore more journal entries.
         </p>
-        <button class="empty-state-btn" (click)="clearSearch()">
-          Clear search
+        <button class="clear-filters-btn" (click)="clearSearch()">
+          <svg lucideRotateCcw [size]="16" class="btn-icon"></svg>
+          CLEAR SEARCH
         </button>
       </div>
     </ng-container>

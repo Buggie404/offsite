@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef, HostListener } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -76,6 +76,20 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   timeLeft = 120;
   timerRunning = false;
   private timerInterval: any = null;
+  showFloatingTimer = false;
+
+  @HostListener('window:scroll', [])
+  onWindowScroll() {
+    if (isPlatformBrowser(this.platformId)) {
+      const element = document.querySelector('.main-content-section');
+      if (element) {
+        const rect = element.getBoundingClientRect();
+        this.showFloatingTimer = rect.top < window.innerHeight;
+      } else {
+        this.showFloatingTimer = window.scrollY > 400;
+      }
+    }
+  }
 
   // Swatches for Coffee Roast level
   roastSwatches = [

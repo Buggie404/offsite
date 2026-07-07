@@ -2,8 +2,8 @@ import { Component, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideMail, LucidePhone, LucideMapPin, LucideChevronDown } from '@lucide/angular';
-import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 import { InlineValidator, FieldConfig } from '../../../../shared/utils/inline-validator';
+import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 
 @Component({
   selector: 'app-contact-us',
@@ -15,7 +15,7 @@ import { InlineValidator, FieldConfig } from '../../../../shared/utils/inline-va
     LucidePhone,
     LucideMapPin,
     LucideChevronDown,
-    FooterComponent
+    BackToTopComponent
   ],
   templateUrl: './contact-us.component.html',
   styleUrl: './contact-us.component.scss'
@@ -37,8 +37,18 @@ export class ContactUsComponent implements AfterViewInit, OnDestroy {
   isSubmitting = false;
   submitSuccess = false;
   submitError = false;
+  isSubjectDropdownOpen = false;
 
   contactValidator: InlineValidator | null = null;
+
+  toggleSubjectDropdown(): void {
+    this.isSubjectDropdownOpen = !this.isSubjectDropdownOpen;
+  }
+
+  selectSubject(opt: string): void {
+    this.subject = opt;
+    this.isSubjectDropdownOpen = false;
+  }
 
   ngAfterViewInit() {
     const contactConfigs: FieldConfig[] = [

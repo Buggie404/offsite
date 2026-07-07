@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef } 
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { LucideSearch, LucideChevronDown, LucideBookmark, LucideArrowRight, LucideX } from '@lucide/angular';
+import { LucideSearch, LucideChevronDown, LucideBookmark, LucideArrowRight, LucideX, LucideSearchX, LucideRotateCcw } from '@lucide/angular';
 import { ContentService } from '../../services/content.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { AuthService } from '../../../../core/auth.service';
@@ -38,6 +38,8 @@ interface Article {
     LucideBookmark,
     LucideArrowRight,
     LucideX,
+    LucideSearchX,
+    LucideRotateCcw,
     BackToTopComponent
   ],
   templateUrl: './journal.component.html',
