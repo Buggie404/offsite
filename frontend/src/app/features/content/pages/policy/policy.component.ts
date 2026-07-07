@@ -5,7 +5,7 @@ import {
   LucidePackage,
   LucideRefreshCw,
   LucideLock,
-  LucideHeart,
+  LucideHeartHandshake,
   LucideShieldCheck,
   LucideRotateCcw,
   LucideSparkles,
@@ -22,7 +22,7 @@ import { BackToTopComponent } from '../../../../shared/components/back-to-top/ba
     LucidePackage,
     LucideRefreshCw,
     LucideLock,
-    LucideHeart,
+    LucideHeartHandshake,
     LucideShieldCheck,
     LucideRotateCcw,
     LucideSparkles,
@@ -44,7 +44,7 @@ export class PolicyComponent implements OnInit, AfterViewInit, OnDestroy {
     { id: 'shipping', label: 'Shipping Policy', icon: 'package' },
     { id: 'returns', label: 'Returns & Exchanges', icon: 'refresh' },
     { id: 'privacy', label: 'Privacy Policy', icon: 'lock' },
-    { id: 'terms', label: 'Terms of Service', icon: 'heart' }
+    { id: 'terms', label: 'Terms of Service', icon: 'heart-handshake' }
   ];
 
   ngOnInit(): void {

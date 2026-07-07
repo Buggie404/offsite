@@ -45,7 +45,8 @@ import {
   LucideChevronsDownUp,
   LucideEye,
   LucideEyeOff,
-  LucideDessert
+  LucideDessert,
+  LucideBadgeCheck
 } from '@lucide/angular';
 
 @Component({
@@ -89,7 +90,8 @@ import {
     LucideChevronsDownUp,
     LucideEye,
     LucideEyeOff,
-    LucideDessert
+    LucideDessert,
+    LucideBadgeCheck
   ],
   templateUrl: './account.component.html',
   styleUrl: './account.component.scss'

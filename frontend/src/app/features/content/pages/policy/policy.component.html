@@ -18,7 +18,7 @@
             <svg *ngIf="sec.icon === 'package'" lucidePackage [size]="18" class="nav-icon"></svg>
             <svg *ngIf="sec.icon === 'refresh'" lucideRefreshCw [size]="18" class="nav-icon"></svg>
             <svg *ngIf="sec.icon === 'lock'" lucideLock [size]="18" class="nav-icon"></svg>
-            <svg *ngIf="sec.icon === 'heart'" lucideHeart [size]="18" class="nav-icon"></svg>
+            <svg *ngIf="sec.icon === 'heart-handshake'" lucideHeartHandshake [size]="18" class="nav-icon"></svg>
           </span>
           <span class="nav-label">{{ sec.label }}</span>
         </button>
@@ -125,7 +125,7 @@
       <!-- 4. Terms of Service -->
       <section id="terms" class="policy-section" [class.highlighted]="activeSection === 'terms'">
         <h2 class="section-title">
-          <svg lucideHeart [size]="24" class="section-title-icon"></svg>
+          <svg lucideHeartHandshake [size]="24" class="section-title-icon"></svg>
           4. Terms of Service
         </h2>
         

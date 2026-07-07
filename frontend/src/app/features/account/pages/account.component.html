@@ -109,7 +109,7 @@
             <!-- Right side: Info fields -->
             <div class="card-info-grid">
               <div class="info-field">
-                <span class="field-label">NAME</span>
+                <span class="field-label">PROFILE NAME</span>
                 <span class="field-value">{{ user().profile_name }}</span>
               </div>
 
@@ -119,32 +119,36 @@
               </div>
 
               <div class="info-field">
-                <span class="field-label">EMAIL</span>
+                <span class="field-label">PHONE</span>
                 <div class="verified-wrapper">
-                  <span class="field-value">{{ user().email }}</span>
-                  <span class="verified-badge" title="Verified">
-                    <svg viewBox="0 0 24 24" class="check-icon">
-                      <path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                    </svg>
+                  <span class="field-value">{{ user().phone || 'Not provided' }}</span>
+                  <span class="verified-badge" *ngIf="user().phone" title="Verified">
+                    <svg lucideBadgeCheck class="check-icon"></svg>
                   </span>
                 </div>
               </div>
 
               <div class="info-field">
-                <span class="field-label">PHONE</span>
+                <span class="field-label">JOINED DATE</span>
+                <span class="field-value">{{ (user().createdAt | date: 'MMMM d, y') || 'May 1, 2025' }}</span>
+              </div>
+
+              <div class="info-field">
+                <span class="field-label">EMAIL</span>
                 <div class="verified-wrapper">
-                  <span class="field-value">{{ user().phone || 'Not provided' }}</span>
-                  <span class="verified-badge" *ngIf="user().phone" title="Verified">
-                    <svg viewBox="0 0 24 24" class="check-icon">
-                      <path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                    </svg>
+                  <span class="field-value">{{ user().email }}</span>
+                  <span class="verified-badge" title="Verified">
+                    <svg lucideBadgeCheck class="check-icon"></svg>
                   </span>
                 </div>
               </div>
 
-              <div class="info-field full-width">
-                <span class="field-label">JOINED DATE</span>
-                <span class="field-value">{{ (user().createdAt | date: 'MMMM d, y') || 'May 1, 2025' }}</span>
+              <div class="info-field">
+                <span class="field-label">STATUS</span>
+                <div class="status-badge">
+                  <span class="status-dot"></span>
+                  Active
+                </div>
               </div>
             </div>
           </div>
