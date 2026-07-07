@@ -12,6 +12,8 @@ import { AddressModalComponent } from '../../../shared/components/address-modal/
 import { DeleteAddressModalComponent } from '../../../shared/components/delete-address-modal/delete-address-modal.component';
 import { InlineValidator, FieldConfig } from '../../../shared/utils/inline-validator';
 import { ToastService } from '../../../shared/services/toast.service';
+import { QuickViewModalComponent } from '../../shop/components/quick-view-modal/quick-view-modal.component';
+import { Product } from '../../home/models/product.model';
 
 const VIETNAM_BANK_LIST = ['Vietcombank', 'BIDV', 'Techcombank', 'VietinBank', 'Agribank', 'MB Bank', 'VPBank', 'ACB', 'Sacombank', 'TPBank', 'VIB', 'SHB', 'MSB', 'SeABank'];
 import {
@@ -79,6 +81,7 @@ import {
     ReviewModalComponent,
     AddressModalComponent,
     DeleteAddressModalComponent,
+    QuickViewModalComponent,
     LucideChevronDown,
     LucideChevronUp,
     LucideArrowRight,
@@ -153,6 +156,7 @@ export class AccountComponent implements OnInit, OnDestroy {
   isSidebarOpen = signal<boolean>(false);
   showDeleteSelectedModal = signal<boolean>(false);
   deleteSelectedSection = signal<string>('');
+  selectedQuickViewProduct = signal<Product | null>(null);
 
   // Address Modal State
   showAddressModal = signal<boolean>(false);
@@ -964,6 +968,21 @@ export class AccountComponent implements OnInit, OnDestroy {
 
   addProductToCart(product: any): void {
     this.cartService.addToCart(product);
+  }
+
+  openQuickView(product: Product, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.selectedQuickViewProduct.set(product);
+  }
+
+  closeQuickView(): void {
+    this.selectedQuickViewProduct.set(null);
+  }
+
+  onQuickViewSaveToggle(product: Product): void {
+    this.removeItem('products', product.product_id.toString());
+    this.closeQuickView();
   }
 
   hasAnySavedItems(): boolean {

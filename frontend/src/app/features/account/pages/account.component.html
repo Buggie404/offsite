@@ -223,7 +223,7 @@
                   </div>
 
                   <div class="card-actions">
-                    <button class="btn-add-to-cart" (click)="addProductToCart(item.product)">ADD</button>
+                    <button class="btn-add-to-cart" (click)="openQuickView(item.product, $event)">ADD</button>
                   </div>
 
                   <button class="btn-remove-item" (click)="removeItem('products', item.product.product_id.toString())" aria-label="Remove item">
@@ -1261,4 +1261,13 @@
       </div>
     </div>
   </div>
+
+  <!-- Quick View Modal for Saved Products -->
+  <app-quick-view-modal
+    *ngIf="selectedQuickViewProduct()"
+    [product]="selectedQuickViewProduct()!"
+    [isSaved]="true"
+    (closed)="closeQuickView()"
+    (saveToggle)="onQuickViewSaveToggle($event)">
+  </app-quick-view-modal>
 </div>

@@ -2329,8 +2329,12 @@
     color: var(--color-warm-brown);
     cursor: pointer;
     padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     opacity: 0.6;
-    transition: all 0.2s ease;
+    transition: opacity 0.2s, background-color 0.2s;
     align-self: flex-start;
     position: absolute;
     top: 8px;
@@ -2338,7 +2342,7 @@
 
     &:hover {
       opacity: 1;
-      color: #D00000;
+      background-color: rgba(84, 74, 64, 0.05);
     }
   }
 }
