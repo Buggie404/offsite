@@ -166,6 +166,10 @@ export class RecipesComponent implements OnInit {
       result.sort((a, b) => a.title.localeCompare(b.title));
     } else if (this.selectedSort === 'name-desc') {
       result.sort((a, b) => b.title.localeCompare(a.title));
+    } else if (this.selectedSort === 'time-asc') {
+      result.sort((a, b) => (a.metadata?.prepTime || 0) - (b.metadata?.prepTime || 0));
+    } else if (this.selectedSort === 'time-desc') {
+      result.sort((a, b) => (b.metadata?.prepTime || 0) - (a.metadata?.prepTime || 0));
     }
 
     this.filteredRecipes = result;
@@ -205,6 +209,8 @@ export class RecipesComponent implements OnInit {
     if (this.selectedSort === 'newest') return 'NEWEST';
     if (this.selectedSort === 'name-asc') return 'NAME (A-Z)';
     if (this.selectedSort === 'name-desc') return 'NAME (Z-A)';
+    if (this.selectedSort === 'time-asc') return 'TIME (SHORT FIRST)';
+    if (this.selectedSort === 'time-desc') return 'TIME (LONG FIRST)';
     return this.selectedSort.toUpperCase();
   }
 

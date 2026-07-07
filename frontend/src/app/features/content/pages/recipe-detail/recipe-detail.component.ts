@@ -77,6 +77,9 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   timerRunning = false;
   private timerInterval: any = null;
   showFloatingTimer = false;
+  isAlarming = false;
+  private alarmInterval: any = null;
+  private alarmAudioCtx: AudioContext | null = null;
 
   @HostListener('window:scroll', [])
   onWindowScroll() {
@@ -113,6 +116,7 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     this.destroy$.next();
     this.destroy$.complete();
     this.clearTimer();
+    this.stopAlarm();
   }
 
   loadRecipeDetail(slug: string): void {
@@ -248,6 +252,7 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   }
 
   startTimer(): void {
+    this.stopAlarm();
     this.clearTimer();
     this.timerRunning = true;
     
@@ -264,7 +269,9 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   }
 
   toggleTimer(): void {
-    if (this.timerRunning) {
+    if (this.isAlarming) {
+      this.stopAlarm();
+    } else if (this.timerRunning) {
       this.pauseTimer();
     } else {
       this.startTimer();
@@ -279,6 +286,7 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   resetTimer(): void {
     this.timerRunning = false;
     this.clearTimer();
+    this.stopAlarm();
     this.timeLeft = this.timerDuration;
     this.cdr.detectChanges();
   }
@@ -293,29 +301,73 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   private timerComplete(): void {
     this.timerRunning = false;
     this.clearTimer();
-    this.playBeep();
-    alert('Timer completed!');
-    this.timeLeft = this.timerDuration;
+    this.startAlarmSound();
     this.cdr.detectChanges();
   }
 
-  playBeep(): void {
+  startAlarmSound(): void {
     if (isPlatformBrowser(this.platformId)) {
       try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        gain.gain.setValueAtTime(0.5, ctx.currentTime);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.3);
+        this.isAlarming = true;
+        this.alarmAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        
+        // Ring immediately
+        this.playAlarmBeep();
+        
+        // Loop every 1 second
+        this.alarmInterval = setInterval(() => {
+          this.playAlarmBeep();
+        }, 1000);
       } catch (e) {
-        console.warn('Web Audio beep failed:', e);
+        console.warn('Failed to start alarm sound:', e);
       }
     }
+  }
+
+  private playAlarmBeep(): void {
+    if (isPlatformBrowser(this.platformId)) {
+      try {
+        if (!this.alarmAudioCtx || this.alarmAudioCtx.state === 'suspended') {
+          this.alarmAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        
+        const osc = this.alarmAudioCtx.createOscillator();
+        const gain = this.alarmAudioCtx.createGain();
+        
+        osc.connect(gain);
+        gain.connect(this.alarmAudioCtx.destination);
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, this.alarmAudioCtx.currentTime);
+        
+        // Double beep pattern: beep-beep
+        gain.gain.setValueAtTime(0.4, this.alarmAudioCtx.currentTime);
+        gain.gain.setValueAtTime(0.01, this.alarmAudioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.4, this.alarmAudioCtx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.01, this.alarmAudioCtx.currentTime + 0.4);
+        
+        osc.start();
+        osc.stop(this.alarmAudioCtx.currentTime + 0.5);
+      } catch (e) {
+        console.warn('Alarm beep step failed:', e);
+      }
+    }
+  }
+
+  stopAlarm(): void {
+    this.isAlarming = false;
+    if (this.alarmInterval) {
+      clearInterval(this.alarmInterval);
+      this.alarmInterval = null;
+    }
+    if (this.alarmAudioCtx) {
+      try {
+        this.alarmAudioCtx.close();
+      } catch (e) {}
+      this.alarmAudioCtx = null;
+    }
+    this.timeLeft = this.timerDuration;
+    this.cdr.detectChanges();
   }
 
   formatTime(seconds: number): string {

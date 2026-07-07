@@ -135,14 +135,14 @@
 
         <!-- Right: Floating Timer Card -->
         <div class="content-right">
-          <div class="timer-card">
+          <div class="timer-card" [class.is-alarming]="isAlarming">
             <h3 class="timer-title">Timer</h3>
             <div class="timer-digits">{{ formatTime(timeLeft) }}</div>
             <div class="timer-actions">
-              <button class="timer-btn timer-btn--primary" (click)="toggleTimer()">
-                <svg *ngIf="!timerRunning" lucidePlay [size]="16" class="btn-icon"></svg>
-                <svg *ngIf="timerRunning" lucidePause [size]="16" class="btn-icon"></svg>
-                <span>{{ timerRunning ? 'PAUSE' : 'START' }}</span>
+              <button class="timer-btn timer-btn--primary" [class.timer-btn--alarming]="isAlarming" (click)="toggleTimer()">
+                <svg *ngIf="isAlarming || timerRunning" lucidePause [size]="16" class="btn-icon"></svg>
+                <svg *ngIf="!isAlarming && !timerRunning" lucidePlay [size]="16" class="btn-icon"></svg>
+                <span>{{ isAlarming ? 'STOP' : (timerRunning ? 'PAUSE' : 'START') }}</span>
               </button>
               <button class="timer-btn timer-btn--secondary" (click)="resetTimer()">
                 <svg lucideRotateCcw [size]="16" class="btn-icon"></svg>
@@ -264,7 +264,7 @@
   </section>
 
   <!-- Floating Mobile Timer (visible on mobile only when active) -->
-  <div class="floating-mobile-timer" [class.visible]="timeLeft > 0 && showFloatingTimer">
+  <div class="floating-mobile-timer" [class.visible]="(timeLeft > 0 || isAlarming) && showFloatingTimer" [class.is-alarming]="isAlarming">
     <div class="fmt-container">
       <div class="fmt-info">
         <svg lucideClock [size]="18" class="fmt-icon"></svg>
@@ -274,9 +274,9 @@
         </div>
       </div>
       <div class="fmt-actions">
-        <button class="fmt-btn fmt-btn--primary" (click)="toggleTimer()" aria-label="Toggle Timer">
-          <svg *ngIf="!timerRunning" lucidePlay [size]="16"></svg>
-          <svg *ngIf="timerRunning" lucidePause [size]="16"></svg>
+        <button class="fmt-btn fmt-btn--primary" [class.fmt-btn--alarming]="isAlarming" (click)="toggleTimer()" aria-label="Toggle Timer">
+          <svg *ngIf="isAlarming || timerRunning" lucidePause [size]="16"></svg>
+          <svg *ngIf="!isAlarming && !timerRunning" lucidePlay [size]="16"></svg>
         </button>
         <button class="fmt-btn fmt-btn--secondary" (click)="resetTimer()" aria-label="Reset Timer">
           <svg lucideRotateCcw [size]="16"></svg>

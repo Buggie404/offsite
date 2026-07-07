@@ -1135,3 +1135,18 @@ $transition-speed: 0.25s;
     bottom: 36px !important; // Vertically center 44px button against ~68px timer (24px bottom + 12px offset)
   }
 }
+
+// ── ALARM TIMER ANIMATIONS & STATES ──
+.timer-card.is-alarming {
+  animation: shakeTimer 0.5s infinite;
+}
+
+.floating-mobile-timer.is-alarming {
+  animation: shakeTimer 0.5s infinite;
+}
+
+@keyframes shakeTimer {
+  0%, 100% { transform: translateX(0); }
+  15%, 45%, 75% { transform: translateX(-1.5px); }
+  30%, 60%, 90% { transform: translateX(1.5px); }
+}
