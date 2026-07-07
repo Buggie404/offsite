@@ -14,12 +14,17 @@ import {
   LucideQrCode,
   LucideCog,
   LucideArrowRight,
-  LucideRefreshCw
+  LucideRefreshCw,
+  LucideLandmark
 } from '@lucide/angular';
 import { CheckoutService } from '../../services/checkout.service';
 import { CartService } from '../../services/cart.service';
 import { PaymentFailedModalComponent } from '../../components/payment-failed-modal/payment-failed-modal.component';
+import { CompletePaymentModalComponent } from '../../components/complete-payment-modal/complete-payment-modal.component';
+import { PaymentModalComponent } from '../../components/payment-modal/payment-modal.component';
 import { ReviewModalComponent } from '../../components/review-modal/review-modal.component';
+import { ChangePaymentModalComponent } from '../../components/change-payment-modal/change-payment-modal.component';
+import { PaymentMethod } from '../../services/checkout.service';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 
@@ -57,8 +62,12 @@ interface StatusConfig {
     LucideCog,
     LucideArrowRight,
     LucideRefreshCw,
+    LucideLandmark,
     PaymentFailedModalComponent,
-    ReviewModalComponent
+    CompletePaymentModalComponent,
+    PaymentModalComponent,
+    ReviewModalComponent,
+    ChangePaymentModalComponent
   ],
   templateUrl: './order-detail.component.html',
   styleUrl: './order-detail.component.scss'
@@ -76,8 +85,13 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
   // Pending-specific states
   showFailedModal = signal<boolean>(false);
+  showCompletePaymentModal = signal<boolean>(false);
+  showPaymentModal = signal<boolean>(false);
+  showChangePaymentModal = signal<boolean>(false);
   timeLeft = signal<string>('24:00:00');
   showReviewModal = signal<boolean>(false);
+  showTrackingModal = signal<boolean>(false);
+  activeTrackingCode = signal<string>('');
   private timerInterval: any = null;
   private refreshInterval: any = null;
 
@@ -248,6 +262,10 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
         this.showFailedModal.set(true);
       }
 
+      if (state.showCompletePayment && (state.order.order_status === 'pending' || state.order.status === 'pending')) {
+        this.showCompletePaymentModal.set(true);
+      }
+
       await this.refreshOrderIfNeeded();
       this.checkAndStartTimer();
       this.startPolling();
@@ -319,7 +337,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       } else {
         targetPath = '/checkout/delivered';
       }
-    } else if (status === 'refund' || ord.refund_request?.status === 'approved') {
+    } else if (status === 'refund' || status === 'pending_refund' || status === 'refund_rejected' || ord.refund_request?.status === 'approved') {
       targetPath = '/checkout/refund';
     }
 
@@ -350,7 +368,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     const status = (ord.order_status || '').toLowerCase();
 
     if (status === 'pending_refund' || refund?.status === 'pending') {
-      return 'Your refund request has been submitted and is awaiting admin review.';
+      return 'Your refund request has been sent to our admin. (REFUND PENDING) Please wait 2–3 days for processing.';
     }
 
     if (refund?.status === 'approved' || status === 'refund') {
@@ -361,7 +379,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
     if (status === 'refund_rejected' || refund?.status === 'rejected') {
       const reason = refund?.admin_reason || 'No reason provided';
-      return `Your refund request was rejected. Reason: ${reason}. Please contact +84 123 456 789 for more details.`;
+      return `(REFUND REJECTED) Your request has been rejected because ${reason}. If you have any further concern please contact us.`;
     }
 
     return null;
@@ -445,19 +463,89 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     }
   }
 
-  // RETRY QR Payment
-  retryPayment(): void {
+  // RETRY Payment
+  async retryPayment(): Promise<void> {
+    console.log('[DEBUG] retryPayment called');
     this.showFailedModal.set(false);
-    this.router.navigate(['/checkout/payment-qr'], { state: { order: this.order() } });
+    this.showCompletePaymentModal.set(false);
+    const ord = this.order();
+    console.log('[DEBUG] ord:', ord);
+    if (!ord) return;
+
+    const method = ord.payment?.method;
+    console.log('[DEBUG] method:', method);
+    
+    // Clear old payment session/actions to ensure a fresh attempt
+    localStorage.removeItem(`payment_qr_${ord.order_id}`);
+    localStorage.removeItem(`payment_scan_action_${ord.order_id}`);
+
+    try {
+      // Call backend to reset the order's payment status to pending
+      const res = await this.checkoutService.retryPayment(ord.order_id, this.getSessionId(ord));
+      // Update order signal with the fresh order status from backend
+      const updatedOrder = res.data || ord;
+      this.order.set(updatedOrder);
+
+      if (method === 'cod' || method === 'card' || method === 'bank_transfer') {
+        console.log('[DEBUG] setting showPaymentModal to true');
+        this.showPaymentModal.set(true);
+      } else if (method === 'qr') {
+        this.router.navigate(['/checkout/payment-qr'], { state: { order: updatedOrder } });
+      } else {
+        this.router.navigate(['/checkout/payment-qr'], { state: { order: updatedOrder } });
+      }
+    } catch (err) {
+      console.error('Failed to reset payment status on backend for retry:', err);
+      alert('Failed to initiate a new payment session. Please try again.');
+    }
   }
 
-  // Change payment method -> takes them back to checkout page
+  // Change payment method -> shows a modal to pick a different payment method
   changePaymentMethod(): void {
     this.showFailedModal.set(false);
-    this.router.navigate(['/checkout']);
+    this.showCompletePaymentModal.set(false);
+    this.showPaymentModal.set(false);
+    this.showChangePaymentModal.set(true);
   }
 
-  private getSessionId(ord: any): string | null {
+  closeChangePaymentModal(): void {
+    this.showChangePaymentModal.set(false);
+  }
+
+  onPaymentMethodChanged(event: { order: any; method: PaymentMethod }): void {
+    this.showChangePaymentModal.set(false);
+    this.order.set(event.order);
+
+    if (event.method === 'qr') {
+      this.router.navigate(['/checkout/payment-qr'], { state: { order: event.order } });
+    } else {
+      this.showPaymentModal.set(true);
+    }
+  }
+
+  openCompletePaymentModal(): void {
+    this.showCompletePaymentModal.set(true);
+  }
+
+  closeCompletePaymentModal(): void {
+    this.showCompletePaymentModal.set(false);
+  }
+
+  isAnyModalOpen(): boolean {
+    return this.showFailedModal() || this.showCompletePaymentModal() || this.showPaymentModal() || this.showReviewModal() || this.showChangePaymentModal() || this.showTrackingModal();
+  }
+
+  onPaymentConfirmed(updatedOrder: any): void {
+    this.showPaymentModal.set(false);
+    this.order.set(updatedOrder);
+    this.router.navigate(['/checkout/confirmed'], { replaceUrl: true, state: { order: updatedOrder } });
+  }
+
+  onPaymentCanceled(): void {
+    this.showPaymentModal.set(false);
+  }
+
+  getSessionId(ord: any): string | null {
     if (ord?.session_id) return ord.session_id;
     try {
       const stored = localStorage.getItem('last_order_info');
@@ -621,7 +709,9 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
   trackOrder(): void {
     const ord = this.order();
     if (!ord) return;
-    this.router.navigate(['/order-tracking'], { queryParams: { orderId: ord.order_id } });
+    const trackingCode = ord.shipping?.tracking_number || (ord.order_id ? ord.order_id.replace(/^OFS-/i, 'GHN-') : 'GHN-2026-00044');
+    this.activeTrackingCode.set(trackingCode);
+    this.showTrackingModal.set(true);
   }
 
   async confirmReceipt(): Promise<void> {

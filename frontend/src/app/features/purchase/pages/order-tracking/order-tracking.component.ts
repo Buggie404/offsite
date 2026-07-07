@@ -7,11 +7,16 @@ import {
   LucideTruck,
   LucideRefreshCw,
   LucideStar,
-  LucidePackageCheck
+  LucideWallet,
+  LucidePackageCheck,
+  LucideX
 } from '@lucide/angular';
 import { CheckoutService } from '../../services/checkout.service';
 import { CartService } from '../../services/cart.service';
 import { ReviewModalComponent } from '../../components/review-modal/review-modal.component';
+import { CompletePaymentModalComponent } from '../../components/complete-payment-modal/complete-payment-modal.component';
+import { PaymentModalComponent } from '../../components/payment-modal/payment-modal.component';
+import { ChangePaymentModalComponent } from '../../components/change-payment-modal/change-payment-modal.component';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 
@@ -26,8 +31,13 @@ import { AuthPromptModalService } from '../../../../shared/components/auth-promp
     LucideTruck,
     LucideRefreshCw,
     LucideStar,
+    LucideWallet,
     LucidePackageCheck,
-    ReviewModalComponent
+    ReviewModalComponent,
+    CompletePaymentModalComponent,
+    PaymentModalComponent,
+    ChangePaymentModalComponent,
+    LucideX
   ],
   templateUrl: './order-tracking.component.html',
   styleUrl: './order-tracking.component.scss'
@@ -63,6 +73,15 @@ export class OrderTrackingComponent implements OnInit {
   isFormatError = signal<boolean>(false);
   searchedQuery = signal<string>('');
   showReviewModal = signal<boolean>(false);
+
+  // Payment Modal State
+  showCompletePaymentModal = signal<boolean>(false);
+  showPaymentModal = signal<boolean>(false);
+  showChangePaymentModal = signal<boolean>(false);
+
+  // Tracking Modal State
+  showTrackingModal = signal<boolean>(false);
+  activeTrackingCode = signal<string>('');
 
   clearFormatError(): void {
     this.isFormatError.set(false);
@@ -360,6 +379,14 @@ export class OrderTrackingComponent implements OnInit {
     this.router.navigate(['/products', productId]);
   }
 
+  trackCarrierOrder(): void {
+    const ord = this.order();
+    if (!ord) return;
+    const trackingCode = ord.shipping?.tracking_number || (ord.order_id ? ord.order_id.replace(/^OFS-/i, 'GHN-') : 'GHN-2026-00044');
+    this.activeTrackingCode.set(trackingCode);
+    this.showTrackingModal.set(true);
+  }
+
   viewOrderDetails(): void {
     const ord = this.order();
     if (!ord) return;
@@ -386,10 +413,101 @@ export class OrderTrackingComponent implements OnInit {
       } else {
         this.router.navigate(['/checkout/delivered'], { state: { order: ord } });
       }
-    } else if (status === 'refund' || ord.refund_request?.status === 'approved') {
+    } else if (status === 'refund' || status === 'pending_refund' || status === 'refund_rejected' || ord.refund_request?.status === 'approved') {
       this.router.navigate(['/checkout/refund'], { state: { order: ord } });
     } else {
       this.router.navigate(['/checkout/confirmed'], { state: { order: ord, showModal: false } });
     }
+  }
+
+  completePayment(): void {
+    const ord = this.order();
+    if (!ord) return;
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('last_order_info', JSON.stringify({
+        orderId: ord.order_id,
+        sessionId: ord.session_id || ''
+      }));
+    }
+    this.showCompletePaymentModal.set(true);
+  }
+
+  closeCompletePaymentModal(): void {
+    this.showCompletePaymentModal.set(false);
+  }
+
+  async retryPayment(): Promise<void> {
+    this.showCompletePaymentModal.set(false);
+    const ord = this.order();
+    if (!ord) return;
+
+    const method = ord.payment?.method;
+    
+    // Clear old payment session/actions to ensure a fresh attempt
+    localStorage.removeItem(`payment_qr_${ord.order_id}`);
+    localStorage.removeItem(`payment_scan_action_${ord.order_id}`);
+
+    try {
+      const res = await this.checkoutService.retryPayment(ord.order_id, this.getSessionId(ord));
+      const updatedOrder = res.data || ord;
+      this.order.set(updatedOrder);
+
+      if (method === 'cod' || method === 'card' || method === 'bank_transfer') {
+        this.showPaymentModal.set(true);
+      } else if (method === 'qr') {
+        this.router.navigate(['/checkout/payment-qr'], { state: { order: updatedOrder } });
+      } else {
+        this.router.navigate(['/checkout/payment-qr'], { state: { order: updatedOrder } });
+      }
+    } catch (err) {
+      console.error('Failed to reset payment status on backend for retry:', err);
+      alert('Failed to initiate a new payment session. Please try again.');
+    }
+  }
+
+  changePaymentMethod(): void {
+    this.showCompletePaymentModal.set(false);
+    this.showPaymentModal.set(false);
+    this.showChangePaymentModal.set(true);
+  }
+
+  closeChangePaymentModal(): void {
+    this.showChangePaymentModal.set(false);
+  }
+
+  onPaymentMethodChanged(event: { order: any; method: any }): void {
+    this.showChangePaymentModal.set(false);
+    this.order.set(event.order);
+
+    if (event.method === 'qr') {
+      this.router.navigate(['/checkout/payment-qr'], { state: { order: event.order } });
+    } else {
+      this.showPaymentModal.set(true);
+    }
+  }
+
+  onPaymentConfirmed(updatedOrder: any): void {
+    this.showPaymentModal.set(false);
+    this.order.set(updatedOrder);
+    this.router.navigate(['/checkout/confirmed'], { replaceUrl: true, state: { order: updatedOrder } });
+  }
+
+  onPaymentCanceled(): void {
+    this.showPaymentModal.set(false);
+  }
+
+  getSessionId(ord: any): string | null {
+    if (ord?.session_id) return ord.session_id;
+    try {
+      const stored = localStorage.getItem('last_order_info');
+      if (stored) {
+        const info = JSON.parse(stored);
+        if (info && info.orderId === ord?.order_id) {
+          return info.sessionId || null;
+        }
+      }
+    } catch (e) {}
+    return null;
   }
 }

@@ -11,7 +11,9 @@ import {
   LucideArrowRight,
   LucideBadgeCheck,
   LucideBanknote,
-  LucideCircleCheck
+  LucideCircleCheck,
+  LucideQrCode,
+  LucideLandmark
 } from '@lucide/angular';
 import { CheckoutService, CheckoutItem } from '../../services/checkout.service';
 import { CartService } from '../../services/cart.service';
@@ -32,7 +34,9 @@ import { Product } from '../../../../shared/models/product.model';
     LucideArrowRight,
     LucideBadgeCheck,
     LucideBanknote,
-    LucideCircleCheck
+    LucideCircleCheck,
+    LucideQrCode,
+    LucideLandmark
   ],
   templateUrl: './order-confirmed.component.html',
   styleUrl: './order-confirmed.component.scss'

@@ -135,6 +135,17 @@
 
       <!-- Card Actions Footer -->
       <div class="card-actions-footer" (click)="$event.stopPropagation()">
+        <!-- Complete Payment Button: shown for pending status -->
+        <button
+          *ngIf="order().order_status === 'pending'"
+          type="button"
+          class="btn-solid-action"
+          (click)="completePayment()"
+        >
+          <svg lucideWallet [size]="16" class="btn-icon"></svg>
+          Complete Payment
+        </button>
+
         <!-- Cancel Button: shown for pending/processing status -->
         <button
           *ngIf="order().order_status === 'pending' || order().order_status === 'processing'"
@@ -153,7 +164,7 @@
 
         <!-- Shipping Status Actions -->
         <ng-container *ngIf="order().order_status === 'shipping'">
-          <button type="button" class="btn-solid-action" (click)="viewOrderDetails()">
+          <button type="button" class="btn-solid-action" (click)="trackCarrierOrder()">
             <svg lucideTruck [size]="16" class="btn-icon"></svg>
             Track Order
           </button>
@@ -218,3 +229,65 @@
   [(isOpen)]="showReviewModal"
   (orderUpdated)="onOrderUpdated($event)"
 ></app-review-modal>
+
+<!-- ================= COMPLETE PAYMENT MODAL OVERLAY ================= -->
+<app-complete-payment-modal
+  *ngIf="showCompletePaymentModal() && (order()?.order_status === 'pending' || order()?.status === 'pending')"
+  (close)="closeCompletePaymentModal()"
+  (retry)="retryPayment()"
+  (changeMethod)="changePaymentMethod()"
+></app-complete-payment-modal>
+
+<app-payment-modal [isOpen]="showPaymentModal()"
+                   [orderId]="order()?.order_id"
+                   [sessionId]="getSessionId(order())"
+                   [paymentMethod]="order()?.payment?.method"
+                   [mobileNumber]="order()?.delivery_info?.mobile"
+                   (confirmed)="onPaymentConfirmed($event)"
+                   (canceled)="onPaymentCanceled()">
+</app-payment-modal>
+
+<!-- ================= CHANGE PAYMENT METHOD MODAL OVERLAY ================= -->
+<app-change-payment-modal
+  [isOpen]="showChangePaymentModal()"
+  [orderId]="order()?.order_id"
+  [sessionId]="getSessionId(order())"
+  (close)="closeChangePaymentModal()"
+  (changed)="onPaymentMethodChanged($event)">
+</app-change-payment-modal>
+
+<!-- ================= CARRIER TRACKING MODAL OVERLAY ================= -->
+<div class="modal-overlay animate-fade-in" *ngIf="showTrackingModal()" (click)="showTrackingModal.set(false)"
+     style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+  <div class="modal-container animate-scale-up" (click)="$event.stopPropagation()" 
+       style="background: #fff; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); max-width: 480px; width: 90%; text-align: center; padding: 32px; position: relative; border: 1.5px solid rgba(84, 74, 64, 0.15); box-sizing: border-box;">
+    <!-- Close button -->
+    <button class="modal-close-btn" (click)="showTrackingModal.set(false)" aria-label="Close modal"
+            style="position: absolute; top: 16px; right: 16px; background: transparent; border: none; cursor: pointer; color: #8c7e6c; display: flex; align-items: center; justify-content: center; padding: 4px; border-radius: 50%; width: 32px; height: 32px; transition: background 0.2s;">
+      <svg lucideX [size]="20" class="close-icon"></svg>
+    </button>
+
+    <!-- Truck Icon Wrapper -->
+    <div class="wallet-circle-wrapper" style="background: rgba(46, 125, 50, 0.1); color: #2e7d32; margin: 0 auto 24px auto; display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%;">
+      <svg lucideTruck [size]="28" class="wallet-icon"></svg>
+    </div>
+
+    <!-- Title -->
+    <h2 class="modal-title font-body" style="margin-bottom: 16px; font-weight: 600; font-size: 24px; color: #375534;">Track Your Package</h2>
+
+    <!-- Description -->
+    <p class="modal-desc font-body" style="color: #544a40; margin-bottom: 28px; font-size: 15px; line-height: 1.6;">
+      You are being redirected to the Giao Hang Nhanh (GHN) tracking page.
+      <br><br>
+      Your tracking code is: <strong style="font-size: 18px; color: #1a1a1a; letter-spacing: 0.5px;">{{ activeTrackingCode() }}</strong>
+    </p>
+
+    <!-- Actions -->
+    <div class="modal-actions" style="margin-top: 24px;">
+      <button class="modal-btn-primary font-body" (click)="showTrackingModal.set(false)" 
+              style="width: 100%; padding: 14px; border-radius: 8px; font-weight: 600; cursor: pointer; background: #375534; color: #fff; border: none; transition: background 0.2s;">
+        CONTINUE TO CARRIER
+      </button>
+    </div>
+  </div>
+</div>

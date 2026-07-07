@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink, Router } from '@angular/router';
+import { RouterLink, Router, NavigationStart } from '@angular/router';
 import {
   LucideArrowLeft,
   LucideCheck,
@@ -95,6 +95,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   allVouchers = signal<Voucher[]>([]);
   loading = signal(true);
   orderSubmitted = false;
+  private targetUrl = '';
 
   // Authenticated Profile State
   userProfile = signal<UserProfile | null>(null);
@@ -701,6 +702,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
+    this.router.events.subscribe(event => {
+      if (event instanceof NavigationStart) {
+        this.targetUrl = event.url;
+      }
+    });
+
     if (!this.cartService.isCheckoutProcessed()) {
       this.router.navigate(['/']);
       return;
@@ -1004,7 +1011,23 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     delete (window as any).isCardExpiredCheck;
 
     console.log('ngOnDestroy: orderSubmitted =', this.orderSubmitted);
-    if (!this.orderSubmitted) {
+    const dbId = this.pendingOrderDbId();
+    const sessionId = this.pendingOrderSessionId();
+
+    const targetUrl = this.targetUrl;
+    const isStayingInCheckoutPaymentFlow = !targetUrl || targetUrl.includes('/checkout/pending') || targetUrl.includes('/checkout/confirmed') || targetUrl.includes('/checkout/payment-qr');
+
+    if (dbId) {
+      if (!isStayingInCheckoutPaymentFlow) {
+        console.log('ngOnDestroy: User left checkout flow. Discarding unconfirmed pending order...', dbId);
+        this.checkoutService.discardOrder(dbId, sessionId).catch(err => {
+          console.error('Failed to discard order in ngOnDestroy:', err);
+        });
+        this.cartService.restoreCheckoutToCart();
+      } else {
+        console.log('ngOnDestroy: User redirected within checkout flow. Keeping order pending.');
+      }
+    } else if (!this.orderSubmitted) {
       console.log('ngOnDestroy: Restoring items to cart...');
       this.cartService.restoreCheckoutToCart();
     }
@@ -1953,21 +1976,33 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     localStorage.removeItem('checkout_delivery_info');
     localStorage.removeItem('checkout_card_info');
     localStorage.removeItem('checkout_bank_info');
-    this.cartService.clearCheckoutSummary();
+    
+    // Clear pending order details so they are NOT discarded in ngOnDestroy
+    this.pendingOrder.set(null);
+    this.pendingOrderId.set(null);
+    this.pendingOrderDbId.set(null);
+    this.pendingOrderSessionId.set(null);
+    
     this.showPaymentModal.set(false);
     if (confirmedOrder && confirmedOrder.order_status === 'pending') {
-      this.router.navigate(['/checkout/pending'], { state: { order: confirmedOrder, showFailedModal: true } });
+      this.cartService.clearCheckoutSummary();
+      this.router.navigate(['/checkout/pending'], { state: { order: confirmedOrder } });
     } else {
+      this.cartService.clearCheckoutSummary();
       this.router.navigate(['/checkout/confirmed'], { state: { order: confirmedOrder } });
     }
   }
 
-  onPaymentCanceled(): void {
+  async onPaymentCanceled(): Promise<void> {
+    const orderData = this.pendingOrder();
     this.showPaymentModal.set(false);
     this.pendingOrder.set(null);
     this.pendingOrderId.set(null);
     this.pendingOrderDbId.set(null);
     this.pendingOrderSessionId.set(null);
+
+    this.cartService.clearCheckoutSummary();
+    this.router.navigate(['/checkout/pending'], { state: { order: orderData } });
   }
 
   onContinueShopping(): void {

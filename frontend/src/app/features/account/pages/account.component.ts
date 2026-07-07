@@ -10,6 +10,9 @@ import { CartService } from '../../purchase/services/cart.service';
 import { ReviewModalComponent } from '../../purchase/components/review-modal/review-modal.component';
 import { AddressModalComponent } from '../../../shared/components/address-modal/address-modal.component';
 import { DeleteAddressModalComponent } from '../../../shared/components/delete-address-modal/delete-address-modal.component';
+import { CompletePaymentModalComponent } from '../../purchase/components/complete-payment-modal/complete-payment-modal.component';
+import { PaymentModalComponent } from '../../purchase/components/payment-modal/payment-modal.component';
+import { ChangePaymentModalComponent } from '../../purchase/components/change-payment-modal/change-payment-modal.component';
 import { InlineValidator, FieldConfig } from '../../../shared/utils/inline-validator';
 import { ToastService } from '../../../shared/services/toast.service';
 import { QuickViewModalComponent } from '../../shop/components/quick-view-modal/quick-view-modal.component';
@@ -31,6 +34,7 @@ import {
   LucideTruck,
   LucideRefreshCw,
   LucideStar,
+  LucideWallet,
   LucidePackageCheck,
   LucideChevronLeft,
   LucideChevronRight,
@@ -72,6 +76,7 @@ import {
     LucideSearch,
     LucideTruck,
     LucideRefreshCw,
+    LucideWallet,
     LucideStar,
     LucidePackageCheck,
     LucideChevronLeft,
@@ -82,6 +87,9 @@ import {
     AddressModalComponent,
     DeleteAddressModalComponent,
     QuickViewModalComponent,
+    CompletePaymentModalComponent,
+    PaymentModalComponent,
+    ChangePaymentModalComponent,
     LucideChevronDown,
     LucideChevronUp,
     LucideArrowRight,
@@ -253,6 +261,16 @@ export class AccountComponent implements OnInit, OnDestroy {
   selectedOrderForReview = signal<any>(null);
   showReviewModal = signal<boolean>(false);
 
+  // Payment Modal State
+  selectedOrderForPayment = signal<any>(null);
+  showCompletePaymentModal = signal<boolean>(false);
+  showPaymentModal = signal<boolean>(false);
+  showChangePaymentModal = signal<boolean>(false);
+
+  // Tracking Modal State
+  showTrackingModal = signal<boolean>(false);
+  activeTrackingCode = signal<string>('');
+
   // Computeds for Stats
   totalOrdersCount = computed(() => this.orders().length);
   totalSpentSum = computed(() => {
@@ -277,7 +295,14 @@ export class AccountComponent implements OnInit, OnDestroy {
     // 1. Filter by status
     const filter = this.orderStatusFilter().toLowerCase();
     if (filter !== 'all') {
-      list = list.filter(o => (o.order_status || '').toLowerCase() === filter);
+      if (filter === 'refund') {
+        list = list.filter(o => {
+          const s = (o.order_status || '').toLowerCase();
+          return s === 'refund' || s === 'pending_refund' || s === 'refund_rejected';
+        });
+      } else {
+        list = list.filter(o => (o.order_status || '').toLowerCase() === filter);
+      }
     }
 
     // 2. Filter by search query (order_id or product names)
@@ -1361,6 +1386,12 @@ export class AccountComponent implements OnInit, OnDestroy {
 
   getCountByStatus(status: string): number {
     const s = status.toLowerCase();
+    if (s === 'refund') {
+      return this.orders().filter(o => {
+        const os = (o.order_status || '').toLowerCase();
+        return os === 'refund' || os === 'pending_refund' || os === 'refund_rejected';
+      }).length;
+    }
     return this.orders().filter(o => (o.order_status || '').toLowerCase() === s).length;
   }
 
@@ -1382,6 +1413,8 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (st === 'delivered') return 'status--delivered';
     if (st === 'canceled' || st === 'cancelled') return 'status--canceled';
     if (st === 'refund') return 'status--refund';
+    if (st === 'pending_refund') return 'status--pending-refund';
+    if (st === 'refund_rejected') return 'status--refund-rejected';
     return 'status--pending';
   }
 
@@ -1407,6 +1440,13 @@ export class AccountComponent implements OnInit, OnDestroy {
     return order.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
   }
 
+  trackCarrierOrder(ord: any): void {
+    if (!ord) return;
+    const trackingCode = ord.shipping?.tracking_number || (ord.order_id ? ord.order_id.replace(/^OFS-/i, 'GHN-') : 'GHN-2026-00044');
+    this.activeTrackingCode.set(trackingCode);
+    this.showTrackingModal.set(true);
+  }
+
   viewOrderDetails(ord: any): void {
     if (!ord) return;
 
@@ -1428,11 +1468,109 @@ export class AccountComponent implements OnInit, OnDestroy {
       this.router.navigate(['/checkout/shipping'], { state: { order: ord } });
     } else if (status === 'delivered') {
       this.router.navigate(['/checkout/delivered'], { state: { order: ord } });
-    } else if (status === 'refund') {
+    } else if (status === 'refund' || status === 'pending_refund' || status === 'refund_rejected') {
       this.router.navigate(['/checkout/refund'], { state: { order: ord } });
     } else {
       this.router.navigate(['/checkout/confirmed'], { state: { order: ord, showModal: false } });
     }
+  }
+
+  completePayment(ord: any): void {
+    if (!ord) return;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('last_order_info', JSON.stringify({
+        orderId: ord.order_id,
+        sessionId: ord.session_id || ''
+      }));
+    }
+    this.selectedOrderForPayment.set(ord);
+    this.showCompletePaymentModal.set(true);
+  }
+
+  updateOrderInList(updatedOrder: any): void {
+    if (!updatedOrder) return;
+    this.orders.update(list => list.map(o => o.order_id === updatedOrder.order_id ? updatedOrder : o));
+  }
+
+  closeCompletePaymentModal(): void {
+    this.showCompletePaymentModal.set(false);
+  }
+
+  async retryPayment(): Promise<void> {
+    this.showCompletePaymentModal.set(false);
+    const ord = this.selectedOrderForPayment();
+    if (!ord) return;
+
+    const method = ord.payment?.method;
+    
+    // Clear old payment session/actions to ensure a fresh attempt
+    localStorage.removeItem(`payment_qr_${ord.order_id}`);
+    localStorage.removeItem(`payment_scan_action_${ord.order_id}`);
+
+    try {
+      const res = await this.checkoutService.retryPayment(ord.order_id, this.getSessionId(ord));
+      const updatedOrder = res.data || ord;
+      this.updateOrderInList(updatedOrder);
+      this.selectedOrderForPayment.set(updatedOrder);
+
+      if (method === 'cod' || method === 'card' || method === 'bank_transfer') {
+        this.showPaymentModal.set(true);
+      } else if (method === 'qr') {
+        this.router.navigate(['/checkout/payment-qr'], { state: { order: updatedOrder } });
+      } else {
+        this.router.navigate(['/checkout/payment-qr'], { state: { order: updatedOrder } });
+      }
+    } catch (err) {
+      console.error('Failed to reset payment status on backend for retry:', err);
+      alert('Failed to initiate a new payment session. Please try again.');
+    }
+  }
+
+  changePaymentMethod(): void {
+    this.showCompletePaymentModal.set(false);
+    this.showPaymentModal.set(false);
+    this.showChangePaymentModal.set(true);
+  }
+
+  closeChangePaymentModal(): void {
+    this.showChangePaymentModal.set(false);
+  }
+
+  onPaymentMethodChanged(event: { order: any; method: any }): void {
+    this.showChangePaymentModal.set(false);
+    this.updateOrderInList(event.order);
+    this.selectedOrderForPayment.set(event.order);
+
+    if (event.method === 'qr') {
+      this.router.navigate(['/checkout/payment-qr'], { state: { order: event.order } });
+    } else {
+      this.showPaymentModal.set(true);
+    }
+  }
+
+  onPaymentConfirmed(updatedOrder: any): void {
+    this.showPaymentModal.set(false);
+    this.updateOrderInList(updatedOrder);
+    this.selectedOrderForPayment.set(updatedOrder);
+    this.router.navigate(['/checkout/confirmed'], { replaceUrl: true, state: { order: updatedOrder } });
+  }
+
+  onPaymentCanceled(): void {
+    this.showPaymentModal.set(false);
+  }
+
+  getSessionId(ord: any): string | null {
+    if (ord?.session_id) return ord.session_id;
+    try {
+      const stored = localStorage.getItem('last_order_info');
+      if (stored) {
+        const info = JSON.parse(stored);
+        if (info && info.orderId === ord?.order_id) {
+          return info.sessionId || null;
+        }
+      }
+    } catch (e) {}
+    return null;
   }
 
   async cancelOrder(ord: any): Promise<void> {

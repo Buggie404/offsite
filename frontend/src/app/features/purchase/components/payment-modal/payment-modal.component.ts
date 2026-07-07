@@ -49,8 +49,11 @@ export class PaymentModalComponent implements OnChanges, OnDestroy {
   private resendTimerInterval: any = null;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['isOpen']) {
+    console.log('[DEBUG] PaymentModalComponent ngOnChanges:', changes);
+    console.log('[DEBUG] PaymentModalComponent current inputs - isOpen:', this.isOpen, 'paymentMethod:', this.paymentMethod);
+    if (changes['isOpen'] || changes['paymentMethod']) {
       if (this.isOpen) {
+        console.log('[DEBUG] PaymentModalComponent isOpen is true or paymentMethod changed, calling resetModal');
         this.resetModal();
       } else {
         this.stopTimer();

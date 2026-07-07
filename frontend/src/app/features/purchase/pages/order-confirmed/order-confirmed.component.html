@@ -200,25 +200,41 @@
 
           <!-- Payment Card info -->
           <div class="details-bottom">
-            <div class="payment-card-logo" [class.cod-payment-logo]="order().payment.method === 'cod'">
+            <div class="payment-card-logo" [class.cod-payment-logo]="order().payment.method === 'cod' || order().payment.method === 'qr' || order().payment.method === 'bank_transfer'">
               <!-- Render card logo representation -->
               <ng-container *ngIf="order().payment.method === 'cod'">
                 <svg lucideBanknote [size]="30" class="banknote-icon"></svg>
               </ng-container>
-              <ng-container *ngIf="order().payment.method !== 'cod'">
+              <ng-container *ngIf="order().payment.method === 'qr'">
+                <svg lucideQrCode [size]="30" class="qr-icon"></svg>
+              </ng-container>
+              <ng-container *ngIf="order().payment.method === 'bank_transfer'">
+                <svg lucideLandmark [size]="30" class="bank-icon"></svg>
+              </ng-container>
+              <ng-container *ngIf="order().payment.method === 'card'">
                 <div class="chip-graphic"></div>
               </ng-container>
             </div>
             <div class="payment-card-details">
               <span class="card-brand-label">
-                {{ order().payment.method === 'cod' ? 'Cash on Delivery' : (order().payment.card_info?.brand === 'Napas' ? 'NAPAS Domestic Card' : order().payment.card_info?.brand || 'Credit Card') }}
+                <ng-container [ngSwitch]="order().payment.method">
+                  <span *ngSwitchCase="'cod'">Cash on Delivery</span>
+                  <span *ngSwitchCase="'qr'">QR Code Payment</span>
+                  <span *ngSwitchCase="'bank_transfer'">Bank Transfer</span>
+                  <span *ngSwitchCase="'card'">
+                    {{ order().payment.card_info?.brand === 'Napas' ? 'NAPAS Domestic Card' : order().payment.card_info?.brand || 'Credit Card' }}
+                  </span>
+                  <span *ngSwitchDefault>Payment Method</span>
+                </ng-container>
               </span>
               <span class="card-masked font-mono">
-                <ng-container *ngIf="order().payment.method === 'cod'">
-                  Pay with cash upon delivery
-                </ng-container>
-                <ng-container *ngIf="order().payment.method !== 'cod'">
-                  •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ order().delivery_info.recipient_name | uppercase }}
+                <ng-container [ngSwitch]="order().payment.method">
+                  <span *ngSwitchCase="'cod'">Pay with cash upon delivery</span>
+                  <span *ngSwitchCase="'qr'">Scan completed successfully</span>
+                  <span *ngSwitchCase="'bank_transfer'">Transfer completed successfully</span>
+                  <span *ngSwitchCase="'card'">
+                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ order().delivery_info.recipient_name | uppercase }}
+                  </span>
                 </ng-container>
               </span>
             </div>

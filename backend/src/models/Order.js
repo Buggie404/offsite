@@ -216,6 +216,63 @@ orderSchema.pre('save', async function(next) {
     }
   }
 
+  // 4. Stock & Total Sold Quantity Updates
+  if (this.isModified('order_status')) {
+    let originalStatus = null;
+    if (!this.isNew) {
+      const original = await this.constructor.findById(this._id).select('order_status');
+      originalStatus = original ? original.order_status : null;
+    }
+
+    const newStatus = this.order_status;
+
+    // Transition from not processing to processing -> subtract stock
+    const isConfirmed = (newStatus === 'processing') && (this.isNew || originalStatus !== 'processing');
+
+    // Transition from confirmed/processing/shipping/delivered/etc. (statuses where stock was subtracted) to canceled -> add back stock
+    const wasStockSubtracted = (status) => ['processing', 'shipping', 'delivered', 'pending_refund', 'refund_rejected'].includes(status);
+    const isCanceled = (newStatus === 'canceled') && wasStockSubtracted(originalStatus);
+
+    // Transition from not delivered to delivered -> increment total_sold_quantity
+    const isDelivered = (newStatus === 'delivered') && (this.isNew || originalStatus !== 'delivered');
+
+    const Product = require('./Product');
+
+    if (isConfirmed) {
+      for (const item of this.items) {
+        await Product.updateOne(
+          { _id: item.product_id, 'variants.sku': item.variant_id },
+          {
+            $inc: { 'variants.$.stock': -item.quantity }
+          }
+        );
+      }
+    } else if (isCanceled) {
+      for (const item of this.items) {
+        await Product.updateOne(
+          { _id: item.product_id, 'variants.sku': item.variant_id },
+          {
+            $inc: { 'variants.$.stock': item.quantity }
+          }
+        );
+      }
+    }
+
+    if (isDelivered) {
+      for (const item of this.items) {
+        await Product.updateOne(
+          { _id: item.product_id, 'variants.sku': item.variant_id },
+          {
+            $inc: { 
+              total_sold_quantity: item.quantity,
+              'variants.$.sold_quantity': item.quantity
+            }
+          }
+        );
+      }
+    }
+  }
+
   next();
 });
 

@@ -226,6 +226,13 @@ export class CheckoutService {
     );
   }
 
+  async discardOrder(id: string, sessionId?: string | null): Promise<any> {
+    const url = sessionId ? `/api/orders/${id}?session_id=${encodeURIComponent(sessionId)}` : `/api/orders/${id}`;
+    return await firstValueFrom(
+      this.http.delete<any>(url)
+    );
+  }
+
   async failPayment(id: string, sessionId?: string | null): Promise<any> {
     return await firstValueFrom(
       this.http.put<any>(`/api/orders/${id}/fail-payment`, { session_id: sessionId })
@@ -235,6 +242,18 @@ export class CheckoutService {
   async confirmPayment(id: string, sessionId?: string | null): Promise<any> {
     return await firstValueFrom(
       this.http.put<any>(`/api/orders/${id}/confirm-payment`, { session_id: sessionId })
+    );
+  }
+
+  async retryPayment(id: string, sessionId?: string | null): Promise<any> {
+    return await firstValueFrom(
+      this.http.put<any>(`/api/orders/${id}/retry-payment`, { session_id: sessionId })
+    );
+  }
+
+  async changePaymentMethod(id: string, payment: any, sessionId?: string | null): Promise<any> {
+    return await firstValueFrom(
+      this.http.put<any>(`/api/orders/${id}/change-payment-method`, { payment, session_id: sessionId })
     );
   }
 

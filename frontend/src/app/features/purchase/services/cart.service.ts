@@ -345,6 +345,28 @@ export class CartService {
     }
   }
 
+  restoreItemsToCart(items: any[]): void {
+    if (!items || items.length === 0) return;
+    const currentCart = [...this.cartItems()];
+    for (const item of items) {
+      const existingIdx = currentCart.findIndex(
+        it => it.product._id === item.product._id && it.variantSku === item.variantSku
+      );
+      if (existingIdx > -1) {
+        currentCart[existingIdx].quantity += item.quantity;
+        currentCart[existingIdx].selected = true;
+      } else {
+        currentCart.push({
+          product: item.product,
+          variantSku: item.variantSku,
+          quantity: item.quantity,
+          selected: true
+        });
+      }
+    }
+    this.saveCart(currentCart);
+  }
+
   clearCheckoutSummary(): void {
     this.checkoutSummaryItems.set([]);
     if (isPlatformBrowser(this.platformId)) {

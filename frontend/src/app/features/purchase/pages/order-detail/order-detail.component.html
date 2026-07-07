@@ -1,4 +1,4 @@
-<div class="confirmed-page-wrapper animate-fade-in" *ngIf="order() && config()">
+<div class="confirmed-page-wrapper animate-fade-in" [class.modal-active]="isAnyModalOpen()" *ngIf="order() && config()">
   <div class="confirmed-container">
     
     <!-- ================= DYNAMIC STATUS BANNER ================= -->
@@ -379,8 +379,24 @@
               </div>
               <div class="method-details">
                 <span class="method-title font-body">QR Code Payment</span>
-                <span class="method-desc font-mono">
+                <span class="method-desc font-mono" *ngIf="order().payment_status !== 'paid'">
                   {{ order().payment.transaction_id || 'TXN-PENDING' }} · Scan confirmation pending
+                </span>
+                <span class="method-desc font-body" *ngIf="order().payment_status === 'paid'">
+                  Scan completed successfully
+                </span>
+              </div>
+            </ng-container>
+
+            <!-- Bank Transfer -->
+            <ng-container *ngIf="order().payment.method === 'bank_transfer'">
+              <div class="method-thumbnail-wrapper method-icon-wrapper">
+                <svg lucideLandmark [size]="20" class="bank-icon"></svg>
+              </div>
+              <div class="method-details">
+                <span class="method-title font-body">Bank Transfer</span>
+                <span class="method-desc font-body">
+                  {{ order().payment_status === 'paid' ? 'Transfer completed successfully' : 'Transfer confirmation pending' }}
                 </span>
               </div>
             </ng-container>
@@ -493,7 +509,7 @@
 
         <!-- Complete / Cancel Buttons (Pending status) -->
         <footer class="page-actions-row" *ngIf="config()?.showPaymentActions">
-          <button (click)="retryPayment()" class="btn-complete-payment font-body">
+          <button (click)="openCompletePaymentModal()" class="btn-complete-payment font-body">
             COMPLETE PAYMENT
           </button>
           <button (click)="cancelOrder()" class="btn-cancel-order font-body">
@@ -539,18 +555,80 @@
     </div>
 
   </div>
+
+  <!-- ================= COMPLETE PAYMENT MODAL OVERLAY ================= -->
+  <app-complete-payment-modal
+    *ngIf="showCompletePaymentModal() && (order()?.order_status === 'pending' || order()?.status === 'pending')"
+    (close)="closeCompletePaymentModal()"
+    (retry)="retryPayment()"
+    (changeMethod)="changePaymentMethod()"
+  ></app-complete-payment-modal>
+
+  <!-- ================= PAYMENT FAILED MODAL OVERLAY ================= -->
+  <app-payment-failed-modal
+    *ngIf="showFailedModal() && (order()?.order_status === 'pending' || order()?.status === 'pending')"
+    (close)="closeModal()"
+    (retry)="retryPayment()"
+    (changeMethod)="changePaymentMethod()"
+  ></app-payment-failed-modal>
+
+  <app-payment-modal [isOpen]="showPaymentModal()"
+                     [orderId]="order()?.order_id"
+                     [sessionId]="getSessionId(order())"
+                     [paymentMethod]="order()?.payment?.method"
+                     [mobileNumber]="order()?.delivery_info?.mobile"
+                     (confirmed)="onPaymentConfirmed($event)"
+                     (canceled)="onPaymentCanceled()">
+  </app-payment-modal>
+
+  <!-- ================= CHANGE PAYMENT METHOD MODAL OVERLAY ================= -->
+  <app-change-payment-modal
+    [isOpen]="showChangePaymentModal()"
+    [orderId]="order()?.order_id"
+    [sessionId]="getSessionId(order())"
+    (close)="closeChangePaymentModal()"
+    (changed)="onPaymentMethodChanged($event)">
+  </app-change-payment-modal>
+
+  <app-review-modal
+    [order]="order()"
+    [(isOpen)]="showReviewModal"
+    (orderUpdated)="onOrderUpdated($event)"
+  ></app-review-modal>
+
+  <!-- ================= CARRIER TRACKING MODAL OVERLAY ================= -->
+  <div class="modal-overlay animate-fade-in" *ngIf="showTrackingModal()" (click)="showTrackingModal.set(false)"
+       style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+    <div class="modal-container animate-scale-up" (click)="$event.stopPropagation()" 
+         style="background: #fff; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); max-width: 480px; width: 90%; text-align: center; padding: 32px; position: relative; border: 1.5px solid rgba(84, 74, 64, 0.15); box-sizing: border-box;">
+      <!-- Close button -->
+      <button class="modal-close-btn" (click)="showTrackingModal.set(false)" aria-label="Close modal"
+              style="position: absolute; top: 16px; right: 16px; background: transparent; border: none; cursor: pointer; color: #8c7e6c; display: flex; align-items: center; justify-content: center; padding: 4px; border-radius: 50%; width: 32px; height: 32px; transition: background 0.2s;">
+        <svg lucideX [size]="20" class="close-icon"></svg>
+      </button>
+
+      <!-- Truck Icon Wrapper -->
+      <div class="wallet-circle-wrapper" style="background: rgba(46, 125, 50, 0.1); color: #2e7d32; margin: 0 auto 24px auto; display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%;">
+        <svg lucideTruck [size]="28" class="wallet-icon"></svg>
+      </div>
+
+      <!-- Title -->
+      <h2 class="modal-title font-body" style="margin-bottom: 16px; font-weight: 600; font-size: 24px; color: #375534;">Track Your Package</h2>
+
+      <!-- Description -->
+      <p class="modal-desc font-body" style="color: #544a40; margin-bottom: 28px; font-size: 15px; line-height: 1.6;">
+        You are being redirected to the Giao Hang Nhanh (GHN) tracking page.
+        <br><br>
+        Your tracking code is: <strong style="font-size: 18px; color: #1a1a1a; letter-spacing: 0.5px;">{{ activeTrackingCode() }}</strong>
+      </p>
+
+      <!-- Actions -->
+      <div class="modal-actions" style="margin-top: 24px;">
+        <button class="modal-btn-primary font-body" (click)="showTrackingModal.set(false)" 
+                style="width: 100%; padding: 14px; border-radius: 8px; font-weight: 600; cursor: pointer; background: #375534; color: #fff; border: none; transition: background 0.2s;">
+          CONTINUE TO CARRIER
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
-
-<!-- ================= PAYMENT FAILED MODAL OVERLAY ================= -->
-<app-payment-failed-modal
-  *ngIf="showFailedModal() && (order()?.order_status === 'pending' || order()?.status === 'pending')"
-  (close)="closeModal()"
-  (retry)="retryPayment()"
-  (changeMethod)="changePaymentMethod()"
-></app-payment-failed-modal>
-
-<app-review-modal
-  [order]="order()"
-  [(isOpen)]="showReviewModal"
-  (orderUpdated)="onOrderUpdated($event)"
-></app-review-modal>

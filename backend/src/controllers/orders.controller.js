@@ -706,6 +706,197 @@ async function requestRefund(req, res) {
   }
 }
 
+// Delete Pending Order (DELETE /api/orders/:id)
+async function deleteOrder(req, res) {
+  try {
+    const { id } = req.params;
+    const session_id = req.body.session_id || req.query.session_id;
+
+    let query = {};
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query = { _id: id };
+    } else {
+      query = { order_id: id };
+    }
+
+    const order = await Order.findOne(query);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    // Access control
+    let isAuthorized = false;
+    if (session_id && order.session_id === session_id) {
+      isAuthorized = true;
+    } else if (req.user && req.user.user_id) {
+      const userDoc = await User.findById(req.user.user_id);
+      if (userDoc && order.user_id === userDoc.user_id) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
+    }
+
+    if (order.order_status !== 'pending') {
+      return res.status(400).json({ error: 'Only pending orders can be deleted/discarded.' });
+    }
+
+    await Order.deleteOne({ _id: order._id });
+
+    res.json({
+      message: 'Order deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete order' });
+  }
+}
+
+// Retry Payment (PUT /api/orders/:id/retry-payment)
+async function retryPayment(req, res) {
+  try {
+    const { id } = req.params;
+    const session_id = req.body.session_id || req.query.session_id;
+
+    let query = {};
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query = { _id: id };
+    } else {
+      query = { order_id: id };
+    }
+
+    const order = await Order.findOne(query);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    // Access control
+    let isAuthorized = false;
+    if (session_id && order.session_id === session_id) {
+      isAuthorized = true;
+    } else if (req.user && req.user.user_id) {
+      const userDoc = await User.findById(req.user.user_id);
+      if (userDoc && order.user_id === userDoc.user_id) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
+    }
+
+    order.payment_status = 'pending';
+    order.order_status = 'pending';
+    order._changedBy = order.is_guest ? 'guest' : order.user_id;
+    order._statusChangeNote = 'Payment retried: reset payment status to pending';
+    await order.save();
+
+    res.json({
+      message: 'Order payment status reset to pending for retry',
+      data: order
+    });
+  } catch (error) {
+    console.error('Error retrying payment:', error);
+    res.status(500).json({ error: error.message || 'Failed to retry payment' });
+  }
+}
+
+// Change Payment Method on a Pending Order (PUT /api/orders/:id/change-payment-method)
+async function changePaymentMethod(req, res) {
+  try {
+    const { id } = req.params;
+    const { payment, session_id } = req.body;
+
+    if (!payment || !payment.method) {
+      return res.status(400).json({ error: 'payment.method is required.' });
+    }
+
+    let query = {};
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query = { _id: id };
+    } else {
+      query = { order_id: id };
+    }
+
+    const order = await Order.findOne(query);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    if (order.order_status !== 'pending') {
+      return res.status(400).json({ error: 'Only orders pending payment can change payment method.' });
+    }
+
+    // Access control
+    let isAuthorized = false;
+    let userDoc = null;
+    if (session_id && order.session_id === session_id) {
+      isAuthorized = true;
+    } else if (req.user && req.user.user_id) {
+      userDoc = await User.findById(req.user.user_id);
+      if (userDoc && order.user_id === userDoc.user_id) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
+    }
+
+    // Verify/persist the new payment method against the User profile (mirrors createOrder's validation)
+    if (userDoc && (payment.method === 'card' || payment.method === 'bank_transfer')) {
+      const brand = payment.card_info && payment.card_info.brand;
+      const last4 = payment.card_info && payment.card_info.last4;
+
+      if (!brand || !last4) {
+        return res.status(400).json({ error: 'Card brand and last4 digits are required for card payments.' });
+      }
+
+      const cardExists = userDoc.payment_methods.some(p => {
+        const endsWithLast4 = p.card_number.endsWith(last4);
+
+        let brandMatches = false;
+        const type = p.card_type; // 'NAPAS', 'credit', 'debit'
+        const brandUpper = brand.toUpperCase();
+        if (brandUpper === 'NAPAS' && type === 'NAPAS') brandMatches = true;
+        else if (brandUpper !== 'NAPAS' && (type === 'credit' || type === 'debit')) brandMatches = true;
+
+        return endsWithLast4 && brandMatches;
+      });
+
+      if (!cardExists) {
+        if (payment.full_card_info) {
+          userDoc.payment_methods.push(payment.full_card_info);
+          await userDoc.save();
+        } else {
+          return res.status(400).json({ error: 'Payment card must match one of your saved payment methods.' });
+        }
+      }
+    }
+
+    if (payment.full_card_info) {
+      delete payment.full_card_info;
+    }
+
+    order.payment = payment;
+    order.payment_status = 'pending';
+    order.order_status = 'pending';
+    order._changedBy = order.is_guest ? 'guest' : order.user_id;
+    order._statusChangeNote = `Payment method changed to ${payment.method}`;
+    await order.save();
+
+    res.json({
+      message: 'Payment method updated successfully',
+      data: order
+    });
+  } catch (error) {
+    console.error('Error changing payment method:', error);
+    res.status(500).json({ error: error.message || 'Failed to change payment method' });
+  }
+}
+
 module.exports = {
   createOrder,
   getOrderById,
@@ -716,6 +907,8 @@ module.exports = {
   confirmPayment,
   getOrderStatus,
   receiveOrder,
-  requestRefund
+  requestRefund,
+  deleteOrder,
+  retryPayment,
+  changePaymentMethod
 };
-

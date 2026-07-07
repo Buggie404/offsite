@@ -23,6 +23,15 @@
 .confirmed-page-wrapper {
   max-width: 1000px;
   margin: 0 auto;
+
+  // The fade-in animation on this element implicitly creates a stacking
+  // context (z-index: auto), which traps nested fixed-position modals
+  // below the sticky navbar (z-index: 1000) regardless of their own
+  // z-index. Raise it above the navbar only while a modal is open.
+  &.modal-active {
+    position: relative;
+    z-index: 1500;
+  }
 }
 
 .confirmed-container {

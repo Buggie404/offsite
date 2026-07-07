@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, NavigationStart } from '@angular/router';
 import {
   LucideArrowLeft,
   LucideClock,
@@ -10,6 +10,7 @@ import {
   LucideAlertTriangle
 } from '@lucide/angular';
 import { CheckoutService } from '../../services/checkout.service';
+import { CartService } from '../../services/cart.service';
 
 interface QrSession {
   transactionId: string;
@@ -37,8 +38,11 @@ interface QrSession {
 export class PaymentQrComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private checkoutService = inject(CheckoutService);
+  private cartService = inject(CartService);
 
   order = signal<any>(null);
+  paymentConfirmed = false;
+  private targetUrl = '';
   
   // QR session state
   transactionId = signal<string>('');
@@ -77,6 +81,12 @@ export class PaymentQrComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     if (typeof window === 'undefined') return;
 
+    this.router.events.subscribe(event => {
+      if (event instanceof NavigationStart) {
+        this.targetUrl = event.url;
+      }
+    });
+
     // Retrieve state passed from the router
     const navigation = this.router.getCurrentNavigation();
     const state = navigation?.extras.state || history.state;
@@ -95,6 +105,52 @@ export class PaymentQrComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.stopTimer();
     this.stopPollingStatus();
+
+    const targetUrl = this.targetUrl;
+    const isStayingInCheckoutPaymentFlow = !targetUrl || targetUrl.includes('/checkout/pending') || targetUrl.includes('/checkout/confirmed') || targetUrl.includes('/checkout/payment-qr/scan');
+
+    if (!this.paymentConfirmed && this.order()) {
+      if (!isStayingInCheckoutPaymentFlow) {
+        const ord = this.order();
+        const dbId = ord._id || ord.order_id;
+        
+        console.log('ngOnDestroy: User left checkout flow. Discarding unpaid QR order...', dbId);
+        this.checkoutService.discardOrder(dbId, ord.session_id).catch(err => {
+          console.error('Failed to discard QR order in ngOnDestroy:', err);
+        });
+
+        const savedItems = localStorage.getItem('checkout_cart_items');
+        if (savedItems) {
+          try {
+            const items = JSON.parse(savedItems);
+            this.cartService.restoreItemsToCart(items);
+            localStorage.removeItem('checkout_cart_items');
+          } catch (e) {
+            console.error('Failed to restore cart items on leaving QR page:', e);
+          }
+        }
+      } else {
+        console.log('ngOnDestroy: User redirected within checkout flow. Keeping order pending.');
+        localStorage.removeItem('checkout_cart_items');
+      }
+    }
+  }
+
+  cancelPayment(): void {
+    if (this.order()) {
+      this.stopTimer();
+      this.stopPollingStatus();
+      this.paymentConfirmed = true;
+      
+      const ord = this.order();
+      
+      localStorage.removeItem('checkout_cart_items');
+      localStorage.removeItem('checkout_delivery_info');
+      localStorage.removeItem('checkout_card_info');
+      localStorage.removeItem('checkout_bank_info');
+      
+      this.router.navigate(['/checkout/pending'], { state: { order: ord } });
+    }
   }
 
   private initQrSession(): void {
@@ -302,6 +358,7 @@ export class PaymentQrComponent implements OnInit, OnDestroy {
       try {
         const res = await this.checkoutService.getOrderStatus(ord.order_id, ord.session_id);
         if (res.payment_status === 'paid') {
+          this.paymentConfirmed = true;
           this.stopPollingStatus();
           this.stopTimer();
 
@@ -312,8 +369,14 @@ export class PaymentQrComponent implements OnInit, OnDestroy {
           // Navigate to confirmed screen
           this.router.navigate(['/checkout/confirmed'], { state: { order: res } });
         } else if (res.payment_status === 'failed') {
+          this.paymentConfirmed = true; // prevent ngOnDestroy from discarding
           this.stopPollingStatus();
           this.stopTimer();
+          
+          localStorage.removeItem('checkout_delivery_info');
+          localStorage.removeItem('checkout_cart_items');
+          
+          alert('Payment failed. The order is now pending. You can try paying again from your order details.');
           this.router.navigate(['/checkout/pending'], { state: { order: res, showFailedModal: true } });
         }
       } catch (err) {
