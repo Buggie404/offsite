@@ -1,0 +1,87 @@
+<article class="community-card" [style.background]="cardColor" (click)="onCardClick()">
+
+  <div class="card-image">
+
+
+    <ng-container *ngIf="!hasMedia">
+      <div class="text-fallback">
+        <p class="text-fallback__content">{{ post.content }}</p>
+      </div>
+    </ng-container>
+
+
+    <ng-container *ngIf="hasMedia && isVideo">
+      <video
+        class="card-video-thumb"
+        [src]="image"
+        preload="metadata"
+        muted
+        playsinline>
+      </video>
+      <div class="play-overlay">
+        <svg
+          class="play-icon"
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="currentColor">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="hasMedia && !isVideo">
+      <img
+        [src]="image"
+        [alt]="post.author.username"
+        (error)="onImageError($event)">
+    </ng-container>
+
+  </div>
+
+  <div class="card-content">
+
+    <div class="card-header">
+      <p class="username">
+        @{{ post.author.username }}
+      </p>
+      <p class="time-ago">{{ timeAgo }}</p>
+    </div>
+
+    <p class="description">
+      {{ hasMedia ? preview : '' }}
+    </p>
+
+    <div class="likes">
+      <button
+        type="button"
+        class="like-btn"
+        (click)="onLike(); $event.stopPropagation()">
+
+        <svg
+          class="heart-icon"
+          xmlns="http://www.w3.org/2000/svg"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="currentColor">
+          <path
+            d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12
+            5.67l-1.06-1.06a5.5
+            5.5 0 0 0-7.78
+            7.78l1.06
+            1.06L12
+            21.23l7.78-7.78
+            1.06-1.06a5.5
+            5.5 0 0 0
+            0-7.78z"/>
+        </svg>
+
+        <span>{{ post.like_count }} likes</span>
+      </button>
+    </div>
+
+  </div>
+
+</article>

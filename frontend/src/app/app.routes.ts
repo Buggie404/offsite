@@ -128,6 +128,10 @@ export const routes: Routes = [
   {
     path: 'products/:id',
     loadComponent: () => import('./features/shop/pages/product-detail/product-detail.component').then(m => m.ProductDetailComponent)
-  }
+  },
+  {
+    path: 'community',
+    loadChildren: () => import('./features/community/community-routing-module').then(m => m.CommunityRoutingModule)
+  },
 ];
 

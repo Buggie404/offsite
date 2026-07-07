@@ -5,12 +5,13 @@ const mongoose = require('mongoose');
 // Get all posts (feed)
 async function getAllPosts(req, res) {
   try {
-    const { page = 1, limit = 10, post_type, recipe_id, user_id, sort } = req.query;
+    const { page = 1, limit = 10, post_type, recipe_id, user_id, sort, base } = req.query;
 
     const query = {};
     if (post_type) query.post_type = post_type;
     if (recipe_id) query.recipe_id = recipe_id;
     if (user_id) query.user_id = user_id;
+    if (base) query.base = base;
 
     const skipCount = (parseInt(page, 10) - 1) * parseInt(limit, 10);
     const limitCount = parseInt(limit, 10);
@@ -66,7 +67,7 @@ async function getPostById(req, res) {
 // Create a new post
 async function createPost(req, res) {
   try {
-    const { content, media = [], post_type = 'regular', recipe_id = null } = req.body;
+    const { content, media = [], post_type = 'regular', recipe_id = null, base } = req.body;
     
     // Find the logged-in user
     const user = await User.findById(req.user.user_id);
@@ -96,6 +97,7 @@ async function createPost(req, res) {
       content,
       media,
       recipe_id,
+      base,
       like_count: 0,
       comment_count: 0,
       share_count: 0,
@@ -117,7 +119,7 @@ async function createPost(req, res) {
 async function updatePost(req, res) {
   try {
     const { id } = req.params;
-    const { content, media, post_type, recipe_id } = req.body;
+    const { content, media, post_type, recipe_id, base } = req.body;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
@@ -141,6 +143,7 @@ async function updatePost(req, res) {
     if (media !== undefined) post.media = media;
     if (post_type !== undefined) post.post_type = post_type;
     if (recipe_id !== undefined) post.recipe_id = recipe_id;
+    if (base !== undefined) post.base = base;
 
     const updatedPost = await post.save();
     res.json({

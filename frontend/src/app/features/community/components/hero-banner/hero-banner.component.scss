@@ -1,0 +1,85 @@
+:host {
+  display: block;
+}
+
+.hero {
+  width: 100%;
+  background: #375534;
+  overflow: hidden;
+}
+
+.hero__inner {
+  position: relative;
+
+  max-width: 1440px;
+  margin: 0 auto;
+
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 0 24px;
+}
+
+.hero__title {
+  font-family: 'Russo One', sans-serif;
+  font-size: 48px;
+  color: #ffffff;
+  margin-bottom: 16px;
+  letter-spacing: 2px;
+}
+
+.hero__subtitle {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  line-height: 1.7;
+  color: rgba(250, 240, 235, .9);
+  max-width: 520px;
+}
+
+
+.hero__inner::before {
+  content: "";
+  position: absolute;
+
+  width: 220px;
+  height: 220px;
+
+  border-radius: 50%;
+  background: rgba(255,255,255,.05);
+
+  left: 80px;
+  top: 30px;
+}
+
+.hero__inner::after {
+  content: "";
+  position: absolute;
+
+  width: 340px;
+  height: 340px;
+
+  border-radius: 50%;
+  background: rgba(255,255,255,.04);
+
+  right: -100px;
+  bottom: -120px;
+}
+
+@media (max-width:768px){
+
+  .hero__inner{
+    min-height:220px;
+  }
+
+  .hero__title{
+    font-size:42px;
+  }
+
+  .hero__subtitle{
+    font-size:16px;
+  }
+
+}

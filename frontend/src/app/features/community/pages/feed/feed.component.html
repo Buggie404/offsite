@@ -1,1 +1,64 @@
-<!-- Empty file for folder structure display -->
+<app-hero-banner></app-hero-banner>
+
+<app-feed-toolbar
+    [activeCategory]="activeCategory"
+    [sort]="sort"
+    (createPost)="openCreatePost()"
+    (createRecipe)="openCreateRecipe()"
+    (categoryChange)="onCategoryChange($event)"
+    (sortChange)="onSortChange($event)">
+</app-feed-toolbar>
+
+<section class="community-section">
+
+    <div class="container">
+
+        <div class="community-grid">
+            <app-post-card
+                *ngFor="let post of posts"
+                [post]="post"
+                (like)="likePost($event)">
+            </app-post-card>
+        </div>
+
+        <div
+            class="load-more"
+            *ngIf="hasMore">
+
+            <button
+                class="btn-load"
+                (click)="loadMore()">
+
+                <span>LOAD NEW POSTS</span>
+
+                <svg
+                    width="12"
+                    height="8"
+                    viewBox="0 0 12 8"
+                    fill="none">
+
+                    <path
+                        d="M1 1L6 6L11 1"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"/>
+
+                </svg>
+            </button>
+        </div>
+    </div>
+
+</section>
+
+<app-create-post-modal
+
+    *ngIf="showCreatePost"
+    (close)="closeCreatePost()">
+
+</app-create-post-modal>
+
+<app-create-recipe-modal
+    *ngIf="showCreateRecipe"
+    (close)="closeCreateRecipe()">
+</app-create-recipe-modal>

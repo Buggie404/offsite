@@ -1,0 +1,49 @@
+<section class="feed-toolbar">
+
+  <div class="toolbar-left">
+    <span class="section-label">COMMUNITY</span>
+    <h1>Sip &amp; Share</h1>
+  </div>
+
+  <div class="toolbar-right">
+
+    <div class="toolbar-actions">
+      <button class="btn-create" (click)="onCreatePost()">+ CREATE POST</button>
+      <button class="btn-create" (click)="onCreateRecipe()">+ CREATE RECIPE</button>
+    </div>
+
+    <div class="toolbar-filter-row">
+
+      <div class="toolbar-filters">
+        <button
+          class="filter"
+          [class.active]="activeCategory === ''"
+          (click)="onFilterClick('')"
+        >
+          All Stories
+        </button>
+        <button
+          class="filter"
+          [class.active]="activeCategory === 'COFFEE'"
+          (click)="onFilterClick('COFFEE')"
+        >
+          Coffee
+        </button>
+        <button
+          class="filter"
+          [class.active]="activeCategory === 'MATCHA'"
+          (click)="onFilterClick('MATCHA')"
+        >
+          Matcha
+        </button>
+      </div>
+
+      <select class="sort-select" [value]="sort" (change)="onSortChange($event)">
+        <option value="created_at">Latest</option>
+        <option value="like_count">Top</option>
+      </select>
+
+    </div>
+  </div>
+
+</section>

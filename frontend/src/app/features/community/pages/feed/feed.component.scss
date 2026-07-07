@@ -1,1 +1,74 @@
-// Empty file for folder structure display
+:host{
+    display:block;
+    width:100%;
+}
+
+.community-section{
+    background:var(--color-cream);
+    padding:64px 0 96px;
+}
+
+.container{
+    width:100%;
+    max-width:var(--container-max);
+    margin:0 auto;
+    padding:0 var(--container-padding-desktop);
+}
+
+.community-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:32px;
+}
+
+.load-more{
+    display:flex;
+    justify-content:center;
+    margin-top:56px;
+}
+
+.btn-load{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    padding:16px 32px;
+    border:none;
+    border-radius:999px;
+    background:var(--color-forest-green);
+    cursor:pointer;
+    transition:.25s;
+
+    span{
+        color:white;
+        font-family:var(--font-body);
+        font-size:14px;
+        font-weight:600;
+        letter-spacing:.1em;
+    }
+
+    svg{
+        color:white;
+    }
+
+    &:hover{
+        transform:translateY(-2px);
+        opacity:.92;
+    }
+}
+
+@media(max-width:1024px){
+    .community-grid{
+        grid-template-columns:repeat(2,1fr);
+    }
+}
+
+@media(max-width:768px){
+    .container{
+        padding:0 16px;
+    }
+
+    .community-grid{
+        grid-template-columns:1fr;
+    }
+
+}
