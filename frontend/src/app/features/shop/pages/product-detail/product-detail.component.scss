@@ -75,6 +75,7 @@ $line: rgba(84, 74, 64, 0.18);
 .detail-shell {
   --media-width: 460px;
   --detail-height: calc(var(--media-width) * 606 / 585);
+  --action-width: 220px;
 
   display: grid;
   grid-template-columns: minmax(320px, var(--media-width)) minmax(0, 1fr);
@@ -495,7 +496,7 @@ $line: rgba(84, 74, 64, 0.18);
 }
 
 .quantity-selector {
-  width: calc((100% - 14px) / 2);
+  width: calc((var(--action-width) * 2) + 14px);
   height: 52px;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -549,8 +550,9 @@ $line: rgba(84, 74, 64, 0.18);
 
 .purchase-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, var(--action-width));
   gap: 14px;
+  justify-content: start;
 }
 
 .action-button {
