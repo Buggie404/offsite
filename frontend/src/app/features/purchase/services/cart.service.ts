@@ -100,13 +100,12 @@ export class CartService {
     this.isOpen.set(false);
   }
 
-  addToCart(product: Product, variantSku?: string, quantity = 1): void {
+  addToCart(product: Product, variantSku?: string, quantity = 1, openDrawer = true): void {
     const variant = this.getInStockVariant(product, variantSku);
     if (!variant) return;
     const sku = variant.sku;
 
-    const currentItems = [...this.cartItems()];
-    const productKey = this.getProductKey(product);
+    const currentItems = [...this.cartItems()];    const productKey = this.getProductKey(product);
     const existingIndex = currentItems.findIndex(
       item => this.getProductKey(item.product) === productKey && item.variantSku === sku
     );
@@ -134,7 +133,9 @@ export class CartService {
     }
 
     this.saveCart(currentItems);
-    this.openCart();
+    if (openDrawer) {
+      this.openCart();
+    }
   }
 
   private getInStockVariant(product: Product, variantSku?: string): ProductVariant | undefined {

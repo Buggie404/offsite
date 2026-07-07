@@ -28,6 +28,7 @@ export class ProductCardComponent {
   @Input() showBestSellerBadge = false;
   @Input() isSaved = false;
   @Output() saveToggle = new EventEmitter<Product>();
+  @Output() productAdd = new EventEmitter<Product>();
   isQuickViewOpen = false;
 
   constructor(
@@ -120,6 +121,12 @@ export class ProductCardComponent {
     event?.preventDefault();
     event?.stopPropagation();
     if (this.isOutOfStock(p)) return;
+
+    if (this.productAdd.observed) {
+      this.productAdd.emit(p);
+      return;
+    }
+
     this.cartService.addToCart(p as any);
   }
 

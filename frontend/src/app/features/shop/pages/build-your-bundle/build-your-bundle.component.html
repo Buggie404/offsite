@@ -1,0 +1,181 @@
+<div class="build-bundle-page">
+  <div class="build-bundle-layout">
+    <!-- Left: Bundle Builder -->
+    <aside class="bundle-aside">
+      <div class="bundle-aside__inner">
+        <h1 class="bundle-title">Build Your Bundle</h1>
+        <p class="bundle-intro">
+          Mix, match, and save. Choose your kit type, pick a pack size, then select each slot to browse
+          products on the right.
+        </p>
+
+        <div class="kit-type-tabs" role="tablist" aria-label="Kit type">
+          @for (kit of kitTypes; track kit.id) {
+            <button
+              type="button"
+              class="kit-type-tab"
+              role="tab"
+              [class.kit-type-tab--active]="selectedKitType() === kit.id"
+              [attr.aria-selected]="selectedKitType() === kit.id"
+              (click)="selectKitType(kit.id)"
+            >
+              <span class="kit-type-tab__text">
+                @if (kit.id === 'matcha_coffee_bundle') {
+                  MATCHA &<br />COFFEE BUNDLE
+                } @else {
+                  {{ kit.label }}
+                }
+              </span>
+            </button>
+          }
+        </div>
+
+        <div class="pack-visual">
+          <div class="pack-slots-icons" [class.pack-slots-icons--three]="selectedPackSize() === 3">
+            @for (slot of slots(); track slot.id; let idx = $index) {
+              @if (idx > 0) {
+                <span class="slot-plus" aria-hidden="true">
+                  <svg lucidePlus [size]="22"></svg>
+                </span>
+              }
+
+              <div class="pack-slot-item">
+                <button
+                  type="button"
+                  class="pack-slot"
+                  [class.pack-slot--active]="activeSlotId() === slot.id"
+                  [class.pack-slot--filled]="!!getSlotProduct(slot.id)"
+                  (click)="selectSlot(slot.id)"
+                  [attr.aria-label]="'Select ' + slot.label + ' slot'"
+                  [attr.aria-pressed]="activeSlotId() === slot.id"
+                >
+                  <span class="pack-slot__img-wrap">
+                    <img
+                      class="pack-slot__img pack-slot__img--placeholder"
+                      [class.pack-slot__img--hidden]="!!getSlotProduct(slot.id)"
+                      [src]="slot.imageSrc"
+                      [alt]=""
+                      aria-hidden="true"
+                    />
+
+                    @if (getSlotProduct(slot.id); as selectedProduct) {
+                      <div class="pack-slot__selected">
+                        <div class="pack-slot__selected-frame">
+                          <img
+                            class="pack-slot__selected-img"
+                            [src]="getProductPrimaryImage(selectedProduct)"
+                            [alt]="selectedProduct.name"
+                          />
+                          <button
+                            type="button"
+                            class="pack-slot__remove"
+                            aria-label="Remove selected product"
+                            (click)="removeSlotProduct(slot.id, $event)"
+                          >
+                            <svg lucideX [size]="14"></svg>
+                          </button>
+                        </div>
+                      </div>
+                    }
+                  </span>
+                </button>
+                <span
+                  class="pack-slot__label"
+                  [class.pack-slot__label--active]="activeSlotId() === slot.id"
+                >{{ slot.label }}</span>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="pack-size-section">
+          <span class="pack-size-label">Pack size</span>
+
+          <div class="pack-size-options">
+            <label
+              class="pack-size-option"
+              [class.pack-size-option--selected]="selectedPackSize() === 2"
+            >
+              <input
+                type="radio"
+                name="packSize"
+                [value]="2"
+                [checked]="selectedPackSize() === 2"
+                (change)="selectPackSize(2)"
+              />
+              <span class="pack-size-option__label">Pack of 2</span>
+              @if (selectedPackSize() === 2 && showBundlePricing() && bundlePricing(); as pricing) {
+                <span class="pack-size-option__pricing">
+                  <span class="price-original">{{ formatPrice(pricing.original) }}</span>
+                  <span class="price-sale">{{ formatPrice(pricing.sale) }}</span>
+                </span>
+              }
+            </label>
+
+            <div class="pack-size-divider" aria-hidden="true"></div>
+
+            <label
+              class="pack-size-option"
+              [class.pack-size-option--selected]="selectedPackSize() === 3"
+            >
+              <input
+                type="radio"
+                name="packSize"
+                [value]="3"
+                [checked]="selectedPackSize() === 3"
+                (change)="selectPackSize(3)"
+              />
+              <span class="pack-size-option__label">Pack of 3</span>
+            </label>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="add-to-cart-btn"
+          [disabled]="!canAddBundleToCart()"
+          (click)="addBundleToCart()"
+        >
+          ADD TO CART
+        </button>
+      </div>
+    </aside>
+
+    <!-- Right: Product Browser -->
+    <section class="product-browser">
+      @if (!isMatchaKitPack2()) {
+        <div class="product-browser__empty">
+          <p class="product-browser__empty-title">Coming soon</p>
+          <p class="product-browser__empty-text">
+            Matcha Kit · Pack of 2 is available now. Other kit types will be added next.
+          </p>
+        </div>
+      } @else if (!activeSlotId()) {
+        <div class="product-browser__empty">
+          <p class="product-browser__empty-title">Select a slot to browse</p>
+          <p class="product-browser__empty-text">
+            Click Package or Tool on the left to view matching products here.
+          </p>
+        </div>
+      } @else if (loadingProducts()) {
+        <div class="product-browser__empty">
+          <p class="product-browser__empty-text">Loading products...</p>
+        </div>
+      } @else if (browserProducts().length === 0) {
+        <div class="product-browser__empty">
+          <p class="product-browser__empty-text">No products available for this slot.</p>
+        </div>
+      } @else {
+        <div class="product-grid">
+          @for (product of browserProducts(); track product._id ?? product.product_id) {
+            <app-product-card
+              [product]="product"
+              [showBestSellerBadge]="true"
+              (productAdd)="onProductAdd($event)"
+            />
+          }
+        </div>
+      }
+    </section>
+  </div>
+</div>

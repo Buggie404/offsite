@@ -122,6 +122,13 @@ export const routes: Routes = [
     pathMatch: 'full'
   },
   {
+    path: 'shop/build-your-bundle',
+    loadComponent: () =>
+      import('./features/shop/pages/build-your-bundle/build-your-bundle.component').then(
+        (m) => m.BuildYourBundleComponent
+      )
+  },
+  {
     path: 'shop/:category',
     loadComponent: () => import('./features/shop/pages/category/category.component').then(m => m.CategoryComponent)
   },
