@@ -268,10 +268,10 @@
 
 .variant-option {
   flex: 0 0 auto;
-  min-width: 0;
+  min-width: 140px;
   min-height: 50px;
   width: max-content;
-  padding: 12px 20px;
+  padding: 12px 22px;
   color: #1a1a1a;
   background: transparent;
   border: 1.5px solid #544a40;
@@ -436,7 +436,7 @@ button:focus-visible {
   .quick-view-image-frame { width: 92%; }
   .product-header h2 { min-height: 62px; max-height: 62px; font-size: 28px; }
   .variant-options { gap: 10px; }
-  .variant-option { min-height: 50px; padding-inline: 18px; font-size: 13px; }
+  .variant-option { min-width: 140px; min-height: 50px; padding-inline: 18px; font-size: 13px; }
 
   .quantity-selector {
     width: calc((100% - 14px) / 2);

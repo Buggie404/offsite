@@ -1,123 +1,268 @@
-<div class="product-detail-container">
-  <!-- Back navigation / Breadcrumbs -->
-  <div class="breadcrumbs-row">
-    <button (click)="goBack()" class="btn-back-link">
-      <span class="back-arrow">&larr;</span> Back to previous
-    </button>
-    <div class="breadcrumbs-path">
-      <a routerLink="/">Home</a>
-      <span class="bc-separator">/</span>
-      <span class="bc-active" *ngIf="product()">{{ product()?.name }}</span>
-      <span class="bc-active" *ngIf="!product()">Product Details</span>
-    </div>
-  </div>
+<main class="product-detail-page">
+  <!-- Loading / error states -->
+  @if (isLoading()) {
+    <section class="state-panel" aria-live="polite">
+      <span class="page-spinner"></span>
+      <p>Loading product details...</p>
+    </section>
+  }
 
-  <!-- Loading / Error states -->
-  <div *ngIf="isLoading()" class="loading-state">
-    <span class="page-spinner"></span>
-    <p>Loading product details...</p>
-  </div>
+  @if (errorMessage() && !isLoading()) {
+    <section class="state-panel state-panel--error">
+      <p>{{ errorMessage() }}</p>
+      <button routerLink="/shop/best-sellers" class="continue-btn">CONTINUE SHOPPING</button>
+    </section>
+  }
 
-  <div *ngIf="errorMessage() && !isLoading()" class="error-state">
-    <p class="error-msg-text">{{ errorMessage() }}</p>
-    <button routerLink="/shop/best-sellers" class="btn-continue-shopping">CONTINUE SHOPPING</button>
-  </div>
+  @if (product() && !isLoading()) {
+    <section class="detail-shell" [class.detail-shell--bundle]="product()?.category === 'sets_bundles'">
+      <!-- Product image -->
+      <aside
+        class="product-media"
+        (mouseenter)="pauseCarousel()"
+        (mouseleave)="resumeCarousel()"
+        (focusin)="pauseCarousel()"
+        (focusout)="resumeCarousel()"
+      >
+        <div class="image-frame">
+          @if (images().length) {
+            <div
+              class="product-image-track"
+              [class.without-transition]="!isSlideTransitionEnabled()"
+              [style.transform]="'translate3d(-' + ((images().length > 1 ? slidePosition() : 0) * 100) + '%, 0, 0)'"
+              (transitionend)="onSlideTransitionEnd()"
+            >
+              @if (images().length > 1) {
+                <img class="product-image" [src]="images()[images().length - 1].url" alt="" aria-hidden="true" />
+              }
 
-  <!-- Product Detail Content -->
-  <div *ngIf="product() && !isLoading()" class="detail-grid animate-fade-in">
-    <!-- Left Column: Image -->
-    <div class="image-gallery-col">
-      <div class="main-image-wrap">
-        <img [src]="getPrimaryImage()" [alt]="product()?.name" class="detail-product-img" />
-      </div>
-    </div>
+              @for (image of images(); track image.public_id || image.url; let index = $index) {
+                <img
+                  class="product-image"
+                  [src]="image.url"
+                  [alt]="image.alt_text || product()?.name"
+                  [attr.aria-hidden]="index === activeImageIndex() ? null : 'true'"
+                />
+              }
 
-    <!-- Right Column: Meta & Buying Options -->
-    <div class="buying-details-col">
-      <div class="meta-section">
-        <!-- Origin / Process category info -->
-        <span class="product-origin-label" *ngIf="getOrigin()">{{ getOrigin() | uppercase }}</span>
-        
-        <h1 class="product-name-title font-display">{{ product()?.name }}</h1>
-        
-        <div class="product-price font-body">
-          ${{ (selectedVariant()?.price || 0) | number:'1.2-2' }}
+              @if (images().length > 1) {
+                <img class="product-image" [src]="images()[0].url" alt="" aria-hidden="true" />
+              }
+            </div>
+          } @else {
+            <div class="image-placeholder" aria-label="Product image unavailable"></div>
+          }
+
+          @if (images().length > 1) {
+            <button type="button" class="gallery-arrow gallery-arrow--previous" (click)="previousImage()" aria-label="Previous image">
+              <svg lucideChevronLeft [size]="18" aria-hidden="true"></svg>
+            </button>
+            <button type="button" class="gallery-arrow gallery-arrow--next" (click)="nextImage()" aria-label="Next image">
+              <svg lucideChevronRight [size]="18" aria-hidden="true"></svg>
+            </button>
+          }
+
+          @if (showGalleryDots()) {
+            <div class="gallery-dots" aria-label="Choose product image">
+              @for (image of images(); track image.public_id || image.url; let index = $index) {
+                <button
+                  type="button"
+                  class="gallery-dot"
+                  [class.is-active]="index === activeImageIndex()"
+                  (click)="goToImage(index)"
+                  [attr.aria-label]="'Show image ' + (index + 1) + ' of ' + images().length"
+                  [attr.aria-current]="index === activeImageIndex() ? 'true' : null"
+                ></button>
+              }
+            </div>
+          }
         </div>
-      </div>
+      </aside>
 
-      <!-- Tag row -->
-      <div class="tags-row" *ngIf="getTags().length">
-        <span *ngFor="let tag of getTags()" class="product-tag-badge">{{ tag }}</span>
-      </div>
+      <!-- Product content -->
+      <article class="product-info">
+        <div class="product-scroll">
+          <header class="product-header">
+            <div class="title-row">
+              <h1>{{ product()?.name }}</h1>
+              <button
+                type="button"
+                class="save-button"
+                [class.is-saved]="isSaved()"
+                (click)="toggleSave()"
+                [attr.aria-label]="isSaved() ? 'Remove from saved products' : 'Save product'"
+              >
+                <svg lucideHeart [size]="30" [attr.fill]="isSaved() ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+              </button>
+            </div>
 
-      <div class="divider"></div>
+            <p class="description">
+              {{ product()?.description || 'No description available for this product.' }}
+            </p>
+          </header>
 
-      <!-- Description -->
-      <p class="product-description-text font-body">
-        {{ product()?.description || 'No description available for this product.' }}
-      </p>
+          @if (product()?.category === 'coffee' && getRoastLabel()) {
+            <!-- Roast level -->
+            <section class="roast-section" aria-label="Roast level">
+              <div class="section-heading-row">
+                <h2>ROAST LEVEL</h2>
+                <span>{{ getRoastLabel() }}</span>
+              </div>
+              <div class="roast-bar" appAnimateInView>
+                @for (color of roastSwatches; track $index) {
+                  <span
+                    class="roast-swatch"
+                    [class.roast-swatch--highlight]="isHighlightSwatch($index)"
+                    [style.--swatch-color]="color"
+                  ></span>
+                }
+                <span class="roast-indicator" [style.--roast-column]="getHighlightIndex() + 1" aria-hidden="true"></span>
+              </div>
+              <div class="roast-scale">
+                <span>LIGHT</span>
+                <span>MEDIUM</span>
+                <span>DARK</span>
+              </div>
+            </section>
+          }
 
-      <!-- Category Specific Technical details -->
-      <div class="technical-details-box font-mono" *ngIf="product()?.category === 'coffee' || product()?.category === 'matcha'">
-        <!-- Coffee Specifics -->
-        <div *ngIf="product()?.category === 'coffee'" class="tech-grid">
-          <div class="tech-item" *ngIf="product()?.coffee?.roast_level">
-            <span class="tech-label">Roast Level:</span>
-            <span class="tech-val">{{ product()?.coffee?.roast_level }}</span>
-          </div>
-          <div class="tech-item" *ngIf="product()?.coffee?.process_type">
-            <span class="tech-label">Process:</span>
-            <span class="tech-val">{{ product()?.coffee?.process_type }}</span>
-          </div>
+          @if (getProductTags().length) {
+            <!-- Product tags -->
+            <div class="product-tags" aria-label="Product attributes">
+              @for (tag of getProductTags(); track tag.label) {
+                <span class="attribute-pill">
+                  @if (tag.icon === 'map') {
+                    <svg lucideMapPin [size]="20" aria-hidden="true"></svg>
+                  } @else if (tag.icon === 'drop') {
+                    <svg lucideDroplet [size]="20" aria-hidden="true"></svg>
+                  } @else {
+                    <svg lucidePackage [size]="20" aria-hidden="true"></svg>
+                  }
+                  {{ tag.label }}
+                </span>
+              }
+            </div>
+          }
+
+          @if (getTastingNotes().length) {
+            <!-- Tasting notes -->
+            <section class="notes-section">
+              <h2>TASTING NOTES</h2>
+              <div class="note-pills">
+                @for (note of getTastingNotes(); track note) {
+                  <span class="note-pill">
+                    <svg lucideLeaf [size]="18" aria-hidden="true"></svg>
+                    {{ note }}
+                  </span>
+                }
+              </div>
+            </section>
+          }
+
+          <div class="divider"></div>
+
+          <!-- Purchase controls -->
+          <section class="purchase-panel">
+            <p class="price">{{ getTotalPrice() | currency:'USD':'symbol':'1.2-2' }}</p>
+
+            @if (product()?.category !== 'sets_bundles' && product()?.variants?.length) {
+              <fieldset class="variant-selector">
+                <legend>{{ product()?.variant_type === 'none' ? 'SELECT OPTION' : 'SELECT ' + (product()?.variant_type | uppercase) }}</legend>
+                <div appDragScroll class="variant-options">
+                  @for (variant of product()?.variants; track variant.sku) {
+                    <button
+                      type="button"
+                      class="variant-option"
+                      [class.is-selected]="selectedVariant()?.sku === variant.sku"
+                      [disabled]="(variant.stock ?? 0) <= 0"
+                      (click)="selectVariant(variant)"
+                    >
+                      {{ getVariantLabel(variant) }}
+                    </button>
+                  }
+                </div>
+              </fieldset>
+            }
+
+            <div class="quantity-field">
+              <div class="quantity-selector" [class.has-error]="quantityError()">
+                <button type="button" (click)="decrementQty()" [disabled]="quantity() <= 1 || isUnavailable()" aria-label="Decrease quantity">
+                  <svg lucideMinus [size]="22" aria-hidden="true"></svg>
+                </button>
+                <input
+                  type="text"
+                  inputmode="numeric"
+                  pattern="[0-9]*"
+                  [value]="quantity()"
+                  (input)="onQuantityInput($event)"
+                  (blur)="normalizeQuantity()"
+                  [disabled]="isUnavailable()"
+                  [attr.aria-invalid]="quantityError() ? 'true' : null"
+                  aria-label="Quantity"
+                />
+                <button type="button" (click)="incrementQty()" [disabled]="quantity() >= maxQuantity() || isUnavailable()" aria-label="Increase quantity">
+                  <svg lucidePlus [size]="22" aria-hidden="true"></svg>
+                </button>
+              </div>
+              @if (quantityError()) {
+                <p class="quantity-error" role="alert">{{ quantityError() }}</p>
+              }
+            </div>
+
+            <div class="purchase-actions">
+              <button type="button" class="action-button action-button--secondary" [disabled]="isUnavailable()" (click)="buyNow()">
+                <span>BUY NOW</span>
+                <svg lucideShoppingBag [size]="24" aria-hidden="true"></svg>
+              </button>
+              <button type="button" class="action-button action-button--primary" [disabled]="isUnavailable()" (click)="onAddToCart()">
+                <span>{{ isUnavailable() ? 'OUT OF STOCK' : 'ADD TO CART' }}</span>
+                <svg lucideShoppingCart [size]="26" aria-hidden="true"></svg>
+              </button>
+            </div>
+          </section>
+
+          @if (product()?.category === 'sets_bundles' && getIncludedProducts().length) {
+            <!-- Bundle contents -->
+            <section class="included-section">
+              <div class="included-header">
+                <h2>WHAT'S INCLUDED</h2>
+                <span>{{ getIncludedProducts().length }} items</span>
+              </div>
+
+              <div class="included-list">
+                @for (item of getIncludedProducts(); track item.name) {
+                  <article class="included-item">
+                    <div class="included-icon" [attr.data-kind]="item.icon">
+                      @if (item.icon === 'leaf') {
+                        <svg lucideLeaf [size]="22" aria-hidden="true"></svg>
+                      } @else if (item.icon === 'coffee') {
+                        <svg lucideCoffee [size]="22" aria-hidden="true"></svg>
+                      } @else {
+                        <svg lucidePackage [size]="22" aria-hidden="true"></svg>
+                      }
+                    </div>
+                    <div class="included-copy">
+                      @if (item.eyebrow) {
+                        <p class="included-eyebrow">{{ item.eyebrow }}</p>
+                      }
+                      <h3>{{ item.name }}</h3>
+                      <p>{{ item.description }}</p>
+                    </div>
+                    <div class="included-meta">
+                      @if (item.price !== null) {
+                        <strong>{{ item.price | currency:'USD':'symbol':'1.2-2' }}</strong>
+                      }
+                      @if (item.tag) {
+                        <span>{{ item.tag }}</span>
+                      }
+                    </div>
+                  </article>
+                }
+              </div>
+            </section>
+          }
         </div>
-
-        <!-- Matcha Specifics -->
-        <div *ngIf="product()?.category === 'matcha'" class="tech-grid">
-          <div class="tech-item" *ngIf="product()?.matcha?.product_grade">
-            <span class="tech-label">Grade:</span>
-            <span class="tech-val">{{ product()?.matcha?.product_grade }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Variant Selector -->
-      <div class="variant-selector-section" *ngIf="product()?.variants && product()!.variants.length > 1">
-        <label class="selector-label">SELECT VARIANT</label>
-        <div class="variant-pills-row">
-          <button
-            type="button"
-            *ngFor="let variant of product()?.variants"
-            class="variant-pill-btn"
-            [class.active]="selectedVariant()?.sku === variant.sku"
-            (click)="selectVariant(variant)"
-          >
-            {{ variant.label || variant.sku }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Quantity + Add to Cart -->
-      <div class="add-to-cart-section">
-        <div class="qty-control-wrapper">
-          <button type="button" class="qty-btn" (click)="decrementQty()">&minus;</button>
-          <span class="qty-number font-mono">{{ quantity() }}</span>
-          <button type="button" class="qty-btn" (click)="incrementQty()">&plus;</button>
-        </div>
-
-        <button type="button" class="btn-add-to-cart font-body" (click)="onAddToCart()">
-          ADD TO CART &bull; ${{ ((selectedVariant()?.price || 0) * quantity()) | number:'1.2-2' }}
-        </button>
-      </div>
-
-      <!-- Additional Perks List -->
-      <ul class="perks-list-wrapper font-body">
-        <li>
-          <span class="perk-bullet">&bull;</span> Free standard shipping on orders over $50.00
-        </li>
-        <li>
-          <span class="perk-bullet">&bull;</span> Freshness Guaranteed: Shipped within 48 hours of roasting
-        </li>
-      </ul>
-    </div>
-  </div>
-</div>
+      </article>
+    </section>
+  }
+</main>

@@ -2,6 +2,7 @@
 
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import {
   Product,
   getDefaultPrice,
@@ -29,7 +30,10 @@ export class ProductCardComponent {
   @Output() saveToggle = new EventEmitter<Product>();
   isQuickViewOpen = false;
 
-  constructor(private readonly cartService: CartService) {}
+  constructor(
+    private readonly cartService: CartService,
+    private readonly router: Router
+  ) {}
 
   roastSwatches = [
     '#f3f8ec', '#e5f1d5', '#d7eabf', '#c9e3a9', '#b5d48a',
@@ -100,6 +104,10 @@ export class ProductCardComponent {
     return `$${getDefaultPrice(p).toFixed(2)}`;
   }
 
+  getDetailId(p: Product): string {
+    return p._id || String(p.product_id);
+  }
+
   isOutOfStock(p: Product): boolean {
     return isProductOutOfStock(p);
   }
@@ -125,6 +133,16 @@ export class ProductCardComponent {
     event.preventDefault();
     event.stopPropagation();
     if (!this.isOutOfStock(this.product)) this.isQuickViewOpen = true;
+  }
+
+  openProductDetail(): void {
+    void this.router.navigate(['/products', this.getDetailId(this.product)]);
+  }
+
+  onCardKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    this.openProductDetail();
   }
 
   closeQuickView(): void {
