@@ -8,7 +8,8 @@ const paymentSchema = new mongoose.Schema({
   },
   card_info: {
     brand: { type: String, default: null },
-    last4: { type: String, default: null }
+    last4: { type: String, default: null },
+    cardholder_name: { type: String, default: null }
   }
 }, { _id: false });
 

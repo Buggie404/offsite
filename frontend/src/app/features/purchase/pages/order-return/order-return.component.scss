@@ -681,6 +681,509 @@
   }
 }
 
+// Refund card selection styles
+.refund-destination-box.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  border: 1px dashed rgba(84, 74, 64, 0.4);
+
+  &:hover {
+    border-color: var(--color-forest-green);
+    background-color: #F5EFEB;
+    box-shadow: 0 2px 8px rgba(84, 74, 64, 0.05);
+  }
+  
+  .select-chevron-icon {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ─── REFUND MODAL OVERLAY & SHELL ─── */
+.refund-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(84, 74, 64, 0.4); // Cozy warm overlay matching complete-payment-modal
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+
+  .refund-modal-container {
+    background: var(--color-cream);
+    border: 1.5px solid rgba(84, 74, 64, 0.15);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    max-height: 90vh;
+    box-sizing: border-box;
+
+    &.animate-scale-up {
+      animation: modalScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  }
+
+  .refund-modal-header {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(84, 74, 64, 0.1);
+    background: #fff;
+
+    .refund-modal-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--color-near-black);
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: var(--color-warm-brown);
+      cursor: pointer;
+      padding: 4px;
+      display: inline-flex;
+      border-radius: 50%;
+      transition: color 0.15s, background-color 0.15s;
+
+      &:hover {
+        color: var(--color-near-black);
+        background: rgba(84, 74, 64, 0.06);
+      }
+    }
+  }
+
+  .refund-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-sizing: border-box;
+  }
+
+  .refund-modal-footer {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    border-top: 1px solid rgba(84, 74, 64, 0.1);
+    background: #fff;
+  }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    padding: 10px 20px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: none;
+    text-transform: uppercase;
+
+    &-primary {
+      background: var(--color-forest-green);
+      color: #fff;
+
+      &:hover:not(:disabled) {
+        background: #253922;
+      }
+    }
+
+    &-secondary {
+      background: transparent;
+      color: var(--color-warm-brown);
+      border: 1px solid rgba(84, 74, 64, 0.3);
+
+      &:hover {
+        background: rgba(84, 74, 64, 0.04);
+        color: var(--color-near-black);
+        border-color: var(--color-near-black);
+      }
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  /* ─── OPTION TABS (BANK TRANSFER / CREDIT CARD) ─── */
+  .option-grid {
+    display: grid;
+    gap: 12px;
+
+    &--2 {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .option-card {
+    position: relative;
+    text-align: left;
+    background: #fff;
+    border: 1.5px solid rgba(84, 74, 64, 0.15);
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    color: var(--color-near-black);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    &:hover {
+      border-color: var(--color-forest-green);
+      background-color: #FAF8F5;
+    }
+
+    &.selected {
+      border-color: var(--color-forest-green);
+      background: rgba(207, 225, 185, 0.25);
+    }
+
+    .pay-icon {
+      width: 36px;
+      height: 36px;
+      background: rgba(84, 74, 64, 0.06);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-warm-brown);
+    }
+
+    &.selected .pay-icon {
+      background: rgba(55, 85, 52, 0.1);
+      color: var(--color-forest-green);
+    }
+
+    .pay-text {
+      flex: 1;
+
+      .pay-title {
+        font-size: 13px;
+        color: var(--color-near-black);
+        margin-bottom: 2px;
+      }
+
+      .pay-caption {
+        font-size: 11px;
+        color: var(--color-warm-brown);
+      }
+    }
+
+    .option-card__radio {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(84, 74, 64, 0.3);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      margin-left: auto;
+    }
+
+    &.selected .option-card__radio {
+      background: var(--color-forest-green) !important;
+      border-color: var(--color-forest-green) !important;
+      color: var(--color-cream) !important;
+
+      svg {
+        stroke: var(--color-cream) !important;
+      }
+    }
+  }
+
+  /* ─── SAVED CARDS LIST ─── */
+  .saved-cards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    .section-desc {
+      font-size: 13px;
+      color: var(--color-warm-brown);
+      margin-bottom: 4px;
+    }
+
+    .saved-card-item {
+      display: flex;
+      align-items: center;
+      background: #fff;
+      border: 1.5px solid rgba(84, 74, 64, 0.15);
+      border-radius: 8px;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      &:hover {
+        border-color: var(--color-forest-green);
+        background: #FAF8F5;
+      }
+
+      &.selected {
+        border-color: var(--color-forest-green);
+        background: rgba(207, 225, 185, 0.1);
+      }
+
+      &.expired {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .card-radio {
+        margin-right: 16px;
+
+        .radio-dot {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          border: 1.5px solid rgba(84, 74, 64, 0.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+
+          &.active {
+            background: var(--color-forest-green) !important;
+            border-color: var(--color-forest-green) !important;
+            color: var(--color-cream) !important;
+
+            svg {
+              stroke: var(--color-cream) !important;
+            }
+          }
+        }
+      }
+
+      .card-thumbnail-wrapper {
+        width: 44px;
+        height: 28px;
+        margin-right: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #FAF8F5;
+        border: 1px solid rgba(84, 74, 64, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+
+        .card-thumbnail-img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          padding: 2px;
+        }
+      }
+
+      .card-info {
+        flex: 1;
+
+        .card-brand-name {
+          font-size: 13px;
+          color: var(--color-near-black);
+          margin-bottom: 2px;
+        }
+
+        .card-mask {
+          font-size: 12px;
+          color: var(--color-warm-brown);
+        }
+      }
+
+      .card-expiry-badge {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--state-error);
+        background: rgba(192, 57, 43, 0.1);
+        padding: 2px 8px;
+        border-radius: 4px;
+        text-transform: uppercase;
+      }
+
+      &.add-card-trigger {
+        border-style: dashed;
+        background: transparent;
+
+        .radio-dot {
+          border-color: var(--color-forest-green);
+          color: var(--color-forest-green);
+        }
+
+        .card-info {
+          color: var(--color-forest-green);
+        }
+
+        &:hover {
+          background: rgba(207, 225, 185, 0.1);
+        }
+      }
+    }
+  }
+
+  /* ─── FORM FIELDS ─── */
+  .modal-form-fields {
+    background: #fff;
+    border: 1px solid rgba(84, 74, 64, 0.15);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-sizing: border-box;
+
+    .inline-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+
+      label {
+        font-size: 10px;
+        color: var(--color-near-black);
+        letter-spacing: 0.05em;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 13px;
+        border: 1.5px solid rgba(84, 74, 64, 0.2);
+        border-radius: 6px;
+        background-color: #FAF8F5;
+        color: var(--color-near-black);
+        font-family: inherit;
+        box-sizing: border-box;
+        transition: all 0.2s;
+
+        &:focus {
+          outline: none;
+          border-color: var(--color-forest-green);
+          background-color: #fff;
+        }
+      }
+
+      .select-wrapper {
+        position: relative;
+        width: 100%;
+
+        .custom-select {
+          width: 100%;
+          padding: 10px 32px 10px 12px;
+          font-size: 13px;
+          border: 1.5px solid rgba(84, 74, 64, 0.2);
+          border-radius: 6px;
+          background-color: #FAF8F5;
+          color: var(--color-near-black);
+          font-family: inherit;
+          box-sizing: border-box;
+          transition: all 0.2s;
+          appearance: none;
+          -webkit-appearance: none;
+
+          &:focus {
+            outline: none;
+            border-color: var(--color-forest-green);
+            background-color: #fff;
+          }
+        }
+
+        .select-arrow {
+          position: absolute;
+          right: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          pointer-events: none;
+          color: var(--color-warm-brown);
+        }
+      }
+
+      .field-error {
+        color: var(--state-error);
+        font-size: 11px;
+        font-weight: 600;
+        margin-top: 2px;
+      }
+    }
+
+    .input-with-icon {
+      position: relative;
+      display: flex;
+      align-items: center;
+
+      input {
+        padding-right: 48px !important;
+      }
+
+      .inline-brand-icon {
+        position: absolute;
+        right: 12px;
+        height: 20px;
+        width: auto;
+        max-width: 32px;
+        object-fit: contain;
+      }
+    }
+
+    .inline-row-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+  }
+
+  /* ─── CONTACT US HELP LINK ─── */
+  .contact-support-helper {
+    font-size: 13px;
+    color: var(--color-warm-brown);
+    text-align: center;
+    margin: 8px 0 0 0;
+
+    .contact-us-link {
+      color: var(--color-forest-green);
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+@keyframes modalScaleUp {
+  0% {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }

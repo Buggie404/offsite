@@ -347,8 +347,8 @@
                 {{ order().delivery_info.shipping_method === 'express' ? '1–2 business days' : '3–5 business days' }} · {{ order().shipping?.carrier || 'Giao Hang Nhanh' }}
               </p>
               
-              <!-- Inline Tracking Number display (always show tracking details) -->
-              <p class="tracking-number-inline">
+              <!-- Inline Tracking Number display (only show tracking details when shipping or delivered) -->
+              <p class="tracking-number-inline" *ngIf="order().order_status === 'shipping' || order().order_status === 'delivered'">
                 Tracking: <span class="font-mono font-bold">{{ trackingNumber }}</span>
                 <button class="icon-btn-copy-inline" (click)="copyTrackingNumber(trackingNumber)" title="Copy Tracking Number">
                   <svg lucideCopy [size]="12" *ngIf="!copiedTracking()"></svg>
@@ -390,15 +390,35 @@
 
             <!-- Bank Transfer -->
             <ng-container *ngIf="order().payment.method === 'bank_transfer'">
-              <div class="method-thumbnail-wrapper method-icon-wrapper">
-                <svg lucideLandmark [size]="20" class="bank-icon"></svg>
-              </div>
-              <div class="method-details">
-                <span class="method-title font-body">Bank Transfer</span>
-                <span class="method-desc font-body">
-                  {{ order().payment_status === 'paid' ? 'Transfer completed successfully' : 'Transfer confirmation pending' }}
-                </span>
-              </div>
+              <ng-container *ngIf="order().payment.card_info?.brand; else normalBank">
+                <div class="method-thumbnail-wrapper">
+                  <img *ngIf="order().payment.card_info?.brand === 'Napas' || order().payment.card_info?.brand === 'napas'" src="assets/images/payment_napas.png" alt="Napas" class="payment-thumbnail-img" />
+                  <img *ngIf="order().payment.card_info?.brand === 'Visa'" src="assets/images/payment_visa.png" alt="Visa" class="payment-thumbnail-img" />
+                  <img *ngIf="order().payment.card_info?.brand === 'Mastercard' || order().payment.card_info?.brand === 'MasterCard'" src="assets/images/payment_mastercard.png" alt="Mastercard" class="payment-thumbnail-img" />
+                  <svg *ngIf="order().payment.card_info?.brand !== 'Visa' && order().payment.card_info?.brand !== 'Mastercard' && order().payment.card_info?.brand !== 'MasterCard' && order().payment.card_info?.brand !== 'Napas' && order().payment.card_info?.brand !== 'napas'" class="payment-thumbnail-svg generic-card-svg" viewBox="0 0 36 24" width="36" height="24">
+                    <rect width="36" height="24" rx="4" fill="#544A40"/>
+                    <rect x="4" y="6" width="28" height="4" fill="#E8ECE9"/>
+                    <circle cx="8" cy="16" r="2" fill="#E8ECE9"/>
+                  </svg>
+                </div>
+                <div class="method-details">
+                  <span class="method-title font-body">{{ order().payment.card_info?.brand === 'Napas' ? 'NAPAS Domestic Card' : order().payment.card_info?.brand }}</span>
+                  <span class="method-desc font-mono">
+                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ (order().payment.card_info?.cardholder_name || order().delivery_info.recipient_name) | uppercase }}
+                  </span>
+                </div>
+              </ng-container>
+              <ng-template #normalBank>
+                <div class="method-thumbnail-wrapper method-icon-wrapper">
+                  <svg lucideLandmark [size]="20" class="bank-icon"></svg>
+                </div>
+                <div class="method-details">
+                  <span class="method-title font-body">Bank Transfer</span>
+                  <span class="method-desc font-body">
+                    {{ order().payment_status === 'paid' ? 'Transfer completed successfully' : 'Transfer confirmation pending' }}
+                  </span>
+                </div>
+              </ng-template>
             </ng-container>
 
             <!-- Cards -->
@@ -411,7 +431,7 @@
                 <div class="method-details">
                   <span class="method-title font-body">Visa</span>
                   <span class="method-desc font-mono">
-                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ order().delivery_info.recipient_name | uppercase }}
+                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ (order().payment.card_info?.cardholder_name || order().delivery_info.recipient_name) | uppercase }}
                   </span>
                 </div>
               </ng-container>
@@ -424,7 +444,7 @@
                 <div class="method-details">
                   <span class="method-title font-body">Mastercard</span>
                   <span class="method-desc font-mono">
-                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ order().delivery_info.recipient_name | uppercase }}
+                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ (order().payment.card_info?.cardholder_name || order().delivery_info.recipient_name) | uppercase }}
                   </span>
                 </div>
               </ng-container>
@@ -437,7 +457,7 @@
                 <div class="method-details">
                   <span class="method-title font-body">NAPAS Domestic Card</span>
                   <span class="method-desc font-mono">
-                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ order().delivery_info.recipient_name | uppercase }}
+                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ (order().payment.card_info?.cardholder_name || order().delivery_info.recipient_name) | uppercase }}
                   </span>
                 </div>
               </ng-container>
@@ -454,7 +474,7 @@
                 <div class="method-details">
                   <span class="method-title font-body">{{ order().payment.card_info?.brand || 'Credit Card' }}</span>
                   <span class="method-desc font-mono">
-                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ order().delivery_info.recipient_name | uppercase }}
+                    •••• •••• •••• {{ order().payment.card_info?.last4 || '3892' }} · {{ (order().payment.card_info?.cardholder_name || order().delivery_info.recipient_name) | uppercase }}
                   </span>
                 </div>
               </ng-container>

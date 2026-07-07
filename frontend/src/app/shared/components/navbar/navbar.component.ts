@@ -519,6 +519,10 @@ export class NavbarComponent implements OnInit {
     this.cartService.removeFromCart(this.getProductIdentifier(item), item.variantSku);
   }
 
+  removeSelected(): void {
+    this.cartService.removeSelected();
+  }
+
   toggleSelection(item: CartItem): void {
     this.cartService.toggleSelection(this.getProductIdentifier(item), item.variantSku);
   }

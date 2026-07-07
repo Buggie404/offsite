@@ -584,7 +584,8 @@ async function requestRefund(req, res) {
       items,
       refund_item,
       evidence,
-      session_id
+      session_id,
+      refund_payment
     } = req.body;
 
     const selectedItems = refund_item || items;
@@ -674,13 +675,29 @@ async function requestRefund(req, res) {
       };
     });
 
+    let refundPayment = order.payment;
+    if (order.payment.method === 'cod' || order.payment.method === 'qr') {
+      if (refund_payment && refund_payment.method) {
+        refundPayment = {
+          method: refund_payment.method,
+          card_info: {
+            brand: refund_payment.card_info?.brand || null,
+            last4: refund_payment.card_info?.last4 || null,
+            cardholder_name: refund_payment.card_info?.cardholder_name || null
+          }
+        };
+      } else {
+        return res.status(400).json({ error: 'Please select a payment card or account to process the refund.' });
+      }
+    }
+
     const refundRequest = new RefundRequest({
       order_id: order.order_id,
       user_id: userId,
       session_id: sessionId,
       reason,
       other_reason: reason === 'Other' ? String(other_reason).trim() : null,
-      payment: order.payment,
+      payment: refundPayment,
       description: description ? String(description).trim() : null,
       evidence,
       refund_item: refundItems

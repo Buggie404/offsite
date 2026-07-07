@@ -1,6 +1,7 @@
 import { Injectable, signal, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HttpService } from './http.service';
+import { CartService } from '../features/purchase/services/cart.service';
 
 @Injectable({
   providedIn: 'root'
@@ -8,6 +9,7 @@ import { HttpService } from './http.service';
 export class AuthService {
   private platformId = inject(PLATFORM_ID);
   private http = inject(HttpService);
+  private cartService = inject(CartService);
 
   private isAuthenticatedSignal = signal<boolean>(false);
   readonly isAuthenticated = this.isAuthenticatedSignal.asReadonly();
@@ -26,12 +28,23 @@ export class AuthService {
   // LOGIN
 
   async login(emailOrPhone: string, password: string): Promise<any> {
+    // Keep the guest cart so logout can restore it (merge is one-way).
+    this.cartService.snapshotGuestCartForLogin();
+
     const response = await this.http.post('/auth/login', {
       email: emailOrPhone,
-      password
+      password,
+      // Send the guest (localStorage) cart so the backend can merge it into
+      // this user's cart. Backend skips merging when this is empty.
+      guestCart: this.cartService.getGuestCartPayload()
     });
 
     this.setAuthState(response);
+
+    // Overwrite the local cart with the authoritative user cart from the DB.
+    if (response?.cart?.items) {
+      this.cartService.replaceCartFromMerge(response.cart.items);
+    }
     return response;
   }
   // REGISTER
@@ -75,6 +88,9 @@ export class AuthService {
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
     }
+
+    // Restore the guest cart captured at login; the user cart stays in the DB.
+    this.cartService.restoreGuestCartOnLogout();
   }
 
   // OAUTH SUCCESS
@@ -99,6 +115,25 @@ export class AuthService {
       } catch (e) {
         console.error('Failed to parse OAuth token:', e);
       }
+    }
+  }
+
+  // Merge the guest cart after an OAuth login. The redirect callback can't
+  // carry the cart, so the client triggers the merge once it holds the token.
+  async mergeGuestCartAfterOAuth(): Promise<void> {
+    try {
+      // Keep the guest cart so logout can restore it (merge is one-way).
+      this.cartService.snapshotGuestCartForLogin();
+
+      // Always call: with items it merges; with none the backend returns the
+      // user's existing DB cart so we still hydrate it.
+      const items = this.cartService.getGuestCartPayload();
+      const res: any = await this.http.post('/cart/merge', { items });
+      if (res?.cart?.items) {
+        this.cartService.replaceCartFromMerge(res.cart.items);
+      }
+    } catch (e) {
+      console.error('OAuth cart merge failed:', e);
     }
   }
 

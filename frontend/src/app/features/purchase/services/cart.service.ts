@@ -1,6 +1,7 @@
 import { Injectable, inject, signal, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Product, ProductVariant } from '../../../shared/models/product.model';
+import { HttpService } from '../../../core/http.service';
 
 export interface CartItem {
   product: Product;
@@ -16,6 +17,12 @@ type ProductIdentifier = string | number | null | undefined;
 })
 export class CartService {
   private platformId = inject(PLATFORM_ID);
+  private http = inject(HttpService);
+
+  // When true, saveCart() will not push to the server. Used while hydrating
+  // the cart FROM the server so we don't echo it straight back.
+  private suppressSync = false;
+  private syncTimer: any = null;
 
   // Cart items signal
   cartItems = signal<CartItem[]>([]);
@@ -36,6 +43,9 @@ export class CartService {
   constructor() {
     this.loadCart();
     this.loadCheckoutSummary();
+    // When logged in, the DB cart is authoritative — hydrate from it on load
+    // so edits/removals made in a previous session are reflected.
+    this.loadFromServerIfAuthed();
   }
 
   private loadCart(): void {
@@ -82,6 +92,11 @@ export class CartService {
     this.cartItems.set(items);
     if (isPlatformBrowser(this.platformId)) {
       localStorage.setItem('checkout_cart_items', JSON.stringify(items));
+    }
+    // While logged in, mirror every change to the DB cart (add/edit/remove),
+    // unless we are currently hydrating from the server.
+    if (!this.suppressSync) {
+      this.scheduleServerSync();
     }
   }
 
@@ -176,6 +191,12 @@ export class CartService {
       item => !(this.matchesProduct(item.product, productId) && item.variantSku === variantSku)
     );
     this.saveCart(filtered);
+  }
+
+  // Remove every currently selected item (bulk delete from the SELECT ALL row).
+  removeSelected(): void {
+    const remaining = this.cartItems().filter(item => !item.selected);
+    this.saveCart(remaining);
   }
 
   updateQuantity(productId: ProductIdentifier, variantSku: string, quantity: number): void {
@@ -455,5 +476,105 @@ export class CartService {
       });
     }
     this.saveCheckoutSummary(currentSummary);
+  }
+
+  // ===== Guest cart merge & logged-in DB sync =====
+
+  private isAuthed(): boolean {
+    return isPlatformBrowser(this.platformId) && !!localStorage.getItem('token');
+  }
+
+  // Guest cart payload sent to the backend merge (product_id = Product._id, variant = sku).
+  getGuestCartPayload(): Array<{ product_id: string | number; variantSku: string; quantity: number; selected: boolean }> {
+    return this.cartItems().map(item => ({
+      product_id: item.product?._id ?? item.product?.product_id,
+      variantSku: item.variantSku,
+      quantity: item.quantity,
+      selected: item.selected
+    }));
+  }
+
+  // Overwrite the local cart with an authoritative cart returned by the backend
+  // (merge result or GET /cart). Does NOT re-sync back to the server.
+  replaceCartFromMerge(mergedItems: any[]): void {
+    if (!Array.isArray(mergedItems)) return;
+    const items: CartItem[] = mergedItems.map(it => ({
+      product: it.product,
+      variantSku: it.variantSku,
+      quantity: it.quantity,
+      selected: it.selected !== undefined ? it.selected : true
+    }));
+    this.suppressSync = true;
+    try {
+      this.saveCart(items);
+    } finally {
+      this.suppressSync = false;
+    }
+  }
+
+  // Debounced push of the current cart to the DB (logged-in users only).
+  private scheduleServerSync(): void {
+    if (!this.isAuthed()) return;
+    if (this.syncTimer) clearTimeout(this.syncTimer);
+    this.syncTimer = setTimeout(() => this.syncToServer(), 400);
+  }
+
+  private async syncToServer(): Promise<void> {
+    if (!this.isAuthed()) return;
+    try {
+      await this.http.put('/cart', { items: this.getGuestCartPayload() });
+    } catch (e) {
+      console.error('Cart sync to server failed:', e);
+    }
+  }
+
+  // Load the authoritative DB cart on startup when already logged in.
+  private async loadFromServerIfAuthed(): Promise<void> {
+    if (!this.isAuthed()) return;
+    try {
+      const res: any = await this.http.get('/cart');
+      if (res?.cart?.items) {
+        this.replaceCartFromMerge(res.cart.items);
+      }
+    } catch (e) {
+      // Keep the localStorage cart if the server is unreachable.
+    }
+  }
+
+  // Before a login overwrites the local cart with the merged user cart, keep a
+  // copy of the current guest cart so logout can restore it (one-way merge).
+  snapshotGuestCartForLogin(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const current = localStorage.getItem('checkout_cart_items') || '[]';
+    localStorage.setItem('guest_cart_backup', current);
+  }
+
+  // On logout, drop the user cart from local storage and restore the guest
+  // cart captured at login (the user cart stays safe in the DB).
+  restoreGuestCartOnLogout(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const backup = localStorage.getItem('guest_cart_backup');
+    let items: CartItem[] = [];
+    if (backup) {
+      try {
+        const parsed = JSON.parse(backup);
+        if (Array.isArray(parsed)) {
+          items = parsed.map((item: any) => ({
+            product: item.product,
+            variantSku: item.variantSku,
+            quantity: item.quantity,
+            selected: item.selected !== undefined ? item.selected : true
+          }));
+        }
+      } catch { /* fall back to empty guest cart */ }
+    }
+    localStorage.removeItem('guest_cart_backup');
+    // Not authed anymore, and suppressSync guards against any stray push.
+    this.suppressSync = true;
+    try {
+      this.saveCart(items);
+    } finally {
+      this.suppressSync = false;
+    }
   }
 }

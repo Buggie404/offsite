@@ -194,6 +194,9 @@ export class OrderTrackingComponent implements OnInit {
     } catch (err: any) {
       console.error('Failed to cancel order:', err);
       this.errorMessage.set(err.error?.error || 'Failed to cancel the order. Please try again.');
+      if (err.status === 401 || err.status === 403) {
+        this.authPromptModalService.open();
+      }
     } finally {
       this.isLoading.set(false);
     }
@@ -247,8 +250,7 @@ export class OrderTrackingComponent implements OnInit {
     if (ord.user_id) {
       const currentUser = this.authService.getUser();
       if (!currentUser || ord.user_id !== currentUser.user_id) {
-        alert('You are not authorized to mark this order as received. Only the user who placed this order can confirm receipt.');
-        this.errorMessage.set('You are not authorized to mark this order as received. Only the user who placed this order can confirm receipt.');
+        this.authPromptModalService.open();
         return;
       }
     }
@@ -278,6 +280,9 @@ export class OrderTrackingComponent implements OnInit {
     } catch (err: any) {
       console.error('Failed to mark order as received:', err);
       this.errorMessage.set(err.error?.error || 'Failed to update order status. Please try again.');
+      if (err.status === 401 || err.status === 403) {
+        this.authPromptModalService.open();
+      }
     } finally {
       this.isLoading.set(false);
     }
@@ -303,7 +308,7 @@ export class OrderTrackingComponent implements OnInit {
     if (ord.user_id) {
       const currentUser = this.authService.getUser();
       if (!currentUser || currentUser.user_id !== ord.user_id) {
-        alert('Access denied. You do not have permission to request a refund for this order.');
+        this.authPromptModalService.open();
         return;
       }
     }
@@ -460,9 +465,12 @@ export class OrderTrackingComponent implements OnInit {
       } else {
         this.router.navigate(['/checkout/payment-qr'], { state: { order: updatedOrder } });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to reset payment status on backend for retry:', err);
       alert('Failed to initiate a new payment session. Please try again.');
+      if (err.status === 401 || err.status === 403) {
+        this.authPromptModalService.open();
+      }
     }
   }
 

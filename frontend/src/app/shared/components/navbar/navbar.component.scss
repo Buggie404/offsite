@@ -2131,9 +2131,36 @@
     .select-all-row {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       padding-bottom: 8px;
       border-bottom: 1px solid var(--color-latte);
       margin-bottom: 4px;
+
+      .remove-selected-btn {
+        background: transparent;
+        border: none;
+        color: var(--color-warm-brown);
+        opacity: 0.7;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px;
+        border-radius: 4px;
+        flex-shrink: 0;
+        transition: opacity 0.2s, background-color 0.2s, color 0.2s;
+
+        &:hover:not(:disabled) {
+          opacity: 1;
+          color: #e53935;
+          background-color: rgba(84, 74, 64, 0.05);
+        }
+
+        &:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+      }
 
       .select-all-container {
         display: flex;
@@ -2142,7 +2169,7 @@
         cursor: pointer;
         user-select: none;
         position: relative;
-        width: 100%;
+        width: auto;
 
         input {
           position: absolute;

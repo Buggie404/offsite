@@ -53,22 +53,27 @@
       <section class="form-card">
         <h2 class="section-title font-header"><span class="bullet">•</span> REFUND TO</h2>
         
-        <div class="refund-destination-box">
+        <div class="refund-destination-box" 
+             [class.clickable]="order().payment?.method === 'cod' || order().payment?.method === 'qr'"
+             (click)="openPaymentModal()">
           <div class="destination-icon-box" [class.no-bg]="getPaymentThumbnail(order())">
-            <img *ngIf="getPaymentThumbnail(order())" [src]="getPaymentThumbnail(order())" [alt]="order().payment?.card_info?.brand" class="dest-thumb-img" />
-            <svg *ngIf="!getPaymentThumbnail(order()) && order().payment?.method === 'cod'" lucideBanknote [size]="20" class="dest-icon"></svg>
-            <svg *ngIf="!getPaymentThumbnail(order()) && order().payment?.method === 'qr'" lucideQrCode [size]="20" class="dest-icon"></svg>
+            <img *ngIf="getPaymentThumbnail(order())" [src]="getPaymentThumbnail(order())" [alt]="getPaymentLabel(order())" class="dest-thumb-img" />
+            <svg *ngIf="!getPaymentThumbnail(order()) && (order().payment?.method === 'cod' || order().payment?.method === 'qr') && !selectedRefundPayment()" lucideCreditCard [size]="20" class="dest-icon"></svg>
+            <svg *ngIf="!getPaymentThumbnail(order()) && order().payment?.method === 'bank_transfer'" lucideBanknote [size]="20" class="dest-icon"></svg>
           </div>
           <div class="destination-details">
-            <div class="destination-title font-body font-bold">
+            <div class="destination-title font-body" [class.font-bold]="selectedRefundPayment() || (order().payment?.method !== 'cod' && order().payment?.method !== 'qr')">
               {{ getPaymentLabel(order()) }}
             </div>
             <div class="destination-subtitle font-body">
-              Refund will be processed to this card/account
+              {{ (order().payment?.method === 'cod' || order().payment?.method === 'qr') && !selectedRefundPayment() ? 'Click to select card or bank details' : 'Refund will be processed to this card/account' }}
             </div>
           </div>
-          <div class="check-icon-circle">
+          <div class="check-icon-circle" *ngIf="(order().payment?.method !== 'cod' && order().payment?.method !== 'qr') || selectedRefundPayment()">
             <svg lucideCheck [size]="12"></svg>
+          </div>
+          <div class="select-chevron-icon" *ngIf="(order().payment?.method === 'cod' || order().payment?.method === 'qr') && !selectedRefundPayment()">
+            <svg lucideChevronDown [size]="16" style="color: var(--color-warm-brown)"></svg>
           </div>
         </div>
 
@@ -216,6 +221,186 @@
       </div>
     </aside>
 
+  </div>
+</div>
+
+<!-- ================= SELECT REFUND PAYMENT MODAL OVERLAY ================= -->
+<div class="refund-modal-overlay animate-fade-in" *ngIf="showRefundPaymentModal() && order()" (click)="closePaymentModal()">
+    <div class="refund-modal-container animate-scale-up" (click)="$event.stopPropagation()">
+    <header class="refund-modal-header">
+      <h3 class="refund-modal-title font-header">Select Refund Payment Method</h3>
+      <button type="button" class="close-btn" (click)="closePaymentModal()" aria-label="Close modal">
+        <svg lucideX [size]="20"></svg>
+      </button>
+    </header>
+
+    <div class="refund-modal-body">
+      <!-- Option Cards (Bank Transfer / Credit Card tabs) if adding new or no saved cards -->
+      <div class="option-grid option-grid--2" *ngIf="isAddingNew() || savedCards().length === 0">
+        <button type="button" class="option-card option-card--pay" [class.selected]="modalPaymentMethod() === 'bank_transfer'"
+          (click)="selectModalPaymentMethod('bank_transfer')">
+          <span class="pay-icon">
+            <svg lucideLandmark [size]="20"></svg>
+          </span>
+          <div class="pay-text">
+            <div class="pay-title font-body font-bold">Bank Transfer</div>
+            <div class="pay-caption font-body">NAPAS Domestic Card</div>
+          </div>
+          <span class="option-card__radio">
+            <svg *ngIf="modalPaymentMethod() === 'bank_transfer'" lucideCheck [size]="14"></svg>
+          </span>
+        </button>
+
+        <button type="button" class="option-card option-card--pay" [class.selected]="modalPaymentMethod() === 'card'"
+          (click)="selectModalPaymentMethod('card')">
+          <span class="pay-icon">
+            <svg lucideCreditCard [size]="20"></svg>
+          </span>
+          <div class="pay-text">
+            <div class="pay-title font-body font-bold">Credit / Debit Card</div>
+            <div class="pay-caption font-body">Visa, Mastercard</div>
+          </div>
+          <span class="option-card__radio">
+            <svg *ngIf="modalPaymentMethod() === 'card'" lucideCheck [size]="14"></svg>
+          </span>
+        </button>
+      </div>
+
+      <!-- Saved Cards list for logged-in users -->
+      <div *ngIf="!isAddingNew() && savedCards().length > 0" class="saved-cards-list">
+        <p class="section-desc font-body">Choose one of your saved cards to receive the refund:</p>
+        <div *ngFor="let card of savedCards()" class="saved-card-item"
+          [class.selected]="selectedSavedCardId() === card._id"
+          [class.expired]="isCardExpired(card.expire_date)"
+          (click)="selectSavedCard(card._id)">
+          <div class="card-radio">
+            <span class="radio-dot" [class.active]="selectedSavedCardId() === card._id">
+              <svg *ngIf="selectedSavedCardId() === card._id" lucideCheck [size]="12"></svg>
+            </span>
+          </div>
+
+          <div class="card-thumbnail-wrapper">
+            <img [src]="getCardThumbnail(card)" [alt]="getCardBrand(card)" class="card-thumbnail-img" />
+          </div>
+
+          <div class="card-info font-body">
+            <div class="card-brand-name font-bold">
+              {{ card.card_type === 'NAPAS' ? (card.issued_bank || 'NAPAS Domestic') : (getCardBrand(card) === 'visa' ? 'Visa' : 'Mastercard') }}
+            </div>
+            <div class="card-mask font-mono">
+              •••• •••• •••• {{ card.card_number.replace(' ', '').slice(-4) }}
+            </div>
+            <div class="card-holder font-bold uppercase" style="font-size: 11px; color: var(--color-warm-brown); margin-top: 4px;">
+              {{ card.cardholder_name }}
+            </div>
+          </div>
+
+          <div class="card-expiry-badge font-body" *ngIf="isCardExpired(card.expire_date)">Expired</div>
+        </div>
+
+        <!-- Add New trigger -->
+        <div class="saved-card-item add-card-trigger" (click)="openAddNewForm()">
+          <div class="card-radio">
+            <span class="radio-dot">
+              <svg lucidePlus [size]="12"></svg>
+            </span>
+          </div>
+          <div class="card-info font-body font-bold">
+            Use a different card or bank account
+          </div>
+        </div>
+      </div>
+
+      <!-- Form for Bank Transfer -->
+      <div class="modal-form-fields" *ngIf="(isAddingNew() || savedCards().length === 0) && modalPaymentMethod() === 'bank_transfer'">
+        <div class="inline-field">
+          <label class="font-body font-bold">ACCOUNT HOLDER NAME</label>
+          <input type="text" [(ngModel)]="cardForm.cardholder_name" id="refund-bank-holder-name" (blur)="formatCardholderName()" placeholder="Full Name" />
+          <div id="refund-bank-holder-name-error" class="field-error animate-fade-in"></div>
+        </div>
+        
+        <div class="inline-field">
+          <label class="font-body font-bold">CARD / ACCOUNT NUMBER</label>
+          <div class="input-with-icon">
+            <input type="text" [(ngModel)]="cardForm.card_number" id="refund-bank-num" (blur)="formatCardNumber()" placeholder="9704 3859 2952 5871" />
+            <img src="assets/images/payment_napas.png" class="inline-brand-icon" />
+          </div>
+          <div id="refund-bank-num-error" class="field-error animate-fade-in"></div>
+        </div>
+
+        <div class="inline-row-fields">
+          <div class="inline-field">
+            <label class="font-body font-bold">EXPIRY DATE</label>
+            <input type="text" [(ngModel)]="cardForm.expire_date" id="refund-bank-expiry" placeholder="MM / YY" />
+            <div id="refund-bank-expiry-error" class="field-error animate-fade-in"></div>
+          </div>
+          
+          <div class="inline-field">
+            <label class="font-body font-bold">ISSUED BANK</label>
+            <div class="select-wrapper">
+              <select [(ngModel)]="cardForm.issued_bank" id="refund-bank-issued" class="custom-select font-body">
+                <option value="" disabled selected hidden>Select bank</option>
+                <option *ngFor="let bank of bankList" [value]="bank">{{ bank }}</option>
+              </select>
+              <svg lucideChevronDown [size]="18" class="select-arrow"></svg>
+            </div>
+            <div id="refund-bank-issued-error" class="field-error animate-fade-in"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form for Credit / Debit Card -->
+      <div class="modal-form-fields" *ngIf="(isAddingNew() || savedCards().length === 0) && modalPaymentMethod() === 'card'">
+        <div class="inline-field">
+          <label class="font-body font-bold">CARDHOLDER NAME</label>
+          <input type="text" [(ngModel)]="cardForm.cardholder_name" id="refund-card-holder-name" (blur)="formatCardholderName()" placeholder="Full Name" />
+          <div id="refund-card-holder-name-error" class="field-error animate-fade-in"></div>
+        </div>
+        
+        <div class="inline-field">
+          <label class="font-body font-bold">CARD NUMBER</label>
+          <div class="input-with-icon">
+            <input type="text" [(ngModel)]="cardForm.card_number" id="refund-card-num" (blur)="formatCardNumber()" placeholder="4123 3859 2952 5871" />
+            <img *ngIf="inlineCardBrand === 'Visa'" src="assets/images/payment_visa.png" class="inline-brand-icon" />
+            <img *ngIf="inlineCardBrand === 'Mastercard'" src="assets/images/payment_mastercard.png" class="inline-brand-icon" />
+          </div>
+          <div id="refund-card-num-error" class="field-error animate-fade-in"></div>
+        </div>
+
+        <div class="inline-row-fields">
+          <div class="inline-field">
+            <label class="font-body font-bold">EXPIRY DATE</label>
+            <input type="text" [(ngModel)]="cardForm.expire_date" id="refund-card-expiry" placeholder="MM / YY" />
+            <div id="refund-card-expiry-error" class="field-error animate-fade-in"></div>
+          </div>
+          
+          <div class="inline-field">
+            <label class="font-body font-bold">CVV</label>
+            <input type="text" [(ngModel)]="cardForm.cvc" id="refund-card-cvc" placeholder="941" />
+            <div id="refund-card-cvc-error" class="field-error animate-fade-in"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contact support helper -->
+      <p class="contact-support-helper font-body">
+        Don't have a card? Please <a routerLink="/contact-us" (click)="closePaymentModal()" class="contact-us-link">contact us</a> to help.
+      </p>
+    </div>
+
+    <footer class="refund-modal-footer">
+      <button type="button" class="btn btn-secondary font-body" *ngIf="isAddingNew() && savedCards().length > 0" (click)="isAddingNew.set(false)">
+        BACK TO LIST
+      </button>
+      <button type="button" class="btn btn-secondary font-body" (click)="closePaymentModal()">
+        CANCEL
+      </button>
+      <button type="button" class="btn btn-primary font-body" 
+        [disabled]="(isAddingNew() || savedCards().length === 0) ? !isModalFormValid : !selectedSavedCardId()"
+        (click)="confirmPaymentSelection()">
+        CONFIRM
+      </button>
+    </footer>
   </div>
 </div>
 

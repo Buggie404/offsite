@@ -54,6 +54,14 @@ export class ChangePaymentModalComponent implements OnChanges, OnDestroy {
   loading = signal(false);
   errorMessage = signal<string | null>(null);
 
+  get savedCreditCards(): UserPaymentMethod[] {
+    return this.savedCards().filter(c => c.card_type !== 'NAPAS');
+  }
+
+  get savedNapasCards(): UserPaymentMethod[] {
+    return this.savedCards().filter(c => c.card_type === 'NAPAS');
+  }
+
   cardForm = {
     card_type: 'credit' as 'credit' | 'debit' | 'NAPAS',
     card_number: '',
@@ -173,14 +181,23 @@ export class ChangePaymentModalComponent implements OnChanges, OnDestroy {
 
     if (id === 'bank_transfer') {
       this.setupBankValidator();
+      const defaultNapas = this.savedNapasCards.find(c => c.is_default && !this.isCardExpired(c.expire_date))
+        || this.savedNapasCards.find(c => !this.isCardExpired(c.expire_date));
+      this.selectedCardId.set(defaultNapas?._id || null);
     } else if (this.bankValidator) {
       this.bankValidator.detach();
       this.bankValidator = null;
     }
 
-    if (id === 'card' && this.savedCards().length === 0) {
-      this.cardForm.card_type = 'credit';
-      this.setupCardValidator();
+    if (id === 'card') {
+      if (this.savedCreditCards.length === 0) {
+        this.cardForm.card_type = 'credit';
+        this.setupCardValidator();
+      } else {
+        const defaultCredit = this.savedCreditCards.find(c => c.is_default && !this.isCardExpired(c.expire_date))
+          || this.savedCreditCards.find(c => !this.isCardExpired(c.expire_date));
+        this.selectedCardId.set(defaultCredit?._id || null);
+      }
     } else if (this.cardValidator) {
       this.cardValidator.detach();
       this.cardValidator = null;
@@ -194,18 +211,29 @@ export class ChangePaymentModalComponent implements OnChanges, OnDestroy {
   }
 
   openAddCardModal(): void {
-    this.cardForm = {
-      card_type: 'credit',
-      card_number: '',
-      cardholder_name: '',
-      expire_date: '',
-      cvc: '',
-      issued_bank: '',
-      is_default: this.savedCards().length === 0
-    };
     this.selectedCardId.set(null);
     this.showInlineCardForm.set(true);
-    this.setupCardValidator();
+
+    if (this.paymentMethod() === 'bank_transfer') {
+      this.bankForm = {
+        card_number: '',
+        cardholder_name: '',
+        expire_date: '',
+        issued_bank: ''
+      };
+      this.setupBankValidator();
+    } else {
+      this.cardForm = {
+        card_type: 'credit',
+        card_number: '',
+        cardholder_name: '',
+        expire_date: '',
+        cvc: '',
+        issued_bank: '',
+        is_default: this.savedCreditCards.length === 0
+      };
+      this.setupCardValidator();
+    }
   }
 
   cancelAddCard(): void {
@@ -213,6 +241,10 @@ export class ChangePaymentModalComponent implements OnChanges, OnDestroy {
     if (this.cardValidator) {
       this.cardValidator.detach();
       this.cardValidator = null;
+    }
+    if (this.bankValidator) {
+      this.bankValidator.detach();
+      this.bankValidator = null;
     }
   }
 
@@ -237,6 +269,42 @@ export class ChangePaymentModalComponent implements OnChanges, OnDestroy {
     } catch (err) {
       console.error('Failed to save card:', err);
       this.errorMessage.set('Failed to save card. Please try again.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async saveNapasCard(): Promise<void> {
+    if (this.bankValidator && !this.bankValidator.validateAll()) return;
+    if (!this.isBankFormValid) return;
+
+    try {
+      this.loading.set(true);
+      const cleanNum = this.bankForm.card_number.replace(/\s+/g, '');
+      const napasCardPayload = {
+        card_type: 'NAPAS' as const,
+        card_number: cleanNum,
+        cardholder_name: this.bankForm.cardholder_name,
+        expire_date: this.bankForm.expire_date,
+        cvc: '',
+        issued_bank: this.bankForm.issued_bank,
+        is_default: this.savedNapasCards.length === 0
+      };
+      const res = await this.checkoutService.addUserPaymentMethod(napasCardPayload);
+      const profile = await this.checkoutService.getUserProfile();
+      const cards = (profile.payment_methods || []).slice().sort((a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0));
+      this.savedCards.set(cards);
+      if (res.payment_method?._id) {
+        this.selectedCardId.set(res.payment_method._id);
+      }
+      this.showInlineCardForm.set(false);
+      if (this.bankValidator) {
+        this.bankValidator.detach();
+        this.bankValidator = null;
+      }
+    } catch (err) {
+      console.error('Failed to save Napas card:', err);
+      this.errorMessage.set('Failed to save bank card. Please try again.');
     } finally {
       this.loading.set(false);
     }
@@ -354,13 +422,16 @@ export class ChangePaymentModalComponent implements OnChanges, OnDestroy {
     const method = this.paymentMethod();
     if (method === 'cod' || method === 'qr') return false;
     if (method === 'card') {
-      if (this.showInlineCardForm() || this.savedCards().length === 0) {
+      if (this.showInlineCardForm() || this.savedCreditCards.length === 0) {
         return !this.isCardFormValid;
       }
       return !this.selectedCardId();
     }
     if (method === 'bank_transfer') {
-      return !this.isBankFormValid;
+      if (this.showInlineCardForm() || this.savedNapasCards.length === 0) {
+        return !this.isBankFormValid;
+      }
+      return !this.selectedCardId();
     }
     return false;
   }
@@ -427,7 +498,7 @@ export class ChangePaymentModalComponent implements OnChanges, OnDestroy {
     const paymentPayload: any = { method };
 
     if (method === 'card') {
-      if (this.showInlineCardForm() || this.savedCards().length === 0) {
+      if (this.showInlineCardForm() || this.savedCreditCards.length === 0) {
         if (this.cardValidator && !this.cardValidator.validateAll()) return;
         const cleanNum = this.cardForm.card_number.replace(/\s+/g, '');
         let brand = 'Visa';
@@ -442,7 +513,7 @@ export class ChangePaymentModalComponent implements OnChanges, OnDestroy {
           expire_date: this.cardForm.expire_date,
           cvc: this.cardForm.cvc,
           issued_bank: this.cardForm.issued_bank,
-          is_default: this.savedCards().length === 0
+          is_default: this.savedCreditCards.length === 0
         };
       } else {
         const selectedCard = this.savedCards().find(c => c._id === this.selectedCardId());
@@ -456,17 +527,26 @@ export class ChangePaymentModalComponent implements OnChanges, OnDestroy {
         paymentPayload.card_info = { brand, last4: selectedCard.card_number.slice(-4) };
       }
     } else if (method === 'bank_transfer') {
-      if (this.bankValidator && !this.bankValidator.validateAll()) return;
-      const cleanNum = this.bankForm.card_number.replace(/\s+/g, '');
-      paymentPayload.card_info = { brand: 'Napas', last4: cleanNum.slice(-4) };
-      paymentPayload.full_card_info = {
-        card_type: 'NAPAS',
-        card_number: cleanNum,
-        cardholder_name: this.bankForm.cardholder_name,
-        expire_date: this.bankForm.expire_date,
-        issued_bank: this.bankForm.issued_bank,
-        is_default: false
-      };
+      if (this.showInlineCardForm() || this.savedNapasCards.length === 0) {
+        if (this.bankValidator && !this.bankValidator.validateAll()) return;
+        const cleanNum = this.bankForm.card_number.replace(/\s+/g, '');
+        paymentPayload.card_info = { brand: 'Napas', last4: cleanNum.slice(-4) };
+        paymentPayload.full_card_info = {
+          card_type: 'NAPAS',
+          card_number: cleanNum,
+          cardholder_name: this.bankForm.cardholder_name,
+          expire_date: this.bankForm.expire_date,
+          issued_bank: this.bankForm.issued_bank,
+          is_default: false
+        };
+      } else {
+        const selectedCard = this.savedCards().find(c => c._id === this.selectedCardId());
+        if (!selectedCard) {
+          this.errorMessage.set('Please select a card or add a new one.');
+          return;
+        }
+        paymentPayload.card_info = { brand: 'Napas', last4: selectedCard.card_number.slice(-4) };
+      }
     }
 
     if (!this.orderId) return;

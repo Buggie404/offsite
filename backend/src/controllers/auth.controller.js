@@ -4,6 +4,7 @@ const { getCollections } = require('../config/db');
 const ACCESS_SECRET   = process.env.JWT_SECRET         || 'fallback-secret-key';
 const REFRESH_SECRET  = process.env.JWT_REFRESH_SECRET  || 'refresh_secret_dev';
 const { ObjectId } = require('mongodb');
+const { mergeGuestCartIntoUser } = require('../services/cart-merge.service');
 
 // Chuẩn hóa
 function normalizeIdentity(value, isEmail = false) {
@@ -178,16 +179,28 @@ async function login(req, res) {
       return res.status(401).json({ error: 'Mật khẩu không chính xác.', code: 'INCORRECT_PASSWORD' });
     }
 
-    // Ký JWT Token    
+    // Ký JWT Token
     const token = jwt.sign(
       { user_id: user._id, email: user.email || '', role: user.role },
       ACCESS_SECRET,
       { expiresIn: '8h' }
     );
 
+    // Merge guest cart (localStorage payload) into this user's DB cart.
+    // Guest -> user, one way; only activates when guestCart has items.
+    // Never let a merge failure block login.
+    let mergedCart = null;
+    try {
+      const guestCart = req.body.guestCart || req.body.guestItems || [];
+      mergedCart = await mergeGuestCartIntoUser(user.user_id, guestCart);
+    } catch (mergeErr) {
+      console.error('Cart merge on login failed:', mergeErr.message);
+    }
+
     res.json({
       message: 'Đăng nhập thành công',
       token,
+      cart: mergedCart,
       user: {
         _id: user._id,
         user_id: user.user_id,

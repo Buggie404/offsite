@@ -521,6 +521,10 @@
         <span class="checkmark"></span>
         <span class="select-all-label">SELECT ALL</span>
       </label>
+      <button type="button" class="remove-selected-btn" (click)="removeSelected()"
+              [disabled]="!hasSelectedItems" aria-label="Remove selected items">
+        <svg lucideTrash2 [size]="18"></svg>
+      </button>
     </div>
 
     <div class="subtotal-row">

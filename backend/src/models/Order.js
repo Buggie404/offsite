@@ -40,7 +40,8 @@ const paymentSchema = new mongoose.Schema({
   },
   card_info: {
     brand: { type: String, default: null }, // "Visa" | "Mastercard" | "Napas"
-    last4: { type: String, default: null }
+    last4: { type: String, default: null },
+    cardholder_name: { type: String, default: null }
   }
 }, { _id: false });
 
@@ -198,6 +199,9 @@ orderSchema.pre('save', async function(next) {
   } else if (this.payment && this.payment.method === 'cod') {
     if (this.isNew && !this.order_status) {
       this.order_status = 'pending';
+    }
+    if (this.order_status === 'delivered') {
+      this.payment_status = 'paid';
     }
   }
 

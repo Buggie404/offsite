@@ -24,7 +24,7 @@ export class OAuthSuccessComponent implements OnInit {
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
 
-    this.route.queryParams.subscribe(params => {
+    this.route.queryParams.subscribe(async params => {
       const token = params['token'];
 
       if (!token) {
@@ -33,6 +33,8 @@ export class OAuthSuccessComponent implements OnInit {
       }
 
       this.authService.handleOAuthSuccess(token);
+      // Merge the guest cart now that the token is stored.
+      await this.authService.mergeGuestCartAfterOAuth();
       this.authModalService.close();
 
       this.router.navigate(['/']);

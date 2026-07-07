@@ -776,72 +776,79 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       // Load user profile if logged in
       await this.loadUserProfile();
 
-      // Restore delivery details and selection states if saved from a previous redirect
-      const savedDelivery = localStorage.getItem('checkout_delivery_info');
-      if (savedDelivery) {
-        try {
-          const parsed = JSON.parse(savedDelivery);
-          if (parsed) {
-            this.delivery.name = parsed.name || '';
-            this.delivery.mobile = parsed.mobile || '';
-            this.delivery.email = parsed.email || '';
-            this.delivery.city = parsed.city || '';
-            this.delivery.address = parsed.address || '';
-            this.delivery.note = parsed.note || '';
+      // Restore delivery details and selection states if saved from a previous redirect and has pre-existing info
+      const hasPreExistingInfo = this.authService.isAuthenticated() && this.savedAddresses().length > 0 && this.savedCards().length > 0;
+      if (hasPreExistingInfo) {
+        const savedDelivery = localStorage.getItem('checkout_delivery_info');
+        if (savedDelivery) {
+          try {
+            const parsed = JSON.parse(savedDelivery);
+            if (parsed) {
+              this.delivery.name = parsed.name || '';
+              this.delivery.mobile = parsed.mobile || '';
+              this.delivery.email = parsed.email || '';
+              this.delivery.city = parsed.city || '';
+              this.delivery.address = parsed.address || '';
+              this.delivery.note = parsed.note || '';
 
-            if (parsed.selectedAddressId !== undefined) {
-              this.selectedAddressId.set(parsed.selectedAddressId);
-            }
-            if (parsed.selectedCardId !== undefined) {
-              this.selectedCardId.set(parsed.selectedCardId);
-            }
-            if (parsed.paymentMethod !== undefined) {
-              this.paymentMethod.set(parsed.paymentMethod);
-            }
+              if (parsed.selectedAddressId !== undefined) {
+                this.selectedAddressId.set(parsed.selectedAddressId);
+              }
+              if (parsed.selectedCardId !== undefined) {
+                this.selectedCardId.set(parsed.selectedCardId);
+              }
+              if (parsed.paymentMethod !== undefined) {
+                this.paymentMethod.set(parsed.paymentMethod);
+              }
 
-            // Clear any validation errors showing up upon restoration
-            this.nameError.set(null);
-            this.mobileError.set(null);
-            this.cityError.set(null);
-            this.addressError.set(null);
+              // Clear any validation errors showing up upon restoration
+              this.nameError.set(null);
+              this.mobileError.set(null);
+              this.cityError.set(null);
+              this.addressError.set(null);
+            }
+          } catch (e) {
+            console.error('Failed to parse saved delivery info:', e);
           }
-        } catch (e) {
-          console.error('Failed to parse saved delivery info:', e);
         }
-      }
 
-      // Restore card details if saved
-      const savedCard = localStorage.getItem('checkout_card_info');
-      if (savedCard) {
-        try {
-          const parsed = JSON.parse(savedCard);
-          if (parsed && parsed.cardForm) {
-            this.cardForm = {
-              ...this.cardForm,
-              ...parsed.cardForm
-            };
-            if (parsed.showInlineCardForm !== undefined) {
-              this.showInlineCardForm.set(parsed.showInlineCardForm);
+        // Restore card details if saved
+        const savedCard = localStorage.getItem('checkout_card_info');
+        if (savedCard) {
+          try {
+            const parsed = JSON.parse(savedCard);
+            if (parsed && parsed.cardForm) {
+              this.cardForm = {
+                ...this.cardForm,
+                ...parsed.cardForm
+              };
+              if (parsed.showInlineCardForm !== undefined) {
+                this.showInlineCardForm.set(parsed.showInlineCardForm);
+              }
             }
+          } catch (e) {
+            console.error('Failed to parse saved card info:', e);
           }
-        } catch (e) {
-          console.error('Failed to parse saved card info:', e);
         }
-      }
 
-      const savedBank = localStorage.getItem('checkout_bank_info');
-      if (savedBank) {
-        try {
-          const parsed = JSON.parse(savedBank);
-          if (parsed && parsed.bankForm) {
-            this.bankForm = {
-              ...this.bankForm,
-              ...parsed.bankForm
-            };
+        const savedBank = localStorage.getItem('checkout_bank_info');
+        if (savedBank) {
+          try {
+            const parsed = JSON.parse(savedBank);
+            if (parsed && parsed.bankForm) {
+              this.bankForm = {
+                ...this.bankForm,
+                ...parsed.bankForm
+              };
+            }
+          } catch (e) {
+            console.error('Failed to parse saved bank info:', e);
           }
-        } catch (e) {
-          console.error('Failed to parse saved bank info:', e);
         }
+      } else {
+        localStorage.removeItem('checkout_delivery_info');
+        localStorage.removeItem('checkout_card_info');
+        localStorage.removeItem('checkout_bank_info');
       }
 
       // Set up payment validators if payment method is restored and forms are visible
@@ -1064,25 +1071,42 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         });
         this.savedCards.set(cards);
 
-        // Auto select default address
-        if (addresses.length > 0) {
+        // Auto select default address and card only if BOTH exist
+        if (addresses.length > 0 && cards.length > 0) {
           const defAddr = addresses.find((a: UserAddress) => a.is_default) || addresses[0];
           if (defAddr && defAddr._id) {
             this.selectAddress(defAddr);
           }
-        }
 
-        // Auto select default card
-        if (cards.length > 0) {
           const defCard = cards.find((c: UserPaymentMethod) => c.is_default) || cards[0];
           if (defCard && defCard._id) {
             this.selectedCardId.set(defCard._id);
             this.paymentMethod.set('card');
           }
+        } else {
+          this.paymentMethod.set('cod');
+          this.selectedAddressId.set(null);
+          this.selectedCardId.set(null);
+          this.delivery.name = '';
+          this.delivery.mobile = '';
+          this.delivery.email = '';
+          this.delivery.city = '';
+          this.delivery.address = '';
+          this.delivery.note = '';
         }
       } catch (err) {
         console.error('Failed to load user profile:', err);
       }
+    } else {
+      this.paymentMethod.set('cod');
+      this.selectedAddressId.set(null);
+      this.selectedCardId.set(null);
+      this.delivery.name = '';
+      this.delivery.mobile = '';
+      this.delivery.email = '';
+      this.delivery.city = '';
+      this.delivery.address = '';
+      this.delivery.note = '';
     }
   }
 
@@ -1847,7 +1871,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       paymentPayload.method = 'card';
       paymentPayload.card_info = {
         brand: brand,
-        last4: cleanNum.slice(-4)
+        last4: cleanNum.slice(-4),
+        cardholder_name: this.cardForm.cardholder_name
       };
       
       paymentPayload.full_card_info = {
@@ -1867,7 +1892,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       const cleanNum = this.bankForm.card_number.replace(/\s+/g, '');
       paymentPayload.card_info = {
         brand: 'Napas',
-        last4: cleanNum.slice(-4)
+        last4: cleanNum.slice(-4),
+        cardholder_name: this.bankForm.cardholder_name
       };
       paymentPayload.full_card_info = {
         card_type: 'NAPAS',
@@ -1886,7 +1912,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
         paymentPayload.card_info = {
           brand: brand,
-          last4: selectedCard.card_number.slice(-4)
+          last4: selectedCard.card_number.slice(-4),
+          cardholder_name: selectedCard.cardholder_name
         };
       }
     }
