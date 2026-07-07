@@ -145,4 +145,21 @@
   --timeline-cancel-bg: rgba(220, 53, 69, 0.12);
   --timeline-cancel-border: rgba(220, 53, 69, 0.4);
   --timeline-cancel-text: #842029;
+
+  /* Build your bundle */
+  --bundle-aside-bg: var(--color-wheat);
+  --bundle-kit-active-bg: var(--color-sage);
+  --bundle-kit-inactive-bg: var(--color-cream);
+  --bundle-kit-border: var(--divider-color);
+  --bundle-card-bg: #fcf2ed;
+  --bundle-card-border: #e8d4af;
+  --bundle-slot-bg: var(--color-cream);
+  --bundle-best-seller-bg: #efb5cf;
+  --bundle-tag-bg: #eae1dc;
+  --bundle-origin-text: #434840;
+  --bundle-product-title: #1f1b18;
+  --bundle-rating-text: #213e1f;
+  --bundle-page-bg: var(--color-cream);
+  --bundle-cta-bg: var(--color-forest-green);
+  --bundle-cta-text: var(--color-cream);
 }
