@@ -17,11 +17,20 @@ import {
   LucideChevronDown,
   LucideTrash2,
   LucidePlus,
-  LucideMinus
+  LucideMinus,
+  LucideBookOpen,
+  LucidePackage,
+  LucideChefHat,
+  LucideArrowRight
 } from '@lucide/angular';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
 import { CartService, CartItem } from '../../../features/purchase/services/cart.service';
+import { ProductService } from '../../../features/home/services/product.service';
+import { RecipeService } from '../../../features/home/services/recipe.service';
+import { ContentService } from '../../../features/content/services/content.service';
+import { Product } from '../../../features/home/models/product.model';
+import { Recipe } from '../../../features/home/models/recipe.model';
 import { FormsModule } from '@angular/forms';
 
 @Component({
@@ -45,6 +54,10 @@ import { FormsModule } from '@angular/forms';
     LucideTrash2,
     LucidePlus,
     LucideMinus,
+    LucideBookOpen,
+    LucidePackage,
+    LucideChefHat,
+    LucideArrowRight,
     FormsModule
   ],
   templateUrl: './navbar.component.html',
@@ -57,6 +70,9 @@ export class NavbarComponent implements OnInit {
   private elementRef = inject(ElementRef);
   private router = inject(Router);
   private cartService = inject(CartService);
+  private productService = inject(ProductService);
+  private recipeService = inject(RecipeService);
+  private contentService = inject(ContentService);
 
   isPromobarVisible = true;
   isMobileMenuOpen = false;
@@ -66,6 +82,19 @@ export class NavbarComponent implements OnInit {
   isSearchOpen = false;
   isAboutDropdownOpen = false;
   isSignOutModalOpen = false;
+
+  searchQuery = '';
+  hasSearched = false;
+  searchFilter: 'ALL' | 'PRODUCTS' | 'JOURNAL' | 'RECIPES' = 'ALL';
+  isLoadingResults = false;
+
+  allProducts: Product[] = [];
+  allRecipes: Recipe[] = [];
+  allBlogs: any[] = [];
+
+  filteredProducts: Product[] = [];
+  filteredRecipes: Recipe[] = [];
+  filteredBlogs: any[] = [];
 
   showSuccessModal = false;
   successModalConfig: SuccessModalConfig = {
@@ -224,6 +253,13 @@ export class NavbarComponent implements OnInit {
     }
     this.isSearchOpen = true;
     this.isMobileMenuOpen = false; // Close mobile drawer if open
+    this.searchQuery = '';
+    this.hasSearched = false;
+    this.searchFilter = 'ALL';
+    if (this.searchInput) {
+      this.searchInput.nativeElement.value = '';
+    }
+    this.loadSearchData();
     setTimeout(() => {
       if (this.searchInput) {
         this.searchInput.nativeElement.focus();
@@ -233,24 +269,174 @@ export class NavbarComponent implements OnInit {
 
   closeSearch(): void {
     this.isSearchOpen = false;
+    this.searchQuery = '';
+    this.hasSearched = false;
     if (this.searchInput) {
       this.searchInput.nativeElement.value = '';
     }
   }
 
+  clearSearch(): void {
+    this.searchQuery = '';
+    this.hasSearched = false;
+    this.filteredProducts = [];
+    this.filteredRecipes = [];
+    this.filteredBlogs = [];
+    if (this.searchInput) {
+      this.searchInput.nativeElement.value = '';
+      this.searchInput.nativeElement.focus();
+    }
+  }
+
+  loadSearchData(): void {
+    this.isLoadingResults = true;
+    
+    // Fetch all products
+    this.productService.getProducts().subscribe({
+      next: (products) => {
+        this.allProducts = products;
+        this.filterResults();
+        this.isLoadingResults = false;
+      },
+      error: (err) => {
+        console.error('Error fetching search products:', err);
+        this.isLoadingResults = false;
+      }
+    });
+
+    // Fetch all recipes
+    this.recipeService.getRecipes(100).subscribe({
+      next: (recipes) => {
+        this.allRecipes = recipes;
+        this.filterResults();
+      },
+      error: (err) => console.error('Error fetching search recipes:', err)
+    });
+
+    // Fetch all blogs
+    this.contentService.getBlogs({ limit: 100 }).subscribe({
+      next: (res) => {
+        this.allBlogs = res.data || [];
+        this.filterResults();
+      },
+      error: (err) => console.error('Error fetching search blogs:', err)
+    });
+  }
+
+  onSearchInput(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.searchQuery = value;
+    if (!value.trim()) {
+      this.hasSearched = false;
+      this.filteredProducts = [];
+      this.filteredRecipes = [];
+      this.filteredBlogs = [];
+    } else {
+      this.hasSearched = true;
+      this.filterResults();
+    }
+  }
+
+  filterResults(): void {
+    const q = this.searchQuery.toLowerCase().trim();
+    if (!q) {
+      this.filteredProducts = [];
+      this.filteredRecipes = [];
+      this.filteredBlogs = [];
+      return;
+    }
+
+    const keywords = q.split(/\s+/).filter(Boolean);
+
+    this.filteredProducts = this.allProducts.filter(p => {
+      const searchableText = `${p.name || ''} ${p.description || ''} ${p.category || ''}`.toLowerCase();
+      return keywords.every(kw => searchableText.includes(kw));
+    });
+
+    this.filteredRecipes = this.allRecipes.filter(r => {
+      const tagsStr = (r.metadata?.tags || []).join(' ');
+      const searchableText = `${r.title || ''} ${r.description || ''} ${tagsStr}`.toLowerCase();
+      return keywords.every(kw => searchableText.includes(kw));
+    });
+
+    this.filteredBlogs = this.allBlogs.filter(b => {
+      const tagsStr = (b.tags || []).join(' ');
+      const searchableText = `${b.title || ''} ${b.excerpt || ''} ${tagsStr} ${b.category || ''}`.toLowerCase();
+      return keywords.every(kw => searchableText.includes(kw));
+    });
+  }
+
   performSearch(): void {
     if (this.searchInput) {
-      const query = this.searchInput.nativeElement.value;
-      console.log('Searching for:', query);
+      this.searchQuery = this.searchInput.nativeElement.value;
     }
-    this.closeSearch();
+    if (this.searchQuery.trim()) {
+      this.goToSearchResultsPage();
+    }
+  }
+
+  goToSearchResultsPage(tab?: string): void {
+    console.log('goToSearchResultsPage called with query:', this.searchQuery, 'and tab:', tab);
+    if (this.searchQuery.trim()) {
+      const queryParams: any = { q: this.searchQuery.trim() };
+      if (tab) {
+        queryParams.tab = tab;
+      }
+      this.router.navigate(['/search'], { queryParams })
+        .then(success => console.log('Navigation success:', success))
+        .catch(err => console.error('Navigation error:', err));
+      this.closeSearch();
+    } else {
+      console.warn('searchQuery is empty');
+    }
   }
 
   selectTag(tag: string): void {
     if (this.searchInput) {
       this.searchInput.nativeElement.value = tag;
-      this.searchInput.nativeElement.focus();
     }
+    this.searchQuery = tag;
+    this.hasSearched = true;
+    this.filterResults();
+  }
+
+  setFilter(filter: 'ALL' | 'PRODUCTS' | 'JOURNAL' | 'RECIPES'): void {
+    this.searchFilter = filter;
+  }
+
+  getProductOriginString(product: Product): string {
+    if (product.category === 'matcha') {
+      return product.matcha?.origin || 'Japan';
+    } else if (product.category === 'coffee') {
+      const origin = product.coffee?.product_origin || '';
+      const roast = product.coffee?.roast_level || '';
+      return [origin, roast].filter(Boolean).join(' · ');
+    }
+    return '';
+  }
+
+  getBlogBadgeStyles(category: string): { [key: string]: string } {
+    const cat = (category || '').toLowerCase().trim();
+    if (cat === 'stories') {
+      return { 'background-color': '#E8D5B0', 'color': '#544A40' };
+    } else if (cat === 'brewing-guides' || cat === 'brewing guides') {
+      return { 'background-color': '#544A40', 'color': '#FAF0EB' };
+    } else if (cat === 'tea-education' || cat === 'tea education') {
+      return { 'background-color': '#CFE1B9', 'color': '#375534' };
+    }
+    return { 'background-color': '#eae1dc', 'color': '#544A40' };
+  }
+
+  getRecipeBadgeStyles(tag: string): { [key: string]: string } {
+    const t = (tag || '').toUpperCase().trim();
+    const map: Record<string, { bg: string, text: string }> = {
+      HOT:      { bg: '#EFB5D0', text: '#544A40' },
+      COLD:     { bg: '#CFE1B9', text: '#375534' },
+      DESSERT:  { bg: '#E8D5B0', text: '#544A40' },
+      COCKTAIL: { bg: '#CFE1B9', text: '#375534' },
+    };
+    const colors = map[t] || { bg: '#CFE1B9', text: '#375534' };
+    return { 'background-color': colors.bg, 'color': colors.text };
   }
 
   get isCartOpen(): boolean {

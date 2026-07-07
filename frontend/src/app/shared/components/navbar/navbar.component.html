@@ -254,23 +254,161 @@
     <!-- Input wrapper -->
     <div class="search-input-wrapper">
       <svg lucideSearch [size]="18" class="search-input-icon"></svg>
-      <input #searchInput type="text" class="search-input" placeholder="Searching" (keydown.enter)="performSearch()">
+      <input #searchInput type="text" class="search-input" placeholder="Search..." (input)="onSearchInput($event)" (keydown.enter)="performSearch()">
+      <button class="search-clear-btn" *ngIf="searchQuery" (click)="clearSearch()" aria-label="Clear search">
+        <svg lucideX [size]="16"></svg>
+      </button>
     </div>
 
-    <!-- Recommended Tags -->
-    <div class="recommended-section">
-      <span class="recommended-label">RECOMMENDED</span>
-      <div class="recommended-tags">
-        <button class="recommended-tag-btn" (click)="selectTag('Ceremonial Matcha')">Ceremonial Matcha</button>
-        <button class="recommended-tag-btn" (click)="selectTag('Cold Brew Kit')">Cold Brew Kit</button>
-        <button class="recommended-tag-btn" (click)="selectTag('Yirgacheffe')">Yirgacheffe</button>
-        <button class="recommended-tag-btn" (click)="selectTag('Gooseneck Kettle')">Gooseneck Kettle</button>
-        <button class="recommended-tag-btn" (click)="selectTag('Hojicha')">Hojicha</button>
-        <button class="recommended-tag-btn" (click)="selectTag('V60 Recipe')">V60 Recipe</button>
-        <button class="recommended-tag-btn" (click)="selectTag('Bamboo Whisk')">Bamboo Whisk</button>
-        <button class="recommended-tag-btn" (click)="selectTag('Decaf Espresso')">Decaf Espresso</button>
+    <!-- If not searched, show Recommended Tags -->
+    <ng-container *ngIf="!hasSearched">
+      <div class="recommended-section">
+        <span class="recommended-label">RECOMMENDED</span>
+        <div class="recommended-tags">
+          <button class="recommended-tag-btn" (click)="selectTag('Matcha')">Matcha</button>
+          <button class="recommended-tag-btn" (click)="selectTag('Coffee')">Coffee</button>
+          <button class="recommended-tag-btn" (click)="selectTag('Brew')">Brew</button>
+          <button class="recommended-tag-btn" (click)="selectTag('Latte')">Latte</button>
+          <button class="recommended-tag-btn" (click)="selectTag('Cold Brew')">Cold Brew</button>
+          <button class="recommended-tag-btn" (click)="selectTag('Tea')">Tea</button>
+        </div>
       </div>
-    </div>
+    </ng-container>
+
+    <!-- If searched, show Search Results Screen -->
+    <ng-container *ngIf="hasSearched">
+      <!-- Tabs / Filters -->
+      <div class="search-tabs">
+        <button class="search-tab-btn" [class.active]="searchFilter === 'ALL'" (click)="setFilter('ALL')">
+          <svg lucideSearch [size]="14"></svg>
+          ALL
+        </button>
+        <button class="search-tab-btn" [class.active]="searchFilter === 'PRODUCTS'" (click)="setFilter('PRODUCTS')">
+          <svg lucidePackage [size]="14"></svg>
+          PRODUCTS
+        </button>
+        <button class="search-tab-btn" [class.active]="searchFilter === 'JOURNAL'" (click)="setFilter('JOURNAL')">
+          <svg lucideBookOpen [size]="14"></svg>
+          JOURNAL
+        </button>
+        <button class="search-tab-btn" [class.active]="searchFilter === 'RECIPES'" (click)="setFilter('RECIPES')">
+          <svg lucideChefHat [size]="14"></svg>
+          RECIPES
+        </button>
+      </div>
+
+      <!-- Result Content Area -->
+      <div class="search-results-content">
+
+        <!-- 1. PRODUCTS SECTION -->
+        <div class="results-section" *ngIf="searchFilter === 'PRODUCTS' || (searchFilter === 'ALL' && filteredProducts.length > 0)">
+          <div class="section-header">
+            <span class="section-title">
+              <svg lucidePackage [size]="14"></svg>
+              PRODUCTS
+            </span>
+            <button class="see-all-link" *ngIf="filteredProducts.length > 0" (click)="goToSearchResultsPage('PRODUCTS')">
+              SEE ALL
+              <svg lucideArrowRight [size]="12"></svg>
+            </button>
+          </div>
+
+          <div class="results-list" *ngIf="filteredProducts.length > 0; else noProducts">
+            <a [routerLink]="['/products', product._id]" (click)="closeSearch()" class="product-result-card" 
+               *ngFor="let product of (searchFilter === 'ALL' ? filteredProducts.slice(0, 3) : filteredProducts)">
+              <div class="product-img-wrapper">
+                <img [src]="product.images?.[0]?.url || 'assets/placeholder.jpg'" [alt]="product.name">
+              </div>
+              <div class="product-info">
+                <div class="product-name">{{ product.name }}</div>
+                <div class="product-origin">{{ getProductOriginString(product) }}</div>
+              </div>
+              <div class="product-price">
+                ${{ (product.variants?.[0]?.price || 0).toFixed(2) }}
+              </div>
+            </a>
+          </div>
+          <ng-template #noProducts>
+            <div class="no-results-msg" *ngIf="searchFilter !== 'ALL'">No products found.</div>
+          </ng-template>
+        </div>
+
+        <!-- 2. JOURNAL SECTION -->
+        <div class="results-section" *ngIf="searchFilter === 'JOURNAL' || (searchFilter === 'ALL' && filteredBlogs.length > 0)">
+          <div class="section-header">
+            <span class="section-title">
+              <svg lucideBookOpen [size]="14"></svg>
+              JOURNAL
+            </span>
+            <button class="see-all-link" *ngIf="filteredBlogs.length > 0" (click)="goToSearchResultsPage('JOURNAL')">
+              SEE ALL
+              <svg lucideArrowRight [size]="12"></svg>
+            </button>
+          </div>
+
+          <div class="results-list" *ngIf="filteredBlogs.length > 0; else noBlogs">
+            <a [routerLink]="['/journal', blog.slug]" (click)="closeSearch()" class="journal-result-card"
+               *ngFor="let blog of (searchFilter === 'ALL' ? filteredBlogs.slice(0, 3) : filteredBlogs)">
+              <div class="journal-info">
+                <div class="journal-title">{{ blog.title }}</div>
+                <div class="journal-meta">
+                  <span class="journal-badge" *ngIf="blog.category" [ngStyle]="getBlogBadgeStyles(blog.category)">{{ blog.category }}</span>
+                  <span class="journal-readtime">{{ blog.read_time_minutes || 5 }} min read</span>
+                </div>
+              </div>
+              <div class="journal-arrow">
+                <svg lucideArrowRight [size]="16"></svg>
+              </div>
+            </a>
+          </div>
+          <ng-template #noBlogs>
+            <div class="no-results-msg" *ngIf="searchFilter !== 'ALL'">No journal articles found.</div>
+          </ng-template>
+        </div>
+
+        <!-- 3. RECIPES SECTION -->
+        <div class="results-section" *ngIf="searchFilter === 'RECIPES' || (searchFilter === 'ALL' && filteredRecipes.length > 0)">
+          <div class="section-header">
+            <span class="section-title">
+              <svg lucideChefHat [size]="14"></svg>
+              RECIPES
+            </span>
+            <button class="see-all-link" *ngIf="filteredRecipes.length > 0" (click)="goToSearchResultsPage('RECIPES')">
+              SEE ALL
+              <svg lucideArrowRight [size]="12"></svg>
+            </button>
+          </div>
+
+          <div class="results-list" *ngIf="filteredRecipes.length > 0; else noRecipes">
+            <a [routerLink]="['/recipes', recipe.slug]" (click)="closeSearch()" class="recipe-result-card"
+               *ngFor="let recipe of (searchFilter === 'ALL' ? filteredRecipes.slice(0, 3) : filteredRecipes)">
+              <div class="recipe-img-wrapper">
+                <img [src]="recipe.heroImage?.url || 'assets/placeholder.jpg'" [alt]="recipe.title">
+              </div>
+              <div class="recipe-info">
+                <div class="recipe-title">{{ recipe.title }}</div>
+                <div class="recipe-meta">
+                  <span class="recipe-badge" *ngIf="recipe.metadata?.tags?.[0]" [ngStyle]="getRecipeBadgeStyles(recipe.metadata.tags[0])">{{ recipe.metadata.tags[0] }}</span>
+                  <span class="recipe-duration">{{ (recipe.metadata?.prepTime || 0) + (recipe.metadata?.cookTime || 0) }} min</span>
+                </div>
+              </div>
+              <div class="recipe-arrow">
+                <svg lucideArrowRight [size]="16"></svg>
+              </div>
+            </a>
+          </div>
+          <ng-template #noRecipes>
+            <div class="no-results-msg" *ngIf="searchFilter !== 'ALL'">No recipes found.</div>
+          </ng-template>
+        </div>
+
+        <!-- No results overall message -->
+        <div class="overall-no-results" *ngIf="filteredProducts.length === 0 && filteredRecipes.length === 0 && filteredBlogs.length === 0">
+          No results found for "{{ searchQuery }}". Try another search term.
+        </div>
+
+      </div>
+    </ng-container>
   </div>
 
   <!-- Footer -->

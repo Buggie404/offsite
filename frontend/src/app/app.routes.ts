@@ -137,6 +137,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/shop/pages/product-detail/product-detail.component').then(m => m.ProductDetailComponent)
   },
   {
+    path: 'search',
+    loadComponent: () => import('./shared/components/search-results/search-results.component').then(m => m.SearchResultsComponent)
+  },
+  {
     path: 'community',
     loadChildren: () => import('./features/community/community-routing-module').then(m => m.CommunityRoutingModule)
   },

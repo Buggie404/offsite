@@ -177,15 +177,90 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   loadProducts(relatedProductIds: string[]): void {
     this.productService.getProducts().pipe(takeUntil(this.destroy$)).subscribe({
       next: (allProducts) => {
-        if (relatedProductIds && relatedProductIds.length > 0) {
-          // Filter matching products
-          this.products = allProducts.filter(p => relatedProductIds.includes(p.product_id.toString()) || relatedProductIds.includes(p._id || ''));
+        const currentBase = this.recipe ? this.getRecipeBaseLabel(this.recipe) : 'Others';
+        const targetCategories = ['matcha', 'coffee', 'tools', 'drinkware', 'sets_bundles'];
+        const selectedProducts: Product[] = [];
+
+        // Helper to check if a product is relevant to the recipe base category
+        const isThemeRelevant = (p: Product, base: string): boolean => {
+          const nameLower = p.name.toLowerCase();
+          const descLower = (p.description || '').toLowerCase();
+          const tags = (p.product_tag || []).map(t => t.toLowerCase());
+
+          if (base === 'Matcha') {
+            const teaKeywords = ['matcha', 'hojicha', 'sencha', 'genmaicha', 'tea', 'green tea'];
+            const hasMatchaKeyword = teaKeywords.some(kw => nameLower.includes(kw)) ||
+                                     nameLower.includes('chasen') || 
+                                     nameLower.includes('chawan') || 
+                                     nameLower.includes('whisk') || 
+                                     nameLower.includes('sifter') || 
+                                     nameLower.includes('bowl') ||
+                                     teaKeywords.some(kw => descLower.includes(kw)) ||
+                                     tags.some(t => teaKeywords.includes(t));
+            const isMatchaTool = p.category === 'tools' && p.tools?.tool_category === 'matcha-tools';
+            return hasMatchaKeyword || isMatchaTool;
+          } else if (base === 'Coffee') {
+            const hasCoffeeKeyword = nameLower.includes('coffee') || 
+                                     nameLower.includes('dripper') || 
+                                     nameLower.includes('grinder') || 
+                                     nameLower.includes('filter') || 
+                                     nameLower.includes('kettle') || 
+                                     nameLower.includes('scale') ||
+                                     nameLower.includes('espresso') ||
+                                     nameLower.includes('mug') ||
+                                     nameLower.includes('cup') ||
+                                     descLower.includes('coffee') ||
+                                     tags.includes('coffee');
+            const isCoffeeTool = p.category === 'tools' && p.tools?.tool_category === 'coffee-tools';
+            return hasCoffeeKeyword || isCoffeeTool;
+          }
+          return false;
+        };
+
+        // For each of the 5 categories, find the best product and its score
+        const categoryRepresentatives: { product: Product, score: number }[] = [];
+
+        for (const cat of targetCategories) {
+          const catProducts = allProducts.filter(p => p.category === cat);
+          if (catProducts.length === 0) continue;
+
+          // Score each product in this category
+          const scoredCatProducts = catProducts.map(p => {
+            let score = 0;
+            
+            // 1. Explicitly defined in recipe relatedProducts gets highest priority
+            if (relatedProductIds && (relatedProductIds.includes(p.product_id.toString()) || relatedProductIds.includes(p._id || ''))) {
+              score += 100;
+            }
+
+            // 2. Relevance to the recipe base category
+            if (currentBase !== 'Others' && isThemeRelevant(p, currentBase)) {
+              score += 20;
+            }
+
+            // 3. Popularity/Rating tie breakers
+            score += (p.rating_avg || 0) + (p.total_sold_quantity || 0) * 0.001;
+
+            return { product: p, score };
+          });
+
+          // Sort descending by score
+          scoredCatProducts.sort((a, b) => b.score - a.score);
+
+          // Keep the best representative for this category
+          if (scoredCatProducts.length > 0) {
+            categoryRepresentatives.push({
+              product: scoredCatProducts[0].product,
+              score: scoredCatProducts[0].score
+            });
+          }
         }
-        
-        // Fallback: If no matching products found, show default ones to look premium
-        if (this.products.length === 0) {
-          this.products = allProducts.slice(0, 4);
-        }
+
+        // Sort the representatives by score descending
+        categoryRepresentatives.sort((a, b) => b.score - a.score);
+
+        // Take the top 4 representatives (guarantees up to 4 different categories are shown, prioritizing the most relevant ones)
+        this.products = categoryRepresentatives.slice(0, 4).map(r => r.product);
         this.cdr.detectChanges();
       },
       error: (err) => {
@@ -403,7 +478,9 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
 
   getRecipeBaseLabel(recipe: Recipe): string {
     const titleLower = recipe.title.toLowerCase();
-    const hasMatcha = titleLower.includes('matcha') || recipe.metadata.tags.some((t: string) => t.toLowerCase() === 'matcha');
+    const teaKeywords = ['matcha', 'hojicha', 'sencha', 'genmaicha', 'tea', 'green tea'];
+    const hasMatcha = teaKeywords.some(kw => titleLower.includes(kw)) || 
+                      recipe.metadata.tags.some((t: string) => teaKeywords.includes(t.toLowerCase()));
     if (hasMatcha) return 'Matcha';
     const hasCoffee = titleLower.includes('coffee') || recipe.metadata.tags.some((t: string) => t.toLowerCase() === 'coffee');
     if (hasCoffee) return 'Coffee';

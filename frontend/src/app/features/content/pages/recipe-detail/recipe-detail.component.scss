@@ -682,12 +682,6 @@ $transition-speed: 0.25s;
     flex: 1 1 280px;
     min-width: 280px;
     max-width: 360px;
-    transition: transform $transition-speed, box-shadow $transition-speed;
-
-    &:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 12px 25px rgba(0, 0, 0, 0.06);
-    }
   }
 }
 

@@ -1,0 +1,184 @@
+<div class="search-results-page">
+  <!-- Banner Header -->
+  <section class="search-hero">
+    <div class="hero-content">
+      <span class="hero-label">SEARCH RESULTS</span>
+      <h1 class="hero-title">"{{ searchQuery | uppercase }}"</h1>
+      <p class="hero-subtitle">{{ totalResultsCount }} {{ totalResultsCount === 1 ? 'result' : 'results' }} across products, journal & recipes</p>
+    </div>
+    <!-- Decorative Shape matching mockup -->
+    <div class="shape-matcha-drop"></div>
+  </section>
+
+  <!-- Navigation Tabs -->
+  <div class="tabs-container">
+    <div class="tabs-inner">
+      <button class="tab-btn" [class.active]="activeTab === 'PRODUCTS'" (click)="setActiveTab('PRODUCTS')">
+        <svg lucidePackage [size]="16" class="tab-icon"></svg>
+        PRODUCTS
+        <span class="count-badge">{{ filteredProducts.length }}</span>
+      </button>
+      <button class="tab-btn" [class.active]="activeTab === 'JOURNAL'" (click)="setActiveTab('JOURNAL')">
+        <svg lucideBookOpen [size]="16" class="tab-icon"></svg>
+        JOURNAL
+        <span class="count-badge">{{ filteredBlogs.length }}</span>
+      </button>
+      <button class="tab-btn" [class.active]="activeTab === 'RECIPES'" (click)="setActiveTab('RECIPES')">
+        <svg lucideChefHat [size]="16" class="tab-icon"></svg>
+        RECIPES
+        <span class="count-badge">{{ filteredRecipes.length }}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Content Grid -->
+  <main class="grid-section">
+    <div class="container">
+      
+      <!-- Loading State -->
+      <div class="loading-state" *ngIf="isLoading">
+        <p>Searching for results...</p>
+      </div>
+
+      <!-- Empty State -->
+      <div class="empty-state" *ngIf="!isLoading && activeTab === 'PRODUCTS' && filteredProducts.length === 0">
+        <div class="empty-state-icon">
+          <svg lucidePackage [size]="28"></svg>
+        </div>
+        <h3 class="empty-state-title">No products for "{{ searchQuery }}" yet</h3>
+        <p class="empty-state-desc">Our sourcing team is searching for new items. Check back soon — or browse all products while you wait.</p>
+        <a routerLink="/shop/matcha" class="empty-state-btn">
+          BROWSE ALL PRODUCTS
+          <span class="btn-arrow">→</span>
+        </a>
+      </div>
+
+      <div class="empty-state" *ngIf="!isLoading && activeTab === 'JOURNAL' && filteredBlogs.length === 0">
+        <div class="empty-state-icon">
+          <svg lucideBookOpen [size]="28"></svg>
+        </div>
+        <h3 class="empty-state-title">No journal entries for "{{ searchQuery }}" yet</h3>
+        <p class="empty-state-desc">Our writing team is typing away. Check back soon — or browse all journal entries while you wait.</p>
+        <a routerLink="/journal" class="empty-state-btn">
+          BROWSE ALL JOURNAL
+          <span class="btn-arrow">→</span>
+        </a>
+      </div>
+
+      <div class="empty-state" *ngIf="!isLoading && activeTab === 'RECIPES' && filteredRecipes.length === 0">
+        <div class="empty-state-icon">
+          <svg lucideChefHat [size]="28"></svg>
+        </div>
+        <h3 class="empty-state-title">No recipes for "{{ searchQuery }}" yet</h3>
+        <p class="empty-state-desc">Our kitchen team is brewing something. Check back soon — or browse all recipes while you wait.</p>
+        <a routerLink="/recipes" class="empty-state-btn">
+          BROWSE ALL RECIPES
+          <span class="btn-arrow">→</span>
+        </a>
+      </div>
+
+      <!-- PRODUCTS GRID -->
+      <div class="products-grid" *ngIf="!isLoading && activeTab === 'PRODUCTS' && filteredProducts.length > 0">
+        <app-product-card
+          *ngFor="let product of filteredProducts"
+          [product]="product"
+          [isSaved]="isProductSaved(product)"
+          (saveToggle)="onProductSave($event)"
+        ></app-product-card>
+      </div>
+
+      <!-- JOURNAL ARTICLES GRID -->
+      <div class="articles-grid" *ngIf="!isLoading && activeTab === 'JOURNAL' && filteredBlogs.length > 0">
+        <a [routerLink]="['/journal', blog.slug]" class="article-card" *ngFor="let blog of filteredBlogs">
+          <div class="card-img-wrapper">
+            <img [src]="blog.image" [alt]="blog.title" class="card-img" />
+            <span class="card-category-badge" [ngClass]="blog.category?.toLowerCase()?.replace(' ', '-')">{{ blog.category }}</span>
+            <button
+              class="card-bookmark-btn"
+              [class.bookmarked]="blog.bookmarked"
+              (click)="toggleBookmark(blog, $event)"
+              aria-label="Bookmark article">
+              <svg lucideBookmark [size]="16" [class.filled]="blog.bookmarked"></svg>
+            </button>
+          </div>
+          <div class="card-content">
+            <h3 class="card-title">{{ blog.title }}</h3>
+            <p class="card-desc">{{ blog.description }}</p>
+            <div class="card-footer">
+              <span class="card-meta">{{ blog.formattedMeta }}</span>
+              <span class="arrow-icon">
+                <svg lucideArrowRight [size]="18"></svg>
+              </span>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- RECIPES GRID -->
+      <div class="recipes-grid" *ngIf="!isLoading && activeTab === 'RECIPES' && filteredRecipes.length > 0">
+        <article class="recipe-card" *ngFor="let recipe of filteredRecipes" [routerLink]="['/recipes', recipe.slug]" style="cursor: pointer;">
+          <div class="recipe-card__image-wrapper">
+            <!-- Badge (e.g. HOT, COLD, DESSERT) -->
+            <span *ngIf="getBadgeLabel(recipe)" class="badge" [style.background]="getBadgeColor(recipe)">
+              {{ getBadgeLabel(recipe) }}
+            </span>
+            
+            <!-- Favorite Heart Button -->
+            <button 
+              class="fav-btn" 
+              [class.fav-btn--active]="isFavorited(recipe)"
+              (click)="toggleFavorite(recipe, $event)" 
+              aria-label="Add to favorites"
+            >
+              <svg lucideHeart [size]="18" class="fav-icon" [attr.fill]="isFavorited(recipe) ? 'currentColor' : 'none'"></svg>
+            </button>
+
+            <div class="recipe-card__image">
+              <img
+                [src]="recipe.heroImage.url"
+                [alt]="recipe.title"
+                loading="lazy"
+                onerror="this.src='assets/images/placeholder.jpg'; this.onerror=null;"
+              />
+            </div>
+          </div>
+          <div class="recipe-card__body">
+            <h3 class="recipe-card__title">{{ recipe.title }}</h3>
+            <hr class="recipe-card__divider" />
+            <div class="recipe-card__meta">
+              <span class="meta-item">
+                <svg lucideDroplet [size]="14" class="meta-item__icon"></svg>
+                {{ getRecipeBaseLabel(recipe) }}
+              </span>
+              <span class="meta-item">
+                <svg lucideClock [size]="14" class="meta-item__icon"></svg>
+                {{ recipe.metadata.prepTime }} Mins
+              </span>
+              <span class="meta-item">
+                <svg lucideStar [size]="14" class="meta-item__icon"></svg>
+                {{ getDifficultyLabel(recipe) }}
+              </span>
+              <span class="meta-item">
+                <svg lucideHeart [size]="14" class="meta-item__icon heart-icon-spec"></svg>
+                {{ recipe.saves || 0 }}
+              </span>
+            </div>
+
+            <!-- Description -->
+            <p class="recipe-card__desc">{{ recipe.description }}</p>
+
+            <!-- CTA -->
+            <div class="recipe-card__cta">
+              <span>View Recipe</span>
+              <span class="recipe-card__cta-arrow" aria-hidden="true">→</span>
+            </div>
+          </div>
+        </article>
+      </div>
+
+    </div>
+  </main>
+
+  <app-back-to-top></app-back-to-top>
+  <app-footer></app-footer>
+</div>
