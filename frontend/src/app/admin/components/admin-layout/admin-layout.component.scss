@@ -389,19 +389,6 @@
   background: rgba(207, 225, 185, 0.28);
 }
 
-.header-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--color-sage);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: var(--text-label-size);
-  color: var(--color-near-black);
-}
-
 .admin-content {
   padding: var(--space-5);
   flex: 1;

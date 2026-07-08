@@ -148,16 +148,6 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     this.cdr.markForCheck();
   }
 
-  get avatarInitials(): string {
-    const user = this.adminAuth.getUser();
-    const source = user?.profile_name || user?.email || 'AD';
-    const parts = source.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    }
-    return source.slice(0, 2).toUpperCase();
-  }
-
   get hasRefundNotifications(): boolean {
     return this.notifications.some((item) => item.type === 'refund_pending');
   }

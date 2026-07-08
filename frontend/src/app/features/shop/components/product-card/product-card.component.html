@@ -24,15 +24,15 @@
           }
         </button>
       </div>
-
-      <button type="button" class="save-btn" [class.save-btn--active]="isSaved" (click)="onSave(product, $event)"
-        [attr.aria-label]="isSaved ? 'Remove from saved products' : 'Save product'">
-        <svg lucideHeart [size]="16" [attr.fill]="isSaved ? 'currentColor' : 'none'" aria-hidden="true"></svg>
-      </button>
     }
 
+    <button type="button" class="save-btn" [class.save-btn--active]="isSaved" (click)="onSave(product, $event)"
+      [attr.aria-label]="isSaved ? 'Remove from saved products' : 'Save product'">
+      <svg lucideHeart [size]="16" [attr.fill]="isSaved ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+    </button>
+
     <div class="status-badges">
-      @if (showBestSellerBadge || product.is_best_seller) {
+      @if (product.is_best_seller) {
       <span class="status-badge status-badge--best-seller">BEST SELLER</span>
       }
       @if (showNewArrivalBadge(product)) {
