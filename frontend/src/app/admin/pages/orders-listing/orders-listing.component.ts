@@ -118,6 +118,18 @@ export class OrdersListingComponent implements OnInit {
         this.loadTrigger$.next({});
       });
 
+    this.route.queryParams
+      .pipe(
+        map((params) => (params['status'] as AdminOrderStatusFilter) || 'all'),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((status) => {
+        if (status === this.activeStatus) return;
+        this.activeStatus = status;
+        this.loadTrigger$.next({});
+      });
+
     this.adminRefresh.onOrdersListRefresh$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.loadTrigger$.next({ silent: true }));

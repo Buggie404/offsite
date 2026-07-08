@@ -1,3 +1,8 @@
+:host {
+  display: block;
+  overflow: visible;
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -111,6 +116,7 @@
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 20px;
+  overflow: visible;
 }
 
 .filter-bar__group {
@@ -118,6 +124,12 @@
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+  overflow: visible;
+}
+
+.filter-bar__group--date {
+  position: relative;
+  margin-left: auto;
 }
 
 .filter-label {
@@ -185,19 +197,22 @@
 
 .date-filter {
   position: relative;
+  overflow: visible;
 }
 
 .custom-range-panel {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
-  z-index: 20;
-  width: min(100vw - 48px, 420px);
+  right: 0;
+  left: auto;
+  z-index: 30;
+  width: min(420px, calc(100vw - 48px));
   padding: var(--space-4);
   background: var(--color-wheat);
   border: 1px solid var(--color-latte);
   border-radius: 16px;
   box-shadow: var(--admin-shadow-card);
+  box-sizing: border-box;
 }
 
 .custom-range-panel__header {
@@ -292,6 +307,7 @@
 .custom-range-panel__actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: var(--space-3);
   padding-top: var(--space-3);

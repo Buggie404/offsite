@@ -7,9 +7,11 @@ import { Subject } from 'rxjs';
 export class AdminRefreshService {
   private readonly ordersListRefresh$ = new Subject<void>();
   private readonly orderDetailRefresh$ = new Subject<void>();
+  private readonly notificationsRefresh$ = new Subject<void>();
 
   readonly onOrdersListRefresh$ = this.ordersListRefresh$.asObservable();
   readonly onOrderDetailRefresh$ = this.orderDetailRefresh$.asObservable();
+  readonly onNotificationsRefresh$ = this.notificationsRefresh$.asObservable();
 
   refreshOrdersList(): void {
     this.ordersListRefresh$.next();
@@ -17,5 +19,9 @@ export class AdminRefreshService {
 
   refreshOrderDetail(): void {
     this.orderDetailRefresh$.next();
+  }
+
+  refreshNotifications(): void {
+    this.notificationsRefresh$.next();
   }
 }
