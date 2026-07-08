@@ -39,6 +39,18 @@ import {
 } from '../../services/checkout.service';
 import { CartService } from '../../services/cart.service';
 import { Product, ProductVariant } from '../../../../shared/models/product.model';
+import {
+  expandBundleForBackendItems,
+  getBundleComponentDisplayName,
+  getBundleComponentImage,
+  getBundleComponentLineQuantity,
+  getBundleContentComponents,
+  getBundleContentToggleLabel,
+  getBundleSaleLineTotal,
+  getCartItemImage,
+  getCartItemUnitPrice,
+  isBundleCartItem
+} from '../../models/bundle-cart.model';
 import { Voucher } from '../../../../shared/models/voucher.model';
 import { AuthService } from '../../../../core/auth.service';
 import { InlineValidator, FieldConfig } from '../../../../shared/utils/inline-validator';
@@ -91,6 +103,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   pendingOrderSessionId = signal<string | null>(null);
 
   items = this.cartService.checkoutSummaryItems;
+  expandedKitKeys = new Set<string>();
   complements = signal<Product[]>([]);
   allVouchers = signal<Voucher[]>([]);
   loading = signal(true);
@@ -572,10 +585,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   applyingVoucher = signal(false);
 
   readonly subtotal = computed(() =>
-    this.items().reduce((sum, it) => {
-      const v = this.checkoutService.getVariant(it.product, it.variantSku);
-      return sum + v.price * it.quantity;
-    }, 0)
+    this.items().reduce((sum, it) => sum + getCartItemUnitPrice(it) * it.quantity, 0)
   );
 
   readonly discountAmount = computed(() => {
@@ -1585,16 +1595,54 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   getItemImage(item: CheckoutItem): string {
-    const v = this.getVariant(item);
-    return v.images?.[0]?.url ?? item.product.images?.[0]?.url ?? '';
+    return getCartItemImage(item);
   }
 
   getItemPrice(item: CheckoutItem): number {
-    return this.getVariant(item).price;
+    if (item.bundle) {
+      return item.bundle.discountedTotal;
+    }
+    return getCartItemUnitPrice(item);
+  }
+
+  getItemLineTotal(item: CheckoutItem): number {
+    if (item.bundle) {
+      return getBundleSaleLineTotal(item);
+    }
+    return getCartItemUnitPrice(item) * item.quantity;
+  }
+
+  isBundleItem(item: CheckoutItem): boolean {
+    return isBundleCartItem(item);
+  }
+
+  getComponentImage = getBundleComponentImage;
+  getComponentDisplayName = getBundleComponentDisplayName;
+  getBundleContentComponents = getBundleContentComponents;
+  getBundleContentToggleLabel = getBundleContentToggleLabel;
+  getBundleComponentLineQuantity = getBundleComponentLineQuantity;
+
+  getCheckoutItemKey(item: CheckoutItem): string {
+    return `${item.product._id}::${item.variantSku}`;
+  }
+
+  isKitContentExpanded(item: CheckoutItem): boolean {
+    return this.expandedKitKeys.has(this.getCheckoutItemKey(item));
+  }
+
+  toggleKitContent(item: CheckoutItem): void {
+    const key = this.getCheckoutItemKey(item);
+    if (this.expandedKitKeys.has(key)) {
+      this.expandedKitKeys.delete(key);
+    } else {
+      this.expandedKitKeys.add(key);
+    }
   }
 
   trackByItem = (_: number, it: CheckoutItem) =>
-    `${it.product._id}::${it.variantSku}`;
+    it.bundle?.bundleKey
+      ? `${it.bundle.bundleKey}::${it.variantSku}`
+      : `${it.product._id}::${it.variantSku}`;
 
   trackByProduct = (_: number, p: Product) => p._id;
 
@@ -1836,9 +1884,16 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
 
 
-    const backendItems = this.items().map(it => {
+    const backendItems = this.items().flatMap((it) => {
+      if (isBundleCartItem(it)) {
+        return expandBundleForBackendItems({
+          quantity: it.quantity,
+          bundle: it.bundle
+        });
+      }
+
       const variant = this.getVariant(it);
-      return {
+      return [{
         product_id: it.product._id,
         variant_id: variant.sku,
         product_name: it.product.name,
@@ -1850,7 +1905,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         unit_price: variant.price,
         quantity: it.quantity,
         subtotal: variant.price * it.quantity
-      };
+      }];
     });
 
     let paymentPayload: any = {

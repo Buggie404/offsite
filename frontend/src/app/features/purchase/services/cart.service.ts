@@ -2,12 +2,20 @@ import { Injectable, inject, signal, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Product, ProductVariant } from '../../../shared/models/product.model';
 import { HttpService } from '../../../core/http.service';
+import {
+  BundleCartMeta,
+  createBundleDisplayProduct,
+  getBundleMaxStock,
+  isBundleOutOfStock,
+  refreshBundleCartItem
+} from '../models/bundle-cart.model';
 
 export interface CartItem {
   product: Product;
   variantSku: string;
   quantity: number;
   selected: boolean;
+  bundle?: BundleCartMeta;
 }
 
 type ProductIdentifier = string | number | null | undefined;
@@ -56,12 +64,15 @@ export class CartService {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
             // Map to include selected field if missing, defaulting to true if not specified
-            const items: CartItem[] = parsed.map((item: any) => ({
-              product: item.product,
-              variantSku: item.variantSku,
-              quantity: item.quantity,
-              selected: item.selected !== undefined ? item.selected : true
-            }));
+            const items: CartItem[] = parsed.map((item: any) =>
+              refreshBundleCartItem({
+                product: item.product,
+                variantSku: item.variantSku,
+                quantity: item.quantity,
+                selected: item.selected !== undefined ? item.selected : true,
+                bundle: item.bundle
+              })
+            );
             this.cartItems.set(items);
             return;
           }
@@ -79,7 +90,16 @@ export class CartService {
         try {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-            this.checkoutSummaryItems.set(parsed);
+            this.checkoutSummaryItems.set(
+              parsed.map((item: any) => refreshBundleCartItem({
+                product: item.product,
+                variantSku: item.variantSku,
+                quantity: item.quantity,
+                selected: item.selected !== undefined ? item.selected : true,
+                bundle: item.bundle,
+                isComplement: item.isComplement
+              }))
+            );
           }
         } catch (e) {
           console.error('Failed to parse checkout summary from localStorage', e);
@@ -120,7 +140,8 @@ export class CartService {
     if (!variant) return;
     const sku = variant.sku;
 
-    const currentItems = [...this.cartItems()];    const productKey = this.getProductKey(product);
+    const currentItems = [...this.cartItems()];
+    const productKey = this.getProductKey(product);
     const existingIndex = currentItems.findIndex(
       item => this.getProductKey(item.product) === productKey && item.variantSku === sku
     );
@@ -144,6 +165,43 @@ export class CartService {
         variantSku: sku,
         quantity: Math.min(Math.max(1, quantity), maxStock),
         selected: maxStock > 0 // Only select initially if in stock
+      });
+    }
+
+    this.saveCart(currentItems);
+    if (openDrawer) {
+      this.openCart();
+    }
+  }
+
+  addKitBundleToCart(bundle: BundleCartMeta, quantity = 1, openDrawer = true): void {
+    if (isBundleOutOfStock(bundle)) return;
+
+    const displayProduct = createBundleDisplayProduct(bundle);
+    const sku = bundle.displaySku;
+    const currentItems = [...this.cartItems()];
+    const existingIndex = currentItems.findIndex(
+      (item) => item.bundle?.bundleKey === bundle.bundleKey
+    );
+    const maxStock = getBundleMaxStock(bundle);
+    const addQty = Math.max(1, quantity);
+
+    if (existingIndex > -1) {
+      const existingItem = currentItems[existingIndex];
+      currentItems[existingIndex] = {
+        ...existingItem,
+        product: displayProduct,
+        bundle,
+        quantity: Math.min(existingItem.quantity + addQty, maxStock),
+        selected: true
+      };
+    } else {
+      currentItems.push({
+        product: displayProduct,
+        variantSku: sku,
+        quantity: Math.min(addQty, maxStock),
+        selected: true,
+        bundle
       });
     }
 
@@ -207,8 +265,9 @@ export class CartService {
 
     if (index > -1) {
       const item = currentItems[index];
-      const variant = item.product.variants.find(v => v.sku === variantSku);
-      const maxStock = variant ? variant.stock : 99;
+      const maxStock = item.bundle
+        ? getBundleMaxStock(item.bundle)
+        : (item.product.variants.find((variant) => variant.sku === variantSku)?.stock ?? 99);
 
       if (quantity > maxStock) {
         quantity = maxStock;
@@ -230,6 +289,10 @@ export class CartService {
     const index = currentItems.findIndex(
       item => this.matchesProduct(item.product, productId) && item.variantSku === oldVariantSku
     );
+
+    if (index > -1 && currentItems[index].bundle) {
+      return;
+    }
 
     if (index > -1) {
       const item = currentItems[index];
@@ -355,7 +418,8 @@ export class CartService {
           product: sumItem.product,
           variantSku: sumItem.variantSku,
           quantity: sumItem.quantity,
-          selected: true
+          selected: true,
+          bundle: sumItem.bundle
         });
       }
     }
@@ -382,7 +446,8 @@ export class CartService {
           product: item.product,
           variantSku: item.variantSku,
           quantity: item.quantity,
-          selected: true
+          selected: true,
+          bundle: item.bundle
         });
       }
     }
@@ -404,8 +469,9 @@ export class CartService {
 
     if (index > -1) {
       const item = currentSummary[index];
-      const variant = item.product.variants.find((v: any) => v.sku === variantSku);
-      const maxStock = variant ? variant.stock : 99;
+      const maxStock = item.bundle
+        ? getBundleMaxStock(item.bundle)
+        : (item.product.variants.find((v: any) => v.sku === variantSku)?.stock ?? 99);
 
       if (quantity > maxStock) quantity = maxStock;
       if (quantity < 1) quantity = 1;
@@ -423,6 +489,10 @@ export class CartService {
 
     if (index > -1) {
       const item = currentSummary[index];
+      if (item.bundle) {
+        return;
+      }
+
       const existingNewIndex = currentSummary.findIndex(
         it => this.matchesProduct(it.product, productId) && it.variantSku === newVariantSku
       );
@@ -498,12 +568,15 @@ export class CartService {
   // (merge result or GET /cart). Does NOT re-sync back to the server.
   replaceCartFromMerge(mergedItems: any[]): void {
     if (!Array.isArray(mergedItems)) return;
-    const items: CartItem[] = mergedItems.map(it => ({
-      product: it.product,
-      variantSku: it.variantSku,
-      quantity: it.quantity,
-      selected: it.selected !== undefined ? it.selected : true
-    }));
+    const items: CartItem[] = mergedItems.map((it) =>
+      refreshBundleCartItem({
+        product: it.product,
+        variantSku: it.variantSku,
+        quantity: it.quantity,
+        selected: it.selected !== undefined ? it.selected : true,
+        bundle: it.bundle
+      })
+    );
     this.suppressSync = true;
     try {
       this.saveCart(items);
@@ -559,12 +632,15 @@ export class CartService {
       try {
         const parsed = JSON.parse(backup);
         if (Array.isArray(parsed)) {
-          items = parsed.map((item: any) => ({
-            product: item.product,
-            variantSku: item.variantSku,
-            quantity: item.quantity,
-            selected: item.selected !== undefined ? item.selected : true
-          }));
+          items = parsed.map((item: any) =>
+            refreshBundleCartItem({
+              product: item.product,
+              variantSku: item.variantSku,
+              quantity: item.quantity,
+              selected: item.selected !== undefined ? item.selected : true,
+              bundle: item.bundle
+            })
+          );
         }
       } catch { /* fall back to empty guest cart */ }
     }

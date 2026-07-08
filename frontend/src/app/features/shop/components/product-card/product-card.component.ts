@@ -27,8 +27,13 @@ export class ProductCardComponent {
   @Input() product!: Product;
   @Input() showBestSellerBadge = false;
   @Input() isSaved = false;
+  @Input() bundleBrowserMode = false;
+  @Input() bundleItemCount = 0;
+  @Input() bundleCanIncrement = false;
   @Output() saveToggle = new EventEmitter<Product>();
   @Output() productAdd = new EventEmitter<Product>();
+  @Output() bundleIncrement = new EventEmitter<Product>();
+  @Output() bundleDecrement = new EventEmitter<Product>();
   isQuickViewOpen = false;
 
   constructor(
@@ -128,6 +133,24 @@ export class ProductCardComponent {
     }
 
     this.cartService.addToCart(p as any);
+  }
+
+  onBundleIncrement(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.bundleCanIncrement || this.isOutOfStock(this.product)) return;
+    this.bundleIncrement.emit(this.product);
+  }
+
+  onBundleDecrement(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.bundleItemCount <= 0) return;
+    this.bundleDecrement.emit(this.product);
+  }
+
+  showBundleStepper(): boolean {
+    return this.bundleBrowserMode && this.bundleItemCount > 0;
   }
 
   onSave(p: Product, event: Event): void {

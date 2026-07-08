@@ -32,6 +32,17 @@ import { ContentService } from '../../../features/content/services/content.servi
 import { Product } from '../../../features/home/models/product.model';
 import { Recipe } from '../../../features/home/models/recipe.model';
 import { FormsModule } from '@angular/forms';
+import {
+  getBundleComponentDisplayName,
+  getBundleComponentImage,
+  getBundleComponentLineQuantity,
+  getBundleContentComponents,
+  getBundleContentToggleLabel,
+  getBundleSaleLineTotal,
+  getCartItemImage,
+  getCartItemLineTotal,
+  isBundleCartItem
+} from '../../../features/purchase/models/bundle-cart.model';
 
 @Component({
   selector: 'app-navbar',
@@ -104,6 +115,8 @@ export class NavbarComponent implements OnInit {
   };
 
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
+
+  expandedKitKeys = new Set<string>();
 
   // Read-only signal from auth service
   isLoggedIn = this.authService.isAuthenticated;
@@ -463,10 +476,47 @@ export class NavbarComponent implements OnInit {
   get subtotal(): number {
     return this.cartItems.reduce((sum, item) => {
       if (!item.selected) return sum;
-      const variant = this.getVariant(item);
-      if (!variant || variant.stock <= 0) return sum;
-      return sum + variant.price * item.quantity;
+      if (this.isItemOutOfStock(item)) return sum;
+      return sum + getCartItemLineTotal(item);
     }, 0);
+  }
+
+  isBundleItem(item: CartItem): boolean {
+    return isBundleCartItem(item);
+  }
+
+  getItemImage(item: CartItem): string {
+    return getCartItemImage(item);
+  }
+
+  getLineTotal(item: CartItem): number {
+    if (item.bundle) {
+      return getBundleSaleLineTotal(item);
+    }
+    return getCartItemLineTotal(item);
+  }
+
+  getComponentImage = getBundleComponentImage;
+  getComponentDisplayName = getBundleComponentDisplayName;
+  getBundleContentComponents = getBundleContentComponents;
+  getBundleContentToggleLabel = getBundleContentToggleLabel;
+  getBundleComponentLineQuantity = getBundleComponentLineQuantity;
+
+  getItemKey(item: CartItem): string {
+    return `${this.getProductIdentifier(item)}::${item.variantSku}`;
+  }
+
+  isKitContentExpanded(item: CartItem): boolean {
+    return this.expandedKitKeys.has(this.getItemKey(item));
+  }
+
+  toggleKitContent(item: CartItem): void {
+    const key = this.getItemKey(item);
+    if (this.expandedKitKeys.has(key)) {
+      this.expandedKitKeys.delete(key);
+    } else {
+      this.expandedKitKeys.add(key);
+    }
   }
 
   getVariant(item: CartItem) {
@@ -474,6 +524,14 @@ export class NavbarComponent implements OnInit {
   }
 
   isItemOutOfStock(item: CartItem): boolean {
+    if (item.bundle) {
+      return item.bundle.components.some((component) => {
+        const variant = component.product.variants.find((entry) => entry.sku === component.variantSku)
+          ?? component.product.variants[0];
+        return !variant || variant.stock <= 0;
+      });
+    }
+
     const variant = this.getVariant(item);
     return variant ? variant.stock <= 0 : true;
   }

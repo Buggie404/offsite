@@ -484,8 +484,8 @@
         <div class="summary-items">
           <ng-container *ngIf="!loading(); else loadingTpl">
             <div class="summary-item" *ngFor="let item of items(); trackBy: trackByItem">
-              <div class="summary-item__media">
-                <img *ngIf="getItemImage(item); else noImg" [src]="getItemImage(item)" [alt]="item.product.name" />
+              <div class="summary-item__media slide-cart--item-image">
+                <img *ngIf="getItemImage(item); else noImg" [src]="getItemImage(item)" [alt]="isBundleItem(item) ? item.bundle!.title : item.product.name" />
                 <ng-template #noImg>
                   <div class="thumb-fallback"></div>
                 </ng-template>
@@ -493,41 +493,80 @@
 
               <div class="summary-item__body">
                 <div class="summary-item__row">
-                  <span class="summary-item__name">{{ item.product.name }}</span>
+                  <span class="summary-item__name">{{ item.quantity }} x {{ isBundleItem(item) ? item.bundle!.title : item.product.name }}</span>
                   <span class="summary-item__price">
-                    ${{ (getItemPrice(item) * item.quantity) | number:'1.2-2' }}
+                    <ng-container *ngIf="isBundleItem(item); else regularCheckoutPrice">
+                      <span class="summary-item__price-sale">${{ getItemLineTotal(item) | number:'1.2-2' }}</span>
+                    </ng-container>
+                    <ng-template #regularCheckoutPrice>
+                      ${{ getItemLineTotal(item) | number:'1.2-2' }}
+                    </ng-template>
                   </span>
                 </div>
 
-                <div class="variant-select" *ngIf="item.product.variants.length > 1; else singleVariant">
-                  <select [ngModel]="item.variantSku" (ngModelChange)="changeVariant(item, $event)"
-                    [ngModelOptions]="{standalone: true}">
-                    <option *ngFor="let v of item.product.variants" [value]="v.sku">
-                      {{ (v.label || '').toUpperCase() }}
-                    </option>
-                  </select>
-                  <svg lucideChevronDown [size]="12" class="variant-caret"></svg>
-                </div>
-                <ng-template #singleVariant>
-                  <div class="variant-static">
-                    {{ (getVariant(item).label || '').toUpperCase() }}
+                <ng-container *ngIf="isBundleItem(item); else regularCheckoutVariant">
+                  <div class="summary-item__purchase-type">{{ item.bundle!.purchaseType }}</div>
+
+                  <div class="summary-item__controls">
+                    <div class="qty-stepper">
+                      <button type="button" (click)="dec(item)" aria-label="Decrease">
+                        <svg lucideMinus [size]="12"></svg>
+                      </button>
+                      <span>{{ item.quantity }}</span>
+                      <button type="button" (click)="inc(item)" aria-label="Increase">
+                        <svg lucidePlus [size]="12"></svg>
+                      </button>
+                    </div>
+                    <button type="button" class="remove-btn" (click)="remove(item)" aria-label="Remove item">
+                      <svg lucideTrash2 [size]="16"></svg>
+                    </button>
+                  </div>
+
+                  <button type="button" class="view-kit-content" (click)="toggleKitContent(item)">
+                    <span>{{ getBundleContentToggleLabel(item.bundle!) }}</span>
+                    <svg lucideChevronDown [size]="14" [class.expanded]="isKitContentExpanded(item)"></svg>
+                  </button>
+
+                  <div class="kit-content" *ngIf="isKitContentExpanded(item)">
+                    <div class="kit-content-item" *ngFor="let component of getBundleContentComponents(item.bundle!); let last = last">
+                      <img class="kit-content-item__image" [src]="getComponentImage(component)" [alt]="getComponentDisplayName(component)">
+                      <span class="kit-content-item__name">{{ getBundleComponentLineQuantity(item, component) }} x {{ getComponentDisplayName(component) }}</span>
+                      <div class="kit-content-divider" *ngIf="!last" aria-hidden="true"></div>
+                    </div>
+                  </div>
+                </ng-container>
+
+                <ng-template #regularCheckoutVariant>
+                  <div class="variant-select" *ngIf="item.product.variants.length > 1; else singleVariant">
+                    <select [ngModel]="item.variantSku" (ngModelChange)="changeVariant(item, $event)"
+                      [ngModelOptions]="{standalone: true}">
+                      <option *ngFor="let v of item.product.variants" [value]="v.sku">
+                        {{ (v.label || '').toUpperCase() }}
+                      </option>
+                    </select>
+                    <svg lucideChevronDown [size]="12" class="variant-caret"></svg>
+                  </div>
+                  <ng-template #singleVariant>
+                    <div class="variant-static">
+                      {{ (getVariant(item).label || '').toUpperCase() }}
+                    </div>
+                  </ng-template>
+
+                  <div class="summary-item__controls">
+                    <div class="qty-stepper">
+                      <button type="button" (click)="dec(item)" aria-label="Decrease">
+                        <svg lucideMinus [size]="12"></svg>
+                      </button>
+                      <span>{{ item.quantity }}</span>
+                      <button type="button" (click)="inc(item)" aria-label="Increase">
+                        <svg lucidePlus [size]="12"></svg>
+                      </button>
+                    </div>
+                    <button type="button" class="remove-btn" (click)="remove(item)" aria-label="Remove item">
+                      <svg lucideTrash2 [size]="16"></svg>
+                    </button>
                   </div>
                 </ng-template>
-
-                <div class="summary-item__controls">
-                  <div class="qty-stepper">
-                    <button type="button" (click)="dec(item)" aria-label="Decrease">
-                      <svg lucideMinus [size]="12"></svg>
-                    </button>
-                    <span>{{ item.quantity }}</span>
-                    <button type="button" (click)="inc(item)" aria-label="Increase">
-                      <svg lucidePlus [size]="12"></svg>
-                    </button>
-                  </div>
-                  <button type="button" class="remove-btn" (click)="remove(item)" aria-label="Remove item">
-                    <svg lucideTrash2 [size]="16"></svg>
-                  </button>
-                </div>
               </div>
             </div>
 

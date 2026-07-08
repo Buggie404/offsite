@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { Product, ProductVariant } from '../../../shared/models/product.model';
+import { BundleCartMeta } from '../models/bundle-cart.model';
 import { Voucher } from '../../../shared/models/voucher.model';
 import { UserAddress, UserPaymentMethod, UserProfile } from '../../../shared/models/user.model';
 
@@ -10,6 +11,7 @@ export interface CheckoutItem {
   variantSku: string;
   quantity: number;
   isComplement?: boolean;
+  bundle?: BundleCartMeta;
 }
 
 export interface DeliveryInfo {

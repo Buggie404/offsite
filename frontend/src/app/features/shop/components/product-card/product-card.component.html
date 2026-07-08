@@ -13,21 +13,23 @@
   <div class="card-image-wrap">
     <img [src]="getPrimaryImage(product)" [alt]="getPrimaryImageAlt(product)" class="product-img" />
 
-    <div class="quick-view-overlay">
-      <button type="button" class="quick-view-trigger" [disabled]="isOutOfStock(product)"
-        (click)="openQuickView($event)">
-        @if (isOutOfStock(product)) {
-          <span>OUT OF STOCK</span>
-        } @else {
-          <svg lucideEye [size]="22" aria-hidden="true"></svg>
-        }
-      </button>
-    </div>
+    @if (!bundleBrowserMode) {
+      <div class="quick-view-overlay">
+        <button type="button" class="quick-view-trigger" [disabled]="isOutOfStock(product)"
+          (click)="openQuickView($event)">
+          @if (isOutOfStock(product)) {
+            <span>OUT OF STOCK</span>
+          } @else {
+            <svg lucideEye [size]="22" aria-hidden="true"></svg>
+          }
+        </button>
+      </div>
 
-    <button type="button" class="save-btn" [class.save-btn--active]="isSaved" (click)="onSave(product, $event)"
-      [attr.aria-label]="isSaved ? 'Remove from saved products' : 'Save product'">
-      <svg lucideHeart [size]="16" [attr.fill]="isSaved ? 'currentColor' : 'none'" aria-hidden="true"></svg>
-    </button>
+      <button type="button" class="save-btn" [class.save-btn--active]="isSaved" (click)="onSave(product, $event)"
+        [attr.aria-label]="isSaved ? 'Remove from saved products' : 'Save product'">
+        <svg lucideHeart [size]="16" [attr.fill]="isSaved ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+      </button>
+    }
 
     <div class="status-badges">
       @if (showBestSellerBadge || product.is_best_seller) {
@@ -89,17 +91,36 @@
     <!-- BOTTOM: price + add -->
     <div class="price-add-row">
       <span class="price">{{ getPrice(product) }}</span>
-      <button type="button" class="add-btn" [disabled]="isOutOfStock(product)"
-        [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'" (click)="onAddToCart(product, $event)">
-        <span>{{ isOutOfStock(product) ? 'Out of stock' : 'Add' }}</span>
-      </button>
+      @if (showBundleStepper()) {
+        <div class="bundle-qty-stepper">
+          <button
+            type="button"
+            class="bundle-qty-stepper__btn"
+            aria-label="Decrease quantity"
+            (click)="onBundleDecrement($event)"
+          >−</button>
+          <span class="bundle-qty-stepper__count">{{ bundleItemCount }}</span>
+          <button
+            type="button"
+            class="bundle-qty-stepper__btn"
+            aria-label="Increase quantity"
+            [disabled]="!bundleCanIncrement"
+            (click)="onBundleIncrement($event)"
+          >+</button>
+        </div>
+      } @else {
+        <button type="button" class="add-btn" [disabled]="isOutOfStock(product)"
+          [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'" (click)="onAddToCart(product, $event)">
+          <span>{{ isOutOfStock(product) ? 'Out of stock' : 'Add' }}</span>
+        </button>
+      }
     </div>
 
   </div><!-- /card-body -->
 
 </div><!-- /card -->
 
-@if (isQuickViewOpen) {
+@if (!bundleBrowserMode && isQuickViewOpen) {
 <app-quick-view-modal [product]="product" [isSaved]="isSaved" (closed)="closeQuickView()"
   (saveToggle)="saveToggle.emit($event)"></app-quick-view-modal>
 }

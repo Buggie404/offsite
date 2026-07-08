@@ -441,52 +441,94 @@
         </label>
 
         <!-- Image -->
-        <div class="cart-item-image">
-          <img [src]="getVariant(item).images?.[0]?.url || item.product.images[0]?.url" [alt]="item.product.name">
+        <div class="cart-item-image slide-cart--item-image">
+          <img [src]="getItemImage(item)" [alt]="isBundleItem(item) ? item.bundle!.title : item.product.name">
         </div>
 
         <!-- Details -->
         <div class="cart-item-details">
           <div class="cart-item-title-row">
-            <span class="cart-item-name">{{ item.product.name }}</span>
-            <span class="cart-item-price">${{ (getVariant(item).price * item.quantity) | number:'1.2-2' }}</span>
+            <span class="cart-item-name">{{ item.quantity }} x {{ isBundleItem(item) ? item.bundle!.title : item.product.name }}</span>
+            <span class="cart-item-price">
+              <ng-container *ngIf="isBundleItem(item); else regularCartPrice">
+                <span class="cart-item-price__sale">${{ getLineTotal(item) | number:'1.2-2' }}</span>
+              </ng-container>
+              <ng-template #regularCartPrice>
+                ${{ getLineTotal(item) | number:'1.2-2' }}
+              </ng-template>
+            </span>
           </div>
 
-          <!-- Variant Selector / Name -->
-          <div class="cart-item-variant">
-            <span class="out-of-stock-label" *ngIf="isItemOutOfStock(item)">OUT OF STOCK</span>
-            
-            <div class="variant-select-wrapper" *ngIf="item.product.variants.length > 1; else singleVariant">
-              <select [ngModel]="item.variantSku" (ngModelChange)="changeVariant(item, $event)" [ngModelOptions]="{standalone: true}">
-                <option *ngFor="let v of item.product.variants" [value]="v.sku">
-                  {{ (v.label || '').toUpperCase() }}
-                </option>
-              </select>
-              <svg lucideChevronDown [size]="12" class="variant-caret"></svg>
-            </div>
-            <ng-template #singleVariant>
-              <span class="variant-static-label">
-                {{ (getVariant(item).label || '').toUpperCase() }}
-              </span>
-            </ng-template>
-          </div>
+          <ng-container *ngIf="isBundleItem(item); else regularCartVariant">
+            <div class="cart-item-purchase-type">{{ item.bundle!.purchaseType }}</div>
 
-          <!-- Controls (stepper + remove) -->
-          <div class="cart-item-controls">
-            <div class="qty-stepper" [class.disabled]="isItemOutOfStock(item)">
-              <button type="button" (click)="decrementQuantity(item)" [disabled]="item.quantity <= 1 || isItemOutOfStock(item)">
-                <svg lucideMinus [size]="12"></svg>
-              </button>
-              <span>{{ item.quantity }}</span>
-              <button type="button" (click)="incrementQuantity(item)" [disabled]="item.quantity >= (getVariant(item).stock || 99) || isItemOutOfStock(item)">
-                <svg lucidePlus [size]="12"></svg>
+            <div class="cart-item-controls">
+              <div class="qty-stepper" [class.disabled]="isItemOutOfStock(item)">
+                <button type="button" (click)="decrementQuantity(item)" [disabled]="item.quantity <= 1 || isItemOutOfStock(item)">
+                  <svg lucideMinus [size]="12"></svg>
+                </button>
+                <span>{{ item.quantity }}</span>
+                <button type="button" (click)="incrementQuantity(item)" [disabled]="item.quantity >= (getVariant(item).stock || 99) || isItemOutOfStock(item)">
+                  <svg lucidePlus [size]="12"></svg>
+                </button>
+              </div>
+
+              <button type="button" class="remove-btn" (click)="removeFromCart(item)" aria-label="Remove item">
+                <svg lucideTrash2 [size]="16"></svg>
               </button>
             </div>
-            
-            <button type="button" class="remove-btn" (click)="removeFromCart(item)" aria-label="Remove item">
-              <svg lucideTrash2 [size]="16"></svg>
+
+            <button type="button" class="view-kit-content" (click)="toggleKitContent(item)">
+              <span>{{ getBundleContentToggleLabel(item.bundle!) }}</span>
+              <svg lucideChevronDown [size]="14" [class.expanded]="isKitContentExpanded(item)"></svg>
             </button>
-          </div>
+
+            <div class="kit-content" *ngIf="isKitContentExpanded(item)">
+              <div class="kit-content-item" *ngFor="let component of getBundleContentComponents(item.bundle!); let last = last">
+                <img class="kit-content-item__image" [src]="getComponentImage(component)" [alt]="getComponentDisplayName(component)">
+                <span class="kit-content-item__name">{{ getBundleComponentLineQuantity(item, component) }} x {{ getComponentDisplayName(component) }}</span>
+                <div class="kit-content-divider" *ngIf="!last" aria-hidden="true"></div>
+              </div>
+            </div>
+          </ng-container>
+
+          <ng-template #regularCartVariant>
+            <!-- Variant Selector / Name -->
+            <div class="cart-item-variant">
+              <span class="out-of-stock-label" *ngIf="isItemOutOfStock(item)">OUT OF STOCK</span>
+              
+              <div class="variant-select-wrapper" *ngIf="item.product.variants.length > 1; else singleVariant">
+                <select [ngModel]="item.variantSku" (ngModelChange)="changeVariant(item, $event)" [ngModelOptions]="{standalone: true}">
+                  <option *ngFor="let v of item.product.variants" [value]="v.sku">
+                    {{ (v.label || '').toUpperCase() }}
+                  </option>
+                </select>
+                <svg lucideChevronDown [size]="12" class="variant-caret"></svg>
+              </div>
+              <ng-template #singleVariant>
+                <span class="variant-static-label">
+                  {{ (getVariant(item).label || '').toUpperCase() }}
+                </span>
+              </ng-template>
+            </div>
+
+            <!-- Controls (stepper + remove) -->
+            <div class="cart-item-controls">
+              <div class="qty-stepper" [class.disabled]="isItemOutOfStock(item)">
+                <button type="button" (click)="decrementQuantity(item)" [disabled]="item.quantity <= 1 || isItemOutOfStock(item)">
+                  <svg lucideMinus [size]="12"></svg>
+                </button>
+                <span>{{ item.quantity }}</span>
+                <button type="button" (click)="incrementQuantity(item)" [disabled]="item.quantity >= (getVariant(item).stock || 99) || isItemOutOfStock(item)">
+                  <svg lucidePlus [size]="12"></svg>
+                </button>
+              </div>
+              
+              <button type="button" class="remove-btn" (click)="removeFromCart(item)" aria-label="Remove item">
+                <svg lucideTrash2 [size]="16"></svg>
+              </button>
+            </div>
+          </ng-template>
         </div>
       </div>
     </div>
