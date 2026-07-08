@@ -813,7 +813,7 @@
 
       <!-- Add Payment Card Inline Panel -->
       <div class="tab-content payment-add-card-tab animate-fade-in" *ngIf="activeTab() === 'payment' && isAddingCard()">
-        <div class="address-card" style="padding: 32px; border: 1.5px solid rgba(84, 74, 64, 0.15); border-radius: 16px;">
+        <div class="payment-add-card-wrapper">
           <h2 class="form-section-title" style="font-size: 22px; font-weight: 700; margin: 0 0 6px 0; color: var(--color-near-black);">Add New Payment Method</h2>
           <p class="form-section-subtitle" style="font-size: 14px; color: var(--color-warm-brown); opacity: 0.6; margin: 0 0 32px 0;">Your card details are encrypted and secure</p>
 
@@ -821,7 +821,7 @@
             <!-- Card Type Selector -->
             <div class="form-row card-type-selector-row" style="margin-bottom: 24px;">
               <label class="info-label" style="display: block; margin-bottom: 8px;">CARD TYPE</label>
-              <div class="payment-card-type-selector" style="display: flex; gap: 24px;">
+              <div class="payment-card-type-selector">
                 <button 
                   type="button" 
                   class="type-selector-box" 
@@ -898,7 +898,7 @@
             </div>
 
             <!-- Expiry & CVV / Issued Bank -->
-            <div class="form-row inline-row" style="display: flex; gap: 24px; margin-bottom: 32px;">
+            <div class="form-row inline-row">
               <div class="form-group half-width" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
                 <label class="info-label">EXPIRED DATE</label>
                 <input
@@ -963,11 +963,11 @@
               </div>
             </div>
 
-            <div class="form-actions-row" style="display: flex; gap: 24px; justify-content: flex-end; margin-top: 16px;">
-              <button type="button" class="btn-form btn-cancel-card" style="flex: 1; padding: 15px 24px; border-radius: 100px; border: 1.5px solid #C0392B; background: transparent; color: #C0392B; font-weight: 700; font-size: 13px; letter-spacing: 0.08em; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" (click)="closeAddCardForm()">
+            <div class="form-actions-row">
+              <button type="button" class="btn-form btn-cancel-card" (click)="closeAddCardForm()">
                 CANCEL
               </button>
-              <button type="submit" class="btn-form btn-submit-card" style="flex: 1; padding: 15px 24px; border-radius: 100px; border: none; background-color: #375534; color: #FFFFFF; font-weight: 700; font-size: 13px; letter-spacing: 0.08em; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" [disabled]="isSubmitting()">
+              <button type="submit" class="btn-form btn-submit-card" [disabled]="isSubmitting()">
                 <svg lucideLoader [size]="16" class="spin-icon" *ngIf="isSubmitting()" style="margin-right: 8px;"></svg>
                 <span>ADD CARD</span>
               </button>
