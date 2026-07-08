@@ -2,6 +2,8 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit, PLATFORM_ID, inject, s
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
+  LucideArrowRight,
+  LucideChevronDown,
   LucideChevronLeft,
   LucideChevronRight,
   LucideCoffee,
@@ -12,10 +14,12 @@ import {
   LucideMinus,
   LucidePackage,
   LucidePlus,
+  LucideStar,
   LucideShoppingBag,
-  LucideShoppingCart
+  LucideShoppingCart,
+  LucideX
 } from '@lucide/angular';
-import { ProductService } from '../../../../features/home/services/product.service';
+import { ProductReview as ProductReviewDto, ProductService } from '../../../../features/home/services/product.service';
 import {
   Product,
   ProductImage,
@@ -25,6 +29,13 @@ import {
 import { CartService } from '../../../purchase/services/cart.service';
 import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
+import { BestSellerComponent } from '../../../../features/home/components/best-seller/best-seller.component';
+import { RecipeSectionComponent } from '../../../../features/home/components/recipes/recipe-section.component';
+import { ContentService } from '../../../content/services/content.service';
+import { buildMockProductReviews } from '../../../../shared/data/mock-product-reviews';
+import { AuthService } from '../../../../core/auth.service';
+import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
+import { Subscription } from 'rxjs';
 
 interface ProductTag {
   icon: 'map' | 'drop' | 'package';
@@ -38,6 +49,26 @@ interface IncludedProduct {
   price: number | null;
   tag: string;
   icon: 'leaf' | 'coffee' | 'tool' | 'package';
+  routeId: string;
+  imageUrl: string;
+}
+
+interface ProductReviewView {
+  author: string;
+  date: string;
+  rating: number;
+  comment: string;
+}
+
+type ReviewSortOption = 'oldest' | 'newest' | 'highest' | 'lowest';
+
+interface BrewingMethodCard {
+  slug: string;
+  stepAnchor: string;
+  title: string;
+  methodLabel: string;
+  steps: string[];
+  icon: 'coffee' | 'droplet' | 'leaf';
 }
 
 @Component({
@@ -48,6 +79,10 @@ interface IncludedProduct {
     RouterLink,
     DragScrollDirective,
     AnimateInViewDirective,
+    BestSellerComponent,
+    RecipeSectionComponent,
+    LucideArrowRight,
+    LucideChevronDown,
     LucideChevronLeft,
     LucideChevronRight,
     LucideCoffee,
@@ -58,8 +93,10 @@ interface IncludedProduct {
     LucideMinus,
     LucidePackage,
     LucidePlus,
+    LucideStar,
     LucideShoppingBag,
-    LucideShoppingCart
+    LucideShoppingCart,
+    LucideX
   ],
   templateUrl: './product-detail.component.html',
   styleUrl: './product-detail.component.scss'
@@ -68,7 +105,10 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private productService = inject(ProductService);
+  private contentService = inject(ContentService);
   private cartService = inject(CartService);
+  private authService = inject(AuthService);
+  private authPromptService = inject(AuthPromptModalService);
   private platformId = inject(PLATFORM_ID);
   private cdr = inject(ChangeDetectorRef);
 
@@ -83,8 +123,26 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   slidePosition = signal<number>(1);
   isSlideTransitionEnabled = signal<boolean>(true);
   isCarouselPaused = signal<boolean>(false);
+  isReviewModalOpen = signal<boolean>(false);
+  reviews = signal<ProductReviewView[]>([]);
+  reviewsTotal = signal<number>(0);
+  reviewsTotalPages = signal<number>(1);
+  isReviewsLoading = signal<boolean>(false);
+  selectedReviewFilter = signal<string>('All');
+  selectedReviewSort = signal<ReviewSortOption>('oldest');
+  reviewModalPage = signal<number>(1);
+  brewingMethods = signal<BrewingMethodCard[]>([]);
+  isBrewingMethodsLoading = signal<boolean>(false);
+  youMayAlsoLikeProducts = signal<Product[]>([]);
+  recentlyViewedProducts = signal<Product[]>([]);
+  productCatalog = signal<Product[]>([]);
 
   private carouselTimer?: ReturnType<typeof setInterval>;
+  private readonly recentlyViewedKey = 'recently_viewed_products';
+  private routeSubscription?: Subscription;
+
+  readonly ratingStars = [1, 2, 3, 4, 5];
+  readonly ratingFilters = ['All', '5', '4', '3', '2', '1'];
 
   readonly roastSwatches = [
     '#f3f8ec', '#e5f1d5', '#d7eabf', '#c9e3a9', '#b5d48a',
@@ -92,12 +150,37 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   ];
 
   ngOnInit(): void {
-    const productId = this.route.snapshot.paramMap.get('id');
+    this.routeSubscription = this.route.paramMap.subscribe(params => {
+      const productId = params.get('id');
+      this.loadProduct(productId);
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.stopCarousel();
+    this.routeSubscription?.unsubscribe();
+  }
+
+  private loadProduct(productId: string | null): void {
     if (!productId) {
       this.errorMessage.set('Product ID not found.');
       this.isLoading.set(false);
       return;
     }
+
+    this.stopCarousel();
+    this.isLoading.set(true);
+    this.errorMessage.set('');
+    this.quantity.set(1);
+    this.quantityError.set('');
+    this.activeImageIndex.set(0);
+    this.slidePosition.set(1);
+    this.isSlideTransitionEnabled.set(true);
+    this.isCarouselPaused.set(false);
+    this.isReviewModalOpen.set(false);
+    this.isSaved.set(false);
+    this.brewingMethods.set([]);
+    this.youMayAlsoLikeProducts.set([]);
 
     this.productService.getProductById(productId).subscribe({
       next: (prod: Product) => {
@@ -105,6 +188,12 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
         const defaultVariant = prod.variants?.find(variant => variant.is_default) ?? prod.variants?.[0] ?? null;
         this.selectedVariant.set(defaultVariant);
         this.isLoading.set(false);
+        void this.loadSavedState(prod);
+        this.loadProductReviews(prod);
+        this.loadBrewingMethods(prod);
+        this.loadProductCatalogForRecommendations(prod);
+        this.loadRecentlyViewedProducts(prod);
+        this.rememberRecentlyViewedProduct(prod);
         this.startCarousel();
       },
       error: (err) => {
@@ -113,10 +202,6 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
         this.isLoading.set(false);
       }
     });
-  }
-
-  ngOnDestroy(): void {
-    this.stopCarousel();
   }
 
   selectVariant(variant: Variant): void {
@@ -323,6 +408,119 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return !this.selectedVariant() || this.maxQuantity() <= 0;
   }
 
+  shouldShowRecipes(): boolean {
+    const category = this.product()?.category;
+    return category === 'coffee' || category === 'matcha';
+  }
+
+  shouldShowBrewingMethods(): boolean {
+    return this.shouldShowRecipes();
+  }
+
+  getRecipeBaseFilter(): 'matcha' | 'coffee' | null {
+    const category = this.product()?.category;
+    return category === 'matcha' || category === 'coffee' ? category : null;
+  }
+
+  averageRating(): number {
+    const reviews = this.reviews();
+    const productRating = this.product()?.rating_avg;
+    const productReviewCount = this.product()?.review_count ?? 0;
+    if (typeof productRating === 'number' && productReviewCount > 0) return productRating;
+
+    if (!reviews.length) return 0;
+    const total = reviews.reduce((sum, review) => sum + review.rating, 0);
+    return Math.round((total / reviews.length) * 10) / 10;
+  }
+
+  reviewCount(): number {
+    const loadedTotal = this.reviewsTotal();
+    const localTotal = this.reviews().length;
+    if (loadedTotal > 0 || localTotal > 0) return Math.max(loadedTotal, localTotal);
+    return this.product()?.review_count ?? 0;
+  }
+
+  featuredReviews(): ProductReviewView[] {
+    return this.reviews().slice(0, 2);
+  }
+
+  isStarFilled(rating: number, star: number): boolean {
+    return star <= Math.floor(rating);
+  }
+
+  openReviewModal(): void {
+    this.reviewModalPage.set(1);
+    this.isReviewModalOpen.set(true);
+  }
+
+  closeReviewModal(): void {
+    this.isReviewModalOpen.set(false);
+  }
+
+  setReviewFilter(filter: string): void {
+    this.selectedReviewFilter.set(filter);
+    this.reviewModalPage.set(1);
+  }
+
+  onReviewSortChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value as ReviewSortOption;
+    this.selectedReviewSort.set(value);
+    this.reviewModalPage.set(1);
+  }
+
+  modalReviews(): ProductReviewView[] {
+    const filter = this.selectedReviewFilter();
+    const filtered = filter === 'All'
+      ? [...this.reviews()]
+      : this.reviews().filter(review => review.rating === Number(filter));
+
+    return filtered.sort((a, b) => {
+      switch (this.selectedReviewSort()) {
+        case 'newest':
+          return this.getReviewTime(b) - this.getReviewTime(a);
+        case 'highest':
+          return b.rating - a.rating || this.getReviewTime(b) - this.getReviewTime(a);
+        case 'lowest':
+          return a.rating - b.rating || this.getReviewTime(a) - this.getReviewTime(b);
+        case 'oldest':
+        default:
+          return this.getReviewTime(a) - this.getReviewTime(b);
+      }
+    });
+  }
+
+  pagedModalReviews(): ProductReviewView[] {
+    const page = this.reviewModalPage();
+    const start = (page - 1) * this.reviewModalPageSize();
+    return this.modalReviews().slice(start, start + this.reviewModalPageSize());
+  }
+
+  modalReviewTotalPages(): number {
+    return Math.max(Math.ceil(this.modalReviews().length / this.reviewModalPageSize()), 1);
+  }
+
+  canGoPreviousReviewPage(): boolean {
+    return this.reviewModalPage() > 1;
+  }
+
+  canGoNextReviewPage(): boolean {
+    return this.reviewModalPage() < this.modalReviewTotalPages();
+  }
+
+  previousReviewPage(): void {
+    if (!this.canGoPreviousReviewPage()) return;
+    this.reviewModalPage.update(page => page - 1);
+  }
+
+  nextReviewPage(): void {
+    if (!this.canGoNextReviewPage()) return;
+    this.reviewModalPage.update(page => page + 1);
+  }
+
+  getMethodIcon(method: BrewingMethodCard): 'coffee' | 'droplet' | 'leaf' {
+    return method.icon;
+  }
+
   getIncludedProducts(): IncludedProduct[] {
     const p = this.product();
     if (p?.category !== 'sets_bundles') return [];
@@ -332,8 +530,33 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
       .filter((item): item is IncludedProduct => !!item);
   }
 
-  toggleSave(): void {
-    this.isSaved.update(saved => !saved);
+  shouldShowIncludedProducts(): boolean {
+    const p = this.product();
+    return p?.category === 'sets_bundles'
+      && p.sets_bundles?.is_exclusive !== true
+      && (p.sets_bundles?.composition?.length ?? 0) > 0
+      && this.getIncludedProducts().length > 0;
+  }
+
+  getIncludedProductLink(item: IncludedProduct): unknown[] {
+    return item.routeId ? ['/products', item.routeId] : ['/shop/sets-bundles'];
+  }
+
+  async toggleSave(): Promise<void> {
+    const prod = this.product();
+    if (!prod) return;
+
+    if (!this.authService.isAuthenticated()) {
+      this.authPromptService.open();
+      return;
+    }
+
+    try {
+      const result = await this.authService.toggleSavedProduct(prod.product_id);
+      this.isSaved.set(result.saved);
+    } catch (err) {
+      console.error('Failed to save product:', err);
+    }
   }
 
   onAddToCart(): void {
@@ -386,20 +609,29 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   }
 
   private normalizeIncludedProduct(item: unknown): IncludedProduct | null {
-    if (!item || typeof item !== 'object') return null;
-    const source = item as Record<string, any>;
-    const product = (source['product'] && typeof source['product'] === 'object')
-      ? source['product'] as Record<string, any>
-      : source;
+    if (item === null || item === undefined) return null;
+    if (typeof item !== 'object') {
+      const referencedProduct = this.findCatalogProduct(item);
+      return referencedProduct ? this.normalizeIncludedProduct(referencedProduct) : null;
+    }
 
-    const name = this.pickText(product, ['name', 'product_name', 'title']);
+    const source = item as Record<string, any>;
+    const referencedProduct = this.findCatalogProduct(source);
+    const product = referencedProduct as unknown as Record<string, any>
+      || ((source['product'] && typeof source['product'] === 'object')
+        ? source['product'] as Record<string, any>
+        : source);
+
+    const name = this.pickText(product, ['name', 'product_name', 'component_name', 'title']);
     if (!name) return null;
 
-    const category = this.pickText(product, ['category', 'product_category', 'type']);
+    const category = this.pickText(product, ['category', 'product_category', 'component_category', 'type']);
     const detail = product['matcha'] ?? product['coffee'] ?? product['tools'] ?? product['drinkware'] ?? {};
     const detailRecord = typeof detail === 'object' ? detail as Record<string, any> : {};
     const variants = Array.isArray(product['variants']) ? product['variants'] : [];
     const variant = variants.find((candidate: any) => candidate?.is_default) ?? variants[0] ?? {};
+    const productImages = Array.isArray(product['images']) ? product['images'] : [];
+    const image = productImages.find((candidate: any) => candidate?.sort_order === 0) ?? productImages[0] ?? {};
 
     return {
       name,
@@ -410,13 +642,116 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
         || this.pickText(source, ['description', 'label', 'variant_label'])
         || this.pickText(variant, ['label'])
         || 'Included in this set',
-      price: this.pickNumber(product, ['price']) ?? this.pickNumber(variant, ['price']),
+      price: this.pickNumber(product, ['price', 'component_price']) ?? this.pickNumber(variant, ['price']),
       tag: this.pickText(product, ['tag'])
         || this.pickText(detailRecord, ['origin', 'product_origin', 'material', 'tool_category'])
         || category
         || 'included',
-      icon: this.getIncludedIcon(category)
+      icon: this.getIncludedIcon(category),
+      routeId: this.pickText(product, ['_id', 'slug', 'product_id', 'component_product_id']),
+      imageUrl: this.pickImageUrl(product, image)
     };
+  }
+
+  private loadProductCatalogForRecommendations(product: Product): void {
+    if (this.productCatalog().length) {
+      this.youMayAlsoLikeProducts.set(this.buildYouMayAlsoLikeProducts(product, this.productCatalog()));
+      return;
+    }
+
+    this.productService.getProducts().subscribe({
+      next: products => {
+        this.productCatalog.set(products);
+        this.youMayAlsoLikeProducts.set(this.buildYouMayAlsoLikeProducts(product, products));
+      },
+      error: err => console.error('Failed to load product catalog for product detail:', err)
+    });
+  }
+
+  private buildYouMayAlsoLikeProducts(currentProduct: Product, catalog: Product[]): Product[] {
+    const currentKey = this.getProductIdentity(currentProduct);
+    const sameCategoryProducts = catalog.filter(product =>
+      product.category === currentProduct.category
+      && product.is_active !== false
+      && this.getProductIdentity(product) !== currentKey
+    );
+
+    const bestSellers = sameCategoryProducts
+      .filter(product => product.is_best_seller)
+      .sort((a, b) => (b.total_sold_quantity ?? 0) - (a.total_sold_quantity ?? 0))
+      .slice(0, 3);
+
+    const usedKeys = new Set(bestSellers.map(product => this.getProductIdentity(product)));
+    const newArrival = sameCategoryProducts
+      .filter(product => product.is_new_arrival && !usedKeys.has(this.getProductIdentity(product)))
+      .sort((a, b) => this.getProductDateTime(b) - this.getProductDateTime(a))[0];
+
+    const recommendations = newArrival ? [...bestSellers, newArrival] : [...bestSellers];
+    const recommendationKeys = new Set(recommendations.map(product => this.getProductIdentity(product)));
+
+    if (recommendations.length < 4) {
+      recommendations.push(
+        ...sameCategoryProducts
+          .filter(product => !recommendationKeys.has(this.getProductIdentity(product)))
+          .sort((a, b) =>
+            Number(b.is_best_seller) - Number(a.is_best_seller)
+            || Number(b.is_new_arrival) - Number(a.is_new_arrival)
+            || (b.total_sold_quantity ?? 0) - (a.total_sold_quantity ?? 0)
+          )
+          .slice(0, 4 - recommendations.length)
+      );
+    }
+
+    return recommendations.slice(0, 4);
+  }
+
+  private findCatalogProduct(reference: unknown): Product | null {
+    const catalog = this.productCatalog();
+    if (!catalog.length) return null;
+
+    if (reference === null || reference === undefined) return null;
+    if (typeof reference !== 'object') {
+      const key = String(reference);
+      return catalog.find(product => this.productMatchesReference(product, key)) ?? null;
+    }
+
+    const source = reference as Record<string, any>;
+    const nestedProduct = source['product'];
+    if (nestedProduct && typeof nestedProduct === 'object') {
+      const nestedRecord = nestedProduct as Record<string, any>;
+      const nestedId = this.pickText(nestedRecord, ['_id', 'slug', 'product_id', 'component_product_id', 'id']);
+      if (nestedId) return catalog.find(product => this.productMatchesReference(product, nestedId)) ?? null;
+    }
+
+    const keys = [
+      this.pickText(source, ['_id', 'slug', 'product_id', 'component_product_id', 'productId', 'id', 'product'])
+    ].filter(Boolean);
+
+    for (const key of keys) {
+      const product = catalog.find(candidate => this.productMatchesReference(candidate, key));
+      if (product) return product;
+    }
+
+    return null;
+  }
+
+  private productMatchesReference(product: Product, reference: string): boolean {
+    const normalized = reference.trim();
+    if (!normalized) return false;
+
+    return String(product._id ?? '') === normalized
+      || String(product.slug ?? '') === normalized
+      || String(product.product_id ?? '') === normalized;
+  }
+
+  private pickImageUrl(product: Record<string, any>, image: Record<string, any>): string {
+    const candidates = [
+      this.pickText(image, ['url']),
+      this.pickText(product, ['component_image_url']),
+      this.pickText(product, ['component_image_public_id'])
+    ];
+
+    return candidates.find(value => /^https?:\/\//i.test(value)) ?? '';
   }
 
   private pickText(source: Record<string, any>, keys: string[]): string {
@@ -442,6 +777,280 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     if (normalized.includes('coffee')) return 'coffee';
     if (normalized.includes('tool')) return 'tool';
     return 'package';
+  }
+
+  private async loadSavedState(product: Product): Promise<void> {
+    if (!this.authService.isAuthenticated()) {
+      this.isSaved.set(false);
+      return;
+    }
+
+    try {
+      const result = await this.authService.getSavedItems();
+      const saved = (result.saved_products || []).some((item: any) =>
+        Number(item.product?.product_id ?? item.product_id) === product.product_id
+      );
+      this.isSaved.set(saved);
+    } catch (err) {
+      console.error('Failed to load saved product state:', err);
+      this.isSaved.set(false);
+    }
+  }
+
+  private loadRecentlyViewedProducts(currentProduct: Product): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    const products = this.readRecentlyViewedProducts()
+      .filter(product => this.getProductIdentity(product) !== this.getProductIdentity(currentProduct))
+      .slice(0, 4);
+
+    this.recentlyViewedProducts.set(products);
+  }
+
+  private rememberRecentlyViewedProduct(product: Product): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    const productKey = this.getProductIdentity(product);
+    const nextProducts = [
+      product,
+      ...this.readRecentlyViewedProducts().filter(item => this.getProductIdentity(item) !== productKey)
+    ].slice(0, 8);
+
+    localStorage.setItem(this.recentlyViewedKey, JSON.stringify(nextProducts));
+  }
+
+  private readRecentlyViewedProducts(): Product[] {
+    try {
+      const raw = localStorage.getItem(this.recentlyViewedKey);
+      if (!raw) return [];
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+
+      return parsed.filter((item: Partial<Product>): item is Product =>
+        !!item
+        && typeof item === 'object'
+        && typeof item.name === 'string'
+        && Array.isArray(item.images)
+        && Array.isArray(item.variants)
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private getProductIdentity(product: Product): string {
+    return String(product._id || product.product_id || product.slug || product.name);
+  }
+
+  private getProductDateTime(product: Product): number {
+    const source = product as Product & { createdAt?: string; updatedAt?: string };
+    const time = new Date(source.createdAt || source.updatedAt || '').getTime();
+    return Number.isNaN(time) ? 0 : time;
+  }
+
+  private loadProductReviews(product: Product): void {
+    const productId = product._id;
+    if (!productId) {
+      this.reviews.set([]);
+      this.reviewsTotal.set(product.review_count ?? 0);
+      return;
+    }
+
+    this.isReviewsLoading.set(true);
+    this.productService.getProductReviews(productId, 1, 50, 'oldest').subscribe({
+      next: (response) => {
+        if (response.pagination.total > 0) {
+          this.reviews.set(response.data.map(review => this.mapReview(review)));
+          this.reviewsTotal.set(response.pagination.total);
+          this.reviewsTotalPages.set(response.pagination.totalPages);
+        } else {
+          this.applyMockReviews(product);
+        }
+        this.isReviewsLoading.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load product reviews:', err);
+        this.applyMockReviews(product);
+        this.isReviewsLoading.set(false);
+      }
+    });
+  }
+
+  private applyMockReviews(product: Product): void {
+    const reviews = buildMockProductReviews(product);
+    this.reviews.set(reviews);
+    this.reviewsTotal.set(reviews.length);
+    this.reviewsTotalPages.set(Math.max(Math.ceil(reviews.length / 10), 1));
+  }
+
+  private reviewModalPageSize(): number {
+    return 5;
+  }
+
+  private getReviewTime(review: ProductReviewView): number {
+    const time = new Date(review.date).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  }
+
+  private loadBrewingMethods(product: Product): void {
+    if (product.category !== 'coffee' && product.category !== 'matcha') {
+      this.brewingMethods.set([]);
+      this.isBrewingMethodsLoading.set(false);
+      return;
+    }
+
+    this.isBrewingMethodsLoading.set(true);
+    this.contentService.getBlogs({ tag: 'brewing guide', limit: 12, page: 1 }).subscribe({
+      next: (response) => {
+        const blogs = response.data ?? [];
+        const categoryBlogs = this.pickBrewingBlogsForProduct(product, blogs);
+        if (categoryBlogs.length >= 3) {
+          this.brewingMethods.set(categoryBlogs.slice(0, 3).map((blog, index) => this.mapBrewingMethod(blog, index)));
+          this.isBrewingMethodsLoading.set(false);
+          return;
+        }
+
+        this.loadBrewingMethodsByCategory(product, categoryBlogs, blogs);
+      },
+      error: () => this.loadBrewingMethodsByCategory(product, [], [])
+    });
+  }
+
+  private loadBrewingMethodsByCategory(product: Product, categoryBlogs: any[], existingBlogs: any[]): void {
+    this.contentService.getBlogs({ category: 'BREWING GUIDES', limit: 12, page: 1 }).subscribe({
+      next: (response) => {
+        const seen = new Set(existingBlogs.map(blog => blog._id || blog.slug));
+        const combined = [
+          ...existingBlogs,
+          ...(response.data ?? []).filter(blog => !seen.has(blog._id || blog.slug))
+        ];
+        const selectedBlogs = this.pickBrewingBlogsForProduct(product, combined).slice(0, 3);
+
+        this.brewingMethods.set(selectedBlogs.map((blog, index) => this.mapBrewingMethod(blog, index)));
+        this.isBrewingMethodsLoading.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load brewing methods:', err);
+        const displayBlogs = categoryBlogs.slice(0, 3);
+        this.brewingMethods.set(displayBlogs.map((blog, index) => this.mapBrewingMethod(blog, index)));
+        this.isBrewingMethodsLoading.set(false);
+      }
+    });
+  }
+
+  private pickBrewingBlogsForProduct(product: Product, blogs: any[]): any[] {
+    const category = product.category;
+    return blogs.filter(blog => this.blogMatchesBrewingCategory(blog, category));
+  }
+
+  private blogMatchesBrewingCategory(blog: any, category: string): boolean {
+    const haystack = [
+      blog.slug,
+      blog.title,
+      blog.category,
+      ...(Array.isArray(blog.tags) ? blog.tags : []),
+      ...(Array.isArray(blog.metadata?.tags) ? blog.metadata.tags : []),
+      ...(Array.isArray(blog.content)
+        ? blog.content.flatMap((block: any) => [block?.type, block?.text, block?.title, block?.caption])
+        : [])
+    ].join(' ').toLowerCase();
+
+    const hasMatcha = /\bmatcha\b|\bgreen tea\b|\bchasen\b|\bwhisk\b/.test(haystack);
+    const hasCoffee = /\bcoffee\b|\bespresso\b|\bpour over\b|\baeropress\b|\bchemex\b|\bv60\b|\bcold brew\b|\bdrip\b/.test(haystack);
+
+    if (category === 'matcha') {
+      if (hasCoffee && !hasMatcha) return false;
+      return hasMatcha;
+    }
+
+    if (category === 'coffee') {
+      if (hasMatcha) return false;
+      return hasCoffee;
+    }
+
+    return false;
+  }
+
+  private mapBrewingMethod(blog: any, index: number): BrewingMethodCard {
+    return {
+      slug: blog.slug || blog._id || '',
+      stepAnchor: this.getBrewingStepAnchor(blog),
+      title: blog.title || `Brewing Method ${index + 1}`,
+      methodLabel: `METHOD ${String(index + 1).padStart(2, '0')}`,
+      steps: this.extractBrewingSteps(blog),
+      icon: (['coffee', 'droplet', 'leaf'] as const)[index % 3]
+    };
+  }
+
+  private extractBrewingSteps(blog: any): string[] {
+    const fallbackSteps = [
+      'Heat Your Water',
+      'Grind Your Coffee',
+      'Bloom the Grounds'
+    ];
+
+    const headingSteps: string[] = Array.isArray(blog.content)
+      ? blog.content
+          .filter((block: any) => block?.type === 'heading')
+          .map((block: any) => this.normalizeBrewingStepHeading(block?.text))
+          .filter((step: string) => step.length >= 3 && step.length <= 42)
+      : [];
+
+    const uniqueSteps = headingSteps.filter((step: string, index: number, list: string[]) =>
+      list.findIndex((candidate: string) => candidate.toLowerCase() === step.toLowerCase()) === index
+    );
+
+    return [...uniqueSteps, ...fallbackSteps].slice(0, 3);
+  }
+
+  private normalizeBrewingStepHeading(value: unknown): string {
+    return String(value ?? '')
+      .replace(/^\s*(?:step\s*)?\d+[\).\s:-]+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private getBrewingStepAnchor(blog: any): string {
+    const content = Array.isArray(blog.content) ? blog.content : [];
+    const stepIndex = content.findIndex((block: any) => {
+      const step = this.normalizeBrewingStepHeading(block?.text);
+      return block?.type === 'heading' && step.length >= 3 && step.length <= 42;
+    });
+
+    if (stepIndex < 0) return '';
+    return this.buildJournalStepAnchor(content[stepIndex]?.text, stepIndex);
+  }
+
+  private buildJournalStepAnchor(value: unknown, index: number): string {
+    const slug = this.normalizeBrewingStepHeading(value)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    return `journal-step-${index}-${slug || 'guide'}`;
+  }
+
+  private mapReview(review: ProductReviewDto): ProductReviewView {
+    return {
+      author: review.is_anonymous ? 'Anonymous' : (review.user_snapshot?.name?.trim() || 'Guest'),
+      date: this.formatReviewDate(review.created_at),
+      rating: review.rating,
+      comment: review.content?.trim() || 'No written comment.'
+    };
+  }
+
+  private formatReviewDate(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }).format(date);
   }
 
   private startCarousel(): void {

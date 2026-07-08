@@ -21,6 +21,7 @@ function optionalAuth(req, res, next) {
   }
 }
 
+router.get('/product/:productId', reviewsController.getProductReviews);
 router.post('/', optionalAuth, reviewsController.createReview);
 
 module.exports = router;

@@ -103,13 +103,13 @@
             </p>
 
             <!-- Headings -->
-            <h2 *ngIf="block.type === 'heading' && block.level === 2" class="article-heading-h2">
+            <h2 *ngIf="block.type === 'heading' && block.level === 2" class="article-heading-h2" [id]="getContentBlockId(block, idx)">
               {{ block.text }}
             </h2>
-            <h3 *ngIf="block.type === 'heading' && block.level === 3" class="article-heading-h3">
+            <h3 *ngIf="block.type === 'heading' && block.level === 3" class="article-heading-h3" [id]="getContentBlockId(block, idx)">
               {{ block.text }}
             </h3>
-            <h4 *ngIf="block.type === 'heading' && block.level === 4" class="article-heading-h4">
+            <h4 *ngIf="block.type === 'heading' && block.level === 4" class="article-heading-h4" [id]="getContentBlockId(block, idx)">
               {{ block.text }}
             </h4>
 

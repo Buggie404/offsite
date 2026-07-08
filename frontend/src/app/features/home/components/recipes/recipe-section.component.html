@@ -2,7 +2,7 @@
      components/recipe-section/recipe-section.component.html
 ───────────────────────────────────────────────────────────── -->
 
-<section class="brew-section">
+<section class="brew-section" [class.brew-section--compact]="compact">
 
   <!-- Background geometric decorations -->
   <div class="geo geo--circle" aria-hidden="true"></div>
@@ -13,10 +13,10 @@
     <!-- ── HEADING ─────────────────────────────────────────── -->
     <div class="section-header">
       <div class="heading-block">
-        <h2 class="heading-block__title">Brew It Yourself</h2>
+        <h2 class="heading-block__title">{{ sectionHeading }}</h2>
         <hr class="heading-block__divider" />
       </div>
-      <a routerLink="/recipes" class="view-all-link">
+      <a routerLink="/recipes" class="view-all-link" *ngIf="showViewAll">
         <span>VIEW ALL RECIPES</span>
         <svg lucideArrowRight [size]="16" aria-hidden="true"></svg>
       </a>
@@ -40,6 +40,9 @@
       <article
         class="recipe-card"
         *ngFor="let recipe of recipes; let i = index"
+        [routerLink]="['/recipes', recipe.slug]"
+        role="link"
+        tabindex="0"
       >
         <!-- Image area -->
         <div class="recipe-card__image-wrapper">
@@ -94,7 +97,7 @@
           <p class="recipe-card__desc">{{ recipe.description }}</p>
 
           <!-- CTA -->
-          <a [href]="'/recipes/' + recipe.slug" class="recipe-card__cta">
+          <a [routerLink]="['/recipes', recipe.slug]" class="recipe-card__cta" (click)="$event.stopPropagation()">
             <span>View Recipe</span>
             <span class="recipe-card__cta-arrow" aria-hidden="true">→</span>
           </a>

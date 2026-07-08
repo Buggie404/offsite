@@ -13,6 +13,28 @@ export interface ProductCategoryCounts {
   sets_bundles: number;
 }
 
+export interface ProductReview {
+  review_id: string;
+  rating: number;
+  content?: string;
+  created_at: string;
+  is_anonymous?: boolean;
+  user_snapshot?: {
+    name?: string;
+    avatar_url?: string | null;
+  };
+}
+
+export interface ProductReviewsResponse {
+  data: ProductReview[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -39,5 +61,14 @@ export class ProductService {
       .set('limit', limit.toString());
 
     return this.http.get<Product[]>(this.api, { params });
+  }
+
+  getProductReviews(productId: string, page = 1, limit = 10, sort: 'newest' | 'oldest' = 'oldest'): Observable<ProductReviewsResponse> {
+    const params = new HttpParams()
+      .set('page', page.toString())
+      .set('limit', limit.toString())
+      .set('sort', sort);
+
+    return this.http.get<ProductReviewsResponse>(`http://localhost:5000/api/reviews/product/${productId}`, { params });
   }
 }

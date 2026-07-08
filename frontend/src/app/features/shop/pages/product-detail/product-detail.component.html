@@ -221,7 +221,7 @@
             </div>
           </section>
 
-          @if (product()?.category === 'sets_bundles' && getIncludedProducts().length) {
+          @if (shouldShowIncludedProducts()) {
             <!-- Bundle contents -->
             <section class="included-section">
               <div class="included-header">
@@ -230,10 +230,12 @@
               </div>
 
               <div class="included-list">
-                @for (item of getIncludedProducts(); track item.name) {
-                  <article class="included-item">
+                @for (item of getIncludedProducts(); track item.routeId || item.name) {
+                  <a class="included-item" [routerLink]="getIncludedProductLink(item)">
                     <div class="included-icon" [attr.data-kind]="item.icon">
-                      @if (item.icon === 'leaf') {
+                      @if (item.imageUrl) {
+                        <img [src]="item.imageUrl" [alt]="item.name" />
+                      } @else if (item.icon === 'leaf') {
                         <svg lucideLeaf [size]="22" aria-hidden="true"></svg>
                       } @else if (item.icon === 'coffee') {
                         <svg lucideCoffee [size]="22" aria-hidden="true"></svg>
@@ -242,21 +244,12 @@
                       }
                     </div>
                     <div class="included-copy">
-                      @if (item.eyebrow) {
-                        <p class="included-eyebrow">{{ item.eyebrow }}</p>
-                      }
                       <h3>{{ item.name }}</h3>
-                      <p>{{ item.description }}</p>
                     </div>
-                    <div class="included-meta">
-                      @if (item.price !== null) {
-                        <strong>{{ item.price | currency:'USD':'symbol':'1.2-2' }}</strong>
-                      }
-                      @if (item.tag) {
-                        <span>{{ item.tag }}</span>
-                      }
-                    </div>
-                  </article>
+                    @if (item.price !== null) {
+                      <strong class="included-price">{{ item.price | currency:'USD':'symbol':'1.2-2' }}</strong>
+                    }
+                  </a>
                 }
               </div>
             </section>
@@ -264,5 +257,279 @@
         </div>
       </article>
     </section>
+
+    @if (shouldShowBrewingMethods() && (isBrewingMethodsLoading() || brewingMethods().length)) {
+      <section class="brewing-methods-section" aria-labelledby="brewing-methods-title">
+        <div class="brewing-methods-header">
+          <h2 id="brewing-methods-title">BREWING METHODS</h2>
+          <span aria-hidden="true"></span>
+        </div>
+
+        <div class="brewing-methods-grid">
+          @if (isBrewingMethodsLoading()) {
+            @for (item of [1, 2, 3]; track item) {
+              <article class="brewing-card brewing-card--loading" aria-hidden="true">
+                <div class="brewing-card__top">
+                  <span></span>
+                </div>
+                <div class="brewing-card__title-placeholder"></div>
+                <div class="brewing-card__steps-placeholder"></div>
+                <div class="brewing-card__button-placeholder"></div>
+              </article>
+            }
+          } @else {
+            @for (method of brewingMethods(); track method.slug; let index = $index) {
+              <article
+                class="brewing-card"
+                [routerLink]="['/journal', method.slug]"
+                role="link"
+                tabindex="0"
+                [attr.aria-label]="'Read journal guide for ' + method.title"
+              >
+                <div class="brewing-card__top">
+                  <span class="brewing-card__badge">{{ method.methodLabel }}</span>
+                  <span class="brewing-card__icon" aria-hidden="true">
+                    @if (getMethodIcon(method) === 'coffee') {
+                      <svg lucideCoffee [size]="24"></svg>
+                    } @else if (getMethodIcon(method) === 'droplet') {
+                      <svg lucideDroplet [size]="24"></svg>
+                    } @else {
+                      <svg lucideLeaf [size]="24"></svg>
+                    }
+                  </span>
+                </div>
+
+                <h3>{{ method.title }}</h3>
+
+                <ol class="brewing-card__steps">
+                  @for (step of method.steps; track step; let stepIndex = $index) {
+                    <li>
+                      <strong>{{ stepIndex + 1 | number:'2.0-0' }}</strong>
+                      <span>{{ step }}</span>
+                    </li>
+                  }
+                </ol>
+
+                <a
+                  class="brewing-card__button"
+                  [routerLink]="['/journal', method.slug]"
+                  [fragment]="method.stepAnchor || undefined"
+                  (click)="$event.stopPropagation()"
+                >
+                  Step-by-Step Guide
+                </a>
+              </article>
+            }
+          }
+        </div>
+      </section>
+    }
+
+    @if (shouldShowRecipes()) {
+      <app-recipe-section
+        sectionHeading="POPULAR RECIPES"
+        [compact]="true"
+        [baseFilter]="getRecipeBaseFilter()"
+        [showViewAll]="false"
+      ></app-recipe-section>
+    }
+
+    @if (youMayAlsoLikeProducts().length) {
+      <app-best-seller
+        sectionHeading="You may also like"
+        background="page"
+        headingStyle="plain"
+        [showViewAll]="false"
+        [productsOverride]="youMayAlsoLikeProducts()"
+      ></app-best-seller>
+    }
+
+    <section
+      class="reviews-section"
+      [class.reviews-section--empty]="!isReviewsLoading() && !featuredReviews().length"
+      aria-labelledby="reviews-title"
+    >
+      <div class="reviews-summary">
+        <h2 id="reviews-title">The Feedback</h2>
+        <div
+          class="reviews-score-row"
+          [attr.aria-label]="'Average rating ' + averageRating() + ' out of 5 based on ' + reviewCount() + ' reviews'"
+        >
+          <strong>{{ averageRating() | number:'1.1-1' }}</strong>
+          <div class="reviews-score-copy">
+            <div class="stars stars--large" aria-hidden="true">
+              @for (star of ratingStars; track star) {
+                <svg
+                  lucideStar
+                  [size]="28"
+                  [class.star--filled]="isStarFilled(averageRating(), star)"
+                  [attr.fill]="isStarFilled(averageRating(), star) ? 'currentColor' : 'none'"
+                  aria-hidden="true"
+                ></svg>
+              }
+            </div>
+            <span>Based on {{ reviewCount() }} reviews</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="reviews-list">
+        @if (isReviewsLoading()) {
+          <p class="reviews-empty">Loading reviews...</p>
+        } @else if (featuredReviews().length) {
+          @for (review of featuredReviews(); track review.author + review.date) {
+            <article class="review-card">
+              <header class="review-card__header">
+                <h3>{{ review.author }}</h3>
+                <time>{{ review.date }}</time>
+              </header>
+              <div class="stars stars--small" [attr.aria-label]="review.rating + ' out of 5 stars'">
+                @for (star of ratingStars; track star) {
+                  <svg
+                    lucideStar
+                    [size]="14"
+                    [class.star--filled]="isStarFilled(review.rating, star)"
+                    [attr.fill]="isStarFilled(review.rating, star) ? 'currentColor' : 'none'"
+                    aria-hidden="true"
+                  ></svg>
+                }
+              </div>
+              @if (review.comment) {
+                <p>{{ review.comment }}</p>
+              }
+            </article>
+          }
+
+          @if (reviewCount() > 2) {
+            <button type="button" class="view-reviews-button" (click)="openReviewModal()">
+              <span>View all {{ reviewCount() }} reviews</span>
+              <svg lucideArrowRight [size]="22" aria-hidden="true"></svg>
+            </button>
+          }
+        } @else {
+          <p class="reviews-empty">No reviews for this product yet.</p>
+        }
+      </div>
+    </section>
+
+    @if (isReviewModalOpen()) {
+      <div class="reviews-modal-backdrop" (click)="closeReviewModal()">
+        <section
+          class="reviews-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reviews-modal-title"
+          (click)="$event.stopPropagation()"
+        >
+          <header class="reviews-modal__header">
+            <button type="button" class="reviews-modal__close" (click)="closeReviewModal()" aria-label="Close reviews">
+              <svg lucideX [size]="32" aria-hidden="true"></svg>
+            </button>
+            <h2 id="reviews-modal-title">The Feedback</h2>
+            <div class="reviews-modal__score">
+              <strong>{{ averageRating() | number:'1.1-1' }}</strong>
+              <div class="stars stars--modal" aria-hidden="true">
+                @for (star of ratingStars; track star) {
+                  <svg
+                    lucideStar
+                    [size]="29"
+                    [class.star--filled]="isStarFilled(averageRating(), star)"
+                    [attr.fill]="isStarFilled(averageRating(), star) ? 'currentColor' : 'none'"
+                    aria-hidden="true"
+                  ></svg>
+                }
+              </div>
+              <span>Based on {{ reviewCount() }} reviews</span>
+            </div>
+          </header>
+
+          <div class="reviews-modal__toolbar">
+            <div class="review-filter-group" aria-label="Filter reviews by rating">
+              @for (filter of ratingFilters; track filter) {
+                <button
+                  type="button"
+                  class="review-filter"
+                  [class.is-active]="selectedReviewFilter() === filter"
+                  (click)="setReviewFilter(filter)"
+                >
+                  <span>{{ filter }}</span>
+                  @if (filter !== 'All') {
+                    <svg lucideStar [size]="15" fill="currentColor" aria-hidden="true"></svg>
+                  }
+                </button>
+              }
+            </div>
+
+            <label class="review-sort">
+              <span>SORT</span>
+              <span class="review-sort__select">
+                <select aria-label="Sort reviews" [value]="selectedReviewSort()" (change)="onReviewSortChange($event)">
+                  <option value="oldest">Oldest</option>
+                  <option value="newest">Newest</option>
+                  <option value="highest">Highest rating</option>
+                  <option value="lowest">Lowest rating</option>
+                </select>
+                <svg lucideChevronDown [size]="24" aria-hidden="true"></svg>
+              </span>
+            </label>
+          </div>
+
+          <div class="reviews-modal__body">
+            @if (pagedModalReviews().length) {
+            @for (review of pagedModalReviews(); track review.author + review.date + review.rating) {
+              <article class="modal-review">
+                <div class="modal-review__copy">
+                  <h3>{{ review.author }}</h3>
+                  <div class="stars stars--small" [attr.aria-label]="review.rating + ' out of 5 stars'">
+                    @for (star of ratingStars; track star) {
+                      <svg
+                        lucideStar
+                        [size]="15"
+                        [class.star--filled]="isStarFilled(review.rating, star)"
+                        [attr.fill]="isStarFilled(review.rating, star) ? 'currentColor' : 'none'"
+                        aria-hidden="true"
+                      ></svg>
+                    }
+                  </div>
+                  @if (review.comment) {
+                    <p>{{ review.comment }}</p>
+                  }
+                </div>
+                <time>{{ review.date }}</time>
+              </article>
+            }
+            } @else {
+              <p class="reviews-empty reviews-empty--modal">No reviews match this filter.</p>
+            }
+          </div>
+
+          <footer class="reviews-modal__footer">
+            <button
+              type="button"
+              class="review-page-button"
+              [disabled]="!canGoPreviousReviewPage()"
+              (click)="previousReviewPage()"
+            >PREVIOUS</button>
+            <span>PAGE {{ reviewModalPage() }} OF {{ modalReviewTotalPages() }}</span>
+            <button
+              type="button"
+              class="review-page-button"
+              [disabled]="!canGoNextReviewPage()"
+              (click)="nextReviewPage()"
+            >NEXT</button>
+          </footer>
+        </section>
+      </div>
+    }
+
+    @if (recentlyViewedProducts().length) {
+      <app-best-seller
+        background="page"
+        sectionHeading="Recently viewed"
+        [showEyebrow]="false"
+        [showViewAll]="false"
+        [productsOverride]="recentlyViewedProducts()"
+      ></app-best-seller>
+    }
   }
 </main>

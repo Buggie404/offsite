@@ -7,6 +7,7 @@
     "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "setup:env": "node -e \"const fs=require('fs');const src='backend/.env.example';const dest='backend/.env';if(!fs.existsSync(dest)){fs.copyFileSync(src,dest);console.log('Created backend/.env');}else{console.log('backend/.env already exists');}\"",
     "seed:admin": "cd backend && npm run seed:admin",
+    "seed:reviews": "cd backend && npm run seed:reviews",
     "seed:refund-requests": "cd backend && npm run seed:refund-requests",
     "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
     "start:backend": "cd backend && npm run dev",

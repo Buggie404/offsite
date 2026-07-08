@@ -80,6 +80,7 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
   isBookmarked = false;
   categoryFilter: string | null = null;
   primaryTag: string | null = null;
+  private pendingFragment: string | null = null;
 
   fetchSavedBlogs(): void {
     if (isPlatformBrowser(this.platformId) && this.authService.isAuthenticated()) {
@@ -103,6 +104,11 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.route.queryParams.pipe(takeUntil(this.destroy$)).subscribe(queryParams => {
       this.categoryFilter = queryParams['category'] || null;
+    });
+
+    this.route.fragment.pipe(takeUntil(this.destroy$)).subscribe(fragment => {
+      this.pendingFragment = fragment || null;
+      this.scrollToPendingFragment();
     });
 
     this.route.params.pipe(takeUntil(this.destroy$)).subscribe(params => {
@@ -163,6 +169,7 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
 
         this.isLoading = false;
         this.cdr.detectChanges();
+        this.scrollToPendingFragment();
       },
       error: (err) => {
         console.error('Error loading blog:', err);
@@ -341,8 +348,55 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
     return '#FAF0EB';
   }
 
+  getContentBlockId(block: any, index: number): string | null {
+    if (block?.type !== 'heading') return null;
+    return this.buildJournalStepAnchor(block?.text, index);
+  }
+
   onImgError(event: Event): void {
     const target = event.target as HTMLImageElement;
     target.src = 'assets/images/logo-mark-dark.svg';
+  }
+
+  private scrollToPendingFragment(): void {
+    if (!this.pendingFragment || !this.article || !isPlatformBrowser(this.platformId)) return;
+
+    [
+      { delay: 80, behavior: 'smooth' as ScrollBehavior, threshold: 0 },
+      { delay: 900, behavior: 'smooth' as ScrollBehavior, threshold: 96 }
+    ].forEach(({ delay, behavior, threshold }) => {
+      window.setTimeout(() => {
+        const target = document.getElementById(this.pendingFragment ?? '');
+        if (!target) return;
+
+        const topOffset = 28;
+        const distanceFromTarget = target.getBoundingClientRect().top - topOffset;
+        if (Math.abs(distanceFromTarget) <= threshold) return;
+
+        const top = target.getBoundingClientRect().top + window.scrollY - topOffset;
+        window.scrollTo({
+          top: Math.max(0, top),
+          behavior
+        });
+      }, delay);
+    });
+  }
+
+  private buildJournalStepAnchor(value: unknown, index: number): string {
+    const slug = this.normalizeStepHeading(value)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    return `journal-step-${index}-${slug || 'guide'}`;
+  }
+
+  private normalizeStepHeading(value: unknown): string {
+    return String(value ?? '')
+      .replace(/^\s*(?:step\s*)?\d+[\).\s:-]+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }

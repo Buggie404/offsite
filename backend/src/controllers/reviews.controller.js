@@ -3,6 +3,61 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const User = require('../models/User');
 
+async function getProductReviews(req, res) {
+  try {
+    const { productId } = req.params;
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 10, 1), 50);
+    const rating = Number.parseInt(req.query.rating, 10);
+    const sortParam = req.query.sort === 'oldest' ? 1 : -1;
+
+    const productKeys = new Set([productId]);
+    if (productId && /^[0-9]+$/.test(productId)) {
+      productKeys.add(Number(productId));
+    }
+
+    const productDoc = await Product.findOne({
+      $or: [
+        ...(Product.db.base.Types.ObjectId.isValid(productId) ? [{ _id: productId }] : []),
+        ...(Number.isNaN(Number(productId)) ? [] : [{ product_id: Number(productId) }])
+      ]
+    }).select('_id product_id').lean();
+
+    if (productDoc) {
+      productKeys.add(String(productDoc._id));
+      productKeys.add(String(productDoc.product_id));
+      productKeys.add(productDoc.product_id);
+    }
+
+    const query = { product_id: { $in: Array.from(productKeys) } };
+    if (Number.isInteger(rating) && rating >= 1 && rating <= 5) {
+      query.rating = rating;
+    }
+
+    const [reviews, total] = await Promise.all([
+      Review.find(query)
+        .sort({ created_at: sortParam })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Review.countDocuments(query)
+    ]);
+
+    res.json({
+      data: reviews,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching product reviews:', error);
+    res.status(500).json({ error: error.message || 'Failed to retrieve reviews.' });
+  }
+}
+
 async function createReview(req, res) {
   try {
     const { order_id, product_id, variant_id, rating, content, is_anonymous, session_id, email, mobile } = req.body;
@@ -21,6 +76,10 @@ async function createReview(req, res) {
     const orderDoc = await Order.findOne({ order_id });
     if (!orderDoc) {
       return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    if (orderDoc.order_status !== 'delivered') {
+      return res.status(400).json({ error: 'Only delivered orders can be reviewed.' });
     }
 
     let reviewerName = is_anonymous ? 'Anonymous' : (orderDoc.delivery_info?.recipient_name || 'Guest');
@@ -154,5 +213,6 @@ async function createReview(req, res) {
 }
 
 module.exports = {
+  getProductReviews,
   createReview
 };

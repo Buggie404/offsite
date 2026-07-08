@@ -65,12 +65,16 @@ async function getProductCategoryCounts(req, res) {
 async function getProductById(req, res) {
   try {
     const { id } = req.params;
+    const query = mongoose.Types.ObjectId.isValid(id)
+      ? { _id: id }
+      : {
+          $or: [
+            { slug: id },
+            ...(Number.isFinite(Number(id)) ? [{ product_id: Number(id) }] : [])
+          ]
+        };
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'Invalid product ID format' });
-    }
-
-    const product = await Product.findById(id);
+    const product = await Product.findOne(query);
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }

@@ -8,6 +8,7 @@
     "dev": "nodemon src/index.js",
     "build": "echo 'No build needed for Node.js'",
     "seed:admin": "node seed_admin.js",
+    "seed:reviews": "node seed_reviews.js",
     "seed:refund-requests": "node seed_refund_requests.js"
   },
   "dependencies": {

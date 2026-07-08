@@ -1,6 +1,6 @@
 // home/components/best-seller/best-seller.component.ts
 
-import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, OnChanges, OnInit, SimpleChanges, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ProductService } from '../../services/product.service';
 import { Product, getDefaultPrice, getPrimaryProductImage, isProductOutOfStock } from '../../models/product.model';
@@ -12,6 +12,7 @@ import { AuthPromptModalService } from '../../../../shared/components/auth-promp
 import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
 import { QuickViewModalComponent } from '../../../shop/components/quick-view-modal/quick-view-modal.component';
+import { ProductReviewMetric, getDisplayProductReviewMetric } from '../../../../shared/data/mock-product-reviews';
 
 @Component({
   selector: 'app-best-seller',
@@ -20,7 +21,15 @@ import { QuickViewModalComponent } from '../../../shop/components/quick-view-mod
   templateUrl: './best-seller.component.html',
   styleUrls: ['./best-seller.component.scss'],
 })
-export class BestSellerComponent implements OnInit {
+export class BestSellerComponent implements OnInit, OnChanges {
+  @Input() eyebrowText = 'Best sellers';
+  @Input() sectionHeading = "What everyone's drinking";
+  @Input() background: 'wheat' | 'page' = 'wheat';
+  @Input() headingStyle: 'default' | 'plain' = 'default';
+  @Input() compact = false;
+  @Input() productsOverride: Product[] | null = null;
+  @Input() showEyebrow = true;
+  @Input() showViewAll = true;
 
   products: Product[] = [];
   isLoading = true;
@@ -45,6 +54,12 @@ export class BestSellerComponent implements OnInit {
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
     this.loadSavedProducts();
+    if (this.productsOverride) {
+      this.products = this.productsOverride;
+      this.isLoading = false;
+      return;
+    }
+
     this.productService.getBestSellers(4).subscribe({
       next: (data: Product[]) => {
         this.products = [...data].sort((a, b) =>
@@ -59,6 +74,13 @@ export class BestSellerComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['productsOverride'] || !this.productsOverride) return;
+    this.products = this.productsOverride;
+    this.isLoading = false;
+    this.cdr.markForCheck();
   }
 
   // ── ORIGIN LINE ──
@@ -127,11 +149,21 @@ export class BestSellerComponent implements OnInit {
     return `$${getDefaultPrice(p).toFixed(2)}`;
   }
 
+  getReviewMetric(p: Product): ProductReviewMetric | null {
+    return getDisplayProductReviewMetric(p);
+  }
+
+  getDetailId(p: Product): string {
+    return p._id || String(p.product_id);
+  }
+
   isOutOfStock(p: Product): boolean {
     return isProductOutOfStock(p);
   }
 
-  onAddToCart(p: Product): void {
+  onAddToCart(p: Product, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
     if (this.isOutOfStock(p)) return;
     console.log('Add to cart:', p.name);
     this.cartService.addToCart(p as any);

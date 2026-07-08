@@ -19,6 +19,50 @@ $pill-bg: #EAE1DC;
 .bestseller-section {
   width: 100%;
   background: $wheat;
+
+  &--page-bg {
+    background: $cream;
+
+    .section-heading {
+      color: $forest;
+    }
+  }
+
+  &--plain-heading {
+    .main-frame {
+      min-height: 0;
+      padding-top: 64px;
+      padding-bottom: 64px;
+    }
+
+    .bestsellers-header {
+      align-items: flex-start;
+    }
+
+    .eyebrow-row,
+    .view-all-link {
+      display: none;
+    }
+
+    .section-heading {
+      color: $forest;
+      font-size: 48px;
+      line-height: 58px;
+      text-transform: none;
+    }
+  }
+
+  &--compact {
+    width: calc(100% + 30px);
+    margin-right: -15px;
+    margin-left: -15px;
+
+    .main-frame {
+      padding-top: 48px;
+      padding-bottom: 40px;
+      gap: 20px;
+    }
+  }
 }
 
 .main-frame {
@@ -78,6 +122,12 @@ $pill-bg: #EAE1DC;
 }
 
 @media (max-width: 768px) {
+  .bestseller-section--compact {
+    width: calc(100% + 32px);
+    margin-right: -16px;
+    margin-left: -16px;
+  }
+
   .main-frame {
     min-height: 0;
     padding: 56px 16px;
@@ -320,6 +370,10 @@ $pill-bg: #EAE1DC;
 
   &--best-seller {
     background: var(--color-blush-pink);
+  }
+
+  &--new-arrival {
+    background: var(--color-sage);
   }
 }
 

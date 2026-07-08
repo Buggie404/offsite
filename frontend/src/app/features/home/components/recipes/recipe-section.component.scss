@@ -33,6 +33,17 @@
   padding:    var(--space-section-v) 0;
   overflow:   hidden;
   font-family: 'DM Sans', sans-serif;
+
+  &--compact {
+    width: calc(100% + 30px);
+    margin-right: -15px;
+    margin-left: -15px;
+    padding: 68px 0 64px;
+
+    .brew-container {
+      gap: 42px;
+    }
+  }
 }
 
 // ── Background geometric shapes ──────────────────────────────
@@ -371,6 +382,12 @@
 }
 
 @media (max-width: 900px) {
+  .brew-section--compact {
+    width: calc(100% + 32px);
+    margin-right: -16px;
+    margin-left: -16px;
+  }
+
   .section-header {
     flex-direction: column;
     align-items: center;

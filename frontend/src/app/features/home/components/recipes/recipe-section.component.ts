@@ -2,7 +2,7 @@
 //  components/recipe-section/recipe-section.component.ts
 // ─────────────────────────────────────────────────────────────
 
-import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, OnChanges, OnInit, SimpleChanges, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Recipe } from '../../models/recipe.model';
 import { RecipeService } from '../../services/recipe.service';
@@ -18,7 +18,12 @@ import { AuthPromptModalService } from '../../../../shared/components/auth-promp
   templateUrl: './recipe-section.component.html',
   styleUrls: ['./recipe-section.component.scss'],
 })
-export class RecipeSectionComponent implements OnInit {
+export class RecipeSectionComponent implements OnInit, OnChanges {
+  @Input() sectionHeading = 'Brew It Yourself';
+  @Input() compact = false;
+  @Input() baseFilter: 'matcha' | 'coffee' | null = null;
+  @Input() showViewAll = true;
+
   // ── State ────────────────────────────────────────────────────
   recipes: Recipe[]    = [];
   isLoading            = true;
@@ -37,6 +42,12 @@ export class RecipeSectionComponent implements OnInit {
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
     this.loadSavedRecipes();
+    this.loadRecipes();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['baseFilter'] || changes['baseFilter'].firstChange) return;
+    if (!isPlatformBrowser(this.platformId)) return;
     this.loadRecipes();
   }
 
@@ -107,9 +118,18 @@ export class RecipeSectionComponent implements OnInit {
     this.isLoading = true;
     this.error     = null;
 
-    this.recipeService.getMostSavedRecipes(3).subscribe({
+    const request$ = this.baseFilter
+      ? this.recipeService.getRecipes(24)
+      : this.recipeService.getMostSavedRecipes(3);
+
+    request$.subscribe({
       next: (data) => {
-        this.recipes   = data;
+        this.recipes = this.baseFilter
+          ? data
+              .filter(recipe => this.matchesBaseFilter(recipe))
+              .sort((a, b) => (b.saves || 0) - (a.saves || 0))
+              .slice(0, 3)
+          : data;
         this.isLoading = false;
         this.cdr.detectChanges();
       },
@@ -120,6 +140,34 @@ export class RecipeSectionComponent implements OnInit {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  private matchesBaseFilter(recipe: Recipe): boolean {
+    if (!this.baseFilter) return true;
+
+    const haystack = [
+      recipe.slug,
+      recipe.title,
+      recipe.description,
+      ...(recipe.metadata.tags ?? []),
+      ...(recipe.ingredients ?? []).map(ingredient => ingredient.name),
+      ...(recipe.tools ?? []).map(tool => tool.name),
+      ...(recipe.steps ?? []).flatMap(step => [step.title, step.description])
+    ].join(' ').toLowerCase();
+
+    const hasMatcha = /\bmatcha\b|\bgreen tea\b|\bchasen\b|\bwhisk\b/.test(haystack);
+    const hasCoffee = /\bcoffee\b|\bespresso\b|\bcold brew\b|\bpour over\b|\baeropress\b|\bchemex\b|\bv60\b|\bdrip\b/.test(haystack);
+
+    if (this.baseFilter === 'coffee') {
+      if (hasMatcha) return false;
+      return haystack.includes('coffee')
+        || haystack.includes('espresso')
+        || haystack.includes('cold brew')
+        || haystack.includes('pour over');
+    }
+
+    if (hasCoffee && !hasMatcha) return false;
+    return hasMatcha;
   }
 
   private async loadSavedRecipes(): Promise<void> {

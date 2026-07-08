@@ -51,10 +51,12 @@
       <!-- Title + Rating -->
       <div class="title-rating-row">
         <h3 class="product-title"><span>{{ product.name }}</span></h3>
+        @if (getReviewMetric(product); as reviewMetric) {
         <div class="rating">
           <svg lucideStar [size]="14" aria-hidden="true"></svg>
-          <span>{{ product.rating_avg ?? '4.9' }}</span>
+          <span>{{ reviewMetric.ratingAvg }}</span>
         </div>
+        }
       </div>
 
       <!-- Origin (ẩn với sets_bundles) -->

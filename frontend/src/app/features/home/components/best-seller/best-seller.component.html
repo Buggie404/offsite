@@ -1,18 +1,23 @@
 <!-- home/components/best-seller/best-seller.component.html -->
 
-<section class="bestseller-section">
+<section
+  class="bestseller-section"
+  [class.bestseller-section--page-bg]="background === 'page'"
+  [class.bestseller-section--plain-heading]="headingStyle === 'plain'"
+  [class.bestseller-section--compact]="compact"
+>
   <div class="main-frame">
 
     <!-- ── HEADER ── -->
     <div class="bestsellers-header">
       <div class="header-left">
-        <div class="eyebrow-row">
+        <div class="eyebrow-row" *ngIf="showEyebrow">
           <div class="divider"></div>
-          <span class="eyebrow-text">Best sellers</span>
+          <span class="eyebrow-text">{{ eyebrowText }}</span>
         </div>
-        <h2 class="section-heading">What everyone's drinking</h2>
+        <h2 class="section-heading">{{ sectionHeading }}</h2>
       </div>
-      <a routerLink="/shop/best-sellers" class="view-all-link">
+      <a routerLink="/shop/best-sellers" class="view-all-link" *ngIf="showViewAll">
         <span>VIEW ALL PRODUCTS</span>
         <svg lucideArrowRight [size]="16" aria-hidden="true"></svg>
       </a>
@@ -24,7 +29,7 @@
     <!-- ── PRODUCT GRID ── -->
     <div class="product-grid" *ngIf="!isLoading">
 
-      <div class="card" *ngFor="let product of products">
+      <div class="card" *ngFor="let product of products" [routerLink]="['/products', getDetailId(product)]">
 
         <!-- ── IMAGE WRAP ── -->
         <div class="card-image-wrap">
@@ -49,7 +54,8 @@
           </button>
 
           <div class="status-badges">
-            <span class="status-badge status-badge--best-seller">BEST SELLER</span>
+            <span class="status-badge status-badge--best-seller" *ngIf="product.is_best_seller">BEST SELLER</span>
+            <span class="status-badge status-badge--new-arrival" *ngIf="product.is_new_arrival">NEW ARRIVAL</span>
           </div>
         </div>
 
@@ -63,11 +69,13 @@
             <!-- Title + Rating -->
             <div class="title-rating-row">
               <h3 class="product-title"><span>{{ product.name }}</span></h3>
+              @if (getReviewMetric(product); as reviewMetric) {
               <div class="rating">
                 <svg lucideStar [size]="14" aria-hidden="true"></svg>
                 <!-- Hardcode 4.9 tạm — đổi thành product.rating_avg khi DB có data -->
-                <span>4.9</span>
+                <span>{{ reviewMetric.ratingAvg }}</span>
               </div>
+              }
             </div>
 
             <!-- Origin (ẩn với sets_bundles) -->
@@ -98,7 +106,7 @@
           <div class="price-add-row">
             <span class="price">{{ getPrice(product) }}</span>
             <button type="button" class="add-btn" [disabled]="isOutOfStock(product)"
-              [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'" (click)="onAddToCart(product)">
+              [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'" (click)="onAddToCart(product, $event)">
               <span>{{ isOutOfStock(product) ? 'Out of stock' : 'Add' }}</span>
             </button>
           </div>
