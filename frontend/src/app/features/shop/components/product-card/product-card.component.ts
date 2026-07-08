@@ -30,6 +30,7 @@ export class ProductCardComponent {
   @Input() bundleBrowserMode = false;
   @Input() bundleItemCount = 0;
   @Input() bundleCanIncrement = false;
+  @Input() bundleHideIncrement = false;
   @Output() saveToggle = new EventEmitter<Product>();
   @Output() productAdd = new EventEmitter<Product>();
   @Output() bundleIncrement = new EventEmitter<Product>();

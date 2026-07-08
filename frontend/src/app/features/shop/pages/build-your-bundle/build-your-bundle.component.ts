@@ -331,6 +331,33 @@ export class BuildYourBundleComponent implements OnInit {
     }));
   }
 
+  onKitProductDecrement(product: Product): void {
+    if (this.isBundleMode()) return;
+
+    const slotKey = this.activeSlotKey();
+    if (!slotKey) return;
+
+    const selection = this.slotSelections()[slotKey];
+    if (!selection || selection.product.product_id !== product.product_id) return;
+
+    this.slotSelections.update((selections) => {
+      const next = { ...selections };
+      delete next[slotKey];
+      return next;
+    });
+    this.cdr.markForCheck();
+  }
+
+  getKitSlotProductCount(product: Product): number {
+    if (this.isBundleMode()) return 0;
+
+    const slotKey = this.activeSlotKey();
+    if (!slotKey) return 0;
+
+    const selection = this.slotSelections()[slotKey];
+    return selection?.product.product_id === product.product_id ? 1 : 0;
+  }
+
   onBundleProductIncrement(product: Product): void {
     this.addBundleProductInstance(product);
   }

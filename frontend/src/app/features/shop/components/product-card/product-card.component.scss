@@ -488,6 +488,13 @@ $pill-bg: #EAE1DC;
     text-align: center;
     color: $dark;
   }
+
+  &--single {
+    justify-content: center;
+    gap: 12px;
+    min-width: 88px;
+    padding: 0 12px;
+  }
 }
 
 // Keep variable product content within a compact, consistent card layout.

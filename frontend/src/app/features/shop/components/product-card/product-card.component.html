@@ -92,7 +92,7 @@
     <div class="price-add-row">
       <span class="price">{{ getPrice(product) }}</span>
       @if (showBundleStepper()) {
-        <div class="bundle-qty-stepper">
+        <div class="bundle-qty-stepper" [class.bundle-qty-stepper--single]="bundleHideIncrement">
           <button
             type="button"
             class="bundle-qty-stepper__btn"
@@ -100,13 +100,15 @@
             (click)="onBundleDecrement($event)"
           >−</button>
           <span class="bundle-qty-stepper__count">{{ bundleItemCount }}</span>
-          <button
-            type="button"
-            class="bundle-qty-stepper__btn"
-            aria-label="Increase quantity"
-            [disabled]="!bundleCanIncrement"
-            (click)="onBundleIncrement($event)"
-          >+</button>
+          @if (!bundleHideIncrement) {
+            <button
+              type="button"
+              class="bundle-qty-stepper__btn"
+              aria-label="Increase quantity"
+              [disabled]="!bundleCanIncrement"
+              (click)="onBundleIncrement($event)"
+            >+</button>
+          }
         </div>
       } @else {
         <button type="button" class="add-btn" [disabled]="isOutOfStock(product)"

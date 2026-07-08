@@ -265,8 +265,12 @@
                   [product]="product"
                   [bundleBrowserMode]="true"
                   [isSaved]="isProductSaved(product)"
+                  [bundleItemCount]="getKitSlotProductCount(product)"
+                  [bundleCanIncrement]="false"
+                  [bundleHideIncrement]="true"
                   (productAdd)="onProductAdd($event)"
                   (saveToggle)="onProductSave($event)"
+                  (bundleDecrement)="onKitProductDecrement($event)"
                 />
               }
             </div>
