@@ -251,20 +251,13 @@
         @if (canUpdateStatus) {
           <p class="field-hint field-hint--spaced">Customer receives an email notification on save.</p>
           <div class="field">
-            <label class="field-label" for="status">New status</label>
-            <div class="select-wrap">
-              <select
-                id="status"
-                class="field-select"
-                [value]="selectedStatus"
-                (change)="selectedStatus = $any($event.target).value"
-              >
-                @for (option of statusOptions; track option.value) {
-                  <option [value]="option.value">{{ option.label }}</option>
-                }
-              </select>
-              <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
-            </div>
+            <span class="field-label">Next status</span>
+            @if (nextStatusOption; as nextStatus) {
+              <div class="status-target" role="status" [attr.aria-label]="'Next status: ' + nextStatus.label">
+                <span class="status-badge status-badge--shipping status-target__badge">{{ nextStatus.label }}</span>
+                <p class="status-target__hint">Mark this order as shipped. The customer will be notified by email.</p>
+              </div>
+            }
           </div>
           <button
             type="button"

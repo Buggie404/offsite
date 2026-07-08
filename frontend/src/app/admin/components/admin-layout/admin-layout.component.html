@@ -51,11 +51,83 @@
       </div>
 
       <div class="header-actions">
-        <button type="button" class="btn btn-ghost" aria-label="Notifications">
-          <svg lucideBell aria-hidden="true" [size]="18"></svg>
-        </button>
-        <div class="header-avatar" [attr.aria-label]="'Signed in as ' + avatarInitials">
-          {{ avatarInitials }}
+        <div class="header-notifications" #notificationsRoot>
+          <button
+            type="button"
+            class="btn btn-ghost header-notifications__trigger"
+            [class.header-notifications__trigger--active]="showNotifications"
+            [attr.aria-expanded]="showNotifications"
+            aria-haspopup="true"
+            aria-label="Notifications"
+            (click)="toggleNotifications($event)"
+          >
+            <svg lucideBell aria-hidden="true" [size]="18"></svg>
+            @if (unreadCount > 0) {
+              <span class="header-notifications__badge" aria-hidden="true">
+                {{ unreadCount > 9 ? '9+' : unreadCount }}
+              </span>
+            }
+          </button>
+
+          @if (showNotifications) {
+            <div class="header-notifications__panel" role="region" aria-label="Admin notifications">
+              <div class="header-notifications__panel-header">
+                <p class="header-notifications__title">Notifications</p>
+                <p class="header-notifications__subtitle">Action required</p>
+              </div>
+
+              @if (notificationsLoading) {
+                <p class="header-notifications__empty">Loading…</p>
+              } @else if (!notifications.length) {
+                <p class="header-notifications__empty">No new notifications</p>
+              } @else {
+                <ul class="header-notifications__list">
+                  @for (item of notifications; track item.id) {
+                    <li>
+                      <button
+                        type="button"
+                        class="header-notifications__item"
+                        (click)="openNotification(item, $event)"
+                      >
+                        <span
+                          class="header-notifications__item-icon"
+                          [class.header-notifications__item-icon--refund]="item.type === 'refund_pending'"
+                          [class.header-notifications__item-icon--ship]="item.type === 'ready_to_ship'"
+                          aria-hidden="true"
+                        >
+                          @if (item.type === 'refund_pending') {
+                            <svg lucideUndo2 [size]="16"></svg>
+                          } @else {
+                            <svg lucideTruck [size]="16"></svg>
+                          }
+                        </span>
+                        <span class="header-notifications__item-body">
+                          <span class="header-notifications__item-title">{{ item.title }}</span>
+                          <span class="header-notifications__item-message">{{ item.message }}</span>
+                          <span class="header-notifications__item-time">{{ formatNotificationTime(item.createdAt) }}</span>
+                        </span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+
+              @if (notifications.length) {
+                <div class="header-notifications__footer">
+                  @if (hasRefundNotifications) {
+                    <button type="button" class="header-notifications__footer-link" (click)="viewAllRefunds($event)">
+                      View refund requests
+                    </button>
+                  }
+                  @if (hasShipNotifications) {
+                    <button type="button" class="header-notifications__footer-link" (click)="viewAllToShip($event)">
+                      View orders to ship
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          }
         </div>
       </div>
     </header>

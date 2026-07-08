@@ -234,19 +234,35 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     this.validateQuantity();
   }
 
+  onQtyKeydown(event: KeyboardEvent): void {
+    const allowedKeys = [
+      'Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'Home', 'End'
+    ];
+    if (allowedKeys.includes(event.key) || (event.ctrlKey || event.metaKey)) {
+      return;
+    }
+    if (!/^[0-9]$/.test(event.key)) {
+      event.preventDefault();
+    }
+  }
+
   onQuantityInput(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const sanitizedValue = input.value.replace(/\D/g, '');
+    const sanitizedValue = input.value.replace(/[^0-9]/g, '');
     input.value = sanitizedValue;
     this.quantity.set(sanitizedValue ? Number(sanitizedValue) : 0);
     this.validateQuantity();
   }
 
-  normalizeQuantity(): void {
+  normalizeQuantity(event: Event): void {
+    const input = event.target as HTMLInputElement;
     if (!this.quantity() || this.quantity() < 1) {
       this.quantity.set(1);
+    } else if (this.quantity() > this.maxQuantity()) {
+      this.quantity.set(this.maxQuantity());
     }
     this.validateQuantity();
+    input.value = String(this.quantity());
   }
 
   images(): ProductImage[] {

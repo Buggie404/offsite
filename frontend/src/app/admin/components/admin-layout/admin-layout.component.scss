@@ -206,19 +206,187 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  position: relative;
+  z-index: 30;
 }
 
-.header-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--color-sage);
+.header-notifications {
+  position: relative;
+}
+
+.header-notifications__trigger {
+  position: relative;
+}
+
+.header-notifications__trigger--active {
+  background: rgba(207, 225, 185, 0.35);
+  color: var(--color-forest-green);
+}
+
+.header-notifications__badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--state-error);
+  color: var(--color-white);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+
+.header-notifications__panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(420px, calc(100vh - 120px));
   display: flex;
+  flex-direction: column;
+  border: 1px solid var(--admin-divider);
+  border-radius: 16px;
+  background: var(--admin-surface-card);
+  box-shadow: var(--admin-shadow-card);
+  overflow: hidden;
+}
+
+.header-notifications__panel-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--admin-divider);
+  background: rgba(250, 240, 235, 0.65);
+}
+
+.header-notifications__title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-near-black);
+}
+
+.header-notifications__subtitle {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-warm-brown);
+}
+
+.header-notifications__empty {
+  margin: 0;
+  padding: 24px 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-warm-brown);
+  text-align: center;
+}
+
+.header-notifications__list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  overflow-y: auto;
+}
+
+.header-notifications__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.header-notifications__item:hover {
+  background: rgba(207, 225, 185, 0.22);
+}
+
+.header-notifications__item-icon {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-mono);
-  font-size: var(--text-label-size);
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.header-notifications__item-icon--refund {
+  background: rgba(239, 181, 208, 0.45);
   color: var(--color-near-black);
+}
+
+.header-notifications__item-icon--ship {
+  background: var(--status-shipping-bg);
+  color: var(--status-shipping-text);
+}
+
+.header-notifications__item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.header-notifications__item-title {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-near-black);
+}
+
+.header-notifications__item-message {
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-warm-brown);
+}
+
+.header-notifications__item-time {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-warm-brown);
+}
+
+.header-notifications__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--admin-divider);
+  background: rgba(250, 240, 235, 0.45);
+}
+
+.header-notifications__footer-link {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-card);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--color-forest-green);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.header-notifications__footer-link:hover {
+  background: rgba(207, 225, 185, 0.28);
 }
 
 .admin-content {

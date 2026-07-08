@@ -13,6 +13,8 @@ import { ProductCardComponent } from '../../components/product-card/product-card
 import { CartService } from '../../../purchase/services/cart.service';
 import { Product as CartProduct } from '../../../../shared/models/product.model';
 import { createKitBundle } from '../../../purchase/models/bundle-cart.model';
+import { AuthService } from '../../../../core/auth.service';
+import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 
 export type KitType = 'matcha_kit' | 'coffee_kit' | 'bundle';
 
@@ -90,8 +92,12 @@ const DRINKWARE_PLACEHOLDER = 'assets/images/build-bundle/drinkware.png';
 export class BuildYourBundleComponent implements OnInit {
   private readonly productService = inject(ProductService);
   private readonly cartService = inject(CartService);
+  private readonly authService = inject(AuthService);
+  private readonly authPromptService = inject(AuthPromptModalService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly platformId = inject(PLATFORM_ID);
+
+  savedProductIds = new Set<number>();
 
   readonly kitTypes: KitTypeOption[] = [
     { id: 'matcha_kit', label: 'MATCHA KIT' },
@@ -207,6 +213,30 @@ export class BuildYourBundleComponent implements OnInit {
   ngOnInit(): void {
     if (isPlatformBrowser(this.platformId)) {
       this.loadProducts();
+      void this.loadSavedProducts();
+    }
+  }
+
+  isProductSaved(product: Product): boolean {
+    return this.savedProductIds.has(product.product_id);
+  }
+
+  async onProductSave(product: Product): Promise<void> {
+    if (!this.authService.isAuthenticated()) {
+      this.authPromptService.open();
+      return;
+    }
+
+    try {
+      const result = await this.authService.toggleSavedProduct(product.product_id);
+      if (result.saved) {
+        this.savedProductIds.add(product.product_id);
+      } else {
+        this.savedProductIds.delete(product.product_id);
+      }
+      this.cdr.markForCheck();
+    } catch (err) {
+      console.error('Failed to save product:', err);
     }
   }
 
@@ -299,6 +329,33 @@ export class BuildYourBundleComponent implements OnInit {
         variantSku: variant.sku
       }
     }));
+  }
+
+  onKitProductDecrement(product: Product): void {
+    if (this.isBundleMode()) return;
+
+    const slotKey = this.activeSlotKey();
+    if (!slotKey) return;
+
+    const selection = this.slotSelections()[slotKey];
+    if (!selection || selection.product.product_id !== product.product_id) return;
+
+    this.slotSelections.update((selections) => {
+      const next = { ...selections };
+      delete next[slotKey];
+      return next;
+    });
+    this.cdr.markForCheck();
+  }
+
+  getKitSlotProductCount(product: Product): number {
+    if (this.isBundleMode()) return 0;
+
+    const slotKey = this.activeSlotKey();
+    if (!slotKey) return 0;
+
+    const selection = this.slotSelections()[slotKey];
+    return selection?.product.product_id === product.product_id ? 1 : 0;
   }
 
   onBundleProductIncrement(product: Product): void {
@@ -574,6 +631,24 @@ export class BuildYourBundleComponent implements OnInit {
       }
       return next;
     });
+  }
+
+  private async loadSavedProducts(): Promise<void> {
+    if (!this.authService.isAuthenticated()) return;
+
+    try {
+      const result = await this.authService.getSavedItems();
+      this.savedProductIds = new Set(
+        (result.saved_products || [])
+          .map((item: { product?: { product_id?: number }; product_id?: number }) =>
+            Number(item.product?.product_id ?? item.product_id)
+          )
+          .filter((id: number) => !Number.isNaN(id))
+      );
+      this.cdr.markForCheck();
+    } catch (err) {
+      console.error('Failed to load saved products:', err);
+    }
   }
 
   private resetSelections(): void {

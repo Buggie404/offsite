@@ -24,15 +24,15 @@
           }
         </button>
       </div>
-
-      <button type="button" class="save-btn" [class.save-btn--active]="isSaved" (click)="onSave(product, $event)"
-        [attr.aria-label]="isSaved ? 'Remove from saved products' : 'Save product'">
-        <svg lucideHeart [size]="16" [attr.fill]="isSaved ? 'currentColor' : 'none'" aria-hidden="true"></svg>
-      </button>
     }
 
+    <button type="button" class="save-btn" [class.save-btn--active]="isSaved" (click)="onSave(product, $event)"
+      [attr.aria-label]="isSaved ? 'Remove from saved products' : 'Save product'">
+      <svg lucideHeart [size]="16" [attr.fill]="isSaved ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+    </button>
+
     <div class="status-badges">
-      @if (showBestSellerBadge || product.is_best_seller) {
+      @if (product.is_best_seller) {
       <span class="status-badge status-badge--best-seller">BEST SELLER</span>
       }
       @if (showNewArrivalBadge(product)) {
@@ -94,7 +94,7 @@
     <div class="price-add-row">
       <span class="price">{{ getPrice(product) }}</span>
       @if (showBundleStepper()) {
-        <div class="bundle-qty-stepper">
+        <div class="bundle-qty-stepper" [class.bundle-qty-stepper--single]="bundleHideIncrement">
           <button
             type="button"
             class="bundle-qty-stepper__btn"
@@ -102,13 +102,15 @@
             (click)="onBundleDecrement($event)"
           >−</button>
           <span class="bundle-qty-stepper__count">{{ bundleItemCount }}</span>
-          <button
-            type="button"
-            class="bundle-qty-stepper__btn"
-            aria-label="Increase quantity"
-            [disabled]="!bundleCanIncrement"
-            (click)="onBundleIncrement($event)"
-          >+</button>
+          @if (!bundleHideIncrement) {
+            <button
+              type="button"
+              class="bundle-qty-stepper__btn"
+              aria-label="Increase quantity"
+              [disabled]="!bundleCanIncrement"
+              (click)="onBundleIncrement($event)"
+            >+</button>
+          }
         </div>
       } @else {
         <button type="button" class="add-btn" [disabled]="isOutOfStock(product)"

@@ -1273,6 +1273,28 @@
       </div>
     </div>
   </div>
+
+  <!-- Delete Card Modal -->
+  <div class="modal-overlay delete-selected-overlay" *ngIf="showDeleteCardModal()" (click)="closeDeleteCardModal()">
+    <div class="modal-content delete-selected-modal" (click)="$event.stopPropagation()">
+      <button type="button" class="close-btn" (click)="closeDeleteCardModal()" aria-label="Close dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="close-icon-svg">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+
+      <div class="delete-selected-header">
+        <h2 class="delete-selected-title">Delete Card?</h2>
+        <p class="confirm-desc">Are you sure you want to remove this payment card from your account? This action cannot be undone.</p>
+      </div>
+
+      <div class="delete-selected-footer">
+        <button type="button" class="btn-modal-action btn-cancel" (click)="closeDeleteCardModal()">CANCEL</button>
+        <button type="button" class="btn-modal-action btn-delete" (click)="confirmDeleteCard()">DELETE</button>
+      </div>
+    </div>
+  </div>
   <!-- Quick View Modal for Saved Products -->
   <app-quick-view-modal
     *ngIf="selectedQuickViewProduct()"

@@ -467,7 +467,15 @@
                 <button type="button" (click)="decrementQuantity(item)" [disabled]="item.quantity <= 1 || isItemOutOfStock(item)">
                   <svg lucideMinus [size]="12"></svg>
                 </button>
-                <span>{{ item.quantity }}</span>
+                <input type="text"
+                       inputmode="numeric"
+                       pattern="[0-9]*"
+                       [value]="item.quantity"
+                       (keydown)="onQtyKeydown($event)"
+                       (input)="onQtyInput($event, item)"
+                       (blur)="onQtyBlur(item, $event)"
+                       [disabled]="isItemOutOfStock(item)"
+                       class="qty-input" />
                 <button type="button" (click)="incrementQuantity(item)" [disabled]="item.quantity >= (getVariant(item).stock || 99) || isItemOutOfStock(item)">
                   <svg lucidePlus [size]="12"></svg>
                 </button>
@@ -518,7 +526,15 @@
                 <button type="button" (click)="decrementQuantity(item)" [disabled]="item.quantity <= 1 || isItemOutOfStock(item)">
                   <svg lucideMinus [size]="12"></svg>
                 </button>
-                <span>{{ item.quantity }}</span>
+                <input type="text"
+                       inputmode="numeric"
+                       pattern="[0-9]*"
+                       [value]="item.quantity"
+                       (keydown)="onQtyKeydown($event)"
+                       (input)="onQtyInput($event, item)"
+                       (blur)="onQtyBlur(item, $event)"
+                       [disabled]="isItemOutOfStock(item)"
+                       class="qty-input" />
                 <button type="button" (click)="incrementQuantity(item)" [disabled]="item.quantity >= (getVariant(item).stock || 99) || isItemOutOfStock(item)">
                   <svg lucidePlus [size]="12"></svg>
                 </button>
@@ -529,6 +545,9 @@
               </button>
             </div>
           </ng-template>
+          <div class="qty-error-msg" *ngIf="getCartItemError(item) as errorMsg">
+            {{ errorMsg }}
+          </div>
         </div>
       </div>
     </div>
@@ -574,7 +593,7 @@
       <span class="subtotal-price">${{ subtotal | number:'1.2-2' }}</span>
     </div>
     
-    <button class="checkout-btn" (click)="checkout($event)" [disabled]="!hasSelectedItems">
+    <button class="checkout-btn" (click)="checkout($event)" [disabled]="isCheckoutDisabled()">
       CHECKOUT
     </button>
     

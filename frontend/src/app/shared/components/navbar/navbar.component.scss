@@ -2068,13 +2068,18 @@
         }
       }
 
-      span {
+      span, input.qty-input {
         font-family: var(--font-body);
         font-size: 13px;
         font-weight: 600;
         width: 32px;
         text-align: center;
         color: var(--color-near-black);
+        background: transparent;
+        border: none;
+        outline: none;
+        padding: 0;
+        height: 28px;
       }
     }
 
@@ -2173,6 +2178,13 @@
     bottom: 0;
     height: 0;
     border-top: 1px dashed rgba(84, 74, 64, 0.2);
+  }
+
+  .qty-error-msg {
+    color: var(--state-error, #e53935);
+    font-size: 11px;
+    margin-top: 4px;
+    font-family: var(--font-body);
   }
 
   // Cart Note

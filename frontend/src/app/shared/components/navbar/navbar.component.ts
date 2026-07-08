@@ -1,5 +1,5 @@
 // components/navbar/navbar.component.ts
-import { Component, OnInit, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild } from '@angular/core';
+import { Component, OnInit, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild, signal } from '@angular/core';
 import { SuccessModalComponent, SuccessModalConfig } from '../success-modal/success-modal.components';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
@@ -120,6 +120,88 @@ export class NavbarComponent implements OnInit {
 
   // Read-only signal from auth service
   isLoggedIn = this.authService.isAuthenticated;
+
+  cartItemErrors = signal<Record<string, string>>({});
+
+  getCartItemError(item: CartItem): string | null {
+    const key = `${this.getProductIdentifier(item)}::${item.variantSku}`;
+    return this.cartItemErrors()[key] || null;
+  }
+
+  isCheckoutDisabled(): boolean {
+    if (!this.hasSelectedItems) return true;
+    return this.cartItems.some(item => {
+      if (!item.selected || this.isItemOutOfStock(item)) return false;
+      const key = `${this.getProductIdentifier(item)}::${item.variantSku}`;
+      return !!this.cartItemErrors()[key];
+    });
+  }
+
+  onQtyKeydown(event: KeyboardEvent): void {
+    const allowedKeys = [
+      'Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'Home', 'End'
+    ];
+    if (allowedKeys.includes(event.key) || (event.ctrlKey || event.metaKey)) {
+      return;
+    }
+    if (!/^[0-9]$/.test(event.key)) {
+      event.preventDefault();
+    }
+  }
+
+  onQtyInput(event: Event, item: CartItem): void {
+    const input = event.target as HTMLInputElement;
+    let value = input.value.replace(/[^0-9]/g, '');
+    input.value = value;
+
+    const qty = value ? parseInt(value, 10) : 0;
+    const variant = this.getVariant(item);
+    const stock = variant ? variant.stock : 0;
+    const key = `${this.getProductIdentifier(item)}::${item.variantSku}`;
+
+    if (qty <= 0 || value === '') {
+      this.cartItemErrors.update(errors => ({
+        ...errors,
+        [key]: 'Quantity must be at least 1'
+      }));
+    } else if (qty > stock) {
+      this.cartItemErrors.update(errors => ({
+        ...errors,
+        [key]: `Only ${stock} items left in stock`
+      }));
+    } else {
+      this.cartItemErrors.update(errors => {
+        const copy = { ...errors };
+        delete copy[key];
+        return copy;
+      });
+      this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, qty);
+    }
+  }
+
+  onQtyBlur(item: CartItem, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    let value = input.value.replace(/[^0-9]/g, '');
+    let qty = value ? parseInt(value, 10) : 0;
+    const variant = this.getVariant(item);
+    const stock = variant ? variant.stock : 0;
+    const key = `${this.getProductIdentifier(item)}::${item.variantSku}`;
+
+    if (qty <= 0 || value === '') {
+      qty = 1;
+    } else if (qty > stock) {
+      qty = stock;
+    }
+
+    this.cartItemErrors.update(errors => {
+      const copy = { ...errors };
+      delete copy[key];
+      return copy;
+    });
+
+    this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, qty);
+    input.value = String(qty);
+  }
 
   ngOnInit(): void {
     if (isPlatformBrowser(this.platformId)) {

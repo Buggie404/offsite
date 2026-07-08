@@ -236,11 +236,12 @@
               @for (product of browserProducts(); track product._id ?? product.product_id) {
                 <app-product-card
                   [product]="product"
-                  [showBestSellerBadge]="true"
                   [bundleBrowserMode]="true"
+                  [isSaved]="isProductSaved(product)"
                   [bundleItemCount]="getBundleProductCount(product)"
                   [bundleCanIncrement]="canAddMoreBundleProducts()"
                   (productAdd)="onProductAdd($event)"
+                  (saveToggle)="onProductSave($event)"
                   (bundleIncrement)="onBundleProductIncrement($event)"
                   (bundleDecrement)="onBundleProductDecrement($event)"
                 />
@@ -262,9 +263,14 @@
               @for (product of getKitSlotProducts(slot.key); track product._id ?? product.product_id) {
                 <app-product-card
                   [product]="product"
-                  [showBestSellerBadge]="true"
-                  [bundleBrowserMode]="false"
+                  [bundleBrowserMode]="true"
+                  [isSaved]="isProductSaved(product)"
+                  [bundleItemCount]="getKitSlotProductCount(product)"
+                  [bundleCanIncrement]="false"
+                  [bundleHideIncrement]="true"
                   (productAdd)="onProductAdd($event)"
+                  (saveToggle)="onProductSave($event)"
+                  (bundleDecrement)="onKitProductDecrement($event)"
                 />
               }
             </div>

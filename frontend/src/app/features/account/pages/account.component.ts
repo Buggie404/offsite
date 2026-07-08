@@ -188,6 +188,8 @@ export class AccountComponent implements OnInit, OnDestroy {
 
   // Payment Cards State
   isAddingCard = signal<boolean>(false);
+  showDeleteCardModal = signal<boolean>(false);
+  selectedCardForDelete = signal<string | null>(null);
   
   sortedPaymentMethods = computed(() => {
     const list = this.user()?.payment_methods || [];
@@ -1947,13 +1949,25 @@ export class AccountComponent implements OnInit, OnDestroy {
     }
   }
 
-  async onDeletePaymentCard(cardId: string): Promise<void> {
-    if (!confirm('Are you sure you want to delete this payment card?')) return;
+  onDeletePaymentCard(cardId: string): void {
+    this.selectedCardForDelete.set(cardId);
+    this.showDeleteCardModal.set(true);
+  }
+
+  closeDeleteCardModal(): void {
+    this.showDeleteCardModal.set(false);
+    this.selectedCardForDelete.set(null);
+  }
+
+  async confirmDeleteCard(): Promise<void> {
+    const cardId = this.selectedCardForDelete();
+    if (!cardId) return;
 
     this.isLoading.set(true);
     try {
       await this.checkoutService.deleteUserPaymentMethod(cardId);
       await this.fetchProfile();
+      this.closeDeleteCardModal();
     } catch (err: any) {
       console.error('Failed to delete payment card:', err);
       alert(err.error?.error || 'Failed to delete payment card. Please try again.');

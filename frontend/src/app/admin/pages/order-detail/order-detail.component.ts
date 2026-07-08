@@ -5,7 +5,6 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { interval } from 'rxjs';
 import {
   LucideSave,
-  LucideChevronDown,
   LucideStickyNote,
   LucideXCircle,
   LucideAlertCircle,
@@ -42,7 +41,6 @@ interface TimelineStep {
     CommonModule,
     RouterLink,
     LucideSave,
-    LucideChevronDown,
     LucideStickyNote,
     LucideXCircle,
     LucideAlertCircle,
@@ -131,6 +129,10 @@ export class OrderDetailComponent implements OnInit {
     return this.statusOptions.length > 0;
   }
 
+  get nextStatusOption(): StatusOption | null {
+    return this.statusOptions[0] ?? null;
+  }
+
   get hasPendingRefundRequest(): boolean {
     return (
       this.order?.refund_request?.status === 'pending' ||
@@ -174,7 +176,7 @@ export class OrderDetailComponent implements OnInit {
         time: isShipping ? findHistoryTime('shipping') || '—' : 'Pending'
       },
       {
-        label: 'Processed',
+        label: 'Processing',
         done: isProcessed,
         time: isProcessed ? findHistoryTime('processing') || findHistoryTime('pending') || '—' : 'Pending'
       },
@@ -267,6 +269,7 @@ export class OrderDetailComponent implements OnInit {
           this.selectedStatus = this.statusOptions[0]?.value || 'processing';
           this.statusMessage = 'Status saved. Customer notification queued.';
           this.statusSaving = false;
+          this.adminRefresh.refreshNotifications();
           this.cdr.markForCheck();
         },
         error: (err) => {
@@ -315,6 +318,7 @@ export class OrderDetailComponent implements OnInit {
         this.refundMessage = 'Refund approved successfully.';
         this.refundSaving = false;
         this.showRefundModal = false;
+        this.adminRefresh.refreshNotifications();
         this.cdr.markForCheck();
       },
       error: (err) => {
@@ -366,6 +370,7 @@ export class OrderDetailComponent implements OnInit {
         this.showRejectModal = false;
         this.rejectReason = '';
         this.rejectModalError = null;
+        this.adminRefresh.refreshNotifications();
         this.cdr.markForCheck();
       },
       error: (err) => {
