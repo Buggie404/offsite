@@ -267,7 +267,7 @@ export class OrderDetailComponent implements OnInit {
         next: (response) => {
           this.order = response.data;
           this.selectedStatus = this.statusOptions[0]?.value || 'processing';
-          this.statusMessage = 'Status saved. Customer notification queued.';
+          this.statusMessage = 'Status updated to Shipping.';
           this.statusSaving = false;
           this.adminRefresh.refreshNotifications();
           this.cdr.markForCheck();

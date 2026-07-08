@@ -249,13 +249,18 @@
       <section class="detail-card">
         <h2 class="detail-card__title">Update Status</h2>
         @if (canUpdateStatus) {
-          <p class="field-hint field-hint--spaced">Customer receives an email notification on save.</p>
+          <p class="field-hint field-hint--spaced">
+            Customers are not emailed when you save. They can check status on
+            <strong>Order Tracking</strong> using their order number.
+          </p>
           <div class="field">
             <span class="field-label">Next status</span>
             @if (nextStatusOption; as nextStatus) {
               <div class="status-target" role="status" [attr.aria-label]="'Next status: ' + nextStatus.label">
                 <span class="status-badge status-badge--shipping status-target__badge">{{ nextStatus.label }}</span>
-                <p class="status-target__hint">Mark this order as shipped. The customer will be notified by email.</p>
+                <p class="status-target__hint">
+                  Mark this order as shipped. The customer can view updates on Order Tracking after entering their order number.
+                </p>
               </div>
             }
           </div>
@@ -266,7 +271,7 @@
             [disabled]="statusSaving"
           >
             <svg lucideSave aria-hidden="true" [size]="16"></svg>
-            Save &amp; notify
+            Save status
           </button>
         } @else {
           <p class="field-hint field-hint--spaced">
