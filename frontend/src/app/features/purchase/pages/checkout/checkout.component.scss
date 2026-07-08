@@ -676,12 +676,18 @@
     &:hover { background: rgba(84, 74, 64, 0.06); }
   }
 
-  span {
+  span, input.qty-input {
     width: 28px;
+    height: 24px;
     text-align: center;
     font-size: 13px;
+    border-top: none;
+    border-bottom: none;
     border-left: 1px solid rgba(84, 74, 64, 0.15);
     border-right: 1px solid rgba(84, 74, 64, 0.15);
+    background: transparent;
+    outline: none;
+    padding: 0;
     line-height: 24px;
   }
 }
@@ -700,6 +706,13 @@
   &:hover {
     color: var(--state-error);
   }
+}
+
+.qty-error-msg {
+  color: var(--state-error);
+  font-size: 11px;
+  margin-top: 4px;
+  display: block;
 }
 
 .summary-divider {

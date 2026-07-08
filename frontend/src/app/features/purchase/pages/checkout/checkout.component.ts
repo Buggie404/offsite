@@ -104,6 +104,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   items = this.cartService.checkoutSummaryItems;
   expandedKitKeys = new Set<string>();
+  summaryItemErrors = signal<Record<string, string>>({});
   complements = signal<Product[]>([]);
   allVouchers = signal<Voucher[]>([]);
   loading = signal(true);
@@ -431,6 +432,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   get isFormInvalid(): boolean {
+    if (Object.keys(this.summaryItemErrors()).length > 0) {
+      return true;
+    }
     if (this.authService.isAuthenticated() && this.paymentMethod() === 'card') {
       if (this.showInlineCardForm() || this.savedCards().length === 0) {
         return true;
@@ -1660,6 +1664,77 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   remove(item: CheckoutItem) {
     this.cartService.removeFromSummary(item.product._id, item.variantSku);
+  }
+
+  getSummaryItemError(item: CheckoutItem): string | null {
+    const key = `${item.product._id}::${item.variantSku}`;
+    return this.summaryItemErrors()[key] || null;
+  }
+
+  onQtyKeydown(event: KeyboardEvent): void {
+    const allowedKeys = [
+      'Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'Home', 'End'
+    ];
+    if (allowedKeys.includes(event.key) || (event.ctrlKey || event.metaKey)) {
+      return;
+    }
+    if (!/^[0-9]$/.test(event.key)) {
+      event.preventDefault();
+    }
+  }
+
+  onQtyInput(event: Event, item: CheckoutItem): void {
+    const input = event.target as HTMLInputElement;
+    let value = input.value.replace(/[^0-9]/g, '');
+    input.value = value;
+
+    const qty = value ? parseInt(value, 10) : 0;
+    const variant = this.getVariant(item);
+    const stock = variant ? variant.stock : 0;
+    const key = `${item.product._id}::${item.variantSku}`;
+
+    if (qty <= 0 || value === '') {
+      this.summaryItemErrors.update(errors => ({
+        ...errors,
+        [key]: 'Quantity must be at least 1'
+      }));
+    } else if (qty > stock) {
+      this.summaryItemErrors.update(errors => ({
+        ...errors,
+        [key]: `Only ${stock} items left in stock`
+      }));
+    } else {
+      this.summaryItemErrors.update(errors => {
+        const copy = { ...errors };
+        delete copy[key];
+        return copy;
+      });
+      this.cartService.updateSummaryQuantity(item.product._id, item.variantSku, qty);
+    }
+  }
+
+  onQtyBlur(item: CheckoutItem, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    let value = input.value.replace(/[^0-9]/g, '');
+    let qty = value ? parseInt(value, 10) : 0;
+    const variant = this.getVariant(item);
+    const stock = variant ? variant.stock : 0;
+    const key = `${item.product._id}::${item.variantSku}`;
+
+    if (qty <= 0 || value === '') {
+      qty = 1;
+    } else if (qty > stock) {
+      qty = stock;
+    }
+
+    this.summaryItemErrors.update(errors => {
+      const copy = { ...errors };
+      delete copy[key];
+      return copy;
+    });
+
+    this.cartService.updateSummaryQuantity(item.product._id, item.variantSku, qty);
+    input.value = String(qty);
   }
 
   selectShipping(id: ShippingMethod) {

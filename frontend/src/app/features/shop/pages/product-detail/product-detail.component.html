@@ -194,8 +194,9 @@
                   inputmode="numeric"
                   pattern="[0-9]*"
                   [value]="quantity()"
+                  (keydown)="onQtyKeydown($event)"
                   (input)="onQuantityInput($event)"
-                  (blur)="normalizeQuantity()"
+                  (blur)="normalizeQuantity($event)"
                   [disabled]="isUnavailable()"
                   [attr.aria-invalid]="quantityError() ? 'true' : null"
                   aria-label="Quantity"
@@ -210,11 +211,11 @@
             </div>
 
             <div class="purchase-actions">
-              <button type="button" class="action-button action-button--secondary" [disabled]="isUnavailable()" (click)="buyNow()">
+              <button type="button" class="action-button action-button--secondary" [disabled]="isUnavailable() || !!quantityError()" (click)="buyNow()">
                 <span>BUY NOW</span>
                 <svg lucideShoppingBag [size]="24" aria-hidden="true"></svg>
               </button>
-              <button type="button" class="action-button action-button--primary" [disabled]="isUnavailable()" (click)="onAddToCart()">
+              <button type="button" class="action-button action-button--primary" [disabled]="isUnavailable() || !!quantityError()" (click)="onAddToCart()">
                 <span>{{ isUnavailable() ? 'OUT OF STOCK' : 'ADD TO CART' }}</span>
                 <svg lucideShoppingCart [size]="26" aria-hidden="true"></svg>
               </button>

@@ -512,7 +512,14 @@
                       <button type="button" (click)="dec(item)" aria-label="Decrease">
                         <svg lucideMinus [size]="12"></svg>
                       </button>
-                      <span>{{ item.quantity }}</span>
+                      <input type="text"
+                             inputmode="numeric"
+                             pattern="[0-9]*"
+                             [value]="item.quantity"
+                             (keydown)="onQtyKeydown($event)"
+                             (input)="onQtyInput($event, item)"
+                             (blur)="onQtyBlur(item, $event)"
+                             class="qty-input" />
                       <button type="button" (click)="inc(item)" aria-label="Increase">
                         <svg lucidePlus [size]="12"></svg>
                       </button>
@@ -557,7 +564,14 @@
                       <button type="button" (click)="dec(item)" aria-label="Decrease">
                         <svg lucideMinus [size]="12"></svg>
                       </button>
-                      <span>{{ item.quantity }}</span>
+                      <input type="text"
+                             inputmode="numeric"
+                             pattern="[0-9]*"
+                             [value]="item.quantity"
+                             (keydown)="onQtyKeydown($event)"
+                             (input)="onQtyInput($event, item)"
+                             (blur)="onQtyBlur(item, $event)"
+                             class="qty-input" />
                       <button type="button" (click)="inc(item)" aria-label="Increase">
                         <svg lucidePlus [size]="12"></svg>
                       </button>
@@ -567,6 +581,9 @@
                     </button>
                   </div>
                 </ng-template>
+                <div class="qty-error-msg" *ngIf="getSummaryItemError(item) as errorMsg">
+                  {{ errorMsg }}
+                </div>
               </div>
             </div>
 
