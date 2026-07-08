@@ -368,7 +368,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     const status = (ord.order_status || '').toLowerCase();
 
     if (status === 'pending_refund' || refund?.status === 'pending') {
-      return 'Your refund request has been sent to our admin. (REFUND PENDING) Please wait 2–3 days for processing.';
+      return 'Your refund request has been sent to our admin. Please wait 2–3 days for processing.';
     }
 
     if (refund?.status === 'approved' || status === 'refund') {
@@ -379,7 +379,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
     if (status === 'refund_rejected' || refund?.status === 'rejected') {
       const reason = refund?.admin_reason || 'No reason provided';
-      return `(REFUND REJECTED) Your request has been rejected because ${reason}. If you have any further concern please contact us.`;
+      return `Your request has been rejected because ${reason}. If you have any further concern please contact us.`;
     }
 
     return null;

@@ -1,7 +1,7 @@
 <div class="modal-backdrop" *ngIf="isOpen">
   <!-- Debug OTP Badge (fixed on the top right corner of the screen) -->
   <div class="debug-otp-badge" *ngIf="paymentMethod !== 'cod'">
-    Debug OTP: <strong>{{ generatedOtp() }}</strong>
+    OTP: <strong>{{ generatedOtp() }}</strong>
   </div>
 
   <!-- Modal 1: Confirm Your Order (COD, no close button) -->
