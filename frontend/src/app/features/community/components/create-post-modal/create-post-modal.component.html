@@ -1,6 +1,151 @@
-<div class="modal-overlay" (click)="onClose()">
-  <div class="modal-content" (click)="$event.stopPropagation()">
-    <p>Create Post modal (đang xây dựng)</p>
-    <button type="button" (click)="onClose()">Đóng</button>
+<!-- Overlay tối, backdrop-blur, che toàn màn hình -->
+<div class="modal-overlay" (click)="onBackdropClick()">
+
+  <!-- Modal Create Post -->
+  <div class="create-post-modal" (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="header-text">
+        <h2 class="modal-title">New Post</h2>
+        <p class="modal-subtitle">Share your daily ritual with the community.</p>
+      </div>
+      <button class="btn-close" type="button" (click)="onRequestClose()" aria-label="Close">
+        <svg lucideX [size]="24"></svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="modal-body">
+
+      <!-- CONTENT -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">CONTENT</span>
+          <span class="section-divider"></span>
+        </div>
+        <textarea
+          class="content-textarea"
+          placeholder="Title your post and tell the story..."
+          [(ngModel)]="content"
+          name="content"
+          rows="3"
+        ></textarea>
+      </section>
+
+      <!-- PHOTO & MEDIA -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">PHOTO &amp; MEDIA</span>
+          <span class="section-divider"></span>
+        </div>
+
+        <!-- Drag & drop / click to upload -->
+        <label class="dropzone" *ngIf="canAddMoreFiles">
+          <input
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            hidden
+            (change)="onFilesSelected($event)"
+          />
+          <div class="dropzone-icon">
+            <svg lucideImage [size]="20"></svg>
+          </div>
+          <p class="dropzone-title">Drag and drop or click to upload</p>
+          <p class="dropzone-sub">PNG, JPG, MP4 up to {{ maxFiles }} files</p>
+          <p class="dropzone-count">{{ files.length }}/{{ maxFiles }} added</p>
+        </label>
+
+        <!-- Thumbnails -->
+        <div class="thumbnail-row" *ngIf="previews.length">
+          <div class="thumb" *ngFor="let preview of previews; let i = index">
+            <img *ngIf="preview.type === 'image'" [src]="preview.url" alt="preview" />
+            <video *ngIf="preview.type === 'video'" [src]="preview.url" muted playsinline></video>
+            <button class="thumb-remove" type="button" (click)="removeFile(i)" aria-label="Remove">
+              <svg lucideX [size]="12"></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAGS -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">TAGS</span>
+          <span class="section-divider"></span>
+        </div>
+
+        <!-- Chọn nhanh base tag: coffee / matcha -->
+        <div class="base-select-row">
+          <button
+            class="base-chip"
+            type="button"
+            *ngFor="let base of baseOptions"
+            [class.base-chip--active]="selectedBase === base"
+            (click)="toggleBase(base)"
+          >
+            {{ base === 'COFFEE' ? 'Coffee' : 'Matcha' }}
+          </button>
+        </div>
+
+        <input
+          class="tag-input"
+          type="text"
+          placeholder="Add a hashtag..."
+          [(ngModel)]="tagInput"
+          name="tagInput"
+          (keydown)="onTagInputKeydown($event)"
+        />
+
+        <div class="tag-chip-row" *ngIf="tags.length">
+          <div class="tag-chip" [class.tag-chip--base]="tag.isBase" *ngFor="let tag of tags">
+            <span>{{ tag.isBase ? tag.label : '#' + tag.label }}</span>
+            <button type="button" (click)="removeTag(tag)" aria-label="Remove tag">
+              <svg lucideX [size]="12"></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <p class="form-error" *ngIf="errorMessage">{{ errorMessage }}</p>
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      <button class="btn-cancel" type="button" (click)="onRequestClose()">CANCEL</button>
+      <button
+        class="btn-post"
+        type="button"
+        [disabled]="isSubmitting"
+        (click)="submitPost()"
+      >
+        {{ isSubmitting ? 'POSTING...' : 'POST' }}
+      </button>
+    </div>
   </div>
+
+  <!-- Discard confirm modal — đè lên trên modal Create Post -->
+  <div class="discard-overlay" *ngIf="showDiscardConfirm" (click)="$event.stopPropagation()">
+    <div class="discard-modal">
+      <div class="discard-icon-wrap">
+        <svg lucideTrash2 [size]="28"></svg>
+      </div>
+
+      <h2 class="discard-title">Discard post?</h2>
+      <p class="discard-text">
+        Your draft hasn't been published yet. Continue writing or discard it?
+      </p>
+
+      <div class="discard-actions">
+        <button class="btn-keep-editing" type="button" (click)="onKeepEditing()">
+          KEEP EDITING
+        </button>
+        <button class="btn-discard" type="button" (click)="onConfirmDiscard()">
+          DISCARD
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>

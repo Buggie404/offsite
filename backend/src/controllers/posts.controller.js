@@ -87,11 +87,27 @@ async function getPostById(req, res) {
   }
 }
 
+// Field "media" đến dưới dạng multipart/form-data nên luôn là string JSON
+// (frontend gửi formData.append('media', JSON.stringify(media))) -> cần parse lại thành array
+function parseMediaField(rawMedia) {
+  if (Array.isArray(rawMedia)) return rawMedia; // đã là array sẵn (vd: gọi qua JSON body)
+  if (typeof rawMedia === 'string' && rawMedia.trim()) {
+    try {
+      const parsed = JSON.parse(rawMedia);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  return [];
+}
+
 // Create a new post
 async function createPost(req, res) {
   try {
-    const { content, media = [], post_type = 'regular', recipe_id = null, base } = req.body;
-    
+    const { content, media: rawMedia, post_type = 'regular', recipe_id = null, base } = req.body;
+    const media = parseMediaField(rawMedia);
+
     // Find the logged-in user
     const user = await User.findById(req.user.user_id);
     if (!user) {
@@ -142,7 +158,7 @@ async function createPost(req, res) {
 async function updatePost(req, res) {
   try {
     const { id } = req.params;
-    const { content, media, post_type, recipe_id, base } = req.body;
+    const { content, media: rawMedia, post_type, recipe_id, base } = req.body;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
@@ -163,7 +179,7 @@ async function updatePost(req, res) {
     }
 
     if (content !== undefined) post.content = content;
-    if (media !== undefined) post.media = media;
+    if (rawMedia !== undefined) post.media = parseMediaField(rawMedia);
     if (post_type !== undefined) post.post_type = post_type;
     if (recipe_id !== undefined) post.recipe_id = recipe_id;
     if (base !== undefined) post.base = base;
