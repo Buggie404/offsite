@@ -6,11 +6,12 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Post } from '../../models/post.model';
 import { CommunityService } from '../../services/community.service';
 import { CommentSectionComponent } from '../../components/comment-section/comment-section.component';
+import { ShareModalComponent } from '../../components/share-modal/share-modal.component';
 
 @Component({
   selector: 'app-post-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, CommentSectionComponent],
+  imports: [CommonModule, FormsModule, RouterModule, CommentSectionComponent, ShareModalComponent],
   templateUrl: './post-detail.component.html',
   styleUrls: ['./post-detail.component.scss']
 })
@@ -27,6 +28,7 @@ export class PostDetailComponent implements OnInit {
   loading = true;
   error: string | null = null;
   postLiked = false;
+  showShareModal = false;
 
   // Content của post sau khi tách hashtag (#tag) ra khỏi text thường, để highlight riêng
   postContentParts: { text: string; isTag: boolean }[] = [];
@@ -129,12 +131,15 @@ export class PostDetailComponent implements OnInit {
   }
 
   sharePost(): void {
-    const url = window.location.href;
-    if (navigator.share) {
-      navigator.share({ title: 'Offsite Community', url }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(url);
-    }
+    this.showShareModal = true;
+  }
+
+  closeShareModal(): void {
+    this.showShareModal = false;
+  }
+
+  get shareUrl(): string {
+    return window.location.href;
   }
 
   // ── Content parsing ──

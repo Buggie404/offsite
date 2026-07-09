@@ -133,6 +133,13 @@
 
 </div>
 
+<!-- ── SHARE MODAL ── -->
+<app-share-modal
+  *ngIf="showShareModal"
+  [shareUrl]="shareUrl"
+  (close)="closeShareModal()">
+</app-share-modal>
+
 <!-- ── LOADING / ERROR STATES ── -->
 <div class="loading-state" *ngIf="loading">
   <div class="spinner"></div>
