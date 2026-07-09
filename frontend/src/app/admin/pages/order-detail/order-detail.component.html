@@ -453,7 +453,7 @@
           @if (activeRefundRequest.evidence?.length) {
             <div class="modal-block">
               <span class="modal-label">Supporting evidence</span>
-              <p class="evidence-hint">Click an image to view it full size.</p>
+              <p class="evidence-hint">Click an image/video to view it full size.</p>
               <div class="evidence-gallery">
                 @for (file of activeRefundRequest.evidence; track file) {
                   @if (isEvidenceUnavailable(file)) {
@@ -509,7 +509,7 @@
             <button
               type="button"
               class="btn btn-primary"
-              (click)="approveRefundRequest()"
+              (click)="openApproveConfirmModal()"
               [disabled]="refundSaving"
             >
               <svg lucideCheck aria-hidden="true" [size]="16"></svg>
@@ -520,6 +520,66 @@
               Close
             </button>
           }
+        </footer>
+      </div>
+    </div>
+  }
+
+  @if (showApproveConfirmModal && order && activeRefundRequest) {
+    <div class="modal-backdrop modal-backdrop--stacked" (click)="closeApproveConfirmModal()">
+      <div
+        class="modal-card modal-card--confirm"
+        role="dialog"
+        aria-labelledby="approve-confirm-title"
+        aria-modal="true"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="modal-card__header">
+          <h2 id="approve-confirm-title" class="modal-card__title">Approve refund request?</h2>
+          <button
+            type="button"
+            class="modal-card__close"
+            (click)="closeApproveConfirmModal()"
+            aria-label="Close"
+          >
+            <svg lucideX [size]="18"></svg>
+          </button>
+        </header>
+
+        <div class="modal-card__body">
+          <div class="confirm-modal__icon-wrap" aria-hidden="true">
+            <svg lucideCheck [size]="22"></svg>
+          </div>
+          <p class="confirm-modal__message">
+            Are you sure you want to approve this refund? The order will be marked as
+            <strong>Refund</strong> and the payment status will be updated to
+            <strong>refunded</strong>.
+          </p>
+          <div class="confirm-modal__summary">
+            <div>
+              <span class="modal-label">Order</span>
+              <p>#{{ order.order_id }}</p>
+            </div>
+            <div>
+              <span class="modal-label">Items to refund</span>
+              <p>{{ refundLineItemCount }} line item{{ refundLineItemCount === 1 ? '' : 's' }}</p>
+            </div>
+            <div>
+              <span class="modal-label">Refund amount</span>
+              <p>{{ formatPrice(refundItemsSubtotal(), order.pricing.currency) }}</p>
+            </div>
+          </div>
+          <p class="confirm-modal__note">This action cannot be undone from the admin portal.</p>
+        </div>
+
+        <footer class="modal-card__footer">
+          <button type="button" class="btn btn-secondary" (click)="closeApproveConfirmModal()" [disabled]="refundSaving">
+            Cancel
+          </button>
+          <button type="button" class="btn btn-primary" (click)="confirmApproveRefund()" [disabled]="refundSaving">
+            <svg lucideCheck aria-hidden="true" [size]="16"></svg>
+            Approve refund
+          </button>
         </footer>
       </div>
     </div>

@@ -80,6 +80,7 @@ export class OrderDetailComponent implements OnInit {
 
   showRefundModal = false;
   showRejectModal = false;
+  showApproveConfirmModal = false;
   showEvidencePreview = false;
   previewEvidenceUrl: string | null = null;
   previewEvidenceType: 'image' | 'video' | null = null;
@@ -313,9 +314,32 @@ export class OrderDetailComponent implements OnInit {
 
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
+    if (this.showApproveConfirmModal) {
+      this.closeApproveConfirmModal();
+      return;
+    }
+
     if (this.showEvidencePreview) {
       this.closeEvidencePreview();
     }
+  }
+
+  openApproveConfirmModal(): void {
+    if (!this.order || this.refundSaving || this.isRefundModalReadonly) {
+      return;
+    }
+
+    this.showApproveConfirmModal = true;
+    this.actionError = null;
+  }
+
+  closeApproveConfirmModal(): void {
+    this.showApproveConfirmModal = false;
+  }
+
+  confirmApproveRefund(): void {
+    this.showApproveConfirmModal = false;
+    this.approveRefundRequest();
   }
 
   approveRefundRequest(): void {
@@ -330,6 +354,7 @@ export class OrderDetailComponent implements OnInit {
         this.order = response.data;
         this.refundMessage = 'Refund approved successfully.';
         this.refundSaving = false;
+        this.showApproveConfirmModal = false;
         this.showRefundModal = false;
         this.adminRefresh.refreshNotifications();
         this.cdr.markForCheck();
@@ -343,6 +368,7 @@ export class OrderDetailComponent implements OnInit {
   }
 
   openRejectModal(): void {
+    this.closeApproveConfirmModal();
     this.rejectReason = '';
     this.rejectModalError = null;
     this.showRejectModal = true;
