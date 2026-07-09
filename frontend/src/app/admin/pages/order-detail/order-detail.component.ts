@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -18,6 +18,8 @@ import { AdminRefreshService } from '../../services/admin-refresh.service';
 import {
   AdminInternalNote,
   AdminOrderDetail,
+  AdminOrderLineItem,
+  AdminOrderRefundItem,
   AdminOrderRefundRequest,
   AdminOrderStatus,
   AdminOrderStatusUpdate
@@ -78,6 +80,9 @@ export class OrderDetailComponent implements OnInit {
 
   showRefundModal = false;
   showRejectModal = false;
+  showEvidencePreview = false;
+  previewEvidenceUrl: string | null = null;
+  previewEvidenceType: 'image' | 'video' | null = null;
   rejectReason = '';
   rejectModalError: string | null = null;
 
@@ -302,7 +307,15 @@ export class OrderDetailComponent implements OnInit {
   }
 
   closeRefundModal(): void {
+    this.closeEvidencePreview();
     this.showRefundModal = false;
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    if (this.showEvidencePreview) {
+      this.closeEvidencePreview();
+    }
   }
 
   approveRefundRequest(): void {
@@ -418,27 +431,125 @@ export class OrderDetailComponent implements OnInit {
     return request.reason;
   }
 
+  get refundLineItemCount(): number {
+    return this.activeRefundRequest?.refund_item?.length || 0;
+  }
+
+  get orderLineItemCount(): number {
+    return this.order?.items.length || 0;
+  }
+
+  isPartialRefundRequest(): boolean {
+    if (!this.order || !this.activeRefundRequest?.refund_item?.length) {
+      return false;
+    }
+
+    const refundKeys = new Set(
+      this.activeRefundRequest.refund_item.map((item) => this.refundItemKey(item))
+    );
+
+    if (refundKeys.size < this.order.items.length) {
+      return true;
+    }
+
+    return this.activeRefundRequest.refund_item.some((refundItem) => {
+      const orderItem = this.order!.items.find(
+        (item) =>
+          item.product_id === refundItem.product_id && item.variant_id === refundItem.variant_id
+      );
+      return orderItem ? refundItem.quantity < orderItem.quantity : false;
+    });
+  }
+
+  refundItemsSubtotal(): number {
+    return (
+      this.activeRefundRequest?.refund_item?.reduce((sum, item) => sum + (item.subtotal || 0), 0) ||
+      0
+    );
+  }
+
+  orderItemsNotInRefund(): AdminOrderLineItem[] {
+    if (!this.order?.items.length || !this.activeRefundRequest?.refund_item?.length) {
+      return [];
+    }
+
+    const refundKeys = new Set(
+      this.activeRefundRequest.refund_item.map((item) => this.refundItemKey(item))
+    );
+
+    return this.order.items.filter(
+      (item) => !refundKeys.has(`${item.product_id}:${item.variant_id}`)
+    );
+  }
+
+  refundItemImageUrl(item: AdminOrderRefundItem): string | null {
+    if (item.image?.url) {
+      return item.image.url;
+    }
+
+    const orderItem = this.order?.items.find(
+      (line) => line.product_id === item.product_id && line.variant_id === item.variant_id
+    );
+
+    return orderItem?.image_url || null;
+  }
+
+  private refundItemKey(item: { product_id: string; variant_id: string }): string {
+    return `${item.product_id}:${item.variant_id}`;
+  }
+
+  isEvidenceUnavailable(url: string): boolean {
+    return Boolean(url?.startsWith('blob:'));
+  }
+
   isImageEvidence(url: string): boolean {
-    if (!url) return false;
-    if (url.startsWith('blob:') || url.startsWith('data:image/')) return true;
-    return /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i.test(url);
+    if (!url || this.isEvidenceUnavailable(url)) return false;
+    if (url.startsWith('data:image/')) return true;
+    if (/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i.test(url)) return true;
+    return /\/image\/upload\//i.test(url);
   }
 
   isVideoEvidence(url: string): boolean {
-    if (!url) return false;
+    if (!url || this.isEvidenceUnavailable(url)) return false;
     if (url.startsWith('data:video/')) return true;
-    return /\.(mp4|webm|mov|ogg|m4v)(\?|$)/i.test(url);
+    if (/\.(mp4|webm|mov|ogg|m4v)(\?|$)/i.test(url)) return true;
+    return /\/video\/upload\//i.test(url);
   }
 
   evidenceFileName(url: string): string {
     if (!url) return 'File';
     if (url.startsWith('blob:')) return 'Uploaded file';
+    if (url.startsWith('data:image/')) return 'Evidence image';
+    if (url.startsWith('data:video/')) return 'Evidence video';
     try {
       const parts = url.split('/');
       return decodeURIComponent(parts[parts.length - 1].split('?')[0]) || url;
     } catch {
       return url;
     }
+  }
+
+  openEvidencePreview(url: string): void {
+    if (this.isEvidenceUnavailable(url)) {
+      return;
+    }
+
+    if (this.isImageEvidence(url) || this.isVideoEvidence(url)) {
+      this.previewEvidenceUrl = url;
+      this.previewEvidenceType = this.isVideoEvidence(url) ? 'video' : 'image';
+      this.showEvidencePreview = true;
+      return;
+    }
+
+    if (/^https?:\/\//i.test(url) && typeof window !== 'undefined') {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }
+
+  closeEvidencePreview(): void {
+    this.showEvidencePreview = false;
+    this.previewEvidenceUrl = null;
+    this.previewEvidenceType = null;
   }
 
   formatDateTime(value: string | null | undefined): string {

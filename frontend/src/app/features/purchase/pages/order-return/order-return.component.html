@@ -128,7 +128,7 @@
         <div class="evidence-previews-grid" *ngIf="evidenceFiles().length > 0">
           <div *ngFor="let file of evidenceFiles(); let idx = index" class="evidence-preview-card">
             <div class="preview-img-wrapper">
-              <video *ngIf="file.name.toLowerCase().endsWith('.mp4'); else imgTemp" [src]="file.url" class="preview-image" muted></video>
+              <video *ngIf="isVideoFile(file); else imgTemp" [src]="file.url" class="preview-image" muted></video>
               <ng-template #imgTemp>
                 <img [src]="file.url" [alt]="file.name" class="preview-image" />
               </ng-template>

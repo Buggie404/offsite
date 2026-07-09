@@ -113,7 +113,34 @@ async function getLatestRefundRequest(orderId) {
   return RefundRequest.findOne({ order_id: orderId }).sort({ created_at: -1 });
 }
 
-function formatRefundRequestForAdmin(doc) {
+function enrichRefundItemsForAdmin(refundItems, orderItems) {
+  return (refundItems || []).map((item) => {
+    const orderItem = (orderItems || []).find(
+      (line) => line.product_id === item.product_id && line.variant_id === item.variant_id
+    );
+
+    const imageUrl =
+      item.image?.url ||
+      (typeof item.image === 'string' ? item.image : null) ||
+      orderItem?.image?.url ||
+      null;
+
+    return {
+      product_id: item.product_id,
+      variant_id: item.variant_id,
+      product_name: item.product_name || orderItem?.product_name || 'Product',
+      variant_name: item.variant_name || orderItem?.variant_name || '—',
+      image: imageUrl ? { url: imageUrl, public_id: item.image?.public_id || null } : undefined,
+      unit_price: item.unit_price ?? orderItem?.unit_price ?? 0,
+      quantity: item.quantity ?? orderItem?.quantity ?? 1,
+      subtotal:
+        item.subtotal ??
+        (item.unit_price ?? orderItem?.unit_price ?? 0) * (item.quantity ?? orderItem?.quantity ?? 1)
+    };
+  });
+}
+
+function formatRefundRequestForAdmin(doc, orderItems) {
   if (!doc) return null;
   const plain = doc.toObject ? doc.toObject() : doc;
   return {
@@ -123,7 +150,7 @@ function formatRefundRequestForAdmin(doc) {
     other_reason: plain.other_reason,
     description: plain.description,
     evidence: plain.evidence || [],
-    refund_item: plain.refund_item || [],
+    refund_item: enrichRefundItemsForAdmin(plain.refund_item, orderItems),
     payment: plain.payment,
     status: plain.status,
     admin_reason: plain.admin_reason,
@@ -217,6 +244,7 @@ async function buildOrderDetail(order) {
     is_guest: order.is_guest,
     items: (order.items || []).map((item) => ({
       product_id: item.product_id,
+      variant_id: item.variant_id,
       product_name: item.product_name,
       variant_name: item.variant_name,
       image_url: item.image?.url || null,
@@ -234,7 +262,7 @@ async function buildOrderDetail(order) {
     customer_phone: customerPhone,
     shipping_address: formatShippingAddress(order.delivery_info),
     status_history: order.status_history || [],
-    refund_request: formatRefundRequestForAdmin(refundRequestDoc),
+    refund_request: formatRefundRequestForAdmin(refundRequestDoc, order.items),
     internal_notes: parseInternalNotes(order.internal_notes)
   };
 }

@@ -378,32 +378,116 @@
 
           <div class="modal-block">
             <span class="modal-label">Items to refund</span>
-            <div class="modal-items">
+            @if (isPartialRefundRequest()) {
+              <p class="modal-refund-scope">
+                Partial return — customer is returning
+                <strong>{{ refundLineItemCount }}</strong> of
+                <strong>{{ orderLineItemCount }}</strong> line items in this order.
+              </p>
+            } @else {
+              <p class="modal-refund-scope">Full return — all items in this order are included.</p>
+            }
+
+            <div class="modal-refund-items">
               @for (item of activeRefundRequest.refund_item || []; track item.variant_id) {
-                <div class="modal-item-row">
-                  <span>{{ item.product_name }} · {{ item.variant_name }}</span>
-                  <span>× {{ item.quantity }}</span>
+                <div class="modal-refund-item modal-refund-item--returning">
+                  @if (refundItemImageUrl(item); as imageUrl) {
+                    <img
+                      [src]="imageUrl"
+                      [alt]="item.product_name"
+                      class="modal-refund-item__thumb"
+                    />
+                  } @else {
+                    <div class="modal-refund-item__thumb modal-refund-item__thumb--placeholder" aria-hidden="true"></div>
+                  }
+                  <div class="modal-refund-item__info">
+                    <p class="modal-refund-item__name">{{ item.product_name }}</p>
+                    <p class="modal-refund-item__variant">{{ item.variant_name }}</p>
+                    <span class="modal-refund-item__badge">Returning</span>
+                  </div>
+                  <div class="modal-refund-item__meta">
+                    <span class="modal-refund-item__qty">Qty {{ item.quantity }}</span>
+                    <span class="modal-refund-item__price">{{
+                      formatPrice(item.subtotal, order.pricing.currency)
+                    }}</span>
+                  </div>
                 </div>
               }
             </div>
+
+            <p class="modal-refund-total">
+              Refund items subtotal:
+              <strong>{{ formatPrice(refundItemsSubtotal(), order.pricing.currency) }}</strong>
+            </p>
           </div>
+
+          @if (orderItemsNotInRefund().length) {
+            <div class="modal-block modal-block--muted">
+              <span class="modal-label">Not included in this return</span>
+              <div class="modal-refund-items">
+                @for (item of orderItemsNotInRefund(); track item.variant_id) {
+                  <div class="modal-refund-item modal-refund-item--excluded">
+                    @if (item.image_url) {
+                      <img
+                        [src]="item.image_url"
+                        [alt]="item.product_name"
+                        class="modal-refund-item__thumb"
+                      />
+                    } @else {
+                      <div class="modal-refund-item__thumb modal-refund-item__thumb--placeholder" aria-hidden="true"></div>
+                    }
+                    <div class="modal-refund-item__info">
+                      <p class="modal-refund-item__name">{{ item.product_name }}</p>
+                      <p class="modal-refund-item__variant">{{ item.variant_name }}</p>
+                      <span class="modal-refund-item__badge modal-refund-item__badge--muted">Keeping</span>
+                    </div>
+                    <div class="modal-refund-item__meta">
+                      <span class="modal-refund-item__qty">Qty {{ item.quantity }}</span>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
 
           @if (activeRefundRequest.evidence?.length) {
             <div class="modal-block">
               <span class="modal-label">Supporting evidence</span>
+              <p class="evidence-hint">Click an image to view it full size.</p>
               <div class="evidence-gallery">
                 @for (file of activeRefundRequest.evidence; track file) {
-                  @if (isImageEvidence(file)) {
-                    <a [href]="file" target="_blank" rel="noopener" class="evidence-thumb">
-                      <img [src]="file" [alt]="evidenceFileName(file)" />
-                    </a>
-                  } @else if (isVideoEvidence(file)) {
-                    <div class="evidence-video-wrap">
-                      <video [src]="file" controls class="evidence-video"></video>
+                  @if (isEvidenceUnavailable(file)) {
+                    <div class="evidence-unavailable">
+                      <span class="evidence-unavailable__title">Evidence unavailable</span>
+                      <span class="evidence-unavailable__hint">
+                        This file was not stored correctly. Ask the customer to resubmit if needed.
+                      </span>
                     </div>
+                  } @else if (isImageEvidence(file)) {
+                    <button
+                      type="button"
+                      class="evidence-thumb"
+                      (click)="openEvidencePreview(file)"
+                      [attr.aria-label]="'View evidence: ' + evidenceFileName(file)"
+                    >
+                      <img [src]="file" [alt]="evidenceFileName(file)" />
+                    </button>
+                  } @else if (isVideoEvidence(file)) {
+                    <button
+                      type="button"
+                      class="evidence-video-wrap evidence-video-wrap--clickable"
+                      (click)="openEvidencePreview(file)"
+                      [attr.aria-label]="'View evidence video: ' + evidenceFileName(file)"
+                    >
+                      <video [src]="file" class="evidence-video" preload="metadata" muted></video>
+                      <span class="evidence-video__play-hint">Click to play</span>
+                    </button>
                   } @else {
                     <div class="evidence-file">
                       <span>{{ evidenceFileName(file) }}</span>
+                      <button type="button" class="evidence-file__open" (click)="openEvidencePreview(file)">
+                        Open file
+                      </button>
                     </div>
                   }
                 }
@@ -487,6 +571,32 @@
             Send rejection
           </button>
         </footer>
+      </div>
+    </div>
+  }
+
+  @if (showEvidencePreview && previewEvidenceUrl) {
+    <div
+      class="evidence-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Evidence preview"
+      (click)="closeEvidencePreview()"
+    >
+      <button
+        type="button"
+        class="evidence-lightbox__close"
+        aria-label="Close preview"
+        (click)="closeEvidencePreview(); $event.stopPropagation()"
+      >
+        <svg lucideX [size]="22"></svg>
+      </button>
+      <div class="evidence-lightbox__content" (click)="$event.stopPropagation()">
+        @if (previewEvidenceType === 'image') {
+          <img [src]="previewEvidenceUrl" [alt]="evidenceFileName(previewEvidenceUrl)" />
+        } @else {
+          <video [src]="previewEvidenceUrl" controls autoplay class="evidence-lightbox__video"></video>
+        }
       </div>
     </div>
   }

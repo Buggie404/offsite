@@ -59,6 +59,7 @@ export interface AdminOrdersQuery {
 
 export interface AdminOrderLineItem {
   product_id: string;
+  variant_id: string;
   product_name: string;
   variant_name: string;
   image_url: string | null;

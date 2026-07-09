@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_AdminOrder" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Offsite" exporterVersion="1.0">
+  <bpmn:collaboration id="Collaboration_AdminOrder">
+    <bpmn:participant id="Participant_AdminPortal" name="Offsite Admin Portal" processRef="Process_AdminOrder" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_AdminOrder" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Admin" name="Quản trị viên">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ViewList</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpenDetail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ActionType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UpdateShipping</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ViewRefund</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_RefundDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ApproveRefund</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnterRejectReason</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RejectRefund</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AddNote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_1</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_System" name="Hệ thống">
+        <bpmn:flowNodeRef>Task_LoadDetail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SaveShipping</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SaveApprove</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SaveReject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SaveNote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RefreshNotifications</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_1" name="Bắt đầu">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Task_ViewList" name="Xem danh sách đơn hàng">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_OpenDetail" name="Mở chi tiết đơn">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_LoadDetail" name="Tải chi tiết đơn (API)">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_ActionType" name="Loại xử lý?">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_Ship</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Refund</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Note</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Task_UpdateShipping" name="Cập nhật trạng thái Shipping">
+      <bpmn:incoming>Flow_Ship</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_SaveShipping" name="Lưu order_status = shipping">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_ViewRefund" name="Xem yêu cầu hoàn tiền">
+      <bpmn:incoming>Flow_Refund</bpmn:incoming>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_RefundDecision" name="Phê duyệt?">
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approve</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Reject</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Task_ApproveRefund" name="Phê duyệt hoàn tiền">
+      <bpmn:incoming>Flow_Approve</bpmn:incoming>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_SaveApprove" name="Cập nhật refund + payment">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+      <bpmn:outgoing>Flow_9</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_EnterRejectReason" name="Nhập lý do từ chối">
+      <bpmn:incoming>Flow_Reject</bpmn:incoming>
+      <bpmn:outgoing>Flow_10</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_RejectRefund" name="Từ chối hoàn tiền">
+      <bpmn:incoming>Flow_10</bpmn:incoming>
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_SaveReject" name="Lưu refund_rejected">
+      <bpmn:incoming>Flow_11</bpmn:incoming>
+      <bpmn:outgoing>Flow_12</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_AddNote" name="Thêm ghi chú nội bộ">
+      <bpmn:incoming>Flow_Note</bpmn:incoming>
+      <bpmn:outgoing>Flow_13</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_SaveNote" name="Lưu ghi chú (API)">
+      <bpmn:incoming>Flow_13</bpmn:incoming>
+      <bpmn:outgoing>Flow_14</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_RefreshNotifications" name="Cập nhật thông báo">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+      <bpmn:incoming>Flow_12</bpmn:incoming>
+      <bpmn:incoming>Flow_14</bpmn:incoming>
+      <bpmn:outgoing>Flow_15</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="EndEvent_1" name="Kết thúc">
+      <bpmn:incoming>Flow_15</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_ViewList" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_ViewList" targetRef="Task_OpenDetail" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_OpenDetail" targetRef="Task_LoadDetail" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_LoadDetail" targetRef="Gateway_ActionType" />
+    <bpmn:sequenceFlow id="Flow_Ship" name="Đơn cần giao" sourceRef="Gateway_ActionType" targetRef="Task_UpdateShipping" />
+    <bpmn:sequenceFlow id="Flow_Refund" name="Có hoàn tiền" sourceRef="Gateway_ActionType" targetRef="Task_ViewRefund" />
+    <bpmn:sequenceFlow id="Flow_Note" name="Ghi chú" sourceRef="Gateway_ActionType" targetRef="Task_AddNote" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_UpdateShipping" targetRef="Task_SaveShipping" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Task_SaveShipping" targetRef="Task_RefreshNotifications" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Task_ViewRefund" targetRef="Gateway_RefundDecision" />
+    <bpmn:sequenceFlow id="Flow_Approve" name="Có" sourceRef="Gateway_RefundDecision" targetRef="Task_ApproveRefund" />
+    <bpmn:sequenceFlow id="Flow_Reject" name="Không" sourceRef="Gateway_RefundDecision" targetRef="Task_EnterRejectReason" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Task_ApproveRefund" targetRef="Task_SaveApprove" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Task_SaveApprove" targetRef="Task_RefreshNotifications" />
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="Task_EnterRejectReason" targetRef="Task_RejectRefund" />
+    <bpmn:sequenceFlow id="Flow_11" sourceRef="Task_RejectRefund" targetRef="Task_SaveReject" />
+    <bpmn:sequenceFlow id="Flow_12" sourceRef="Task_SaveReject" targetRef="Task_RefreshNotifications" />
+    <bpmn:sequenceFlow id="Flow_13" sourceRef="Task_AddNote" targetRef="Task_SaveNote" />
+    <bpmn:sequenceFlow id="Flow_14" sourceRef="Task_SaveNote" targetRef="Task_RefreshNotifications" />
+    <bpmn:sequenceFlow id="Flow_15" sourceRef="Task_RefreshNotifications" targetRef="EndEvent_1" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_AdminOrder">
+      <bpmndi:BPMNShape id="Participant_AdminPortal_di" bpmnElement="Participant_AdminPortal" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="1520" height="360" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Admin_di" bpmnElement="Lane_Admin" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="1490" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_System_di" bpmnElement="Lane_System" isHorizontal="true">
+        <dc:Bounds x="190" y="280" width="1490" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="232" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="226" y="205" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ViewList_di" bpmnElement="Task_ViewList">
+        <dc:Bounds x="310" y="140" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpenDetail_di" bpmnElement="Task_OpenDetail">
+        <dc:Bounds x="470" y="140" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LoadDetail_di" bpmnElement="Task_LoadDetail">
+        <dc:Bounds x="470" y="310" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ActionType_di" bpmnElement="Gateway_ActionType" isMarkerVisible="true">
+        <dc:Bounds x="645" y="155" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="631" y="125" width="78" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UpdateShipping_di" bpmnElement="Task_UpdateShipping">
+        <dc:Bounds x="750" y="90" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SaveShipping_di" bpmnElement="Task_SaveShipping">
+        <dc:Bounds x="750" y="310" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ViewRefund_di" bpmnElement="Task_ViewRefund">
+        <dc:Bounds x="750" y="180" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_RefundDecision_di" bpmnElement="Gateway_RefundDecision" isMarkerVisible="true">
+        <dc:Bounds x="915" y="195" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="908" y="165" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ApproveRefund_di" bpmnElement="Task_ApproveRefund">
+        <dc:Bounds x="1020" y="150" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SaveApprove_di" bpmnElement="Task_SaveApprove">
+        <dc:Bounds x="1020" y="310" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EnterRejectReason_di" bpmnElement="Task_EnterRejectReason">
+        <dc:Bounds x="1020" y="240" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RejectRefund_di" bpmnElement="Task_RejectRefund">
+        <dc:Bounds x="1180" y="240" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SaveReject_di" bpmnElement="Task_SaveReject">
+        <dc:Bounds x="1180" y="310" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AddNote_di" bpmnElement="Task_AddNote">
+        <dc:Bounds x="750" y="40" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SaveNote_di" bpmnElement="Task_SaveNote">
+        <dc:Bounds x="910" y="40" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RefreshNotifications_di" bpmnElement="Task_RefreshNotifications">
+        <dc:Bounds x="1360" y="310" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
+        <dc:Bounds x="1542" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1534" y="205" width="52" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="268" y="180" />
+        <di:waypoint x="310" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="430" y="180" />
+        <di:waypoint x="470" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
+        <di:waypoint x="530" y="220" />
+        <di:waypoint x="530" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4">
+        <di:waypoint x="590" y="350" />
+        <di:waypoint x="670" y="350" />
+        <di:waypoint x="670" y="205" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ship_di" bpmnElement="Flow_Ship">
+        <di:waypoint x="670" y="155" />
+        <di:waypoint x="670" y="130" />
+        <di:waypoint x="750" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Refund_di" bpmnElement="Flow_Refund">
+        <di:waypoint x="695" y="180" />
+        <di:waypoint x="750" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Note_di" bpmnElement="Flow_Note">
+        <di:waypoint x="670" y="155" />
+        <di:waypoint x="670" y="80" />
+        <di:waypoint x="750" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5">
+        <di:waypoint x="810" y="170" />
+        <di:waypoint x="810" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6">
+        <di:waypoint x="870" y="350" />
+        <di:waypoint x="1360" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="Flow_7">
+        <di:waypoint x="870" y="220" />
+        <di:waypoint x="915" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Approve_di" bpmnElement="Flow_Approve">
+        <di:waypoint x="940" y="195" />
+        <di:waypoint x="940" y="190" />
+        <di:waypoint x="1020" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Reject_di" bpmnElement="Flow_Reject">
+        <di:waypoint x="940" y="245" />
+        <di:waypoint x="1020" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_8_di" bpmnElement="Flow_8">
+        <di:waypoint x="1080" y="230" />
+        <di:waypoint x="1080" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_9_di" bpmnElement="Flow_9">
+        <di:waypoint x="1140" y="350" />
+        <di:waypoint x="1360" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_10_di" bpmnElement="Flow_10">
+        <di:waypoint x="1140" y="280" />
+        <di:waypoint x="1180" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_11_di" bpmnElement="Flow_11">
+        <di:waypoint x="1240" y="320" />
+        <di:waypoint x="1240" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_12_di" bpmnElement="Flow_12">
+        <di:waypoint x="1300" y="350" />
+        <di:waypoint x="1360" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13_di" bpmnElement="Flow_13">
+        <di:waypoint x="870" y="80" />
+        <di:waypoint x="910" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14_di" bpmnElement="Flow_14">
+        <di:waypoint x="970" y="120" />
+        <di:waypoint x="970" y="350" />
+        <di:waypoint x="1360" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_15_di" bpmnElement="Flow_15">
+        <di:waypoint x="1480" y="350" />
+        <di:waypoint x="1560" y="350" />
+        <di:waypoint x="1560" y="198" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -5,6 +5,46 @@ const mongoose = require('mongoose');
 
 const REFUND_REASONS = ['Damaged item', 'Wrong item', 'Size/color mismatch', 'Other'];
 
+function normalizeEvidenceList(evidence) {
+  if (!Array.isArray(evidence)) {
+    return [];
+  }
+
+  return evidence
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean);
+}
+
+function validateEvidenceUrls(evidence) {
+  const normalized = normalizeEvidenceList(evidence);
+
+  if (!normalized.length) {
+    return { ok: false, error: 'Supporting evidence is required for refund requests.' };
+  }
+
+  for (const url of normalized) {
+    if (url.startsWith('blob:')) {
+      return {
+        ok: false,
+        error: 'Evidence upload failed. Please re-select your image or video files and submit again.'
+      };
+    }
+
+    const isHttp = /^https?:\/\//i.test(url);
+    const isDataImage = url.startsWith('data:image/');
+    const isDataVideo = url.startsWith('data:video/');
+
+    if (!isHttp && !isDataImage && !isDataVideo) {
+      return {
+        ok: false,
+        error: 'Each evidence file must be an uploaded image or video.'
+      };
+    }
+  }
+
+  return { ok: true, evidence: normalized };
+}
+
 async function getLatestRefundRequest(orderId) {
   return RefundRequest.findOne({ order_id: orderId })
     .sort({ created_at: -1 })
@@ -601,9 +641,11 @@ async function requestRefund(req, res) {
       return res.status(400).json({ error: 'Please specify your refund reason.' });
     }
 
-    if (!evidence || !evidence.length) {
-      return res.status(400).json({ error: 'Supporting evidence is required for refund requests.' });
+    const evidenceValidation = validateEvidenceUrls(evidence);
+    if (!evidenceValidation.ok) {
+      return res.status(400).json({ error: evidenceValidation.error });
     }
+    const normalizedEvidence = evidenceValidation.evidence;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -699,7 +741,7 @@ async function requestRefund(req, res) {
       other_reason: reason === 'Other' ? String(other_reason).trim() : null,
       payment: refundPayment,
       description: description ? String(description).trim() : null,
-      evidence,
+      evidence: normalizedEvidence,
       refund_item: refundItems
     });
 

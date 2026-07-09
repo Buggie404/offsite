@@ -58,7 +58,7 @@ export class OrderReturnComponent implements OnInit {
   otherReasonText = signal<string>('');
   otherReasonWordCount = signal<number>(0);
   description = signal<string>('');
-  evidenceFiles = signal<Array<{ name: string; size: string; url: string }>>([]);
+  evidenceFiles = signal<Array<{ name: string; size: string; url: string; file: File }>>([]);
 
   // Refund destination card signals
   showRefundPaymentModal = signal<boolean>(false);
@@ -229,18 +229,47 @@ export class OrderReturnComponent implements OnInit {
         }
         
         const sizeStr = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
-        const fakeUrl = URL.createObjectURL(file);
-        
+        const previewUrl = URL.createObjectURL(file);
+
         this.evidenceFiles.update(list => [
           ...list,
-          { name: file.name, size: sizeStr, url: fakeUrl }
+          { name: file.name, size: sizeStr, url: previewUrl, file }
         ]);
       }
     }
   }
 
   removeFile(index: number) {
+    const current = this.evidenceFiles();
+    const removed = current[index];
+    if (removed?.url?.startsWith('blob:')) {
+      URL.revokeObjectURL(removed.url);
+    }
     this.evidenceFiles.update(list => list.filter((_, i) => i !== index));
+  }
+
+  private readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  private async buildEvidencePayload(): Promise<string[]> {
+    const files = this.evidenceFiles();
+    const payloads: string[] = [];
+
+    for (const entry of files) {
+      if (entry.file) {
+        payloads.push(await this.readFileAsDataUrl(entry.file));
+      } else if (entry.url && !entry.url.startsWith('blob:')) {
+        payloads.push(entry.url);
+      }
+    }
+
+    return payloads;
   }
 
   checkOtherReasonWords(text: string) {
@@ -250,6 +279,13 @@ export class OrderReturnComponent implements OnInit {
     }
     const words = text.trim().split(/\s+/).filter(w => w.length > 0);
     this.otherReasonWordCount.set(words.length);
+  }
+
+  isVideoFile(file: { name: string; file?: File }): boolean {
+    if (file.file?.type?.startsWith('video/')) {
+      return true;
+    }
+    return /\.(mp4|webm|mov|ogg|m4v)$/i.test(file.name);
   }
 
   get selectedItemsList() {
@@ -320,11 +356,17 @@ export class OrderReturnComponent implements OnInit {
         } catch (e) {}
       }
 
+      const evidence = await this.buildEvidencePayload();
+      if (!evidence.length) {
+        alert('Please upload at least one image or video as supporting evidence.');
+        return;
+      }
+
       const payload = {
         reason: this.reason(),
         other_reason: this.reason() === 'Other' ? this.otherReasonText().trim() : undefined,
         description: this.description()?.trim() || undefined,
-        evidence: this.evidenceFiles().map((f) => f.url || f.name),
+        evidence,
         refund_item: this.selectedItemsList.map((item: any) => ({
           product_id: item.product_id,
           variant_id: item.variant_id,
