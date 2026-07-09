@@ -137,7 +137,7 @@ export const routes: Routes = [
   },
   {
     path: 'community',
-    loadChildren: () => import('./features/community/community-routing-module').then(m => m.CommunityRoutingModule)
+    loadChildren: () => import('./features/community/community-module').then(m => m.CommunityModule)
   },
 ];
 

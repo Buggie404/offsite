@@ -366,7 +366,10 @@
                       <span class="post-date">{{ getRelativeTime(item.saved_at) }}</span>
                     </div>
                     <p class="post-excerpt-text">{{ item.post.content }}</p>
-                    <a [routerLink]="['/community']" class="btn-view-post-link" (click)="saveScrollAnchor('post', item.post.post_id)">
+                    <a
+                      href=""
+                      class="btn-view-post-link"
+                      (click)="goToPost($event, item.post.post_id)">
                       <span>VIEW POST</span>
                       <svg lucideArrowRight [size]="14"></svg>
                     </a>

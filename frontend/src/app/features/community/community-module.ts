@@ -1,8 +1,7 @@
 
-// import { NgModule } from '@angular/core';
-// import { CommonModule } from '@angular/common';
-
-// import { CommunityRoutingModule } from './community-routing-module';
+import { NgModule } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { CommunityRoutingModule } from './community-routing-module';
 
 // import { FeedComponent } from './pages/feed/feed.component';
 // import { HeroBannerComponent } from './components/hero-banner/hero-banner.component';
@@ -25,9 +24,10 @@
 //     CommunityRoutingModule
 //   ]
 // })
-// export class CommunityModule {}
-
-import { NgModule } from '@angular/core';
-
-@NgModule({})
+@NgModule({
+  imports: [
+    CommonModule,
+    CommunityRoutingModule
+  ]
+})
 export class CommunityModule {}

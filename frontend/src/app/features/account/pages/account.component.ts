@@ -2014,4 +2014,18 @@ export class AccountComponent implements OnInit, OnDestroy {
       ['HOT', 'COLD', 'DESSERT', 'COCKTAIL', 'ICED', 'FRAPPE', 'LATTE', 'AMERICANO', 'ESPRESSO'].includes(tag.toUpperCase())
     );
   }
+
+  goToPost(event: MouseEvent, id: string) {
+    event.preventDefault();
+
+    console.log('Navigate to:', id);
+
+    this.router.navigate(['/community/post', id]).then(result => {
+      console.log('Navigate result:', result);
+    }).catch(err => {
+      console.error(err);
+    });
+  }
+
 }
+
