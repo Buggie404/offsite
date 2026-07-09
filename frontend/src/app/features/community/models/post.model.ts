@@ -25,6 +25,7 @@ export interface Post {
   comment_count: number;
   share_count: number;
   save_count: number;
+  liked?: boolean;
 
   created_at: string;
   updatedAt: string;

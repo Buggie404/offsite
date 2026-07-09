@@ -5,11 +5,13 @@ const routes: Routes = [
   {
     path: '',
     loadComponent: () => import('./pages/feed/feed.component').then(m => m.FeedComponent)
+  },
+  {
+    path: 'post/:id',
+    loadComponent: () =>
+      import('./pages/post-detail/post-detail.component')
+        .then(m => m.PostDetailComponent)
   }
-  // {
-  //   path: 'post/:id',
-  //   loadComponent: () => import('./pages/post-detail/post-detail.component').then(m => m.PostDetailComponent)
-  // }
 ];
 
 @NgModule({

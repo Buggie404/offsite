@@ -28,8 +28,22 @@ async function getAllPosts(req, res) {
 
     const total = await Post.countDocuments(query);
 
+    // Check like state theo user đang đăng nhập cho từng post trong feed
+    let likedPostIds = new Set();
+    if (req.user) {
+      const user = await User.findById(req.user.user_id);
+      if (user) {
+        likedPostIds = new Set(user.liked_posts.map(p => p.post_id));
+      }
+    }
+
+    const data = posts.map(p => ({
+      ...p.toObject(),
+      liked: likedPostIds.has(p.post_id)
+    }));
+
     res.json({
-      data: posts,
+      data,
       total,
       page: parseInt(page, 10),
       limit: limitCount
@@ -57,7 +71,16 @@ async function getPostById(req, res) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    res.json(post);
+    // Check xem user đang đăng nhập đã like post này chưa (dựa vào user.liked_posts, giống logic trong likePost)
+    let liked = false;
+    if (req.user) {
+      const user = await User.findById(req.user.user_id);
+      if (user) {
+        liked = user.liked_posts.some(p => p.post_id === post.post_id);
+      }
+    }
+
+    res.json({ ...post.toObject(), liked });
   } catch (error) {
     console.error('Error fetching post:', error);
     res.status(500).json({ error: 'Failed to retrieve post' });
@@ -192,7 +215,7 @@ async function deletePost(req, res) {
   }
 }
 
-// Like/Save or Unlike/Unsave a post
+// Like / Unlike a post
 async function likePost(req, res) {
   try {
     const { id } = req.params;
@@ -214,18 +237,50 @@ async function likePost(req, res) {
       return res.status(404).json({ error: 'User profile not found' });
     }
 
-    const alreadyLiked = user.saved_posts.some(sp => sp.post_id === post.post_id);
     let message = '';
+
+    const alreadyLiked = user.liked_posts.some(
+      p => p.post_id === post.post_id
+    );
 
     if (alreadyLiked) {
       // Unlike
-      user.saved_posts = user.saved_posts.filter(sp => sp.post_id !== post.post_id);
+      user.liked_posts = user.liked_posts.filter(
+        p => p.post_id !== post.post_id
+      );
+
+      // Đồng thời bỏ khỏi Saved
+      user.saved_posts = user.saved_posts.filter(
+        p => p.post_id !== post.post_id
+      );
+
       post.like_count = Math.max(0, post.like_count - 1);
+      post.save_count = Math.max(0, post.save_count - 1);
+
       message = 'Post unliked successfully';
+
     } else {
+
       // Like
-      user.saved_posts.push({ post_id: post.post_id, saved_at: new Date() });
-      post.like_count += 1;
+      user.liked_posts.push({
+        post_id: post.post_id,
+        liked_at: new Date()
+      });
+
+      // Nếu chưa lưu thì thêm vào Saved
+      if (!user.saved_posts.some(
+        p => p.post_id === post.post_id
+      )) {
+        user.saved_posts.push({
+          post_id: post.post_id,
+          saved_at: new Date()
+        });
+
+        post.save_count++;
+      }
+
+      post.like_count++;
+
       message = 'Post liked successfully';
     }
 
@@ -234,9 +289,11 @@ async function likePost(req, res) {
 
     res.json({
       message,
+      liked: !alreadyLiked,
       like_count: post.like_count,
-      liked: !alreadyLiked
+      save_count: post.save_count
     });
+
   } catch (error) {
     console.error('Error liking post:', error);
     res.status(500).json({ error: 'Failed to perform like action' });

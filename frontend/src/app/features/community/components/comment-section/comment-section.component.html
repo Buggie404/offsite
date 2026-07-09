@@ -1,0 +1,50 @@
+<div class="comment-item" [class.comment-item--reply]="isReply">
+  <div class="comment-avatar" [class.comment-avatar--sm]="isReply">
+    <img *ngIf="comment.author.avatar_url" [src]="comment.author.avatar_url" [alt]="comment.author.username">
+    <span *ngIf="!comment.author.avatar_url" class="avatar-fallback avatar-fallback--sm">
+      {{ comment.author.username.charAt(0)}}
+    </span>
+  </div>
+
+  <div class="comment-body">
+    <div class="comment-meta">
+      <span class="comment-username">{{ comment.author.username }}</span>
+      <span class="author-badge" *ngIf="comment.author.is_post_author">AUTHOR</span>
+      <span class="comment-time">{{ timeAgo(comment.created_at) }}</span>
+    </div>
+
+    <p class="comment-text">
+      <span class="reply-to" *ngIf="isReply && comment.reply_to_username">@{{ comment.reply_to_username }}</span>
+      {{ comment.content }}
+    </p>
+
+    <div class="comment-actions">
+      <button type="button" class="comment-like-btn" [class.active]="isLiked" (click)="onLikeClick()">
+        <svg width="14" height="14" viewBox="0 0 24 24" [attr.fill]="isLiked ? 'currentColor' : 'none'">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>{{ comment.like_count }}</span>
+      </button>
+      <button type="button" class="comment-reply-btn" (click)="onReplyClick()">
+        Reply
+      </button>
+    </div>
+
+    <!-- Ô reply inline, xuất hiện ngay dưới item vừa bấm "Reply" -->
+    <div class="inline-reply-box" *ngIf="isReplyBoxOpen">
+      <input
+        type="text"
+        [placeholder]="'Reply to @' + replyingToUsername + '...'"
+        [ngModel]="newCommentText"
+        (ngModelChange)="onTextChange($event)"
+        (keydown.enter)="onSubmitReply()"
+        autofocus>
+      <button type="button" class="inline-reply-send" [disabled]="!newCommentText.trim() || postingComment" (click)="onSubmitReply()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button type="button" class="inline-reply-cancel" (click)="onCancelReply()">✕</button>
+    </div>
+  </div>
+</div>

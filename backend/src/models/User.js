@@ -50,6 +50,11 @@ const savedPostSchema = new mongoose.Schema({
   saved_at: { type: Date, default: Date.now }
 }, { _id: false });
 
+const likedPostSchema = new mongoose.Schema({
+  post_id: { type: String, required: true },
+  liked_at: { type: Date, default: Date.now }
+}, { _id: false });
+
 const savedBlogSchema = new mongoose.Schema({
   blog_id: { type: String, required: true },
   saved_at: { type: Date, default: Date.now }
@@ -71,6 +76,8 @@ const userSchema = new mongoose.Schema({
   saved_products: { type: [savedProductSchema], default: [] },
   saved_recipes: { type: [savedRecipeSchema], default: [] },
   saved_posts: { type: [savedPostSchema], default: [] },
+  liked_posts: [{ post_id: {type: String,required: true}, liked_at: {type: Date, default: Date.now}}],
+  liked_posts: { type: [likedPostSchema], default: [] },
   saved_blogs: { type: [savedBlogSchema], default: [] }
 }, {
   collection: 'Users',

@@ -2,6 +2,7 @@ import { Injectable, signal, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HttpService } from './http.service';
 import { CartService } from '../features/purchase/services/cart.service';
+import { Router } from '@angular/router';
 
 @Injectable({
   providedIn: 'root'
@@ -10,6 +11,7 @@ export class AuthService {
   private platformId = inject(PLATFORM_ID);
   private http = inject(HttpService);
   private cartService = inject(CartService);
+  private router = inject(Router);
 
   private isAuthenticatedSignal = signal<boolean>(false);
   readonly isAuthenticated = this.isAuthenticatedSignal.asReadonly();
@@ -82,6 +84,7 @@ export class AuthService {
   logout(): void {
     this.isAuthenticatedSignal.set(false);
 
+    const currentUrl = this.router.url;
 
     if (isPlatformBrowser(this.platformId)) {
       localStorage.removeItem('token');
@@ -91,6 +94,13 @@ export class AuthService {
 
     // Restore the guest cart captured at login; the user cart stays in the DB.
     this.cartService.restoreGuestCartOnLogout();
+
+    if (
+      currentUrl.startsWith('/community') ||
+      currentUrl.startsWith('/account')
+    ) {
+      this.router.navigate(['/']);
+    }
   }
 
   // OAUTH SUCCESS

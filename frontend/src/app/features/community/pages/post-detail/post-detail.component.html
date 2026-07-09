@@ -1,0 +1,267 @@
+<div class="post-detail-page" *ngIf="!loading && post">
+
+  <!-- ── BACK ACTION ── -->
+  <div class="back-action">
+    <button type="button" class="back-link" (click)="goBack()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Back to Community</span>
+    </button>
+  </div>
+
+  <div class="post-container">
+
+    <!-- ── AUTHOR HEADER ── -->
+    <div class="post-author-row">
+      <div class="author-avatar">
+        <img *ngIf="post.author.avatar_url" [src]="post.author.avatar_url" [alt]="post.author.username">
+        <span *ngIf="!post.author.avatar_url" class="avatar-fallback">
+          {{ post.author.username.charAt(0) | uppercase }}
+        </span>
+      </div>
+      <div class="author-info">
+        <p class="author-name">@{{ post.author.username }}</p>
+        <p class="post-time">{{ timeAgo(post.created_at) }}</p>
+      </div>
+      <span class="base-chip" [class.base-chip--matcha]="post.base === 'MATCHA'" [class.base-chip--coffee]="post.base === 'COFFEE'">{{ post.base }}</span>
+    </div>
+
+    <!-- ── POST CONTENT TEXT ── -->
+    <p class="post-content">{{ post.content }}</p>
+
+    <!-- ── MEDIA CAROUSEL (horizontal swipe, Threads-style) ── -->
+    <div class="media-carousel-wrapper" *ngIf="mediaList.length > 0">
+
+      <div class="media-carousel-inner">
+
+        <button
+          type="button"
+          class="carousel-nav carousel-nav--prev"
+          *ngIf="mediaList.length > 1 && activeMediaIndex > 0"
+          (click)="scrollToMedia(activeMediaIndex - 1)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <div class="media-carousel" #carouselEl (scroll)="onCarouselScroll($event)">
+          <div class="media-slide" *ngFor="let media of mediaList; let i = index">
+
+            <img
+              *ngIf="media.type === 'image'"
+              [src]="media.url"
+              [alt]="post.content">
+
+            <div class="video-slide" *ngIf="media.type === 'video'" (click)="togglePlayVideo(i, $event)">
+              <video
+                #videoRef
+                [src]="media.url"
+                [controls]="playingVideoIndex === i"
+                [muted]="playingVideoIndex !== i"
+                playsinline
+                preload="metadata">
+              </video>
+              <div class="play-overlay" *ngIf="playingVideoIndex !== i">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="carousel-nav carousel-nav--next"
+          *ngIf="mediaList.length > 1 && activeMediaIndex < mediaList.length - 1"
+          (click)="scrollToMedia(activeMediaIndex + 1)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+      </div>
+
+      <!-- Position dots, only shown when there's more than 1 media item -->
+      <div class="media-dots" *ngIf="mediaList.length > 1">
+        <span
+          *ngFor="let media of mediaList; let i = index"
+          class="dot"
+          [class.dot--active]="i === activeMediaIndex">
+        </span>
+      </div>
+
+    </div>
+
+    <!-- ── LIKE / ACTIONS ── -->
+    <div class="post-actions">
+      <button type="button" class="action-btn" [class.active]="postLiked" (click)="likePost()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+        <span>{{ post.like_count }} likes</span>
+      </button>
+
+      <button type="button" class="action-btn action-btn--neutral" (click)="scrollToComments()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>{{ post.comment_count }} comments</span>
+      </button>
+
+      <button type="button" class="action-btn action-btn--neutral" (click)="sharePost()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>{{ post.share_count }} share</span>
+      </button>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ── COMMENTS SECTION ── -->
+    <div class="comments-section" id="comments-section">
+
+      <div *ngIf="commentsLoading" class="comments-loading">Loading comments...</div>
+
+      <div *ngIf="!commentsLoading && commentThreads.length === 0" class="comments-empty">
+        No comments yet. Be the first to share your thoughts!
+      </div>
+
+      <div class="comment-thread" *ngFor="let comment of commentThreads">
+
+        <!-- Top-level comment -->
+        <div class="comment-item">
+          <div class="comment-avatar">
+            <img *ngIf="comment.author.avatar_url" [src]="comment.author.avatar_url" [alt]="comment.author.username">
+            <span *ngIf="!comment.author.avatar_url" class="avatar-fallback avatar-fallback--sm">
+              {{ comment.author.username.charAt(0) | uppercase }}
+            </span>
+          </div>
+          <div class="comment-body">
+            <div class="comment-meta">
+              <span class="comment-username">{{ comment.author.username }}</span>
+              <span class="author-badge" *ngIf="comment.author.is_post_author">AUTHOR</span>
+              <span class="comment-time">{{ timeAgo(comment.created_at) }}</span>
+            </div>
+            <p class="comment-text">{{ comment.content }}</p>
+            <div class="comment-actions">
+              <button type="button" class="comment-like-btn" [class.active]="isCommentLiked(comment)" (click)="toggleLikeComment(comment)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+                <span>{{ comment.like_count }}</span>
+              </button>
+              <button type="button" class="comment-reply-btn" (click)="startReply(comment.comment_id, comment.comment_id, comment.author.username)">
+                Reply
+              </button>
+            </div>
+
+            <!-- Inline reply box, xuất hiện ngay dưới comment vừa bấm Reply -->
+            <div class="inline-reply-box" *ngIf="replyingTo?.anchorId === comment.comment_id">
+              <input
+                type="text"
+                [placeholder]="'Reply to @' + replyingTo!.username + '...'"
+                [(ngModel)]="newCommentText"
+                (keydown.enter)="submitComment()"
+                autofocus>
+              <button type="button" class="inline-reply-send" [disabled]="!newCommentText.trim() || postingComment" (click)="submitComment()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="inline-reply-cancel" (click)="cancelReply()">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Replies -->
+        <div class="comment-replies" *ngIf="comment.replies.length > 0">
+          <div class="comment-item comment-item--reply" *ngFor="let reply of comment.replies">
+            <div class="comment-avatar comment-avatar--sm">
+              <img *ngIf="reply.author.avatar_url" [src]="reply.author.avatar_url" [alt]="reply.author.username">
+              <span *ngIf="!reply.author.avatar_url" class="avatar-fallback avatar-fallback--sm">
+                {{ reply.author.username.charAt(0) | uppercase }}
+              </span>
+            </div>
+            <div class="comment-body">
+              <div class="comment-meta">
+                <span class="comment-username">{{ reply.author.username }}</span>
+                <span class="author-badge" *ngIf="reply.author.is_post_author">AUTHOR</span>
+                <span class="comment-time">{{ timeAgo(reply.created_at) }}</span>
+              </div>
+              <p class="comment-text">
+                <span class="reply-to" *ngIf="reply.reply_to_username">@{{ reply.reply_to_username }}</span>
+                {{ reply.content }}
+              </p>
+              <div class="comment-actions">
+                <button type="button" class="comment-like-btn" [class.active]="isCommentLiked(reply)" (click)="toggleLikeComment(reply)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                  </svg>
+                  <span>{{ reply.like_count }}</span>
+                </button>
+                <button type="button" class="comment-reply-btn" (click)="startReply(comment.comment_id, reply.comment_id, reply.author.username)">
+                  Reply
+                </button>
+              </div>
+
+              <!-- Inline reply box, xuất hiện ngay dưới reply vừa bấm Reply -->
+              <div class="inline-reply-box" *ngIf="replyingTo?.anchorId === reply.comment_id">
+                <input
+                  type="text"
+                  [placeholder]="'Reply to @' + replyingTo!.username + '...'"
+                  [(ngModel)]="newCommentText"
+                  (keydown.enter)="submitComment()"
+                  autofocus>
+                <button type="button" class="inline-reply-send" [disabled]="!newCommentText.trim() || postingComment" (click)="submitComment()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button type="button" class="inline-reply-cancel" (click)="cancelReply()">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ── COMMENT COMPOSER (for new top-level comments; hidden while replying inline to a specific comment) ── -->
+  <div class="comment-composer" *ngIf="!replyingTo">
+    <div class="composer-row">
+      <input
+        type="text"
+        placeholder="Add a comment..."
+        [(ngModel)]="newCommentText"
+        (keydown.enter)="submitComment()">
+      <button
+        type="button"
+        class="composer-send-btn"
+        [disabled]="!newCommentText.trim() || postingComment"
+        (click)="submitComment()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── LOADING / ERROR STATES ── -->
+<div class="loading-state" *ngIf="loading">
+  <div class="spinner"></div>
+  <p>Loading post...</p>
+</div>
+
+<div class="error-state" *ngIf="!loading && error">
+  <p>{{ error }}</p>
+  <button type="button" class="back-btn" (click)="goBack()">Back to Community</button>
+</div>

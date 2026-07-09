@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { Subject, switchMap } from 'rxjs';
 
 import { Post } from '../../models/post.model';
@@ -29,6 +30,7 @@ export class FeedComponent implements OnInit {
 
   private communityService = inject(CommunityService);
   private cdr = inject(ChangeDetectorRef);
+  private router = inject(Router);
 
   posts: Post[] = [];
   page = 1;
@@ -58,11 +60,11 @@ export class FeedComponent implements OnInit {
         }
         this.hasMore = res.data.length === this.limit;
         this.loading = false;
-        this.cdr.detectChanges(); // thêm dòng này
+        this.cdr.detectChanges(); 
       },
       error: () => {
         this.loading = false;
-        this.cdr.detectChanges(); // thêm dòng này
+        this.cdr.detectChanges(); 
       }
     });
 
@@ -71,7 +73,7 @@ export class FeedComponent implements OnInit {
 
   loadFeed(): void {
     this.loading = true;
-    this.cdr.detectChanges(); // thêm dòng này — để nút disable ngay lập tức
+    this.cdr.detectChanges(); 
     this.fetch$.next();
   }
 
@@ -103,6 +105,10 @@ export class FeedComponent implements OnInit {
         this.cdr.detectChanges(); // thêm dòng này
       }
     });
+  }
+
+  goToDetail(postId: string): void {
+    this.router.navigate(['/community/post', postId]);
   }
 
   openCreatePost(): void {
