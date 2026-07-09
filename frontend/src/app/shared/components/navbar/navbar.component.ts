@@ -92,6 +92,7 @@ export class NavbarComponent implements OnInit {
   isMobileAboutOpen = false;
   isSearchOpen = false;
   isAboutDropdownOpen = false;
+  isProductsMegaOpen = false;
   isSignOutModalOpen = false;
 
   searchQuery = '';
@@ -220,6 +221,7 @@ export class NavbarComponent implements OnInit {
       this.isMobileProductsOpen = false;
       this.isMobileAboutOpen = false;
       this.isAboutDropdownOpen = false;
+      this.isProductsMegaOpen = false;
     });
   }
 
@@ -254,6 +256,12 @@ export class NavbarComponent implements OnInit {
     event.preventDefault();
     event.stopPropagation();
     this.isMobileAboutOpen = !this.isMobileAboutOpen;
+  }
+
+  toggleProductsMega(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isProductsMegaOpen = !this.isProductsMegaOpen;
   }
 
   openProfileDropdown(): void {
@@ -306,6 +314,7 @@ export class NavbarComponent implements OnInit {
     // If the click occurred outside the component, close the dropdown
     if (!this.elementRef.nativeElement.contains(event.target)) {
       this.isProfileDropdownOpen = false;
+      this.isProductsMegaOpen = false;
     }
   }
 

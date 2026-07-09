@@ -25,8 +25,15 @@
     <!-- Desktop Navigation Links -->
     <ul class="nav-links">
       <!-- Mega Menu Link -->
-      <li class="nav-item-mega">
-        <a href="#" class="nav-link">PRODUCTS</a>
+      <li class="nav-item-mega" [class.has-mega-open]="isProductsMegaOpen">
+        <button
+          type="button"
+          class="nav-link nav-link-button"
+          (click)="toggleProductsMega($event)"
+          aria-haspopup="true"
+          [attr.aria-expanded]="isProductsMegaOpen">
+          PRODUCTS
+        </button>
         <div class="mega-menu">
           <div class="mega-menu-inner">
             <!-- Left Column -->

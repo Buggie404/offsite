@@ -177,6 +177,12 @@
       }
     }
 
+    .nav-link-button {
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+    }
+
     /* Desktop Hoverable Submenu */
     .nav-item-dropdown {
       position: relative;
@@ -508,6 +514,14 @@
       }
 
       &:hover {
+        .mega-menu {
+          opacity: 1;
+          pointer-events: auto;
+          transform: translateY(0);
+        }
+      }
+
+      &.has-mega-open {
         .mega-menu {
           opacity: 1;
           pointer-events: auto;
