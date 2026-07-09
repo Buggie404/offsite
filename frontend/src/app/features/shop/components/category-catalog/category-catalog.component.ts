@@ -182,6 +182,48 @@ const CATEGORY_FILTERS: Record<string, FilterGroup[]> = {
       ]
     },
   ],
+  'best-seller': [
+    {
+      key: 'productCategory', label: 'BY CATEGORY', isOpen: true,
+      options: [
+        { label: 'Matcha',        value: 'matcha',       checked: false },
+        { label: 'Coffee',        value: 'coffee',       checked: false },
+        { label: 'Tools',         value: 'tools',        checked: false },
+        { label: 'Drinkwares',    value: 'drinkware',    checked: false },
+        { label: 'Sets & Bundles', value: 'sets_bundles', checked: false },
+      ]
+    },
+    {
+      key: 'priceRange', label: 'PRICE RANGE', isOpen: true,
+      options: [
+        { label: 'Under $25', value: 'under_25',  checked: false },
+        { label: '$25 – $50', value: '25_50',     checked: false },
+        { label: '$50 – $100', value: '50_100',   checked: false },
+        { label: '$100 +',    value: '100_plus',  checked: false },
+      ]
+    }
+  ],
+  'new-arrival': [
+    {
+      key: 'productCategory', label: 'BY CATEGORY', isOpen: true,
+      options: [
+        { label: 'Matcha',        value: 'matcha',       checked: false },
+        { label: 'Coffee',        value: 'coffee',       checked: false },
+        { label: 'Tools',         value: 'tools',        checked: false },
+        { label: 'Drinkwares',    value: 'drinkware',    checked: false },
+        { label: 'Sets & Bundles', value: 'sets_bundles', checked: false },
+      ]
+    },
+    {
+      key: 'priceRange', label: 'PRICE RANGE', isOpen: true,
+      options: [
+        { label: 'Under $25', value: 'under_25',  checked: false },
+        { label: '$25 – $50', value: '25_50',     checked: false },
+        { label: '$50 – $100', value: '50_100',   checked: false },
+        { label: '$100 +',    value: '100_plus',  checked: false },
+      ]
+    }
+  ],
 };
 
 @Component({
@@ -279,7 +321,13 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
           bundles: 'sets_bundles',
         };
         const catKey = slugMap[this.category] ?? this.category;
-        this.allProducts = data.filter(p => p.category === catKey);
+        if (catKey === 'best-seller') {
+          this.allProducts = data.filter(p => p.is_best_seller);
+        } else if (catKey === 'new-arrival') {
+          this.allProducts = data.filter(p => p.is_new_arrival);
+        } else {
+          this.allProducts = data.filter(p => p.category === catKey);
+        }
         this.applyFilters();
         this.isLoading = false;
         // Angular runs zoneless in this project. markForCheck() both marks this
@@ -434,6 +482,10 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
       if (value === '50_100') return price >= 50 && price < 100;
       if (value === '100_plus') return price >= 100;
       return false;
+    }
+
+    if (key === 'productCategory') {
+      return product.category === value;
     }
 
     if (key === 'grade' && this.normalizeFilterValue(value) === 'related tea') {

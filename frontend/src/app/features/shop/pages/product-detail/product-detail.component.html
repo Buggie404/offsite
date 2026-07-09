@@ -1,536 +1,439 @@
 <main class="product-detail-page">
   <!-- Loading / error states -->
   @if (isLoading()) {
-    <section class="state-panel" aria-live="polite">
-      <span class="page-spinner"></span>
-      <p>Loading product details...</p>
-    </section>
+  <section class="state-panel" aria-live="polite">
+    <span class="page-spinner"></span>
+    <p>Loading product details...</p>
+  </section>
   }
 
   @if (errorMessage() && !isLoading()) {
-    <section class="state-panel state-panel--error">
-      <p>{{ errorMessage() }}</p>
-      <button routerLink="/shop/best-sellers" class="continue-btn">CONTINUE SHOPPING</button>
-    </section>
+  <section class="state-panel state-panel--error">
+    <p>{{ errorMessage() }}</p>
+    <button routerLink="/shop/best-sellers" class="continue-btn">CONTINUE SHOPPING</button>
+  </section>
   }
 
   @if (product() && !isLoading()) {
-    <section class="detail-shell" [class.detail-shell--bundle]="product()?.category === 'sets_bundles'">
-      <!-- Product image -->
-      <aside
-        class="product-media"
-        (mouseenter)="pauseCarousel()"
-        (mouseleave)="resumeCarousel()"
-        (focusin)="pauseCarousel()"
-        (focusout)="resumeCarousel()"
-      >
-        <div class="image-frame">
-          @if (images().length) {
-            <div
-              class="product-image-track"
-              [class.without-transition]="!isSlideTransitionEnabled()"
-              [style.transform]="'translate3d(-' + ((images().length > 1 ? slidePosition() : 0) * 100) + '%, 0, 0)'"
-              (transitionend)="onSlideTransitionEnd()"
-            >
-              @if (images().length > 1) {
-                <img class="product-image" [src]="images()[images().length - 1].url" alt="" aria-hidden="true" />
-              }
+  <section class="detail-shell" [class.detail-shell--bundle]="product()?.category === 'sets_bundles'">
+    <!-- Product image -->
+    <aside class="product-media" (mouseenter)="pauseCarousel()" (mouseleave)="resumeCarousel()"
+      (focusin)="pauseCarousel()" (focusout)="resumeCarousel()">
+      <div class="image-frame">
+        @if (images().length) {
+        <div class="product-image-track" [class.without-transition]="!isSlideTransitionEnabled()"
+          [style.transform]="'translate3d(-' + ((images().length > 1 ? slidePosition() : 0) * 100) + '%, 0, 0)'"
+          (transitionend)="onSlideTransitionEnd()">
+          @if (images().length > 1) {
+          <img class="product-image" [src]="images()[images().length - 1].url" alt="" aria-hidden="true" />
+          }
 
-              @for (image of images(); track image.public_id || image.url; let index = $index) {
-                <img
-                  class="product-image"
-                  [src]="image.url"
-                  [alt]="image.alt_text || product()?.name"
-                  [attr.aria-hidden]="index === activeImageIndex() ? null : 'true'"
-                />
-              }
-
-              @if (images().length > 1) {
-                <img class="product-image" [src]="images()[0].url" alt="" aria-hidden="true" />
-              }
-            </div>
-          } @else {
-            <div class="image-placeholder" aria-label="Product image unavailable"></div>
+          @for (image of images(); track image.public_id || image.url; let index = $index) {
+          <img class="product-image" [src]="image.url" [alt]="image.alt_text || product()?.name"
+            [attr.aria-hidden]="index === activeImageIndex() ? null : 'true'" />
           }
 
           @if (images().length > 1) {
-            <button type="button" class="gallery-arrow gallery-arrow--previous" (click)="previousImage()" aria-label="Previous image">
-              <svg lucideChevronLeft [size]="18" aria-hidden="true"></svg>
-            </button>
-            <button type="button" class="gallery-arrow gallery-arrow--next" (click)="nextImage()" aria-label="Next image">
-              <svg lucideChevronRight [size]="18" aria-hidden="true"></svg>
-            </button>
-          }
-
-          @if (showGalleryDots()) {
-            <div class="gallery-dots" aria-label="Choose product image">
-              @for (image of images(); track image.public_id || image.url; let index = $index) {
-                <button
-                  type="button"
-                  class="gallery-dot"
-                  [class.is-active]="index === activeImageIndex()"
-                  (click)="goToImage(index)"
-                  [attr.aria-label]="'Show image ' + (index + 1) + ' of ' + images().length"
-                  [attr.aria-current]="index === activeImageIndex() ? 'true' : null"
-                ></button>
-              }
-            </div>
+          <img class="product-image" [src]="images()[0].url" alt="" aria-hidden="true" />
           }
         </div>
-      </aside>
-
-      <!-- Product content -->
-      <article class="product-info">
-        <div class="product-scroll">
-          <header class="product-header">
-            <div class="title-row">
-              <h1>{{ product()?.name }}</h1>
-              <button
-                type="button"
-                class="save-button"
-                [class.is-saved]="isSaved()"
-                (click)="toggleSave()"
-                [attr.aria-label]="isSaved() ? 'Remove from saved products' : 'Save product'"
-              >
-                <svg lucideHeart [size]="30" [attr.fill]="isSaved() ? 'currentColor' : 'none'" aria-hidden="true"></svg>
-              </button>
-            </div>
-
-            <p class="description">
-              {{ product()?.description || 'No description available for this product.' }}
-            </p>
-          </header>
-
-          @if (product()?.category === 'coffee' && getRoastLabel()) {
-            <!-- Roast level -->
-            <section class="roast-section" aria-label="Roast level">
-              <div class="section-heading-row">
-                <h2>ROAST LEVEL</h2>
-                <span>{{ getRoastLabel() }}</span>
-              </div>
-              <div class="roast-bar" appAnimateInView>
-                @for (color of roastSwatches; track $index) {
-                  <span
-                    class="roast-swatch"
-                    [class.roast-swatch--highlight]="isHighlightSwatch($index)"
-                    [style.--swatch-color]="color"
-                  ></span>
-                }
-                <span class="roast-indicator" [style.--roast-column]="getHighlightIndex() + 1" aria-hidden="true"></span>
-              </div>
-              <div class="roast-scale">
-                <span>LIGHT</span>
-                <span>MEDIUM</span>
-                <span>DARK</span>
-              </div>
-            </section>
-          }
-
-          @if (getProductTags().length) {
-            <!-- Product tags -->
-            <div class="product-tags" aria-label="Product attributes">
-              @for (tag of getProductTags(); track tag.label) {
-                <span class="attribute-pill">
-                  @if (tag.icon === 'map') {
-                    <svg lucideMapPin [size]="20" aria-hidden="true"></svg>
-                  } @else if (tag.icon === 'drop') {
-                    <svg lucideDroplet [size]="20" aria-hidden="true"></svg>
-                  } @else {
-                    <svg lucidePackage [size]="20" aria-hidden="true"></svg>
-                  }
-                  {{ tag.label }}
-                </span>
-              }
-            </div>
-          }
-
-          @if (getTastingNotes().length) {
-            <!-- Tasting notes -->
-            <section class="notes-section">
-              <h2>TASTING NOTES</h2>
-              <div class="note-pills">
-                @for (note of getTastingNotes(); track note) {
-                  <span class="note-pill">
-                    <svg lucideLeaf [size]="18" aria-hidden="true"></svg>
-                    {{ note }}
-                  </span>
-                }
-              </div>
-            </section>
-          }
-
-          <div class="divider"></div>
-
-          <!-- Purchase controls -->
-          <section class="purchase-panel">
-            <p class="price">{{ getTotalPrice() | currency:'USD':'symbol':'1.2-2' }}</p>
-
-            @if (product()?.category !== 'sets_bundles' && product()?.variants?.length) {
-              <fieldset class="variant-selector">
-                <legend>{{ product()?.variant_type === 'none' ? 'SELECT OPTION' : 'SELECT ' + (product()?.variant_type | uppercase) }}</legend>
-                <div appDragScroll class="variant-options">
-                  @for (variant of product()?.variants; track variant.sku) {
-                    <button
-                      type="button"
-                      class="variant-option"
-                      [class.is-selected]="selectedVariant()?.sku === variant.sku"
-                      [disabled]="(variant.stock ?? 0) <= 0"
-                      (click)="selectVariant(variant)"
-                    >
-                      {{ getVariantLabel(variant) }}
-                    </button>
-                  }
-                </div>
-              </fieldset>
-            }
-
-            <div class="quantity-field">
-              <div class="quantity-selector" [class.has-error]="quantityError()">
-                <button type="button" (click)="decrementQty()" [disabled]="quantity() <= 1 || isUnavailable()" aria-label="Decrease quantity">
-                  <svg lucideMinus [size]="22" aria-hidden="true"></svg>
-                </button>
-                <input
-                  type="text"
-                  inputmode="numeric"
-                  pattern="[0-9]*"
-                  [value]="quantity()"
-                  (keydown)="onQtyKeydown($event)"
-                  (input)="onQuantityInput($event)"
-                  (blur)="normalizeQuantity($event)"
-                  [disabled]="isUnavailable()"
-                  [attr.aria-invalid]="quantityError() ? 'true' : null"
-                  aria-label="Quantity"
-                />
-                <button type="button" (click)="incrementQty()" [disabled]="quantity() >= maxQuantity() || isUnavailable()" aria-label="Increase quantity">
-                  <svg lucidePlus [size]="22" aria-hidden="true"></svg>
-                </button>
-              </div>
-              @if (quantityError()) {
-                <p class="quantity-error" role="alert">{{ quantityError() }}</p>
-              }
-            </div>
-
-            <div class="purchase-actions">
-              <button type="button" class="action-button action-button--secondary" [disabled]="isUnavailable() || !!quantityError()" (click)="buyNow()">
-                <span>BUY NOW</span>
-                <svg lucideShoppingBag [size]="24" aria-hidden="true"></svg>
-              </button>
-              <button type="button" class="action-button action-button--primary" [disabled]="isUnavailable() || !!quantityError()" (click)="onAddToCart()">
-                <span>{{ isUnavailable() ? 'OUT OF STOCK' : 'ADD TO CART' }}</span>
-                <svg lucideShoppingCart [size]="26" aria-hidden="true"></svg>
-              </button>
-            </div>
-          </section>
-
-          @if (shouldShowIncludedProducts()) {
-            <!-- Bundle contents -->
-            <section class="included-section">
-              <div class="included-header">
-                <h2>WHAT'S INCLUDED</h2>
-                <span>{{ getIncludedProducts().length }} items</span>
-              </div>
-
-              <div class="included-list">
-                @for (item of getIncludedProducts(); track item.routeId || item.name) {
-                  <a class="included-item" [routerLink]="getIncludedProductLink(item)">
-                    <div class="included-icon" [attr.data-kind]="item.icon">
-                      @if (item.imageUrl) {
-                        <img [src]="item.imageUrl" [alt]="item.name" />
-                      } @else if (item.icon === 'leaf') {
-                        <svg lucideLeaf [size]="22" aria-hidden="true"></svg>
-                      } @else if (item.icon === 'coffee') {
-                        <svg lucideCoffee [size]="22" aria-hidden="true"></svg>
-                      } @else {
-                        <svg lucidePackage [size]="22" aria-hidden="true"></svg>
-                      }
-                    </div>
-                    <div class="included-copy">
-                      <h3>{{ item.name }}</h3>
-                    </div>
-                    @if (item.price !== null) {
-                      <strong class="included-price">{{ item.price | currency:'USD':'symbol':'1.2-2' }}</strong>
-                    }
-                  </a>
-                }
-              </div>
-            </section>
-          }
-        </div>
-      </article>
-    </section>
-
-    @if (shouldShowBrewingMethods() && (isBrewingMethodsLoading() || brewingMethods().length)) {
-      <section class="brewing-methods-section" aria-labelledby="brewing-methods-title">
-        <div class="brewing-methods-header">
-          <h2 id="brewing-methods-title">BREWING METHODS</h2>
-          <span aria-hidden="true"></span>
-        </div>
-
-        <div class="brewing-methods-grid">
-          @if (isBrewingMethodsLoading()) {
-            @for (item of [1, 2, 3]; track item) {
-              <article class="brewing-card brewing-card--loading" aria-hidden="true">
-                <div class="brewing-card__top">
-                  <span></span>
-                </div>
-                <div class="brewing-card__title-placeholder"></div>
-                <div class="brewing-card__steps-placeholder"></div>
-                <div class="brewing-card__button-placeholder"></div>
-              </article>
-            }
-          } @else {
-            @for (method of brewingMethods(); track method.slug; let index = $index) {
-              <article
-                class="brewing-card"
-                [routerLink]="['/journal', method.slug]"
-                role="link"
-                tabindex="0"
-                [attr.aria-label]="'Read journal guide for ' + method.title"
-              >
-                <div class="brewing-card__top">
-                  <span class="brewing-card__badge">{{ method.methodLabel }}</span>
-                  <span class="brewing-card__icon" aria-hidden="true">
-                    @if (getMethodIcon(method) === 'coffee') {
-                      <svg lucideCoffee [size]="24"></svg>
-                    } @else if (getMethodIcon(method) === 'droplet') {
-                      <svg lucideDroplet [size]="24"></svg>
-                    } @else {
-                      <svg lucideLeaf [size]="24"></svg>
-                    }
-                  </span>
-                </div>
-
-                <h3>{{ method.title }}</h3>
-
-                <ol class="brewing-card__steps">
-                  @for (step of method.steps; track step; let stepIndex = $index) {
-                    <li>
-                      <strong>{{ stepIndex + 1 | number:'2.0-0' }}</strong>
-                      <span>{{ step }}</span>
-                    </li>
-                  }
-                </ol>
-
-                <a
-                  class="brewing-card__button"
-                  [routerLink]="['/journal', method.slug]"
-                  [fragment]="method.stepAnchor || undefined"
-                  (click)="$event.stopPropagation()"
-                >
-                  Step-by-Step Guide
-                </a>
-              </article>
-            }
-          }
-        </div>
-      </section>
-    }
-
-    @if (shouldShowRecipes()) {
-      <app-recipe-section
-        sectionHeading="POPULAR RECIPES"
-        [compact]="true"
-        [baseFilter]="getRecipeBaseFilter()"
-        [showViewAll]="false"
-      ></app-recipe-section>
-    }
-
-    @if (youMayAlsoLikeProducts().length) {
-      <app-best-seller
-        sectionHeading="You may also like"
-        background="page"
-        headingStyle="plain"
-        [showViewAll]="false"
-        [productsOverride]="youMayAlsoLikeProducts()"
-      ></app-best-seller>
-    }
-
-    <section
-      class="reviews-section"
-      [class.reviews-section--empty]="!isReviewsLoading() && !featuredReviews().length"
-      aria-labelledby="reviews-title"
-    >
-      <div class="reviews-summary">
-        <h2 id="reviews-title">The Feedback</h2>
-        <div
-          class="reviews-score-row"
-          [attr.aria-label]="'Average rating ' + averageRating() + ' out of 5 based on ' + reviewCount() + ' reviews'"
-        >
-          <strong>{{ averageRating() | number:'1.1-1' }}</strong>
-          <div class="reviews-score-copy">
-            <div class="stars stars--large" aria-hidden="true">
-              @for (star of ratingStars; track star) {
-                <svg
-                  lucideStar
-                  [size]="28"
-                  [class.star--filled]="isStarFilled(averageRating(), star)"
-                  [attr.fill]="isStarFilled(averageRating(), star) ? 'currentColor' : 'none'"
-                  aria-hidden="true"
-                ></svg>
-              }
-            </div>
-            <span>Based on {{ reviewCount() }} reviews</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="reviews-list">
-        @if (isReviewsLoading()) {
-          <p class="reviews-empty">Loading reviews...</p>
-        } @else if (featuredReviews().length) {
-          @for (review of featuredReviews(); track review.author + review.date) {
-            <article class="review-card">
-              <header class="review-card__header">
-                <h3>{{ review.author }}</h3>
-                <time>{{ review.date }}</time>
-              </header>
-              <div class="stars stars--small" [attr.aria-label]="review.rating + ' out of 5 stars'">
-                @for (star of ratingStars; track star) {
-                  <svg
-                    lucideStar
-                    [size]="14"
-                    [class.star--filled]="isStarFilled(review.rating, star)"
-                    [attr.fill]="isStarFilled(review.rating, star) ? 'currentColor' : 'none'"
-                    aria-hidden="true"
-                  ></svg>
-                }
-              </div>
-              @if (review.comment) {
-                <p>{{ review.comment }}</p>
-              }
-            </article>
-          }
-
-          @if (reviewCount() > 2) {
-            <button type="button" class="view-reviews-button" (click)="openReviewModal()">
-              <span>View all {{ reviewCount() }} reviews</span>
-              <svg lucideArrowRight [size]="22" aria-hidden="true"></svg>
-            </button>
-          }
         } @else {
-          <p class="reviews-empty">No reviews for this product yet.</p>
+        <div class="image-placeholder" aria-label="Product image unavailable"></div>
+        }
+
+        @if (images().length > 1) {
+        <button type="button" class="gallery-arrow gallery-arrow--previous" (click)="previousImage()"
+          aria-label="Previous image">
+          <svg lucideChevronLeft [size]="18" aria-hidden="true"></svg>
+        </button>
+        <button type="button" class="gallery-arrow gallery-arrow--next" (click)="nextImage()" aria-label="Next image">
+          <svg lucideChevronRight [size]="18" aria-hidden="true"></svg>
+        </button>
+        }
+
+        @if (showGalleryDots()) {
+        <div class="gallery-dots" aria-label="Choose product image">
+          @for (image of images(); track image.public_id || image.url; let index = $index) {
+          <button type="button" class="gallery-dot" [class.is-active]="index === activeImageIndex()"
+            (click)="goToImage(index)" [attr.aria-label]="'Show image ' + (index + 1) + ' of ' + images().length"
+            [attr.aria-current]="index === activeImageIndex() ? 'true' : null"></button>
+          }
+        </div>
         }
       </div>
-    </section>
+    </aside>
 
-    @if (isReviewModalOpen()) {
-      <div class="reviews-modal-backdrop" (click)="closeReviewModal()">
-        <section
-          class="reviews-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="reviews-modal-title"
-          (click)="$event.stopPropagation()"
-        >
-          <header class="reviews-modal__header">
-            <button type="button" class="reviews-modal__close" (click)="closeReviewModal()" aria-label="Close reviews">
-              <svg lucideX [size]="32" aria-hidden="true"></svg>
+    <!-- Product content -->
+    <article class="product-info">
+      <div class="product-scroll">
+        <header class="product-header">
+          <div class="title-row">
+            <h1>{{ product()?.name }}</h1>
+            <button type="button" class="save-button" [class.is-saved]="isSaved()" (click)="toggleSave()"
+              [attr.aria-label]="isSaved() ? 'Remove from saved products' : 'Save product'">
+              <svg lucideHeart [size]="30" [attr.fill]="isSaved() ? 'currentColor' : 'none'" aria-hidden="true"></svg>
             </button>
-            <h2 id="reviews-modal-title">The Feedback</h2>
-            <div class="reviews-modal__score">
-              <strong>{{ averageRating() | number:'1.1-1' }}</strong>
-              <div class="stars stars--modal" aria-hidden="true">
-                @for (star of ratingStars; track star) {
-                  <svg
-                    lucideStar
-                    [size]="29"
-                    [class.star--filled]="isStarFilled(averageRating(), star)"
-                    [attr.fill]="isStarFilled(averageRating(), star) ? 'currentColor' : 'none'"
-                    aria-hidden="true"
-                  ></svg>
-                }
-              </div>
-              <span>Based on {{ reviewCount() }} reviews</span>
-            </div>
-          </header>
+          </div>
 
-          <div class="reviews-modal__toolbar">
-            <div class="review-filter-group" aria-label="Filter reviews by rating">
-              @for (filter of ratingFilters; track filter) {
-                <button
-                  type="button"
-                  class="review-filter"
-                  [class.is-active]="selectedReviewFilter() === filter"
-                  (click)="setReviewFilter(filter)"
-                >
-                  <span>{{ filter }}</span>
-                  @if (filter !== 'All') {
-                    <svg lucideStar [size]="15" fill="currentColor" aria-hidden="true"></svg>
-                  }
-                </button>
+          <p class="description">
+            {{ product()?.description || 'No description available for this product.' }}
+          </p>
+        </header>
+
+        @if (product()?.category === 'coffee' && getRoastLabel()) {
+        <!-- Roast level -->
+        <section class="roast-section" aria-label="Roast level">
+          <div class="section-heading-row">
+            <h2>ROAST LEVEL</h2>
+            <span>{{ getRoastLabel() }}</span>
+          </div>
+          <div class="roast-bar" appAnimateInView>
+            @for (color of roastSwatches; track $index) {
+            <span class="roast-swatch" [class.roast-swatch--highlight]="isHighlightSwatch($index)"
+              [style.--swatch-color]="color"></span>
+            }
+            <span class="roast-indicator" [style.--roast-column]="getHighlightIndex() + 1" aria-hidden="true"></span>
+          </div>
+          <div class="roast-scale">
+            <span>LIGHT</span>
+            <span>MEDIUM</span>
+            <span>DARK</span>
+          </div>
+        </section>
+        }
+
+        @if (getProductTags().length) {
+        <!-- Product tags -->
+        <div class="product-tags" aria-label="Product attributes">
+          @for (tag of getProductTags(); track tag.label) {
+          <span class="attribute-pill">
+            @if (tag.icon === 'map') {
+            <svg lucideMapPin [size]="20" aria-hidden="true"></svg>
+            } @else if (tag.icon === 'drop') {
+            <svg lucideDroplet [size]="20" aria-hidden="true"></svg>
+            } @else {
+            <svg lucidePackage [size]="20" aria-hidden="true"></svg>
+            }
+            {{ tag.label }}
+          </span>
+          }
+        </div>
+        }
+
+        @if (getTastingNotes().length) {
+        <!-- Tasting notes -->
+        <section class="notes-section">
+          <h2>TASTING NOTES</h2>
+          <div class="note-pills">
+            @for (note of getTastingNotes(); track note) {
+            <span class="note-pill">
+              <svg lucideLeaf [size]="18" aria-hidden="true"></svg>
+              {{ note }}
+            </span>
+            }
+          </div>
+        </section>
+        }
+
+        <div class="divider"></div>
+
+        <!-- Purchase controls -->
+        <section class="purchase-panel">
+          <p class="price">{{ getTotalPrice() | currency:'USD':'symbol':'1.2-2' }}</p>
+
+          @if (product()?.category !== 'sets_bundles' && product()?.variants?.length) {
+          <fieldset class="variant-selector">
+            <legend>{{ product()?.variant_type === 'none' ? 'SELECT OPTION' : 'SELECT ' + (product()?.variant_type |
+              uppercase) }}</legend>
+            <div appDragScroll class="variant-options">
+              @for (variant of product()?.variants; track variant.sku) {
+              <button type="button" class="variant-option" [class.is-selected]="selectedVariant()?.sku === variant.sku"
+                [disabled]="(variant.stock ?? 0) <= 0" (click)="selectVariant(variant)">
+                {{ getVariantLabel(variant) }}
+              </button>
               }
             </div>
+          </fieldset>
+          }
 
-            <label class="review-sort">
-              <span>SORT</span>
-              <span class="review-sort__select">
-                <select aria-label="Sort reviews" [value]="selectedReviewSort()" (change)="onReviewSortChange($event)">
-                  <option value="oldest">Oldest</option>
-                  <option value="newest">Newest</option>
-                  <option value="highest">Highest rating</option>
-                  <option value="lowest">Lowest rating</option>
-                </select>
-                <svg lucideChevronDown [size]="24" aria-hidden="true"></svg>
-              </span>
-            </label>
-          </div>
-
-          <div class="reviews-modal__body">
-            @if (pagedModalReviews().length) {
-            @for (review of pagedModalReviews(); track review.author + review.date + review.rating) {
-              <article class="modal-review">
-                <div class="modal-review__copy">
-                  <h3>{{ review.author }}</h3>
-                  <div class="stars stars--small" [attr.aria-label]="review.rating + ' out of 5 stars'">
-                    @for (star of ratingStars; track star) {
-                      <svg
-                        lucideStar
-                        [size]="15"
-                        [class.star--filled]="isStarFilled(review.rating, star)"
-                        [attr.fill]="isStarFilled(review.rating, star) ? 'currentColor' : 'none'"
-                        aria-hidden="true"
-                      ></svg>
-                    }
-                  </div>
-                  @if (review.comment) {
-                    <p>{{ review.comment }}</p>
-                  }
-                </div>
-                <time>{{ review.date }}</time>
-              </article>
-            }
-            } @else {
-              <p class="reviews-empty reviews-empty--modal">No reviews match this filter.</p>
+          <div class="quantity-field">
+            <div class="quantity-selector" [class.has-error]="quantityError()">
+              <button type="button" (click)="decrementQty()" [disabled]="quantity() <= 1 || isUnavailable()"
+                aria-label="Decrease quantity">
+                <svg lucideMinus [size]="22" aria-hidden="true"></svg>
+              </button>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" [value]="quantity()"
+                (keydown)="onQtyKeydown($event)" (input)="onQuantityInput($event)" (blur)="normalizeQuantity($event)"
+                [disabled]="isUnavailable()" [attr.aria-invalid]="quantityError() ? 'true' : null"
+                aria-label="Quantity" />
+              <button type="button" (click)="incrementQty()" [disabled]="quantity() >= maxQuantity() || isUnavailable()"
+                aria-label="Increase quantity">
+                <svg lucidePlus [size]="22" aria-hidden="true"></svg>
+              </button>
+            </div>
+            @if (quantityError()) {
+            <p class="quantity-error" role="alert">{{ quantityError() }}</p>
             }
           </div>
 
-          <footer class="reviews-modal__footer">
-            <button
-              type="button"
-              class="review-page-button"
-              [disabled]="!canGoPreviousReviewPage()"
-              (click)="previousReviewPage()"
-            >PREVIOUS</button>
-            <span>PAGE {{ reviewModalPage() }} OF {{ modalReviewTotalPages() }}</span>
-            <button
-              type="button"
-              class="review-page-button"
-              [disabled]="!canGoNextReviewPage()"
-              (click)="nextReviewPage()"
-            >NEXT</button>
-          </footer>
+          <div class="purchase-actions">
+            <button type="button" class="action-button action-button--secondary"
+              [disabled]="isUnavailable() || !!quantityError()" (click)="buyNow()">
+              <span>BUY NOW</span>
+              <svg lucideShoppingBag [size]="24" aria-hidden="true"></svg>
+            </button>
+            <button type="button" class="action-button action-button--primary"
+              [disabled]="isUnavailable() || !!quantityError()" (click)="onAddToCart()">
+              <span>{{ isUnavailable() ? 'OUT OF STOCK' : 'ADD TO CART' }}</span>
+              <svg lucideShoppingCart [size]="26" aria-hidden="true"></svg>
+            </button>
+          </div>
         </section>
-      </div>
-    }
 
-    @if (recentlyViewedProducts().length) {
-      <app-best-seller
-        background="page"
-        sectionHeading="Recently viewed"
-        [showEyebrow]="false"
-        [showViewAll]="false"
-        [productsOverride]="recentlyViewedProducts()"
-      ></app-best-seller>
-    }
+        @if (shouldShowIncludedProducts()) {
+        <!-- Bundle contents -->
+        <section class="included-section">
+          <div class="included-header">
+            <h2>WHAT'S INCLUDED</h2>
+            <span>{{ getIncludedProducts().length }} items</span>
+          </div>
+
+          <div class="included-list">
+            @for (item of getIncludedProducts(); track item.routeId || item.name) {
+            <a class="included-item" [routerLink]="getIncludedProductLink(item)">
+              <div class="included-icon" [attr.data-kind]="item.icon">
+                @if (item.imageUrl) {
+                <img [src]="item.imageUrl" [alt]="item.name" />
+                } @else if (item.icon === 'leaf') {
+                <svg lucideLeaf [size]="22" aria-hidden="true"></svg>
+                } @else if (item.icon === 'coffee') {
+                <svg lucideCoffee [size]="22" aria-hidden="true"></svg>
+                } @else {
+                <svg lucidePackage [size]="22" aria-hidden="true"></svg>
+                }
+              </div>
+              <div class="included-copy">
+                <h3>{{ item.name }}</h3>
+              </div>
+              @if (item.price !== null) {
+              <strong class="included-price">{{ item.price | currency:'USD':'symbol':'1.2-2' }}</strong>
+              }
+            </a>
+            }
+          </div>
+        </section>
+        }
+      </div>
+    </article>
+  </section>
+
+  @if (shouldShowBrewingMethods() && (isBrewingMethodsLoading() || brewingMethods().length)) {
+  <section class="brewing-methods-section" aria-labelledby="brewing-methods-title">
+    <div class="brewing-methods-header">
+      <h2 id="brewing-methods-title">BREWING METHODS</h2>
+      <span aria-hidden="true"></span>
+    </div>
+
+    <div class="brewing-methods-grid">
+      @if (isBrewingMethodsLoading()) {
+      @for (item of [1, 2, 3]; track item) {
+      <article class="brewing-card brewing-card--loading" aria-hidden="true">
+        <div class="brewing-card__top">
+          <span></span>
+        </div>
+        <div class="brewing-card__title-placeholder"></div>
+        <div class="brewing-card__steps-placeholder"></div>
+        <div class="brewing-card__button-placeholder"></div>
+      </article>
+      }
+      } @else {
+      @for (method of brewingMethods(); track method.slug; let index = $index) {
+      <article class="brewing-card" [routerLink]="['/journal', method.slug]" role="link" tabindex="0"
+        [attr.aria-label]="'Read journal guide for ' + method.title">
+        <div class="brewing-card__top">
+          <span class="brewing-card__badge">{{ method.methodLabel }}</span>
+          <span class="brewing-card__icon" aria-hidden="true">
+            @if (getMethodIcon(method) === 'coffee') {
+            <svg lucideCoffee [size]="24"></svg>
+            } @else if (getMethodIcon(method) === 'droplet') {
+            <svg lucideDroplet [size]="24"></svg>
+            } @else {
+            <svg lucideLeaf [size]="24"></svg>
+            }
+          </span>
+        </div>
+
+        <h3>{{ method.title }}</h3>
+
+        <ol class="brewing-card__steps">
+          @for (step of method.steps; track step; let stepIndex = $index) {
+          <li>
+            <strong>{{ stepIndex + 1 | number:'2.0-0' }}</strong>
+            <span>{{ step }}</span>
+          </li>
+          }
+        </ol>
+
+        <a class="brewing-card__button" [routerLink]="['/journal', method.slug]"
+          [fragment]="method.stepAnchor || undefined" (click)="$event.stopPropagation()">
+          Step-by-Step Guide
+        </a>
+      </article>
+      }
+      }
+    </div>
+  </section>
+  }
+
+  @if (shouldShowRecipes()) {
+  <app-recipe-section sectionHeading="POPULAR RECIPES" [compact]="true" [baseFilter]="getRecipeBaseFilter()"
+    [showViewAll]="false"></app-recipe-section>
+  }
+
+  @if (youMayAlsoLikeProducts().length) {
+  <app-best-seller sectionHeading="You may also like" background="page" headingStyle="plain" [showViewAll]="false"
+    [productsOverride]="youMayAlsoLikeProducts()"></app-best-seller>
+  }
+
+  <section class="reviews-section" [class.reviews-section--empty]="!isReviewsLoading() && !featuredReviews().length"
+    aria-labelledby="reviews-title">
+    <div class="reviews-summary">
+      <h2 id="reviews-title">The Feedback</h2>
+      <div class="reviews-score-row"
+        [attr.aria-label]="'Average rating ' + averageRating() + ' out of 5 based on ' + reviewCount() + ' reviews'">
+        <strong>{{ averageRating() | number:'1.1-1' }}</strong>
+        <div class="reviews-score-copy">
+          <div class="stars stars--large" aria-hidden="true">
+            @for (star of ratingStars; track star) {
+            <svg lucideStar [size]="28" [class.star--filled]="isStarFilled(averageRating(), star)"
+              [attr.fill]="isStarFilled(averageRating(), star) ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+            }
+          </div>
+          <span>Based on {{ reviewCount() }} reviews</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="reviews-list">
+      @if (isReviewsLoading()) {
+      <p class="reviews-empty">Loading reviews...</p>
+      } @else if (featuredReviews().length) {
+      @for (review of featuredReviews(); track review.author + review.date) {
+      <article class="review-card">
+        <header class="review-card__header">
+          <h3>{{ review.author }}</h3>
+          <time>{{ review.date }}</time>
+        </header>
+        <div class="stars stars--small" [attr.aria-label]="review.rating + ' out of 5 stars'">
+          @for (star of ratingStars; track star) {
+          <svg lucideStar [size]="14" [class.star--filled]="isStarFilled(review.rating, star)"
+            [attr.fill]="isStarFilled(review.rating, star) ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+          }
+        </div>
+        @if (review.comment) {
+        <p>{{ review.comment }}</p>
+        }
+      </article>
+      }
+
+      @if (reviewCount() > 2) {
+      <button type="button" class="view-reviews-button" (click)="openReviewModal()">
+        <span>View all {{ reviewCount() }} reviews</span>
+        <svg lucideArrowRight [size]="22" aria-hidden="true"></svg>
+      </button>
+      }
+      } @else {
+      <p class="reviews-empty">No reviews for this product yet.</p>
+      }
+    </div>
+  </section>
+
+  @if (isReviewModalOpen()) {
+  <div class="reviews-modal-backdrop" (click)="closeReviewModal()">
+    <section class="reviews-modal" role="dialog" aria-modal="true" aria-labelledby="reviews-modal-title"
+      (click)="$event.stopPropagation()">
+      <header class="reviews-modal__header">
+        <button type="button" class="reviews-modal__close" (click)="closeReviewModal()" aria-label="Close reviews">
+          <svg lucideX [size]="32" aria-hidden="true"></svg>
+        </button>
+        <h2 id="reviews-modal-title">The Feedback</h2>
+        <div class="reviews-modal__score">
+          <strong>{{ averageRating() | number:'1.1-1' }}</strong>
+          <div class="stars stars--modal" aria-hidden="true">
+            @for (star of ratingStars; track star) {
+            <svg lucideStar [size]="29" [class.star--filled]="isStarFilled(averageRating(), star)"
+              [attr.fill]="isStarFilled(averageRating(), star) ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+            }
+          </div>
+          <span>Based on {{ reviewCount() }} reviews</span>
+        </div>
+      </header>
+
+      <div class="reviews-modal__toolbar">
+        <div class="review-filter-group" aria-label="Filter reviews by rating">
+          @for (filter of ratingFilters; track filter) {
+          <button type="button" class="review-filter" [class.is-active]="selectedReviewFilter() === filter"
+            (click)="setReviewFilter(filter)">
+            <span>{{ filter }}</span>
+            @if (filter !== 'All') {
+            <svg lucideStar [size]="15" fill="currentColor" aria-hidden="true"></svg>
+            }
+          </button>
+          }
+        </div>
+
+        <label class="review-sort">
+          <span>SORT</span>
+          <span class="review-sort__select">
+            <select aria-label="Sort reviews" [value]="selectedReviewSort()" (change)="onReviewSortChange($event)">
+              <option value="oldest">Oldest</option>
+              <option value="newest">Newest</option>
+              <option value="highest">Highest rating</option>
+              <option value="lowest">Lowest rating</option>
+            </select>
+            <svg lucideChevronDown [size]="24" aria-hidden="true"></svg>
+          </span>
+        </label>
+      </div>
+
+      <div class="reviews-modal__body">
+        @if (pagedModalReviews().length) {
+        @for (review of pagedModalReviews(); track review.author + review.date + review.rating) {
+        <article class="modal-review">
+          <div class="modal-review__copy">
+            <h3>{{ review.author }}</h3>
+            <div class="stars stars--small" [attr.aria-label]="review.rating + ' out of 5 stars'">
+              @for (star of ratingStars; track star) {
+              <svg lucideStar [size]="15" [class.star--filled]="isStarFilled(review.rating, star)"
+                [attr.fill]="isStarFilled(review.rating, star) ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+              }
+            </div>
+            @if (review.comment) {
+            <p>{{ review.comment }}</p>
+            }
+          </div>
+          <time>{{ review.date }}</time>
+        </article>
+        }
+        } @else {
+        <p class="reviews-empty reviews-empty--modal">No reviews match this filter.</p>
+        }
+      </div>
+
+      <footer class="reviews-modal__footer">
+        <button type="button" class="review-page-button" [disabled]="!canGoPreviousReviewPage()"
+          (click)="previousReviewPage()">PREVIOUS</button>
+        <span>PAGE {{ reviewModalPage() }} OF {{ modalReviewTotalPages() }}</span>
+        <button type="button" class="review-page-button" [disabled]="!canGoNextReviewPage()"
+          (click)="nextReviewPage()">NEXT</button>
+      </footer>
+    </section>
+  </div>
+  }
+
+  @if (recentlyViewedProducts().length) {
+  <app-best-seller background="page" sectionHeading="Recently viewed" [showEyebrow]="false" [showViewAll]="false"
+    [productsOverride]="recentlyViewedProducts()"></app-best-seller>
+  }
   }
 </main>

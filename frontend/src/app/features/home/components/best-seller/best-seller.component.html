@@ -1,11 +1,7 @@
 <!-- home/components/best-seller/best-seller.component.html -->
 
-<section
-  class="bestseller-section"
-  [class.bestseller-section--page-bg]="background === 'page'"
-  [class.bestseller-section--plain-heading]="headingStyle === 'plain'"
-  [class.bestseller-section--compact]="compact"
->
+<section class="bestseller-section" [class.bestseller-section--page-bg]="background === 'page'"
+  [class.bestseller-section--plain-heading]="headingStyle === 'plain'" [class.bestseller-section--compact]="compact">
   <div class="main-frame">
 
     <!-- ── HEADER ── -->
@@ -17,7 +13,7 @@
         </div>
         <h2 class="section-heading">{{ sectionHeading }}</h2>
       </div>
-      <a routerLink="/shop/best-sellers" class="view-all-link" *ngIf="showViewAll">
+      <a routerLink="/shop/best-seller" class="view-all-link" *ngIf="showViewAll">
         <span>VIEW ALL PRODUCTS</span>
         <svg lucideArrowRight [size]="16" aria-hidden="true"></svg>
       </a>
@@ -39,9 +35,9 @@
             <button type="button" class="quick-view-trigger" [disabled]="isOutOfStock(product)"
               (click)="openQuickView(product, $event)">
               @if (isOutOfStock(product)) {
-                <span>OUT OF STOCK</span>
+              <span>OUT OF STOCK</span>
               } @else {
-                <svg lucideEye [size]="22" aria-hidden="true"></svg>
+              <svg lucideEye [size]="22" aria-hidden="true"></svg>
               }
             </button>
           </div>
@@ -106,7 +102,8 @@
           <div class="price-add-row">
             <span class="price">{{ getPrice(product) }}</span>
             <button type="button" class="add-btn" [disabled]="isOutOfStock(product)"
-              [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'" (click)="onAddToCart(product, $event)">
+              [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'"
+              (click)="onAddToCart(product, $event)">
               <span>{{ isOutOfStock(product) ? 'Out of stock' : 'Add' }}</span>
             </button>
           </div>

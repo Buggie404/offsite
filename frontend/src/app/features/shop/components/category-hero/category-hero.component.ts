@@ -13,4 +13,6 @@ export class CategoryHeroComponent {
   @Input() description: string = '';
   @Input() bgColor: string = '#CFE1B8';
   @Input() imageSrc: string = '';
+  @Input() textColor: string = '';
+  @Input() descColor: string = '';
 }

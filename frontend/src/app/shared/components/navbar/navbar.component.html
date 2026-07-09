@@ -32,8 +32,8 @@
             <!-- Left Column -->
             <div class="mega-col mega-col-left">
               <ul class="promo-links">
-                <li><a href="#" class="promo-link">BEST SELLERS</a></li>
-                <li><a href="#" class="promo-link">NEW ARRIVALS</a></li>
+                <li><a routerLink="/shop/best-seller" class="promo-link">BEST SELLERS</a></li>
+                <li><a routerLink="/shop/new-arrival" class="promo-link">NEW ARRIVALS</a></li>
               </ul>
             </div>
 
@@ -169,8 +169,8 @@
         </button>
         <div class="mobile-submenu" [class.open]="isMobileProductsOpen">
           <ul class="mobile-submenu-links">
-            <li><a href="#" class="mobile-submenu-link highlight" (click)="closeMobileMenu()">BEST SELLERS</a></li>
-            <li><a href="#" class="mobile-submenu-link highlight" (click)="closeMobileMenu()">NEW ARRIVALS</a></li>
+            <li><a routerLink="/shop/best-seller" class="mobile-submenu-link highlight" (click)="closeMobileMenu()">BEST SELLERS</a></li>
+            <li><a routerLink="/shop/new-arrival" class="mobile-submenu-link highlight" (click)="closeMobileMenu()">NEW ARRIVALS</a></li>
             <li class="mobile-submenu-divider"></li>
             <li><a routerLink="/shop/matcha" class="mobile-submenu-link" (click)="closeMobileMenu()">MATCHA</a></li>
             <li><a routerLink="/shop/tools" class="mobile-submenu-link" (click)="closeMobileMenu()">TOOLS</a></li>

@@ -5,7 +5,8 @@
     </div>
 
     <div class="community-grid">
-      <div class="community-card" *ngFor="let card of cards" [style.background-color]="card.bgColor">
+      <div class="community-card" *ngFor="let card of cards" [style.background-color]="card.bgColor"
+           (click)="onCardClick(card)">
         <div class="card-image">
           <img [src]="card.image" [alt]="'Post by ' + card.community_name"
             (error)="card.image = 'https://images.unsplash.com/photo-1515823662972-da6a2e4d3002?q=80&w=400&auto=format&fit=crop'">
@@ -31,7 +32,7 @@
   <div class="container container--banner">
     <div class="community-banner">
       <h3>Join the movement</h3>
-      <button class="btn-primary">SHARE YOUR BREW</button>
+      <button class="btn-primary" (click)="onShareBrew()">SHARE YOUR BREW</button>
     </div>
   </div>
 </section>

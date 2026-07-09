@@ -22,5 +22,5 @@ export class HeroComponent {
   headingAccent = 'at home';
   body      = "We're building a world where the best café experience isn't somewhere you have to go — it's something you can always come back to, wherever you already are.";
   ctaPrimary   = 'Shop Best Sellers';
-  ctaSecondary = 'Take a Quiz';
+  ctaSecondary = 'Build Your Bundle';
 }

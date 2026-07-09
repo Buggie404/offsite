@@ -108,17 +108,12 @@ export const routes: Routes = [
   },
   {
     path: 'products/best-seller',
-    redirectTo: '',
-    pathMatch: 'full'
-  },
-  {
-    path: 'shop/best-seller',
-    redirectTo: '',
+    redirectTo: 'shop/best-seller',
     pathMatch: 'full'
   },
   {
     path: 'shop/best-sellers',
-    redirectTo: '',
+    redirectTo: 'shop/best-seller',
     pathMatch: 'full'
   },
   {

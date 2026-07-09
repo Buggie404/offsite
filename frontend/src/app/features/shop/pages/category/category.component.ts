@@ -45,6 +45,20 @@ export class CategoryComponent implements OnInit {
       description: 'Explore our thoughtfully assembled bundles and kits—from pour-over starter sets and matcha gift boxes to coffee sampler trios and artisan teaware collections. Whether you\'re stocking up on your favorites, gifting a coffee lover, or recreating café-style lattes at home, each set is curated for convenience, value, and exceptional taste.',
       bgColor: '#EFB5CF',
       imageSrc: 'assets/images/category_sets%26bundles.png'
+    },
+    'best-seller': {
+      title: 'BEST SELLERS',
+      description: '',
+      bgColor: '#375534',
+      textColor: '#FFFFFF',
+      imageSrc: ''
+    },
+    'new-arrival': {
+      title: 'NEW ARRIVALS',
+      description: '',
+      bgColor: '#375534',
+      textColor: '#FFFFFF',
+      imageSrc: ''
     }
   };
 

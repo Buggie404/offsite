@@ -1,11 +1,11 @@
 <section class="category-hero" [ngStyle]="{'background-color': bgColor}">
-  <div class="category-hero__container">
+  <div class="category-hero__container" [class.no-image]="!imageSrc">
     <div class="category-hero__content">
-      <h1 class="category-hero__title">{{ title }}</h1>
-      <p class="category-hero__description">{{ description }}</p>
+      <h1 class="category-hero__title" [ngStyle]="textColor ? {'color': textColor} : {}">{{ title }}</h1>
+      <p class="category-hero__description" *ngIf="description" [ngStyle]="descColor ? {'color': descColor} : {}">{{ description }}</p>
     </div>
     
-    <div class="category-hero__image-wrapper">
+    <div class="category-hero__image-wrapper" *ngIf="imageSrc">
       <div class="category-hero__image-placeholder">
         <img [src]="imageSrc" [alt]="title" class="category-hero__image" />
       </div>

@@ -5,34 +5,30 @@
 <section class="hero">
   <div class="hero__inner">
 
-  <!-- ── LEFT: text content ───────────────────────────────── -->
-  <div class="hero__content">
+    <!-- ── LEFT: text content ───────────────────────────────── -->
+    <div class="hero__content">
 
-    <h1 class="hero__heading">
-      {{ heading }} <span class="hero__heading-accent">{{ headingAccent }}</span>
-    </h1>
+      <h1 class="hero__heading">
+        {{ heading }} <span class="hero__heading-accent">{{ headingAccent }}</span>
+      </h1>
 
-    <p class="hero__body">{{ body }}</p>
+      <p class="hero__body">{{ body }}</p>
 
-    <div class="hero__cta">
-      <a routerLink="/shop/best-sellers" class="btn btn--dark">{{ ctaPrimary }}</a>
-      <a routerLink="/contact-us" class="btn btn--outline">{{ ctaSecondary }}</a>
+      <div class="hero__cta">
+        <a routerLink="/shop/best-seller" class="btn btn--dark">{{ ctaPrimary }}</a>
+        <a routerLink="/shop/build-your-bundle" class="btn btn--outline">{{ ctaSecondary }}</a>
+      </div>
+
     </div>
 
-  </div>
-
-  <!-- ── RIGHT: image (arch shape) ────────────────────────── -->
-  <div class="hero__image-wrap">
-    <img
-      *ngIf="heroImage"
-      [src]="heroImage"
-      alt="Offsite home café setup"
-    />
-    <!-- Placeholder hiển thị khi chưa có ảnh -->
-    <span *ngIf="!heroImage" class="hero__image-placeholder">
-      Photo goes here
-    </span>
-  </div>
+    <!-- ── RIGHT: image (arch shape) ────────────────────────── -->
+    <div class="hero__image-wrap">
+      <img *ngIf="heroImage" [src]="heroImage" alt="Offsite home café setup" />
+      <!-- Placeholder hiển thị khi chưa có ảnh -->
+      <span *ngIf="!heroImage" class="hero__image-placeholder">
+        Photo goes here
+      </span>
+    </div>
 
   </div>
 

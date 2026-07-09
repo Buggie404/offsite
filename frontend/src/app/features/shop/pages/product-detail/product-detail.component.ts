@@ -345,7 +345,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
       case 'matcha':
         return [
           this.makeTag('map', p.matcha?.origin),
-          this.makeTag('drop', p.matcha?.product_grade)
+          this.makeTag('drop', p.matcha?.product_grade || 'related tea')
         ].filter((tag): tag is ProductTag => !!tag);
       case 'coffee':
         return [

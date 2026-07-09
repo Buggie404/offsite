@@ -9,8 +9,11 @@
 
 import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { Router } from '@angular/router';
 import { CommunityService } from '../../services/community.service';
 import { Post } from '../../models/post.model';
+import { AuthService } from '../../../../core/auth.service';
+import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 
 // Fallback images (Unsplash) – dùng khi bài post trong DB không có ảnh
 const FALLBACK_IMAGES = [
@@ -51,6 +54,7 @@ const DEFAULT_CARDS = [
 ];
 
 export interface CommunityCard {
+  postId:         string | null; // _id của bài post, null nếu fallback
   community_name: string;
   preview:        string;   // tối đa 10 từ + '...'
   image:          string;
@@ -68,6 +72,7 @@ export interface CommunityCard {
 export class CommunityComponent implements OnInit {
   // Hiển thị ngay fallback trong khi chờ API
   cards: CommunityCard[] = DEFAULT_CARDS.map(d => ({
+    postId: null,
     community_name: d.community_name,
     preview: d.content.trim().split(/\s+/).slice(0, 10).join(' '),
     image: d.image,
@@ -78,7 +83,12 @@ export class CommunityComponent implements OnInit {
   private platformId = inject(PLATFORM_ID);
   private cdr = inject(ChangeDetectorRef);
 
-  constructor(private communityService: CommunityService) {}
+  constructor(
+    private communityService: CommunityService,
+    private router: Router,
+    private authService: AuthService,
+    private authPromptService: AuthPromptModalService
+  ) {}
 
   ngOnInit() {
     if (!isPlatformBrowser(this.platformId)) return;
@@ -98,6 +108,7 @@ export class CommunityComponent implements OnInit {
         this.cards = posts.slice(0, 3).map((post, i) => {
           const hasMedia = post.media?.length > 0 && !!post.media[0].url;
           return this.toCard({
+            postId: post._id ?? null,
             community_name: post.author?.username
               ? `@${post.author.username.toUpperCase()}`
               : DEFAULT_CARDS[i]?.community_name ?? '@USER',
@@ -117,9 +128,32 @@ export class CommunityComponent implements OnInit {
     });
   }
 
+  /** Xử lý click vào card: navigate tới post detail nếu đã login, else open auth modal */
+  onCardClick(card: CommunityCard): void {
+    if (!this.authService.isAuthenticated()) {
+      this.authPromptService.open();
+      return;
+    }
+    if (card.postId) {
+      this.router.navigate(['/community/post', card.postId]);
+    } else {
+      this.router.navigate(['/community']);
+    }
+  }
+
+  /** Xử lý click "SHARE YOUR BREW": navigate tới community nếu đã login, else open auth modal */
+  onShareBrew(): void {
+    if (!this.authService.isAuthenticated()) {
+      this.authPromptService.open();
+      return;
+    }
+    this.router.navigate(['/community']);
+  }
+
   /** Map raw data → CommunityCard với preview cắt 10 từ */
-  private toCard(raw: { community_name: string; content: string; image: string; likes: number; bgColor: string }, _index: number): CommunityCard {
+  private toCard(raw: { postId: string | null; community_name: string; content: string; image: string; likes: number; bgColor: string }, _index: number): CommunityCard {
     return {
+      postId:         raw.postId,
       community_name: raw.community_name,
       preview:        this.truncate(raw.content),
       image:          raw.image,
