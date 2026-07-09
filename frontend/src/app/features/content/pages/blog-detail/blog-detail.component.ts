@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef } 
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { LucideArrowLeft, LucideBookmark, LucideClock, LucideCalendar, LucideAlertCircle, LucideLink, LucideArrowRight } from '@lucide/angular';
+import { LucideArrowLeft, LucideBookmark, LucideClock, LucideCalendar, LucideAlertCircle, LucideLink, LucideArrowRight, LucideCheck } from '@lucide/angular';
 import { ContentService } from '../../services/content.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { AuthService } from '../../../../core/auth.service';
@@ -56,6 +56,7 @@ interface RelatedArticle {
     LucideAlertCircle,
     LucideLink,
     LucideArrowRight,
+    LucideCheck,
     BackToTopComponent
   ],
   templateUrl: './blog-detail.component.html',
@@ -72,6 +73,7 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private http = inject(HttpClient);
 
+  copied = false;
   savedBlogIds: string[] = [];
   article: Article | null = null;
   relatedArticles: RelatedArticle[] = [];
@@ -398,5 +400,70 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
       .replace(/^\s*(?:step\s*)?\d+[\).\s:-]+/i, '')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  shareFacebook(): void {
+    if (isPlatformBrowser(this.platformId)) {
+      const url = encodeURIComponent(window.location.href);
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank', 'noopener,noreferrer');
+    }
+  }
+
+  shareTwitter(): void {
+    if (isPlatformBrowser(this.platformId)) {
+      const url = encodeURIComponent(window.location.href);
+      const text = encodeURIComponent(this.article?.title || '');
+      window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank', 'noopener,noreferrer');
+    }
+  }
+
+  private copyTimeout: any;
+
+  copyLink(): void {
+    if (isPlatformBrowser(this.platformId)) {
+      const url = window.location.href;
+      this.showCopiedState();
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).catch(() => {
+          this.fallbackCopyText(url);
+        });
+      } else {
+        this.fallbackCopyText(url);
+      }
+    }
+  }
+
+  private fallbackCopyText(text: string): void {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+    } catch (err) {
+      console.error('Fallback copy failed', err);
+      this.copied = false;
+      this.cdr.detectChanges();
+      if (this.copyTimeout) {
+        clearTimeout(this.copyTimeout);
+      }
+    }
+    document.body.removeChild(textArea);
+  }
+
+  private showCopiedState(): void {
+    if (this.copyTimeout) {
+      clearTimeout(this.copyTimeout);
+    }
+    this.copied = true;
+    this.cdr.detectChanges();
+    this.copyTimeout = setTimeout(() => {
+      this.copied = false;
+      this.cdr.detectChanges();
+    }, 1000);
   }
 }

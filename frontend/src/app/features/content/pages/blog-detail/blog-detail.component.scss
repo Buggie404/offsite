@@ -673,6 +673,10 @@
       cursor: pointer;
       transition: all 0.2s ease;
 
+      & > * {
+        pointer-events: none;
+      }
+
       &:hover {
         background-color: var(--color-warm-brown);
         border-color: var(--color-warm-brown);
