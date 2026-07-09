@@ -334,6 +334,80 @@ export function getBundleComponentDisplayName(component: BundleComponentSelectio
   return variantLabel ? `${component.product.name} - ${variantLabel}` : component.product.name;
 }
 
+export function getBundleComponentInStockVariants(product: Product) {
+  return product.variants.filter((variant) => (variant.stock ?? 0) > 0);
+}
+
+export function bundleComponentHasVariantOptions(component: BundleComponentSelection): boolean {
+  return getBundleComponentInStockVariants(component.product).length > 1;
+}
+
+export function getBundleComponentTrackKey(component: BundleComponentSelection): string {
+  return `${component.product.product_id}::${component.variantSku}`;
+}
+
+export function updateBundleComponentVariant(
+  bundle: BundleCartMeta,
+  productId: number,
+  oldVariantSku: string,
+  newVariantSku: string
+): BundleCartMeta | null {
+  if (oldVariantSku === newVariantSku) {
+    return bundle;
+  }
+
+  const targetProduct = bundle.components.find(
+    (component) =>
+      component.product.product_id === productId && component.variantSku === oldVariantSku
+  )?.product;
+
+  if (!targetProduct) {
+    return null;
+  }
+
+  const nextVariant = getBundleComponentInStockVariants(targetProduct).find(
+    (variant) => variant.sku === newVariantSku
+  );
+
+  if (!nextVariant) {
+    return null;
+  }
+
+  let found = false;
+  const updatedComponents = bundle.components.map((component) => {
+    if (component.product.product_id === productId && component.variantSku === oldVariantSku) {
+      found = true;
+      return {
+        ...component,
+        variantSku: newVariantSku
+      };
+    }
+
+    return component;
+  });
+
+  if (!found) {
+    return null;
+  }
+
+  const components =
+    bundle.kitType === 'bundle'
+      ? mergeBundleComponents(updatedComponents)
+      : updatedComponents;
+
+  const { originalTotal, discountedTotal } = computeKitBundleTotals(components);
+  const bundleKey = buildBundleKey(bundle.kitType, bundle.packSize, components);
+
+  return {
+    ...bundle,
+    components,
+    bundleKey,
+    displaySku: bundleKey,
+    originalTotal,
+    discountedTotal
+  };
+}
+
 export function expandBundleForBackendItems(item: {
   quantity: number;
   bundle: BundleCartMeta;

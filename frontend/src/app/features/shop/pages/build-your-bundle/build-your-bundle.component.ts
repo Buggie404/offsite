@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { PLATFORM_ID } from '@angular/core';
-import { LucidePlus, LucideX } from '@lucide/angular';
+import { LucideChevronDown, LucidePlus, LucideX } from '@lucide/angular';
 import { ProductService } from '../../../home/services/product.service';
 import {
   Product,
@@ -15,18 +15,17 @@ import { Product as CartProduct } from '../../../../shared/models/product.model'
 import { createKitBundle } from '../../../purchase/models/bundle-cart.model';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
-
-export type KitType = 'matcha_kit' | 'coffee_kit' | 'bundle';
-
-export type PackSize = 2 | 3;
-
-export type KitSlotId = 'package' | 'tool' | 'drinkware';
-
-export type BundlePackageSlotId = `package-${number}`;
-
-export type SlotKey = KitSlotId | BundlePackageSlotId;
-
-export type BundleCategoryFilter = 'all' | 'matcha' | 'coffee';
+import { BundleBuilderStateService } from '../../services/bundle-builder-state.service';
+import type {
+  BundleBuilderSnapshot,
+  BundleCategoryFilter,
+  BundlePackageSlotId,
+  KitSlotId,
+  KitType,
+  PackSize,
+  PersistedSlotSelection,
+  SlotKey
+} from './build-your-bundle.types';
 
 interface KitTypeOption {
   id: KitType;
@@ -84,7 +83,7 @@ const DRINKWARE_PLACEHOLDER = 'assets/images/build-bundle/drinkware.png';
 @Component({
   selector: 'app-build-your-bundle',
   standalone: true,
-  imports: [CommonModule, LucidePlus, LucideX, ProductCardComponent],
+  imports: [CommonModule, LucideChevronDown, LucidePlus, LucideX, ProductCardComponent],
   templateUrl: './build-your-bundle.component.html',
   styleUrl: './build-your-bundle.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -94,8 +93,11 @@ export class BuildYourBundleComponent implements OnInit {
   private readonly cartService = inject(CartService);
   private readonly authService = inject(AuthService);
   private readonly authPromptService = inject(AuthPromptModalService);
+  private readonly bundleState = inject(BundleBuilderStateService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly platformId = inject(PLATFORM_ID);
+
+  private pendingSlotRestore: Partial<Record<SlotKey, PersistedSlotSelection>> | null = null;
 
   savedProductIds = new Set<number>();
 
@@ -212,6 +214,7 @@ export class BuildYourBundleComponent implements OnInit {
 
   ngOnInit(): void {
     if (isPlatformBrowser(this.platformId)) {
+      this.restoreBuilderState();
       this.loadProducts();
       void this.loadSavedProducts();
     }
@@ -250,6 +253,7 @@ export class BuildYourBundleComponent implements OnInit {
     this.bundleCategoryFilter.set('all');
     this.resetSelections();
     this.activeSlotKey.set(this.mapActiveSlotOnKitChange(previousType, kitType, previousActive));
+    this.persistBuilderState();
   }
 
   selectPackSize(size: PackSize): void {
@@ -259,6 +263,7 @@ export class BuildYourBundleComponent implements OnInit {
     this.selectedPackSize.set(size);
     this.pruneSelectionsForPackSize(size);
     this.activeSlotKey.set(this.mapActiveSlotOnPackChange(previousActive, size));
+    this.persistBuilderState();
   }
 
   isSlotPositionVisible(position: number): boolean {
@@ -302,12 +307,14 @@ export class BuildYourBundleComponent implements OnInit {
 
   selectBundleCategory(filter: BundleCategoryFilter): void {
     this.bundleCategoryFilter.set(filter);
+    this.persistBuilderState();
   }
 
   selectSlot(slotKey: SlotKey): void {
     if (!this.requiredSlotKeys().includes(slotKey)) return;
     if (this.activeSlotKey() === slotKey) return;
     this.activeSlotKey.set(slotKey);
+    this.persistBuilderState();
   }
 
   onProductAdd(product: Product): void {
@@ -322,7 +329,7 @@ export class BuildYourBundleComponent implements OnInit {
     const variant = this.getDefaultInStockVariant(product);
     if (!variant) return;
 
-    this.slotSelections.update((selections) => ({
+    this.setSlotSelections((selections) => ({
       ...selections,
       [slotKey]: {
         product,
@@ -340,12 +347,11 @@ export class BuildYourBundleComponent implements OnInit {
     const selection = this.slotSelections()[slotKey];
     if (!selection || selection.product.product_id !== product.product_id) return;
 
-    this.slotSelections.update((selections) => {
+    this.setSlotSelections((selections) => {
       const next = { ...selections };
       delete next[slotKey];
       return next;
     });
-    this.cdr.markForCheck();
   }
 
   getKitSlotProductCount(product: Product): number {
@@ -371,7 +377,7 @@ export class BuildYourBundleComponent implements OnInit {
 
     if (!removeKey) return;
 
-    this.slotSelections.update((selections) => {
+    this.setSlotSelections((selections) => {
       const next = { ...selections };
       delete next[removeKey];
       return next;
@@ -404,7 +410,7 @@ export class BuildYourBundleComponent implements OnInit {
     const emptySlot = this.requiredSlotKeys().find((key) => !this.slotSelections()[key]);
     if (!emptySlot) return;
 
-    this.slotSelections.update((selections) => ({
+    this.setSlotSelections((selections) => ({
       ...selections,
       [emptySlot]: {
         product,
@@ -420,13 +426,13 @@ export class BuildYourBundleComponent implements OnInit {
       (event as MouseEvent).stopImmediatePropagation();
     }
 
-    this.slotSelections.update((selections) => {
+    this.setSlotSelections((selections) => {
       const next = { ...selections };
       delete next[slotKey];
       return next;
     });
     this.activeSlotKey.set(slotKey);
-    this.cdr.markForCheck();
+    this.persistBuilderState();
   }
 
   selectSlotVariant(slotKey: SlotKey, variantSku: string, event: Event): void {
@@ -439,14 +445,13 @@ export class BuildYourBundleComponent implements OnInit {
     const variant = selection.product.variants.find((entry) => entry.sku === variantSku);
     if (!variant || (variant.stock ?? 0) <= 0) return;
 
-    this.slotSelections.update((selections) => ({
+    this.setSlotSelections((selections) => ({
       ...selections,
       [slotKey]: {
         product: selection.product,
         variantSku
       }
     }));
-    this.cdr.markForCheck();
   }
 
   getKitSlotProducts(slotKey: SlotKey): Product[] {
@@ -605,13 +610,86 @@ export class BuildYourBundleComponent implements OnInit {
         const inStock = products.filter((product) => !isProductOutOfStock(product));
         const outOfStock = products.filter((product) => isProductOutOfStock(product));
         this.products.set([...inStock, ...outOfStock]);
+        this.rehydrateSlotSelections();
         this.loadingProducts.set(false);
       },
       error: () => {
         this.products.set([]);
+        this.pendingSlotRestore = null;
         this.loadingProducts.set(false);
       }
     });
+  }
+
+  private setSlotSelections(
+    updater: (selections: Partial<Record<SlotKey, SlotSelection>>) => Partial<Record<SlotKey, SlotSelection>>
+  ): void {
+    this.slotSelections.update(updater);
+    this.persistBuilderState();
+    this.cdr.markForCheck();
+  }
+
+  private restoreBuilderState(): void {
+    const snapshot = this.bundleState.getSnapshot();
+    if (!snapshot) return;
+
+    this.selectedKitType.set(snapshot.kitType);
+    this.selectedPackSize.set(snapshot.packSize);
+    this.activeSlotKey.set(snapshot.activeSlotKey);
+    this.bundleCategoryFilter.set(snapshot.categoryFilter);
+    this.pendingSlotRestore = snapshot.slots;
+  }
+
+  private rehydrateSlotSelections(): void {
+    if (!this.pendingSlotRestore) return;
+
+    const products = this.products();
+    const next: Partial<Record<SlotKey, SlotSelection>> = {};
+
+    for (const [key, persisted] of Object.entries(this.pendingSlotRestore)) {
+      if (!persisted) continue;
+
+      const product = products.find((entry) => entry.product_id === persisted.productId);
+      if (!product || isProductOutOfStock(product)) continue;
+
+      const variant = product.variants.find((entry) => entry.sku === persisted.variantSku);
+      if (!variant || (variant.stock ?? 0) <= 0) continue;
+
+      next[key as SlotKey] = {
+        product,
+        variantSku: persisted.variantSku
+      };
+    }
+
+    this.slotSelections.set(next);
+    this.pendingSlotRestore = null;
+    this.cdr.markForCheck();
+  }
+
+  private buildSnapshot(): BundleBuilderSnapshot {
+    const selections = this.slotSelections();
+    const slots: BundleBuilderSnapshot['slots'] = {};
+
+    for (const [key, selection] of Object.entries(selections)) {
+      if (!selection) continue;
+      slots[key as SlotKey] = {
+        productId: selection.product.product_id,
+        variantSku: selection.variantSku
+      };
+    }
+
+    return {
+      kitType: this.selectedKitType(),
+      packSize: this.selectedPackSize(),
+      activeSlotKey: this.activeSlotKey(),
+      categoryFilter: this.bundleCategoryFilter(),
+      slots
+    };
+  }
+
+  private persistBuilderState(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    this.bundleState.saveSnapshot(this.buildSnapshot());
   }
 
   private pruneSelectionsForPackSize(packSize: PackSize): void {
@@ -621,7 +699,7 @@ export class BuildYourBundleComponent implements OnInit {
         .map((position) => this.getSlotKeyForPosition(position))
     );
 
-    this.slotSelections.update((selections) => {
+    this.setSlotSelections((selections) => {
       const next: Partial<Record<SlotKey, SlotSelection>> = {};
       for (const key of Object.keys(selections) as SlotKey[]) {
         const selection = selections[key];
@@ -653,5 +731,6 @@ export class BuildYourBundleComponent implements OnInit {
 
   private resetSelections(): void {
     this.slotSelections.set({});
+    this.persistBuilderState();
   }
 }

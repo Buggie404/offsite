@@ -2167,7 +2167,7 @@
     display: grid;
     grid-template-columns: 48px 1fr;
     gap: 12px;
-    align-items: center;
+    align-items: start;
     position: relative;
     padding-bottom: 12px;
 
@@ -2179,12 +2179,51 @@
       background: rgba(84, 74, 64, 0.06);
     }
 
+    &__details {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+
     &__name {
       font-family: var(--font-body);
       font-size: 14px;
       font-weight: 700;
       line-height: 1.35;
       color: var(--color-near-black);
+    }
+
+    &__variant {
+      .variant-select-wrapper {
+        position: relative;
+        display: inline-flex;
+        max-width: 100%;
+
+        select {
+          appearance: none;
+          width: 100%;
+          min-width: 140px;
+          padding: 6px 28px 6px 10px;
+          border: 1px solid rgba(84, 74, 64, 0.2);
+          border-radius: 4px;
+          background: #fff;
+          font-family: var(--font-body);
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          color: var(--color-near-black);
+        }
+
+        .variant-caret {
+          position: absolute;
+          right: 8px;
+          top: 50%;
+          transform: translateY(-50%);
+          pointer-events: none;
+          color: var(--color-warm-brown);
+        }
+      }
     }
   }
 

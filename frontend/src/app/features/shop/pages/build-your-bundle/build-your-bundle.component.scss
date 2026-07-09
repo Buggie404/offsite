@@ -175,10 +175,11 @@
 }
 
 .pack-slots-icons {
+  --slot-image-height: 280px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
   max-width: 640px;
   min-height: 360px;
@@ -188,7 +189,8 @@
   transition: gap 0.35s cubic-bezier(0.4, 0, 0.2, 1), padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 
   &--three {
-    gap: 12px;
+    --slot-image-height: 220px;
+    gap: 10px;
     min-height: 300px;
     padding: 32px 24px 20px 12px;
   }
@@ -210,7 +212,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   width: 280px;
   flex: 0 1 280px;
   min-width: 0;
@@ -258,8 +260,9 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  align-self: center;
+  align-self: flex-start;
   width: 22px;
+  margin-top: calc(var(--slot-image-height) / 2 - 11px);
   color: var(--color-warm-brown);
   position: relative;
   z-index: 6;
@@ -272,6 +275,7 @@
     flex-basis: 0;
     width: 0;
     max-width: 0;
+    margin-top: 0;
     opacity: 0;
     overflow: hidden;
     pointer-events: none;
@@ -299,12 +303,15 @@
   }
 
   .pack-slot__img-wrap {
-    min-height: 220px;
+    height: var(--slot-image-height);
+    min-height: var(--slot-image-height);
     padding: 0 8px;
   }
 
   .pack-slot--filled .pack-slot__img-wrap {
-    padding: 16px 18px 6px 12px;
+    height: var(--slot-image-height);
+    min-height: var(--slot-image-height);
+    padding: 0 8px;
   }
 
   .pack-slot__img {
@@ -321,6 +328,7 @@
   .slot-plus--optional {
     width: 22px;
     max-width: 22px;
+    margin-top: calc(var(--slot-image-height) / 2 - 11px);
     opacity: 1;
     overflow: visible;
     pointer-events: auto;
@@ -347,7 +355,8 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    min-height: 300px;
+    height: var(--slot-image-height);
+    min-height: var(--slot-image-height);
     padding: 0 12px;
     box-sizing: border-box;
     overflow: visible;
@@ -442,8 +451,9 @@
   }
 
   &--filled &__img-wrap {
-    min-height: 0;
-    padding: 20px 24px 8px 16px;
+    height: var(--slot-image-height);
+    min-height: var(--slot-image-height);
+    padding: 0 12px;
     overflow: visible;
   }
 
@@ -497,35 +507,30 @@
   }
 }
 
-.pack-slot__variant {
+.pack-slot__variant-row {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   width: 100%;
-  max-width: 260px;
-  margin-top: 6px;
-  padding: 0 4px;
+  min-height: 36px;
+  margin-top: 2px;
+  padding: 0 8px;
   box-sizing: border-box;
   position: relative;
   z-index: 4;
   pointer-events: auto;
 }
 
-.pack-slot__variant-options {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
+.pack-slot__variant-select {
+  position: relative;
   width: 100%;
+  max-width: 220px;
 }
 
-.pack-slot__variant-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 4px 10px;
+.pack-slot__variant-select-input {
+  appearance: none;
+  width: 100%;
+  padding: 8px 32px 8px 12px;
   border: 1px solid var(--bundle-kit-border);
   border-radius: var(--radius-pill);
   background: var(--bundle-kit-inactive-bg);
@@ -537,21 +542,25 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
-  position: relative;
-  z-index: 5;
-  pointer-events: auto;
-  touch-action: manipulation;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 
   &:hover {
     border-color: var(--color-warm-brown);
   }
 
-  &--active {
-    background: var(--bundle-kit-active-bg);
-    border-color: var(--bundle-kit-active-bg);
-    color: var(--color-near-black);
+  &:focus-visible {
+    outline: 2px solid var(--color-forest-green);
+    outline-offset: 2px;
   }
+}
+
+.pack-slot__variant-caret {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--color-warm-brown);
 }
 
 .pack-size-section {
@@ -611,10 +620,13 @@
     &::after {
       content: '';
       position: absolute;
-      inset: 3px;
+      top: 50%;
+      left: 50%;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background: var(--color-forest-green);
-      transform: scale(0);
+      transform: translate(-50%, -50%) scale(0);
       transition: transform 0.2s ease;
     }
   }
@@ -624,7 +636,7 @@
       border-color: var(--color-forest-green);
 
       &::after {
-        transform: scale(1);
+        transform: translate(-50%, -50%) scale(1);
       }
     }
   }

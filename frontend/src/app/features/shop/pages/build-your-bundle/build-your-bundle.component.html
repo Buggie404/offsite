@@ -110,22 +110,25 @@
         </ng-template>
 
         <ng-template #slotVariantPicker let-slotKey="slotKey">
-          @if (showSlotVariantPicker(slotKey)) {
-            <div class="pack-slot__variant" (click)="$event.stopPropagation()">
-              <div class="pack-slot__variant-options" role="listbox" [attr.aria-label]="'Select variant for ' + slotKey">
-                @for (variant of getInStockVariants(getSlotSelection(slotKey)!.product); track variant.sku) {
-                  <button
-                    type="button"
-                    class="pack-slot__variant-pill"
-                    role="option"
-                    [class.pack-slot__variant-pill--active]="getSlotSelection(slotKey)!.variantSku === variant.sku"
-                    [attr.aria-selected]="getSlotSelection(slotKey)!.variantSku === variant.sku"
-                    (click)="selectSlotVariant(slotKey, variant.sku, $event)"
+          @if (getSlotSelection(slotKey); as selection) {
+            <div class="pack-slot__variant-row" (click)="$event.stopPropagation()">
+              @if (showSlotVariantPicker(slotKey)) {
+                <div class="pack-slot__variant-select">
+                  <select
+                    class="pack-slot__variant-select-input"
+                    [value]="selection.variantSku"
+                    (change)="selectSlotVariant(slotKey, $any($event.target).value, $event)"
+                    [attr.aria-label]="'Select variant for ' + slotKey"
                   >
-                    {{ variant.label || variant.sku }}
-                  </button>
-                }
-              </div>
+                    @for (variant of getInStockVariants(selection.product); track variant.sku) {
+                      <option [value]="variant.sku">
+                        {{ (variant.label || variant.sku).toUpperCase() }}
+                      </option>
+                    }
+                  </select>
+                  <svg lucideChevronDown [size]="12" class="pack-slot__variant-caret" aria-hidden="true"></svg>
+                </div>
+              }
             </div>
           }
         </ng-template>

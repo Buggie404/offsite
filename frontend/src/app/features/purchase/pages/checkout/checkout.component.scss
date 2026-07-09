@@ -586,7 +586,7 @@
   display: grid;
   grid-template-columns: 48px 1fr;
   gap: 12px;
-  align-items: center;
+  align-items: start;
   position: relative;
   padding-bottom: 12px;
 
@@ -598,12 +598,27 @@
     background: rgba(84, 74, 64, 0.06);
   }
 
+  &__details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
   &__name {
     font-family: var(--font-body);
     font-size: 14px;
     font-weight: 700;
     line-height: 1.35;
     color: var(--color-near-black);
+  }
+
+  &__variant {
+    .variant-select {
+      position: relative;
+      display: inline-flex;
+      max-width: 100%;
+    }
   }
 }
 

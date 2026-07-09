@@ -40,10 +40,14 @@ import {
 import { CartService } from '../../services/cart.service';
 import { Product, ProductVariant } from '../../../../shared/models/product.model';
 import {
+  BundleComponentSelection,
+  bundleComponentHasVariantOptions,
   expandBundleForBackendItems,
   getBundleComponentDisplayName,
   getBundleComponentImage,
+  getBundleComponentInStockVariants,
   getBundleComponentLineQuantity,
+  getBundleComponentTrackKey,
   getBundleContentComponents,
   getBundleContentToggleLabel,
   getBundleSaleLineTotal,
@@ -1625,6 +1629,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   getBundleContentComponents = getBundleContentComponents;
   getBundleContentToggleLabel = getBundleContentToggleLabel;
   getBundleComponentLineQuantity = getBundleComponentLineQuantity;
+  bundleComponentHasVariantOptions = bundleComponentHasVariantOptions;
+  getBundleComponentVariants = getBundleComponentInStockVariants;
+  trackBundleComponent = (_: number, component: BundleComponentSelection) =>
+    getBundleComponentTrackKey(component);
 
   getCheckoutItemKey(item: CheckoutItem): string {
     return `${item.product._id}::${item.variantSku}`;
@@ -1652,6 +1660,19 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   changeVariant(item: CheckoutItem, sku: string) {
     this.cartService.updateSummaryVariant(item.product._id, item.variantSku, sku);
+  }
+
+  changeBundleComponentVariant(
+    item: CheckoutItem,
+    component: BundleComponentSelection,
+    newVariantSku: string
+  ): void {
+    this.cartService.updateSummaryBundleComponentVariant(
+      item.variantSku,
+      component.product.product_id,
+      component.variantSku,
+      newVariantSku
+    );
   }
 
   inc(item: CheckoutItem) {

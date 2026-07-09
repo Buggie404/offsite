@@ -535,9 +535,30 @@
                   </button>
 
                   <div class="kit-content" *ngIf="isKitContentExpanded(item)">
-                    <div class="kit-content-item" *ngFor="let component of getBundleContentComponents(item.bundle!); let last = last">
+                    <div
+                      class="kit-content-item"
+                      *ngFor="let component of getBundleContentComponents(item.bundle!); trackBy: trackBundleComponent; let last = last"
+                    >
                       <img class="kit-content-item__image" [src]="getComponentImage(component)" [alt]="getComponentDisplayName(component)">
-                      <span class="kit-content-item__name">{{ getBundleComponentLineQuantity(item, component) }} x {{ getComponentDisplayName(component) }}</span>
+                      <div class="kit-content-item__details">
+                        <span class="kit-content-item__name">
+                          {{ getBundleComponentLineQuantity(item, component) }} x {{ getComponentDisplayName(component) }}
+                        </span>
+                        <div class="kit-content-item__variant" *ngIf="bundleComponentHasVariantOptions(component)">
+                          <div class="variant-select">
+                            <select
+                              [ngModel]="component.variantSku"
+                              (ngModelChange)="changeBundleComponentVariant(item, component, $event)"
+                              [ngModelOptions]="{ standalone: true }"
+                            >
+                              <option *ngFor="let variant of getBundleComponentVariants(component.product)" [value]="variant.sku">
+                                {{ (variant.label || '').toUpperCase() }}
+                              </option>
+                            </select>
+                            <svg lucideChevronDown [size]="12" class="variant-caret"></svg>
+                          </div>
+                        </div>
+                      </div>
                       <div class="kit-content-divider" *ngIf="!last" aria-hidden="true"></div>
                     </div>
                   </div>

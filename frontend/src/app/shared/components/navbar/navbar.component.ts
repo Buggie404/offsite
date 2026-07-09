@@ -33,9 +33,13 @@ import { Product } from '../../../features/home/models/product.model';
 import { Recipe } from '../../../features/home/models/recipe.model';
 import { FormsModule } from '@angular/forms';
 import {
+  BundleComponentSelection,
+  bundleComponentHasVariantOptions,
   getBundleComponentDisplayName,
   getBundleComponentImage,
+  getBundleComponentInStockVariants,
   getBundleComponentLineQuantity,
+  getBundleComponentTrackKey,
   getBundleContentComponents,
   getBundleContentToggleLabel,
   getBundleSaleLineTotal,
@@ -593,6 +597,10 @@ export class NavbarComponent implements OnInit {
   getBundleContentComponents = getBundleContentComponents;
   getBundleContentToggleLabel = getBundleContentToggleLabel;
   getBundleComponentLineQuantity = getBundleComponentLineQuantity;
+  bundleComponentHasVariantOptions = bundleComponentHasVariantOptions;
+  getBundleComponentVariants = getBundleComponentInStockVariants;
+  trackBundleComponent = (_: number, component: BundleComponentSelection) =>
+    getBundleComponentTrackKey(component);
 
   getItemKey(item: CartItem): string {
     return `${this.getProductIdentifier(item)}::${item.variantSku}`;
@@ -679,6 +687,19 @@ export class NavbarComponent implements OnInit {
 
   changeVariant(item: CartItem, newSku: string): void {
     this.cartService.updateVariant(this.getProductIdentifier(item), item.variantSku, newSku);
+  }
+
+  changeBundleComponentVariant(
+    item: CartItem,
+    component: BundleComponentSelection,
+    newVariantSku: string
+  ): void {
+    this.cartService.updateBundleComponentVariant(
+      item.variantSku,
+      component.product.product_id,
+      component.variantSku,
+      newVariantSku
+    );
   }
 
   checkout(event?: Event): void {

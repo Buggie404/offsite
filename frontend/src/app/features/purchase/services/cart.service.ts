@@ -7,7 +7,8 @@ import {
   createBundleDisplayProduct,
   getBundleMaxStock,
   isBundleOutOfStock,
-  refreshBundleCartItem
+  refreshBundleCartItem,
+  updateBundleComponentVariant
 } from '../models/bundle-cart.model';
 
 export interface CartItem {
@@ -324,6 +325,106 @@ export class CartService {
       }
       this.saveCart(currentItems);
     }
+  }
+
+  updateBundleComponentVariant(
+    bundleLineSku: string,
+    componentProductId: number,
+    oldComponentVariantSku: string,
+    newComponentVariantSku: string
+  ): void {
+    const updated = this.applyBundleComponentVariantChange(
+      [...this.cartItems()],
+      bundleLineSku,
+      componentProductId,
+      oldComponentVariantSku,
+      newComponentVariantSku
+    );
+
+    if (updated) {
+      this.saveCart(updated);
+    }
+  }
+
+  updateSummaryBundleComponentVariant(
+    bundleLineSku: string,
+    componentProductId: number,
+    oldComponentVariantSku: string,
+    newComponentVariantSku: string
+  ): void {
+    const updated = this.applyBundleComponentVariantChange(
+      [...this.checkoutSummaryItems()],
+      bundleLineSku,
+      componentProductId,
+      oldComponentVariantSku,
+      newComponentVariantSku
+    );
+
+    if (updated) {
+      this.saveCheckoutSummary(updated);
+    }
+  }
+
+  private applyBundleComponentVariantChange(
+    items: CartItem[],
+    bundleLineSku: string,
+    componentProductId: number,
+    oldComponentVariantSku: string,
+    newComponentVariantSku: string
+  ): CartItem[] | null {
+    const index = items.findIndex(
+      (item) => item.bundle && item.variantSku === bundleLineSku
+    );
+
+    if (index === -1) {
+      return null;
+    }
+
+    const item = items[index];
+    const updatedBundle = updateBundleComponentVariant(
+      item.bundle!,
+      componentProductId,
+      oldComponentVariantSku,
+      newComponentVariantSku
+    );
+
+    if (!updatedBundle) {
+      return null;
+    }
+
+    const refreshed = refreshBundleCartItem({
+      ...item,
+      bundle: updatedBundle,
+      variantSku: updatedBundle.displaySku
+    });
+
+    const newLineSku = refreshed.variantSku;
+    const duplicateIndex = items.findIndex(
+      (entry, entryIndex) =>
+        entryIndex !== index && entry.bundle && entry.variantSku === newLineSku
+    );
+
+    if (duplicateIndex > -1) {
+      const duplicate = items[duplicateIndex];
+      const maxStock = getBundleMaxStock(updatedBundle);
+      let mergedQty = duplicate.quantity + item.quantity;
+      if (mergedQty > maxStock) {
+        mergedQty = maxStock;
+      }
+
+      items[duplicateIndex] = {
+        ...duplicate,
+        quantity: mergedQty,
+        bundle: updatedBundle,
+        product: refreshed.product,
+        variantSku: newLineSku
+      };
+      items.splice(index, 1);
+      return items;
+    }
+
+    items[index] = refreshed;
+    return items;
   }
 
   toggleSelection(productId: ProductIdentifier, variantSku: string): void {
