@@ -11,6 +11,8 @@ import { FeedToolbarComponent } from '../../components/feed-toolbar/feed-toolbar
 import { PostCardComponent } from '../../components/post-card/post-card.component';
 import { CreatePostModalComponent } from '../../components/create-post-modal/create-post-modal.component';
 import { CreateRecipeModalComponent } from '../../components/create-recipe-modal/create-recipe-modal.component';
+import { AuthService } from '../../../../core/auth.service';
+import { AuthModalService } from '../../../../core/auth-modal.service';
 
 @Component({
   selector: 'app-feed',
@@ -31,6 +33,12 @@ export class FeedComponent implements OnInit {
   private communityService = inject(CommunityService);
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
+  private authService = inject(AuthService);
+  private authModalService = inject(AuthModalService);
+
+  // Signal có sẵn từ AuthService, tự động cập nhật khi login/logout
+  isLoggedIn = this.authService.isAuthenticated;
+  isAuthModalOpen = this.authModalService.isOpen;
 
   posts: Post[] = [];
   page = 1;
@@ -47,6 +55,9 @@ export class FeedComponent implements OnInit {
   private fetch$ = new Subject<void>();
 
   ngOnInit(): void {
+    // Chỉ load feed nếu đã login, tránh gọi API thừa khi user chưa xác thực
+    if (!this.isLoggedIn()) return;
+
     this.fetch$.pipe(
       switchMap(() =>
         this.communityService.getFeed(this.page, this.limit, this.activeCategory, this.sort)
@@ -60,20 +71,28 @@ export class FeedComponent implements OnInit {
         }
         this.hasMore = res.data.length === this.limit;
         this.loading = false;
-        this.cdr.detectChanges(); 
+        this.cdr.detectChanges();
       },
       error: () => {
         this.loading = false;
-        this.cdr.detectChanges(); 
+        this.cdr.detectChanges();
       }
     });
 
     this.loadFeed();
   }
 
+  openLoginModal(): void {
+    this.authModalService.open('login');
+  }
+
+  goHome(): void {
+    this.router.navigate(['/']);
+  }
+
   loadFeed(): void {
     this.loading = true;
-    this.cdr.detectChanges(); 
+    this.cdr.detectChanges();
     this.fetch$.next();
   }
 
@@ -102,7 +121,7 @@ export class FeedComponent implements OnInit {
       const post = this.posts.find(p => p.post_id === postId);
       if (post) {
         post.like_count = res.like_count;
-        this.cdr.detectChanges(); // thêm dòng này
+        this.cdr.detectChanges();
       }
     });
   }

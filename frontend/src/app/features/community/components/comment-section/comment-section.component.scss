@@ -5,6 +5,19 @@ $text-muted: #544A40;
 $light-grey: #ECECE9;
 $transition-speed: 0.25s;
 
+// ── COMMENTS LIST ──
+.comments-loading,
+.comments-empty {
+  color: $text-muted;
+  font-size: 1.05rem;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.comment-thread {
+  margin-bottom: 24px;
+}
+
 .comment-item {
   display: flex;
   gap: 14px;
@@ -13,6 +26,12 @@ $transition-speed: 0.25s;
   &--reply {
     margin-bottom: 12px;
   }
+}
+
+.comment-replies {
+  margin-left: 52px;
+  padding-left: 18px;
+  border-left: 2px solid $light-grey;
 }
 
 .comment-avatar {
@@ -165,23 +184,24 @@ $transition-speed: 0.25s;
     height: 32px;
     border-radius: 50%;
     border: none;
-    background: $forest-green;
-    color: $white;
+    background: $light-grey;
+    color: $text-muted;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
+    cursor: not-allowed;
     flex-shrink: 0;
-    transition: opacity $transition-speed, background $transition-speed, transform $transition-speed;
+    transition: background $transition-speed, color $transition-speed, transform $transition-speed;
 
-    &:hover:not(:disabled) {
-      background: #2c4429;
-      transform: scale(1.05);
-    }
+    &:not(:disabled) {
+      background: $forest-green;
+      color: $white;
+      cursor: pointer;
 
-    &:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
+      &:hover {
+        background: #2c4429;
+        transform: scale(1.05);
+      }
     }
   }
 
@@ -192,5 +212,72 @@ $transition-speed: 0.25s;
     cursor: pointer;
     font-size: 0.9rem;
     flex-shrink: 0;
+  }
+}
+
+// ── COMMENT COMPOSER ──
+.comment-composer {
+  margin-top: 8px;
+
+  .composer-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    input {
+      flex: 1;
+      border: 1px solid $light-grey;
+      border-radius: 20px;
+      padding: 16px 18px;
+      font-size: 1rem;
+      font-family: var(--font-body), 'DM Sans', sans-serif;
+      outline: none;
+      transition: border-color $transition-speed;
+
+      &:focus {
+        border-color: $forest-green;
+      }
+    }
+  }
+
+  .composer-clear-btn {
+    background: none;
+    border: none;
+    color: $text-muted;
+    cursor: pointer;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+    padding: 6px;
+    transition: color $transition-speed;
+
+    &:hover {
+      color: #D32F2F;
+    }
+  }
+
+  .composer-send-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: $light-grey;
+    color: $text-muted;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: not-allowed;
+    flex-shrink: 0;
+    transition: background $transition-speed, color $transition-speed, transform $transition-speed;
+
+    &:not(:disabled) {
+      background: $forest-green;
+      color: $white;
+      cursor: pointer;
+
+      &:hover {
+        background: #2c4429;
+        transform: scale(1.05);
+      }
+    }
   }
 }

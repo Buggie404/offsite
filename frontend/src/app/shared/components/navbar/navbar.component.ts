@@ -273,7 +273,7 @@ export class NavbarComponent implements OnInit {
     this.authService.logout();
     this.isSignOutModalOpen = false;
 
-    const protectedRoutes = ['/account', '/profile', '/checkout'];
+    const protectedRoutes = ['/account', '/profile', '/checkout', '/community'];
     const currentUrl = this.router.url;
     if (protectedRoutes.some(route => currentUrl.startsWith(route))) {
       this.router.navigate(['/']);

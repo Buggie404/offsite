@@ -72,3 +72,149 @@
     }
 
 }
+
+// === Community login-required block ===
+
+.community-block-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.community-block-card {
+  background: #FAF0EB;
+  width: 100%;
+  max-width: 520px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+
+.community-block-header {
+  background: #1a1a1a;
+  padding: 0.15rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.community-block-logo {
+  height: 110px;
+  width: auto;
+  filter: brightness(0) invert(1);
+}
+
+.community-block-body {
+  padding: 1.5rem 1.5rem 1.75rem;
+  text-align: center;
+}
+
+.community-block-title {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 400;
+  color: #375534;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.3;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.community-block-subtitle {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #2a2a2a;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  margin: 0 0 1.5rem 0;
+  text-transform: uppercase;
+}
+
+.community-block-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.community-block-btn {
+  padding: 0.9375rem 2.5rem;
+  background: #375534;
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+
+  &:hover {
+    background: #2a4230;
+    transform: translateY(-1px);
+  }
+}
+
+.community-block-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.community-block-btn-outline {
+  padding: 0.9375rem 2rem;
+  background: #ffffff;
+  color: #375534;
+  border: 1px solid #d8d2cc;
+  border-radius: 999px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+
+  &:hover {
+    background: #f5ede7;
+    transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 480px) {
+  .community-block-card {
+    max-width: 100%;
+  }
+
+  .community-block-header {
+    padding: 1.25rem 1rem;
+  }
+
+  .community-block-logo {
+    height: 80px;
+  }
+
+  .community-block-body {
+    padding: 1.75rem 1.25rem 1.5rem;
+  }
+
+  .community-block-title {
+    font-size: 1.375rem;
+    white-space: normal;
+  }
+
+  .community-block-btn {
+    width: 100%;
+  }
+  .community-block-actions {
+    flex-direction: column;
+  }
+}
