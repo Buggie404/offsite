@@ -274,10 +274,14 @@
             Save status
           </button>
         } @else {
-          <p class="field-hint field-hint--spaced">
-            Status changes to <strong>Delivered</strong>, <strong>Cancelled</strong>, and
-            <strong>Refund</strong> are handled by the customer or by reviewing refund requests.
-          </p>
+          @if (statusUpdateDisabledReason; as disabledReason) {
+            <p class="field-hint field-hint--spaced">{{ disabledReason }}</p>
+          } @else {
+            <p class="field-hint field-hint--spaced">
+              Status changes to <strong>Delivered</strong>, <strong>Cancelled</strong>, and
+              <strong>Refund</strong> are handled by the customer or by reviewing refund requests.
+            </p>
+          }
         }
         @if (statusMessage) {
           <p class="action-feedback action-feedback--success">{{ statusMessage }}</p>

@@ -86,11 +86,15 @@ export class OrderDetailComponent implements OnInit {
   previewEvidenceType: 'image' | 'video' | null = null;
   rejectReason = '';
   rejectModalError: string | null = null;
+  private statusMessageTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit(): void {
+    this.destroyRef.onDestroy(() => this.clearStatusMessageTimer());
+
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       const orderId = params.get('id');
       if (orderId) {
+        this.clearActionFeedback();
         this.loadOrder(orderId);
       }
     });
@@ -133,6 +137,29 @@ export class OrderDetailComponent implements OnInit {
 
   get canUpdateStatus(): boolean {
     return this.statusOptions.length > 0;
+  }
+
+  get statusUpdateDisabledReason(): string | null {
+    if (!this.order || this.canUpdateStatus) return null;
+
+    const status = this.order.order_status;
+
+    switch (status) {
+      case 'shipping':
+        return 'This order is already marked as Shipping.';
+      case 'delivered':
+        return 'This order has already been delivered.';
+      case 'pending_refund':
+        return 'A refund request is pending. Approve or reject it before updating shipment status.';
+      case 'refund':
+        return 'This order has been refunded.';
+      case 'refund_rejected':
+        return 'The refund request was rejected. This order has already completed delivery.';
+      case 'canceled':
+        return 'This order was cancelled.';
+      default:
+        return `Status "${this.statusLabel(status)}" cannot be updated from the admin portal.`;
+    }
   }
 
   get nextStatusOption(): StatusOption | null {
@@ -241,12 +268,14 @@ export class OrderDetailComponent implements OnInit {
     if (!silent) {
       this.loading = true;
       this.error = null;
+      this.clearActionFeedback();
     }
 
     this.adminOrderService.getOrderById(orderId).subscribe({
       next: (response) => {
         this.order = response.data;
         this.selectedStatus = this.statusOptions[0]?.value || 'processing';
+        this.statusSaving = false;
         this.loading = false;
         this.cdr.markForCheck();
       },
@@ -254,6 +283,7 @@ export class OrderDetailComponent implements OnInit {
         if (!silent) {
           this.error = 'Failed to load order details. Please try again.';
         }
+        this.statusSaving = false;
         this.loading = false;
         this.cdr.markForCheck();
       }
@@ -273,8 +303,10 @@ export class OrderDetailComponent implements OnInit {
         next: (response) => {
           this.order = response.data;
           this.selectedStatus = this.statusOptions[0]?.value || 'processing';
-          this.statusMessage = 'Status updated to Shipping.';
           this.statusSaving = false;
+          if (response.data.order_status === 'shipping') {
+            this.showTransientStatusMessage('Status updated to Shipping.');
+          }
           this.adminRefresh.refreshNotifications();
           this.cdr.markForCheck();
         },
@@ -637,5 +669,29 @@ export class OrderDetailComponent implements OnInit {
   shippingAddressLines(): string[] {
     if (!this.order?.shipping_address) return [];
     return this.order.shipping_address.split('\n').filter(Boolean);
+  }
+
+  private clearActionFeedback(): void {
+    this.clearStatusMessageTimer();
+    this.statusMessage = null;
+    this.actionError = null;
+    this.refundMessage = null;
+  }
+
+  private clearStatusMessageTimer(): void {
+    if (this.statusMessageTimer) {
+      clearTimeout(this.statusMessageTimer);
+      this.statusMessageTimer = null;
+    }
+  }
+
+  private showTransientStatusMessage(message: string): void {
+    this.clearStatusMessageTimer();
+    this.statusMessage = message;
+    this.statusMessageTimer = setTimeout(() => {
+      this.statusMessage = null;
+      this.statusMessageTimer = null;
+      this.cdr.markForCheck();
+    }, 4000);
   }
 }

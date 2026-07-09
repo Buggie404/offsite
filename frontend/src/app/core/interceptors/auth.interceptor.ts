@@ -19,7 +19,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
-  const isAdminApi = req.url.includes('/api/admin/') && !req.url.endsWith('/api/admin/login');
+  if (req.url.includes('/api/admin/login')) {
+    return next(req);
+  }
+
+  const isAdminApi = req.url.includes('/api/admin/');
   const adminAuth = inject(AdminAuthService);
   const token = isAdminApi ? adminAuth.getToken() : localStorage.getItem('token');
 
