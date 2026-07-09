@@ -55,10 +55,11 @@
     text-decoration: none;
     font-weight: 700;
     margin-left: 4px;
-    border-bottom: 1.5px solid var(--color-forest-green);
+    border-bottom: 1.5px solid transparent;
     padding-bottom: 1px;
     display: inline-flex;
     align-items: center;
+    transition: border-color 0.25s ease;
 
     .arrow {
       margin-left: 4px;
@@ -67,6 +68,8 @@
     }
 
     &:hover {
+      border-bottom-color: var(--color-forest-green);
+
       .arrow {
         transform: translateX(4px);
       }

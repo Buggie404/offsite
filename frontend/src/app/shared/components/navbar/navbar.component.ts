@@ -206,7 +206,8 @@ export class NavbarComponent implements OnInit {
 
   ngOnInit(): void {
     if (isPlatformBrowser(this.platformId)) {
-      const closed = localStorage.getItem('promobar-closed');
+      localStorage.removeItem('promobar-closed');
+      const closed = sessionStorage.getItem('promobar-closed');
       if (closed === 'true') {
         this.isPromobarVisible = false;
       }
@@ -228,7 +229,7 @@ export class NavbarComponent implements OnInit {
   closePromobar(): void {
     this.isPromobarVisible = false;
     if (isPlatformBrowser(this.platformId)) {
-      localStorage.setItem('promobar-closed', 'true');
+      sessionStorage.setItem('promobar-closed', 'true');
     }
   }
 
