@@ -90,8 +90,10 @@
 }
 
 .card-content {
+  display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  flex: 1;
 }
 
 .card-header {
@@ -136,7 +138,7 @@
 
   display: flex;
   align-items: center;
-  margin-top: 4px;
+  margin-top: auto;
 
 }
 
