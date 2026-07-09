@@ -95,9 +95,9 @@
               (click)="togglePassword()"
             >
               @if (showPassword) {
-                <svg lucideEyeOff class="icon-eye" aria-hidden="true" [size]="18"></svg>
-              } @else {
                 <svg lucideEye class="icon-eye" aria-hidden="true" [size]="18"></svg>
+              } @else {
+                <svg lucideEyeOff class="icon-eye" aria-hidden="true" [size]="18"></svg>
               }
             </button>
           </div>
@@ -112,7 +112,6 @@
             <span class="checkbox-box" aria-hidden="true"></span>
             <span>Remember me</span>
           </label>
-          <a href="#" class="link-forgot" (click)="$event.preventDefault()">Forgot password?</a>
         </div>
 
         <button type="submit" class="btn-primary" [disabled]="isSubmitting">
