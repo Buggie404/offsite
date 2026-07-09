@@ -1229,10 +1229,10 @@ app-best-seller {
   align-items: center;
 
   select {
-    width: 132px;
+    width: 180px;
     height: 36px;
     appearance: none;
-    padding: 0 34px 0 12px;
+    padding: 0 42px 0 14px;
     color: #1f1b16;
     background: transparent;
     border: 1.5px solid rgba(31, 27, 22, 0.58);
@@ -1545,12 +1545,26 @@ app-best-seller {
   }
 
   .reviews-modal__footer {
-    grid-template-columns: 1fr;
-    justify-items: center;
+    grid-template-columns: minmax(86px, auto) minmax(72px, 1fr) minmax(58px, auto);
+    gap: 8px;
+    padding: 8px 24px 12px;
+
+    > span {
+      white-space: nowrap;
+      font-size: 12px;
+    }
+  }
+
+  .review-page-button {
+    min-width: 0;
+    min-height: 34px;
+    padding: 0 14px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
   }
 
   .review-page-button:last-child {
-    justify-self: center;
+    justify-self: end;
   }
 }
 
