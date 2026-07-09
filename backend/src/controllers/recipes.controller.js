@@ -1,4 +1,5 @@
 const Recipe = require('../models/Recipe');
+const User = require('../models/User');
 const mongoose = require('mongoose');
 
 async function getAllRecipes(req, res) {
@@ -62,7 +63,133 @@ async function getRecipeBySlugOrId(req, res) {
   }
 }
 
+function slugify(text) {
+  return text
+    .toString()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+function parseJSONField(raw, fallback) {
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  if (typeof raw !== 'string') return raw; 
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return fallback;
+  }
+}
+
+// Create a new recipe
+async function createRecipe(req, res) {
+  try {
+    const {
+      title,
+      description = '',
+      heroImage: rawHeroImage,
+      metadata: rawMetadata,
+      ingredients: rawIngredients,
+      tools: rawTools,
+      steps: rawSteps,
+      relatedProducts: rawRelatedProducts,
+    } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const heroImage = parseJSONField(rawHeroImage, null);
+    if (!heroImage || !heroImage.url || !heroImage.public_id) {
+      return res.status(400).json({ error: 'Hero image is required' });
+    }
+
+    const metadata = parseJSONField(rawMetadata, {});
+    const ingredients = parseJSONField(rawIngredients, []);
+    const tools = parseJSONField(rawTools, []);
+    const steps = parseJSONField(rawSteps, []);
+    const relatedProducts = parseJSONField(rawRelatedProducts, []);
+
+    if (!Array.isArray(ingredients) || ingredients.length === 0) {
+      return res.status(400).json({ error: 'At least one ingredient is required' });
+    }
+    if (!Array.isArray(steps) || steps.length === 0) {
+      return res.status(400).json({ error: 'At least one step is required' });
+    }
+
+    const user = await User.findById(req.user.user_id);
+    if (!user) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+
+
+    const lastRecipe = await Recipe.findOne({}, {}, { sort: { recipe_id: -1 } });
+    let nextNum = 1;
+    if (lastRecipe && lastRecipe.recipe_id) {
+      const match = lastRecipe.recipe_id.match(/RCP(\d+)/);
+      if (match) {
+        nextNum = parseInt(match[1], 10) + 1;
+      }
+    }
+    const recipe_id = `RCP${String(nextNum).padStart(5, '0')}`;
+
+    const baseSlug = slugify(title);
+    let slug = baseSlug || recipe_id.toLowerCase();
+    let suffix = 1;
+    while (await Recipe.exists({ slug })) {
+      slug = `${baseSlug}-${suffix++}`;
+    }
+
+    const now = new Date().toISOString();
+
+    const newRecipe = new Recipe({
+      recipe_id,
+      title: title.trim(),
+      slug,
+      description,
+      heroImage,
+      metadata: {
+        servings: metadata.servings ?? 1,
+        prepTime: metadata.prepTime ?? 0,
+        cookTime: metadata.cookTime ?? null,
+        difficulty: metadata.difficulty,
+        tags: Array.isArray(metadata.tags) ? metadata.tags : []
+      },
+      ingredients,
+      tools,
+      steps,
+      relatedProducts: Array.isArray(relatedProducts) ? relatedProducts : [],
+      source: {
+        type: 'community',
+        author: user.community_name || user.profile_name || 'Anonymous',
+        communityPostId: null,
+        communityPostTitle: null,
+        creatorName: user.community_name || user.profile_name || 'Anonymous',
+        creatorAvatar: user.avatar_url || null
+      },
+      saves: 0,
+      published: true,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    const savedRecipe = await newRecipe.save();
+    res.status(201).json({
+      message: 'Recipe created successfully',
+      data: savedRecipe
+    });
+  } catch (error) {
+    console.error('Error creating recipe:', error);
+    res.status(500).json({ error: error.message || 'Failed to create recipe' });
+  }
+}
+
 module.exports = {
   getAllRecipes,
-  getRecipeBySlugOrId
+  getRecipeBySlugOrId,
+  createRecipe
 };

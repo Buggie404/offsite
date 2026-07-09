@@ -28,6 +28,7 @@ export class PostDetailComponent implements OnInit {
   loading = true;
   error: string | null = null;
   postLiked = false;
+  postSaved = false;
   showShareModal = false;
 
   // Content của post sau khi tách hashtag (#tag) ra khỏi text thường, để highlight riêng
@@ -54,6 +55,7 @@ export class PostDetailComponent implements OnInit {
       next: (post) => {
         this.post = post;
         this.postLiked = post.liked ?? false;
+        this.postSaved = post.saved ?? false;
         this.postContentParts = this.parseContentTags(post.content);
         this.loading = false;
         this.cdr.detectChanges();
@@ -126,6 +128,23 @@ export class PostDetailComponent implements OnInit {
     });
   }
 
+  savePost(): void {
+    if (!this.post) return;
+
+    this.communityService.savePost(this.post.post_id).subscribe({
+      next: (res) => {
+        if (this.post) {
+          this.post.saved = res.saved;
+          this.post.save_count = res.save_count;
+          this.cdr.detectChanges();
+        }
+      },
+      error: (err) => {
+        console.error('Failed to save post:', err);
+      }
+    });
+  }
+
   scrollToComments(): void {
     document.getElementById('comments-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -142,9 +161,6 @@ export class PostDetailComponent implements OnInit {
     return window.location.href;
   }
 
-  // ── Content parsing ──
-
-  // Tách nội dung post thành các đoạn: text thường và hashtag (#xxx) để render highlight riêng
   parseContentTags(content: string): { text: string; isTag: boolean }[] {
     if (!content) return [];
     return content

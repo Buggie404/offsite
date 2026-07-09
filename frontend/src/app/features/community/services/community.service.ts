@@ -70,6 +70,20 @@ export class CommunityService {
       `${this.apiUrl}/${id}/like`,
       {}
     );
+  }
+
+  savePost(id: string): Observable<{
+    saved: boolean;
+    save_count: number;
+  }> {
+
+    return this.http.post<{
+      saved: boolean;
+      save_count: number;
+    }>(
+      `${this.apiUrl}/${id}/save`,
+      {}
+    );
 
   }
 

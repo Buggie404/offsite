@@ -2,7 +2,7 @@ const Post = require('../models/Post');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 
-// Get all posts (feed)
+
 async function getAllPosts(req, res) {
   try {
     const { page = 1, limit = 10, post_type, recipe_id, user_id, sort, base } = req.query;
@@ -28,18 +28,20 @@ async function getAllPosts(req, res) {
 
     const total = await Post.countDocuments(query);
 
-    // Check like state theo user đang đăng nhập cho từng post trong feed
     let likedPostIds = new Set();
+    let savedPostIds = new Set();
     if (req.user) {
       const user = await User.findById(req.user.user_id);
       if (user) {
         likedPostIds = new Set(user.liked_posts.map(p => p.post_id));
+        savedPostIds = new Set(user.saved_posts.map(p => p.post_id));
       }
     }
 
     const data = posts.map(p => ({
       ...p.toObject(),
-      liked: likedPostIds.has(p.post_id)
+      liked: likedPostIds.has(p.post_id),
+      saved: savedPostIds.has(p.post_id)
     }));
 
     res.json({
@@ -71,26 +73,25 @@ async function getPostById(req, res) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    // Check xem user đang đăng nhập đã like post này chưa (dựa vào user.liked_posts, giống logic trong likePost)
     let liked = false;
+    let saved = false;
     if (req.user) {
       const user = await User.findById(req.user.user_id);
       if (user) {
         liked = user.liked_posts.some(p => p.post_id === post.post_id);
+        saved = user.saved_posts.some(p => p.post_id === post.post_id);
       }
     }
 
-    res.json({ ...post.toObject(), liked });
+    res.json({ ...post.toObject(), liked, saved });
   } catch (error) {
     console.error('Error fetching post:', error);
     res.status(500).json({ error: 'Failed to retrieve post' });
   }
 }
 
-// Field "media" đến dưới dạng multipart/form-data nên luôn là string JSON
-// (frontend gửi formData.append('media', JSON.stringify(media))) -> cần parse lại thành array
 function parseMediaField(rawMedia) {
-  if (Array.isArray(rawMedia)) return rawMedia; // đã là array sẵn (vd: gọi qua JSON body)
+  if (Array.isArray(rawMedia)) return rawMedia; 
   if (typeof rawMedia === 'string' && rawMedia.trim()) {
     try {
       const parsed = JSON.parse(rawMedia);
@@ -265,14 +266,6 @@ async function likePost(req, res) {
         p => p.post_id !== post.post_id
       );
 
-      // Đồng thời bỏ khỏi Saved
-      user.saved_posts = user.saved_posts.filter(
-        p => p.post_id !== post.post_id
-      );
-
-      post.like_count = Math.max(0, post.like_count - 1);
-      post.save_count = Math.max(0, post.save_count - 1);
-
       message = 'Post unliked successfully';
 
     } else {
@@ -282,18 +275,6 @@ async function likePost(req, res) {
         post_id: post.post_id,
         liked_at: new Date()
       });
-
-      // Nếu chưa lưu thì thêm vào Saved
-      if (!user.saved_posts.some(
-        p => p.post_id === post.post_id
-      )) {
-        user.saved_posts.push({
-          post_id: post.post_id,
-          saved_at: new Date()
-        });
-
-        post.save_count++;
-      }
 
       post.like_count++;
 
@@ -306,13 +287,77 @@ async function likePost(req, res) {
     res.json({
       message,
       liked: !alreadyLiked,
-      like_count: post.like_count,
-      save_count: post.save_count
+      like_count: post.like_count
     });
 
   } catch (error) {
     console.error('Error liking post:', error);
     res.status(500).json({ error: 'Failed to perform like action' });
+  }
+}
+
+// Save / Unsave a post
+async function savePost(req, res) {
+  try {
+    const { id } = req.params;
+
+    let query = {};
+    if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
+      query = { _id: id };
+    } else {
+      query = { post_id: id };
+    }
+
+    const post = await Post.findOne(query);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const user = await User.findById(req.user.user_id);
+    if (!user) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+
+    const alreadySaved = user.saved_posts.some(
+      p => p.post_id === post.post_id
+    );
+
+    let message = '';
+
+    if (alreadySaved) {
+
+      user.saved_posts = user.saved_posts.filter(
+        p => p.post_id !== post.post_id
+      );
+
+      post.save_count = Math.max(0, post.save_count - 1);
+
+      message = 'Post unsaved successfully';
+
+    } else {
+
+      user.saved_posts.push({
+        post_id: post.post_id,
+        saved_at: new Date()
+      });
+
+      post.save_count++;
+
+      message = 'Post saved successfully';
+    }
+
+    await user.save();
+    await post.save();
+
+    res.json({
+      message,
+      saved: !alreadySaved,
+      save_count: post.save_count
+    });
+
+  } catch (error) {
+    console.error('Error saving post:', error);
+    res.status(500).json({ error: 'Failed to perform save action' });
   }
 }
 
@@ -322,5 +367,6 @@ module.exports = {
   createPost,
   updatePost,
   deletePost,
-  likePost
+  likePost,
+  savePost
 };
