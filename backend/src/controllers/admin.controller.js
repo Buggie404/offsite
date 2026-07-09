@@ -369,6 +369,7 @@ async function updateOrderStatus(req, res) {
 
     if (status && status !== currentStatus) {
       const allowedTransitions = {
+        pending: ['shipping'],
         processing: ['shipping']
       };
 

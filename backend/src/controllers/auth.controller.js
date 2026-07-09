@@ -241,13 +241,13 @@ async function adminLogin(req, res) {
       return res.status(400).json({ error: 'Tài khoản này không hỗ trợ đăng nhập bằng mật khẩu.', code: 'OAUTH_ACCOUNT' });
     }
 
-    const isValid = await bcrypt.compare(password, user.password_hash);
+    const isValid = await bcrypt.compare(password, user.password_hash).catch(() => false);
     if (!isValid) {
       return res.status(401).json({ error: 'Mật khẩu không chính xác.', code: 'INCORRECT_PASSWORD' });
     }
 
     const token = jwt.sign(
-      { user_id: user._id, email: user.email || '', role: user.role },
+      { user_id: String(user._id), email: user.email || '', role: user.role },
       ACCESS_SECRET,
       { expiresIn: '8h' }
     );
@@ -264,7 +264,8 @@ async function adminLogin(req, res) {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Admin login error:', error);
+    res.status(500).json({ error: 'Đăng nhập admin thất bại. Vui lòng thử lại.', code: 'SERVER_ERROR' });
   }
 }
 

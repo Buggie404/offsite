@@ -59,6 +59,19 @@ export class AdminSignInComponent implements OnInit {
     this.showPassword = !this.showPassword;
   }
 
+  private extractServerMessage(body: unknown): string | null {
+    if (!body) return null;
+    if (typeof body === 'string') {
+      return body.startsWith('Http failure response') ? null : body;
+    }
+    if (typeof body === 'object') {
+      const record = body as { error?: unknown; message?: unknown };
+      if (typeof record.error === 'string') return record.error;
+      if (typeof record.message === 'string') return record.message;
+    }
+    return null;
+  }
+
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
     this.emailError = null;
@@ -76,26 +89,34 @@ export class AdminSignInComponent implements OnInit {
     }
 
     this.isSubmitting = true;
+    this.cdr.detectChanges();
+
     try {
       await this.adminAuth.login(trimmedEmail, this.password, this.rememberMe);
       await this.router.navigateByUrl('/admin/orders', { replaceUrl: true });
     } catch (err: any) {
-      const serverError = err?.error;
-      const errorCode = serverError?.code;
-      const status = err?.status;
+      const status = err?.status as number | undefined;
+      const body = err?.error;
+      const errorCode =
+        body && typeof body === 'object' && 'code' in body ? (body as { code?: string }).code : undefined;
+      const serverMessage = this.extractServerMessage(body);
 
-      if (status === 0) {
-        this.formError = 'Cannot connect to backend. Make sure backend is running on port 5000 (npm start or cd backend && npm run dev).';
-      } else if (errorCode === 'ACCOUNT_NOT_FOUND' || errorCode === 'NOT_ADMIN') {
+      if (err?.name === 'TimeoutError') {
+        this.formError =
+          'Request timed out. Check that the backend is running on port 5000.';
+      } else if (status === 0) {
+        this.formError =
+          'Cannot connect to backend. Make sure backend is running on port 5000 (npm start or cd backend && npm run dev).';
+      } else if (errorCode === 'ACCOUNT_NOT_FOUND' || errorCode === 'NOT_ADMIN' || status === 403 || status === 404) {
         this.emailError = 'Invalid admin account';
-      } else if (errorCode === 'INCORRECT_PASSWORD') {
+      } else if (errorCode === 'INCORRECT_PASSWORD' || status === 401) {
         this.passwordError = 'Incorrect password';
-      } else if (typeof serverError?.error === 'string') {
-        this.formError = serverError.error;
-      } else if (typeof err?.message === 'string' && err.message) {
-        this.formError = err.message;
+      } else if (status && status >= 500) {
+        this.formError = 'Something went wrong on the server. Please try again in a moment.';
+      } else if (serverMessage) {
+        this.formError = serverMessage;
       } else {
-        this.formError = 'An error occurred during sign in.';
+        this.formError = 'An error occurred during sign in. Please try again.';
       }
     } finally {
       this.isSubmitting = false;

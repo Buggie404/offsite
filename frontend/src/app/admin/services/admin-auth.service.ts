@@ -1,7 +1,7 @@
 import { Injectable, signal, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 
 export interface AdminUser {
   _id: string;
@@ -120,7 +120,9 @@ export class AdminAuthService {
     rememberMe = false
   ): Promise<{ token: string; user: AdminUser }> {
     const response = await firstValueFrom(
-      this.http.post<{ token: string; user: AdminUser }>('/api/admin/login', { email, password })
+      this.http
+        .post<{ token: string; user: AdminUser }>('/api/admin/login', { email, password })
+        .pipe(timeout(10_000))
     );
 
     if (isPlatformBrowser(this.platformId)) {

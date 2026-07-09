@@ -230,8 +230,10 @@ orderSchema.pre('save', async function(next) {
 
     const newStatus = this.order_status;
 
-    // Transition from not processing to processing -> subtract stock
-    const isConfirmed = (newStatus === 'processing') && (this.isNew || originalStatus !== 'processing');
+    // Transition to processing, or admin ships directly from pending (e.g. COD) -> subtract stock
+    const isConfirmed =
+      (newStatus === 'processing' && (this.isNew || originalStatus !== 'processing')) ||
+      (newStatus === 'shipping' && originalStatus === 'pending');
 
     // Transition from confirmed/processing/shipping/delivered/etc. (statuses where stock was subtracted) to canceled -> add back stock
     const wasStockSubtracted = (status) => ['processing', 'shipping', 'delivered', 'pending_refund', 'refund_rejected'].includes(status);
