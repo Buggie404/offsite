@@ -1009,6 +1009,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     const headingSteps: string[] = Array.isArray(blog.content)
       ? blog.content
           .filter((block: any) => block?.type === 'heading')
+          .filter((block: any) => this.isBrewingStepHeading(block?.text))
           .map((block: any) => this.normalizeBrewingStepHeading(block?.text))
           .filter((step: string) => step.length >= 3 && step.length <= 42)
       : [];
@@ -1018,6 +1019,10 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     );
 
     return [...uniqueSteps, ...fallbackSteps].slice(0, 3);
+  }
+
+  private isBrewingStepHeading(value: unknown): boolean {
+    return /^(?:step\s*)?\d+[\).\s:-]+/i.test(String(value ?? '').trim());
   }
 
   private normalizeBrewingStepHeading(value: unknown): string {
@@ -1031,7 +1036,10 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     const content = Array.isArray(blog.content) ? blog.content : [];
     const stepIndex = content.findIndex((block: any) => {
       const step = this.normalizeBrewingStepHeading(block?.text);
-      return block?.type === 'heading' && step.length >= 3 && step.length <= 42;
+      return block?.type === 'heading'
+        && this.isBrewingStepHeading(block?.text)
+        && step.length >= 3
+        && step.length <= 42;
     });
 
     if (stepIndex < 0) return '';
