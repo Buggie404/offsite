@@ -136,6 +136,7 @@ export class PostDetailComponent implements OnInit {
         if (this.post) {
           this.post.saved = res.saved;
           this.post.save_count = res.save_count;
+          this.postSaved = res.saved;
           this.cdr.detectChanges();
         }
       },
