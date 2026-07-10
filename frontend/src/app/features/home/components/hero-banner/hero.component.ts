@@ -15,7 +15,7 @@ import { RouterLink } from '@angular/router';
 })
 export class HeroComponent {
   // Thay bằng đường dẫn ảnh thật khi có
-    heroImage = 'assets/images/Background.png';
+  heroImage = 'assets/images/homepage-hero-editorial.png';
 
   // Text content — dễ swap sau này nếu CMS trả về
   heading   = 'Your café,';
