@@ -199,14 +199,15 @@
           <input 
             type="tel" 
             class="auth-input" 
-            [class.input-error]="signupPhoneError"
+            [class.input-error]="signupPhoneError || serverPhoneError"
             [(ngModel)]="signupPhone"
             name="signupPhone"
             (blur)="signupPhoneTouched = true"
-            (input)="signupPhoneTouched = true"
+            (input)="signupPhoneTouched = true; serverPhoneError = null"
             placeholder="enter your phone number" 
             required>
           <div *ngIf="signupPhoneError" class="error-message">{{ signupPhoneError }}</div>
+          <div *ngIf="!signupPhoneError && serverPhoneError" class="error-message">{{ serverPhoneError }}</div>
         </div>
 
         <!-- Password -->

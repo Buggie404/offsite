@@ -59,6 +59,7 @@ export class AuthModalComponent {
 
   // Server errors
   serverEmailError: string | null = null;
+  serverPhoneError: string | null = null;
   serverPasswordError: string | null = null;
   isSubmitting = false;
 
@@ -106,6 +107,7 @@ export class AuthModalComponent {
     this.signupConfirmPasswordTouched = false;
 
     this.serverEmailError = null;
+    this.serverPhoneError = null;
     this.serverPasswordError = null;
     this.isSubmitting = false;
   }
@@ -305,6 +307,7 @@ export class AuthModalComponent {
       }
 
       this.serverEmailError = null;
+      this.serverPhoneError = null;
       this.serverPasswordError = null;
       this.isSubmitting = true;
 
@@ -316,10 +319,14 @@ export class AuthModalComponent {
           phone: normalizedPhone,
           password: this.signupPassword
         });
+
+        // Register auto-logs the user in. Stay on whatever page they
+        // were on (e.g. a recipe page they wanted to save) instead of
+        // redirecting them to the homepage.
         this.successModalConfig = {
           title: 'Signed Up Successfully',
-          subtitle: 'Welcome to Offsite! Please log in to continue.',
-          primaryBtn: 'LOG IN'
+          subtitle: 'Welcome to Offsite!',
+          primaryBtn: 'CONTINUE'
         };
         this.showSuccessModal = true;
       } catch (err: any) {
@@ -328,7 +335,7 @@ export class AuthModalComponent {
         if (errorCode === 'EMAIL_EXISTS') {
           this.serverEmailError = 'This email is already registered.';
         } else if (errorCode === 'PHONE_EXISTS') {
-          this.serverEmailError = 'This phone number is already registered.';
+          this.serverPhoneError = 'This phone number is already registered.';
         } else {
           this.serverEmailError = err?.error || 'An error occurred during registration.';
         }
@@ -364,13 +371,18 @@ export class AuthModalComponent {
     try {
       await this.authService.login(normalizedIdentifier, this.loginPassword);
       this.closeAuthModal();
-      this.successModalConfig = {
-        title: 'Log In Successfully',
-        subtitle: "Welcome back! You're now signed in.",
-        primaryBtn: 'BACK TO HOMEPAGE',
-        // secondaryBtn: 'SIGN OUT'
-      };
-      this.showSuccessModal = true;
+
+      // If they're already on the homepage, there's nowhere left for
+      // "BACK TO HOMEPAGE" to take them — skip the success modal.
+      if (this.router.url !== '/') {
+        this.successModalConfig = {
+          title: 'Log In Successfully',
+          subtitle: "Welcome back! You're now signed in.",
+          primaryBtn: 'BACK TO HOMEPAGE',
+          // secondaryBtn: 'SIGN OUT'
+        };
+        this.showSuccessModal = true;
+      }
     } 
       catch (err: any) {
         console.error('Login error:', err);
@@ -421,6 +433,9 @@ export class AuthModalComponent {
     if (this.successModalConfig.primaryBtn === 'LOG IN') {
       this.closeAuthModal();
       this.authModalService.open('login');
+    } else if (this.successModalConfig.primaryBtn === 'CONTINUE') {
+      // Already on the homepage — just dismiss, nothing to navigate to.
+      this.closeAuthModal();
     } else {
       this.closeAuthModal();
       this.router.navigate(['/']);
@@ -434,7 +449,7 @@ export class AuthModalComponent {
   }
 
   onSuccessClose(): void {
-    console.log('X clicked!'); // thêm dòng test
+    
     this.showSuccessModal = false;
     this.closeAuthModal();
   }

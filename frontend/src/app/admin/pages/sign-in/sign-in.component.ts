@@ -79,12 +79,25 @@ export class AdminSignInComponent implements OnInit {
     this.formError = null;
 
     const trimmedEmail = this.email.trim();
+    let hasError = false;
+
     if (!trimmedEmail) {
       this.emailError = 'Email is required';
-      return;
+      hasError = true;
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        this.emailError = 'Invalid admin account';
+        hasError = true;
+      }
     }
+
     if (!this.password) {
       this.passwordError = 'Password is required';
+      hasError = true;
+    }
+
+    if (hasError) {
       return;
     }
 
