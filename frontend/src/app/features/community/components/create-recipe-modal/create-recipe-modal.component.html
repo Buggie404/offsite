@@ -1,6 +1,220 @@
-<div class="modal-overlay" (click)="onClose()">
-  <div class="modal-content" (click)="$event.stopPropagation()">
-    <p>Create Recipe modal (đang xây dựng)</p>
-    <button type="button" (click)="onClose()">Đóng</button>
+<div class="modal-overlay" (click)="onBackdropClick()">
+
+  <div class="create-recipe-modal" (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="header-text">
+        <h2 class="modal-title">Share your recipe</h2>
+        <p class="modal-subtitle">Help the community discover your café-at-home ritual</p>
+      </div>
+      <button class="btn-close" type="button" (click)="onRequestClose()" aria-label="Close">
+        <svg lucideX [size]="18"></svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="modal-body">
+
+      <!-- BASIC INFO -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">BASIC INFO</span>
+          <span class="section-divider"></span>
+        </div>
+
+        <div class="field-block">
+          <label class="field-label">RECIPE TITLE *</label>
+          <input
+            class="text-input"
+            type="text"
+            placeholder="e.g., My matcha morning ritual"
+            [(ngModel)]="title"
+            name="title"
+          />
+        </div>
+
+        <div class="field-block">
+          <label class="field-label">DESCRIPTION *</label>
+          <textarea
+            class="content-textarea"
+            rows="4"
+            placeholder="Tell the story of your recipe — the pause, the steam, the quiet moment that resets everything…"
+            [(ngModel)]="description"
+            name="description"
+          ></textarea>
+        </div>
+      </section>
+
+      <!-- PHOTO -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">PHOTO *</span>
+          <span class="section-divider"></span>
+        </div>
+
+        <label class="hero-dropzone" *ngIf="!heroPreview">
+          <input type="file" accept="image/*" hidden (change)="onHeroFileSelected($event)" />
+          <div class="dropzone-icon">
+            <svg lucideCamera [size]="20"></svg>
+          </div>
+          <p class="dropzone-title">Drag a photo of your brew here</p>
+          <p class="dropzone-browse">OR BROWSE FILES</p>
+          <p class="dropzone-sub">JPG or PNG · up to 8MB</p>
+        </label>
+
+        <div class="hero-preview" *ngIf="heroPreview">
+          <img [src]="heroPreview" alt="hero preview" />
+          <button class="hero-remove" type="button" (click)="removeHeroImage()" aria-label="Remove image">
+            <svg lucideX [size]="14"></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- RECIPE DETAILS -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">RECIPE DETAILS</span>
+          <span class="section-divider"></span>
+        </div>
+
+        <div class="details-grid">
+          <div class="field-block">
+            <label class="field-label">SERVINGS</label>
+            <input class="text-input" type="number" min="1" placeholder="2" [(ngModel)]="servings" name="servings" />
+          </div>
+          <div class="field-block">
+            <label class="field-label">PREP TIME (MIN)</label>
+            <input class="text-input" type="number" min="0" placeholder="10" [(ngModel)]="prepTime" name="prepTime" />
+          </div>
+          <div class="field-block">
+            <label class="field-label">COOK TIME (MIN)</label>
+            <input class="text-input" type="number" min="0" placeholder="5" [(ngModel)]="cookTime" name="cookTime" />
+          </div>
+          <div class="field-block">
+            <label class="field-label">DIFFICULTY</label>
+            <select class="select-input" [(ngModel)]="difficulty" name="difficulty">
+              <option value="" disabled>Select difficulty</option>
+              <option *ngFor="let d of allDifficulties" [value]="d">{{ d | titlecase }}</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- INGREDIENTS -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">INGREDIENTS *</span>
+          <span class="section-divider"></span>
+          <button class="btn-add" type="button" (click)="addIngredient()">+ ADD</button>
+        </div>
+
+        <div class="ingredient-row" *ngFor="let ing of ingredients; let i = index">
+          <input class="text-input flex-name" type="text" placeholder="Ingredient name" [(ngModel)]="ing.name" [name]="'ing-name-' + i" />
+          <input class="text-input flex-qty" type="number" placeholder="1" [(ngModel)]="ing.quantity" [name]="'ing-qty-' + i" />
+          <button class="row-remove" type="button" (click)="removeIngredient(i)" [disabled]="ingredients.length === 1" aria-label="Remove ingredient">
+            <svg lucideX [size]="12"></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- TOOLS -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">TOOLS</span>
+          <span class="section-divider"></span>
+          <button class="btn-add" type="button" (click)="addTool()">+ ADD</button>
+        </div>
+
+        <div class="ingredient-row" *ngFor="let tool of tools; let i = index">
+          <input class="text-input flex-name" type="text" placeholder="e.g., Bamboo whisk" [(ngModel)]="tool.name" [name]="'tool-name-' + i" />
+          <button class="row-remove" type="button" (click)="removeTool(i)" aria-label="Remove tool">
+            <svg lucideX [size]="12"></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- STEPS -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">STEPS *</span>
+          <span class="section-divider"></span>
+          <button class="btn-add" type="button" (click)="addStep()">+ ADD</button>
+        </div>
+
+        <div class="steps-vertical">
+          <div class="step-item" *ngFor="let step of steps; let i = index">
+            <div class="step-item-header">
+              <span class="step-label">STEP {{ i + 1 }}</span>
+              <button class="row-remove" type="button" (click)="removeStep(i)" [disabled]="steps.length === 1" aria-label="Remove step">
+                <svg lucideX [size]="12"></svg>
+              </button>
+            </div>
+            <textarea
+              class="content-textarea"
+              rows="3"
+              placeholder="Describe this step..."
+              [(ngModel)]="step.description"
+              [name]="'step-desc-' + i"
+            ></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- SERVE STYLE -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">SERVE STYLE</span>
+          <span class="section-divider"></span>
+        </div>
+
+        <div class="serve-style-row">
+          <button
+            type="button"
+            class="serve-pill"
+            *ngFor="let style of serveStyles"
+            [class.selected]="selectedServeStyle === style"
+            (click)="selectServeStyle(style)"
+          >
+            <svg lucideCircleCheck [size]="18"></svg>
+            <span>{{ style | titlecase }}</span>
+          </button>
+        </div>
+      </section>
+
+      <p class="form-error" *ngIf="errorMessage">{{ errorMessage }}</p>
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      <button class="btn-cancel" type="button" (click)="onRequestClose()">CANCEL</button>
+      <button class="btn-post" type="button" [disabled]="isSubmitting" (click)="submitRecipe()">
+        {{ isSubmitting ? 'PUBLISHING...' : 'PUBLISH RECIPE' }}
+      </button>
+    </div>
   </div>
+
+  <!-- Discard confirm modal — layer đè lên trên, giống create-post -->
+  <div class="discard-overlay" *ngIf="showDiscardConfirm" (click)="$event.stopPropagation()">
+    <div class="discard-modal">
+      <div class="discard-icon-wrap">
+        <svg lucideTrash2 [size]="28"></svg>
+      </div>
+
+      <h2 class="discard-title">Discard recipe?</h2>
+      <p class="discard-text">
+        Your draft hasn't been published yet. Continue writing or discard it?
+      </p>
+
+      <div class="discard-actions">
+        <button class="btn-keep-editing" type="button" (click)="onKeepEditing()">
+          KEEP EDITING
+        </button>
+        <button class="btn-discard" type="button" (click)="onConfirmDiscard()">
+          DISCARD
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>

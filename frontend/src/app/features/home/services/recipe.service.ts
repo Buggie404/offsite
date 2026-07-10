@@ -49,4 +49,14 @@ export class RecipeService {
   getRecipeBySlug(slug: string): Observable<Recipe> {
     return this.http.get<Recipe>(`${this.endpoint}/${slug}`);
   }
+
+  /**
+   * Create a new community recipe.
+   * Backend expects multipart FormData with JSON-stringified nested fields:
+   * heroImage, metadata, ingredients, tools, steps (see recipes.controller.js).
+   * Requires auth (JWT) — backend reads req.user.user_id.
+   */
+  createRecipe(data: FormData): Observable<{ message: string; data: Recipe }> {
+    return this.http.post<{ message: string; data: Recipe }>(this.endpoint, data);
+  }
 }
