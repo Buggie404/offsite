@@ -3,6 +3,7 @@ import { CollectionComponent } from '../components/collection/collection.compone
 import { BestSellerComponent } from '../components/best-seller/best-seller.component';
 import { RecipeSectionComponent } from '../components/recipes/recipe-section.component';
 import { HeroComponent } from '../components/hero-banner/hero.component';
+import { PromoTickerComponent } from '../components/promo-ticker/promo-ticker.component';
 import { BrandStoryComponent } from '../components/brand-story/brand-story.component';
 import { CommunityComponent } from '../components/community/community.component';
 
@@ -16,6 +17,7 @@ import { CommunityComponent } from '../components/community/community.component'
     BestSellerComponent,
     RecipeSectionComponent,
     HeroComponent,
+    PromoTickerComponent,
     BrandStoryComponent,
     CommunityComponent
     // thêm vào đây

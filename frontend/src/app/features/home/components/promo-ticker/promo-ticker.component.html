@@ -1,0 +1,19 @@
+<section class="promo-ticker" aria-label="Offsite promotions">
+  <div class="promo-ticker__viewport">
+    <div class="promo-ticker__track">
+      <div class="promo-ticker__group">
+        <span class="promo-ticker__item" *ngFor="let item of promoItems">
+          <span class="promo-ticker__dot" aria-hidden="true"></span>
+          <span>{{ item }}</span>
+        </span>
+      </div>
+
+      <div class="promo-ticker__group" aria-hidden="true">
+        <span class="promo-ticker__item" *ngFor="let item of promoItems">
+          <span class="promo-ticker__dot" aria-hidden="true"></span>
+          <span>{{ item }}</span>
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
