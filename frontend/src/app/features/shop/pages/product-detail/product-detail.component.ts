@@ -35,6 +35,7 @@ import { ContentService } from '../../../content/services/content.service';
 import { buildMockProductReviews } from '../../../../shared/data/mock-product-reviews';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
+import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 import { Subscription } from 'rxjs';
 
 interface ProductTag {
@@ -96,7 +97,8 @@ interface BrewingMethodCard {
     LucideStar,
     LucideShoppingBag,
     LucideShoppingCart,
-    LucideX
+    LucideX,
+    BackToTopComponent
   ],
   templateUrl: './product-detail.component.html',
   styleUrl: './product-detail.component.scss'

@@ -6,6 +6,7 @@ import { HeroComponent } from '../components/hero-banner/hero.component';
 import { PromoTickerComponent } from '../components/promo-ticker/promo-ticker.component';
 import { BrandStoryComponent } from '../components/brand-story/brand-story.component';
 import { CommunityComponent } from '../components/community/community.component';
+import { BackToTopComponent } from '../../../shared/components/back-to-top/back-to-top.component';
 
 // import thêm component mới ở đây
 
@@ -19,7 +20,8 @@ import { CommunityComponent } from '../components/community/community.component'
     HeroComponent,
     PromoTickerComponent,
     BrandStoryComponent,
-    CommunityComponent
+    CommunityComponent,
+    BackToTopComponent
     // thêm vào đây
   ],
   templateUrl: './home.component.html',   // ← đổi từ template sang templateUrl

@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { CategoryHeroComponent } from '../../components/category-hero/category-hero.component';
 import { CategoryCatalogComponent } from '../../components/category-catalog/category-catalog.component';
+import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 
 @Component({
   selector: 'app-category-page',
   standalone: true,
-  imports: [CommonModule, CategoryHeroComponent, CategoryCatalogComponent],
+  imports: [CommonModule, CategoryHeroComponent, CategoryCatalogComponent, BackToTopComponent],
   templateUrl: './category.component.html',
   styleUrls: ['./category.component.scss']
 })
