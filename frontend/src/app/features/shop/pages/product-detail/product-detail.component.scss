@@ -62,18 +62,6 @@ app-best-seller {
   animation: spin 0.8s linear infinite;
 }
 
-.continue-btn {
-  height: 48px;
-  padding: 0 28px;
-  color: $panel;
-  background: $forest-action;
-  border: 0;
-  border-radius: 999px;
-  font-family: var(--font-mono, 'DM Mono', monospace);
-  font-weight: 700;
-  cursor: pointer;
-}
-
 @keyframes spin {
   to { transform: rotate(360deg); }
 }

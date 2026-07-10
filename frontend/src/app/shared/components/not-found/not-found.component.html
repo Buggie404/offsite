@@ -1,0 +1,54 @@
+<section class="not-found">
+  <div class="not-found__decor" aria-hidden="true">
+    <div class="geo geo--dots-tr"></div>
+    <div class="geo geo--dots-bl"></div>
+    <div class="geo geo--ring"></div>
+    <div class="geo geo--ring-dashed"></div>
+    <div class="geo geo--blob"></div>
+    <div class="geo geo--diamond"></div>
+    <div class="geo geo--diamond-sm"></div>
+    <div class="geo geo--dot"></div>
+  </div>
+
+  <p class="not-found__bg-number font-display" aria-hidden="true">404</p>
+
+  <div class="not-found__inner">
+    <div class="not-found__icon">
+      <svg lucideCoffee [size]="32"></svg>
+    </div>
+
+    <p class="not-found__code font-display">404</p>
+
+    <h1 class="not-found__title font-display">This page went out for a coffee break.</h1>
+    <p class="not-found__subtitle font-body">
+      The page you're looking for doesn't exist, may have been moved, or the link is a little off.
+      Let's get you back on track.
+    </p>
+
+    <div class="not-found__actions">
+      <a routerLink="/" class="btn-primary font-body">
+        <span>Back to Home</span>
+      </a>
+      <a routerLink="/shop/best-seller" class="btn-outlined font-body">
+        <span>Shop Best Sellers</span>
+        <svg lucideArrowRight [size]="16"></svg>
+      </a>
+    </div>
+
+    <div class="not-found__links">
+      <span class="not-found__links-label font-mono">
+        <svg lucideSearch [size]="14"></svg>
+        Or try one of these
+      </span>
+      <div class="not-found__links-row">
+        <a routerLink="/order-tracking" class="font-body">Track an Order</a>
+        <span class="not-found__links-dot" aria-hidden="true">&middot;</span>
+        <a routerLink="/recipes" class="font-body">Recipes</a>
+        <span class="not-found__links-dot" aria-hidden="true">&middot;</span>
+        <a routerLink="/journal" class="font-body">Journal</a>
+        <span class="not-found__links-dot" aria-hidden="true">&middot;</span>
+        <a routerLink="/contact-us" class="font-body">Contact Us</a>
+      </div>
+    </div>
+  </div>
+</section>

@@ -95,6 +95,7 @@ export class OrderTrackingComponent implements OnInit {
   copiedOrderNum = signal<boolean>(false);
   errorMessage = signal<string>('');
   isFormatError = signal<boolean>(false);
+  verificationError = signal<string>('');
   searchedQuery = signal<string>('');
   showReviewModal = signal<boolean>(false);
 
@@ -109,6 +110,10 @@ export class OrderTrackingComponent implements OnInit {
 
   clearFormatError(): void {
     this.isFormatError.set(false);
+  }
+
+  clearVerificationError(): void {
+    this.verificationError.set('');
   }
 
   async onSearch(): Promise<void> {
@@ -178,12 +183,13 @@ export class OrderTrackingComponent implements OnInit {
     this.searchedQuery.set(code);
     const verifyValue = this.verificationQuery().trim();
     if (!verifyValue) {
-      this.errorMessage.set(`Please enter your ${this.verificationType() === 'email' ? 'email' : 'phone number'}.`);
+      this.verificationError.set(`Please enter your ${this.verificationType() === 'email' ? 'email' : 'phone number'}.`);
       return;
     }
 
     this.isLoading.set(true);
     this.errorMessage.set('');
+    this.verificationError.set('');
     this.order.set(null);
     this.searched.set(false);
 
@@ -195,9 +201,13 @@ export class OrderTrackingComponent implements OnInit {
       this.searched.set(true);
     } catch (err: any) {
       console.error('Verification tracking failed:', err);
-      // Details did not match or order not found
+      // Details did not match this order — keep the verification form open with an inline error
       this.order.set(null);
-      this.searched.set(true);
+      this.verificationError.set(
+        err.status === 404
+          ? 'No order found with this code.'
+          : `This ${this.verificationType() === 'email' ? 'email' : 'phone number'} doesn't match our records for this order. Please try again.`
+      );
     } finally {
       this.isLoading.set(false);
     }

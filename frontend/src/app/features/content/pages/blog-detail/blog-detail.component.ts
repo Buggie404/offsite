@@ -175,9 +175,13 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading blog:', err);
-        this.errorMessage = 'Failed to load article.';
-        this.isLoading = false;
-        this.cdr.detectChanges();
+        if (err?.status === 404) {
+          void this.router.navigateByUrl('/404', { skipLocationChange: true });
+        } else {
+          this.errorMessage = 'Failed to load article.';
+          this.isLoading = false;
+          this.cdr.detectChanges();
+        }
       }
     });
   }

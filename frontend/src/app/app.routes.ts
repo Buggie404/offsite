@@ -139,5 +139,13 @@ export const routes: Routes = [
     path: 'community',
     loadChildren: () => import('./features/community/community-module').then(m => m.CommunityModule)
   },
+  {
+    path: '404',
+    loadComponent: () => import('./shared/components/not-found/not-found.component').then(m => m.NotFoundComponent)
+  },
+  {
+    path: '**',
+    loadComponent: () => import('./shared/components/not-found/not-found.component').then(m => m.NotFoundComponent)
+  },
 ];
 

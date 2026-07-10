@@ -167,9 +167,13 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading recipe:', err);
-        this.errorMessage = 'Failed to load recipe detail. Please try again.';
-        this.isLoading = false;
-        this.cdr.detectChanges();
+        if (err?.status === 404) {
+          void this.router.navigateByUrl('/404', { skipLocationChange: true });
+        } else {
+          this.errorMessage = 'Failed to load recipe detail. Please try again.';
+          this.isLoading = false;
+          this.cdr.detectChanges();
+        }
       }
     });
   }

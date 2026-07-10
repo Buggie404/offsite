@@ -119,7 +119,6 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   selectedVariant = signal<Variant | null>(null);
   quantity = signal<number>(1);
   isLoading = signal<boolean>(true);
-  errorMessage = signal<string>('');
   isSaved = signal<boolean>(false);
   quantityError = signal<string>('');
   activeImageIndex = signal<number>(0);
@@ -166,14 +165,13 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
 
   private loadProduct(productId: string | null): void {
     if (!productId) {
-      this.errorMessage.set('Product ID not found.');
       this.isLoading.set(false);
+      void this.router.navigateByUrl('/404', { skipLocationChange: true });
       return;
     }
 
     this.stopCarousel();
     this.isLoading.set(true);
-    this.errorMessage.set('');
     this.quantity.set(1);
     this.quantityError.set('');
     this.activeImageIndex.set(0);
@@ -201,8 +199,8 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Failed to load product details:', err);
-        this.errorMessage.set('Product not found or has been disabled.');
         this.isLoading.set(false);
+        void this.router.navigateByUrl('/404', { skipLocationChange: true });
       }
     });
   }

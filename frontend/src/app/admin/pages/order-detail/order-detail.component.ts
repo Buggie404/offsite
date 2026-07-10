@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink, Router } from '@angular/router';
 import { interval } from 'rxjs';
 import {
   LucideSave,
@@ -56,6 +56,7 @@ interface TimelineStep {
 })
 export class OrderDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private adminOrderService = inject(AdminOrderService);
   private adminRefresh = inject(AdminRefreshService);
   private destroyRef = inject(DestroyRef);
@@ -279,9 +280,13 @@ export class OrderDetailComponent implements OnInit {
         this.loading = false;
         this.cdr.markForCheck();
       },
-      error: () => {
+      error: (err) => {
         if (!silent) {
-          this.error = 'Failed to load order details. Please try again.';
+          if (err?.status === 404) {
+            void this.router.navigateByUrl('/404', { skipLocationChange: true });
+          } else {
+            this.error = 'Failed to load order details. Please try again.';
+          }
         }
         this.statusSaving = false;
         this.loading = false;

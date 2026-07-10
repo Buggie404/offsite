@@ -60,10 +60,14 @@ export class PostDetailComponent implements OnInit {
         this.loading = false;
         this.cdr.detectChanges();
       },
-      error: () => {
-        this.error = 'Failed to load this post. Please try again.';
-        this.loading = false;
-        this.cdr.detectChanges();
+      error: (err) => {
+        if (err?.status === 404) {
+          void this.router.navigateByUrl('/404', { skipLocationChange: true });
+        } else {
+          this.error = 'Failed to load this post. Please try again.';
+          this.loading = false;
+          this.cdr.detectChanges();
+        }
       }
     });
   }

@@ -7,13 +7,6 @@
   </section>
   }
 
-  @if (errorMessage() && !isLoading()) {
-  <section class="state-panel state-panel--error">
-    <p>{{ errorMessage() }}</p>
-    <button routerLink="/shop/best-sellers" class="continue-btn">CONTINUE SHOPPING</button>
-  </section>
-  }
-
   @if (product() && !isLoading()) {
   <section class="detail-shell" [class.detail-shell--bundle]="product()?.category === 'sets_bundles'">
     <!-- Product image -->

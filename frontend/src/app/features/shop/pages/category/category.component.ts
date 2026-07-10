@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CategoryHeroComponent } from '../../components/category-hero/category-hero.component';
 import { CategoryCatalogComponent } from '../../components/category-catalog/category-catalog.component';
 import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
@@ -63,7 +63,7 @@ export class CategoryComponent implements OnInit {
     }
   };
 
-  constructor(private route: ActivatedRoute) { }
+  constructor(private route: ActivatedRoute, private router: Router) { }
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
@@ -73,6 +73,7 @@ export class CategoryComponent implements OnInit {
         this.currentCategoryData = this.categoriesData[slug];
       } else {
         this.currentCategoryData = null;
+        void this.router.navigateByUrl('/404', { skipLocationChange: true });
       }
     });
   }
