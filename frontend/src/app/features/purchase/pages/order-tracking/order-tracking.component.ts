@@ -19,6 +19,7 @@ import { PaymentModalComponent } from '../../components/payment-modal/payment-mo
 import { ChangePaymentModalComponent } from '../../components/change-payment-modal/change-payment-modal.component';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
+import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 @Component({
   selector: 'app-order-tracking',
@@ -37,6 +38,7 @@ import { AuthPromptModalService } from '../../../../shared/components/auth-promp
     CompletePaymentModalComponent,
     PaymentModalComponent,
     ChangePaymentModalComponent,
+    ConfirmationModalComponent,
     LucideX
   ],
   templateUrl: './order-tracking.component.html',
@@ -58,6 +60,28 @@ export class OrderTrackingComponent implements OnInit {
         this.onSearch();
       }
     });
+  }
+
+  // Confirmation Modal state properties
+  isConfirmModalOpen = false;
+  confirmModalTitle = '';
+  confirmModalMessage = '';
+  confirmModalWarning = '';
+  confirmModalConfirmText = 'Confirm';
+  confirmModalCancelText = 'Cancel';
+  confirmModalType: 'danger' | 'success' | 'info' = 'info';
+  confirmModalAction: (() => Promise<void> | void) | null = null;
+
+  onConfirmModalConfirm(): void {
+    this.isConfirmModalOpen = false;
+    if (this.confirmModalAction) {
+      this.confirmModalAction();
+    }
+  }
+
+  onConfirmModalCancel(): void {
+    this.isConfirmModalOpen = false;
+    this.confirmModalAction = null;
   }
 
   searchQuery = signal<string>('');
@@ -179,27 +203,34 @@ export class OrderTrackingComponent implements OnInit {
     }
   }
 
-  async cancelOrder(): Promise<void> {
+  cancelOrder(): void {
+    console.log('OrderTrackingComponent.cancelOrder called');
     const ord = this.order();
     if (!ord) return;
 
-    if (!confirm('Are you sure you want to cancel this order?')) return;
-
-    this.isLoading.set(true);
-    this.errorMessage.set('');
-
-    try {
-      const res = await this.checkoutService.cancelOrder(ord.order_id, ord.session_id);
-      this.router.navigate(['/checkout/canceled'], { state: { order: res.data } });
-    } catch (err: any) {
-      console.error('Failed to cancel order:', err);
-      this.errorMessage.set(err.error?.error || 'Failed to cancel the order. Please try again.');
-      if (err.status === 401 || err.status === 403) {
-        this.authPromptModalService.open();
+    this.confirmModalTitle = 'Cancel Order';
+    this.confirmModalMessage = `Are you sure you want to cancel order #${ord.order_id}?`;
+    this.confirmModalWarning = 'This action cannot be undone.';
+    this.confirmModalConfirmText = 'Cancel Order';
+    this.confirmModalCancelText = 'Keep Order';
+    this.confirmModalType = 'danger';
+    this.confirmModalAction = async () => {
+      this.isLoading.set(true);
+      this.errorMessage.set('');
+      try {
+        const res = await this.checkoutService.cancelOrder(ord.order_id, ord.session_id);
+        this.router.navigate(['/checkout/canceled'], { state: { order: res.data } });
+      } catch (err: any) {
+        console.error('Failed to cancel order:', err);
+        this.errorMessage.set(err.error?.error || 'Failed to cancel the order. Please try again.');
+        if (err.status === 401 || err.status === 403) {
+          this.authPromptModalService.open();
+        }
+      } finally {
+        this.isLoading.set(false);
       }
-    } finally {
-      this.isLoading.set(false);
-    }
+    };
+    this.isConfirmModalOpen = true;
   }
 
   async buyAgain(): Promise<void> {
@@ -244,7 +275,8 @@ export class OrderTrackingComponent implements OnInit {
     }
   }
 
-  async confirmReceipt(): Promise<void> {
+  confirmReceipt(): void {
+    console.log('OrderTrackingComponent.confirmReceipt called');
     const ord = this.order();
     if (!ord) return;
     if (ord.user_id) {
@@ -254,38 +286,44 @@ export class OrderTrackingComponent implements OnInit {
         return;
       }
     }
-    if (!confirm('Have you received your package? This will mark the order as delivered.')) return;
-    this.isLoading.set(true);
-    try {
-      const verificationPayload: { email?: string; mobile?: string } = {};
-      const verifyVal = this.verificationQuery().trim();
-      if (verifyVal) {
-        if (this.verificationType() === 'email') {
-          verificationPayload.email = verifyVal;
-        } else {
-          verificationPayload.mobile = verifyVal;
-        }
-      } else if (typeof window !== 'undefined') {
-        // Fallback: check if we stored user email or mobile in delivery info locally or checkout info
-        // But verifyVal should be populated from query in onVerify()
-      }
 
-      const res = await this.checkoutService.receiveOrder(ord.order_id, ord.session_id, verificationPayload);
-      this.order.set(res.data);
-      if (this.authService.isAuthenticated() || !ord.user_id) {
-        this.showReviewModal.set(true);
-      } else {
-        this.authPromptModalService.open();
+    this.confirmModalTitle = 'Confirm Receipt';
+    this.confirmModalMessage = 'Have you received your package? This will mark the order as delivered.';
+    this.confirmModalWarning = '';
+    this.confirmModalConfirmText = 'Yes, Received';
+    this.confirmModalCancelText = 'Not Yet';
+    this.confirmModalType = 'success';
+    this.confirmModalAction = async () => {
+      this.isLoading.set(true);
+      try {
+        const verificationPayload: { email?: string; mobile?: string } = {};
+        const verifyVal = this.verificationQuery().trim();
+        if (verifyVal) {
+          if (this.verificationType() === 'email') {
+            verificationPayload.email = verifyVal;
+          } else {
+            verificationPayload.mobile = verifyVal;
+          }
+        }
+
+        const res = await this.checkoutService.receiveOrder(ord.order_id, ord.session_id, verificationPayload);
+        this.order.set(res.data);
+        if (this.authService.isAuthenticated() || !ord.user_id) {
+          this.showReviewModal.set(true);
+        } else {
+          this.authPromptModalService.open();
+        }
+      } catch (err: any) {
+        console.error('Failed to mark order as received:', err);
+        this.errorMessage.set(err.error?.error || 'Failed to update order status. Please try again.');
+        if (err.status === 401 || err.status === 403) {
+          this.authPromptModalService.open();
+        }
+      } finally {
+        this.isLoading.set(false);
       }
-    } catch (err: any) {
-      console.error('Failed to mark order as received:', err);
-      this.errorMessage.set(err.error?.error || 'Failed to update order status. Please try again.');
-      if (err.status === 401 || err.status === 403) {
-        this.authPromptModalService.open();
-      }
-    } finally {
-      this.isLoading.set(false);
-    }
+    };
+    this.isConfirmModalOpen = true;
   }
 
   openReviewModal(): void {

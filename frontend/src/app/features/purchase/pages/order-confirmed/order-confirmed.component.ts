@@ -16,6 +16,7 @@ import {
   LucideLandmark
 } from '@lucide/angular';
 import { CheckoutService, CheckoutItem } from '../../services/checkout.service';
+import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { CartService } from '../../services/cart.service';
 import { Product } from '../../../../shared/models/product.model';
 
@@ -36,7 +37,8 @@ import { Product } from '../../../../shared/models/product.model';
     LucideBanknote,
     LucideCircleCheck,
     LucideQrCode,
-    LucideLandmark
+    LucideLandmark,
+    ConfirmationModalComponent
   ],
   templateUrl: './order-confirmed.component.html',
   styleUrl: './order-confirmed.component.scss'
@@ -45,6 +47,28 @@ export class OrderConfirmedComponent implements OnInit {
   private router = inject(Router);
   private checkoutService = inject(CheckoutService);
   private cartService = inject(CartService);
+
+  // Confirmation Modal state properties
+  isConfirmModalOpen = false;
+  confirmModalTitle = '';
+  confirmModalMessage = '';
+  confirmModalWarning = '';
+  confirmModalConfirmText = 'Confirm';
+  confirmModalCancelText = 'Cancel';
+  confirmModalType: 'danger' | 'success' | 'info' = 'info';
+  confirmModalAction: (() => Promise<void> | void) | null = null;
+
+  onConfirmModalConfirm(): void {
+    this.isConfirmModalOpen = false;
+    if (this.confirmModalAction) {
+      this.confirmModalAction();
+    }
+  }
+
+  onConfirmModalCancel(): void {
+    this.isConfirmModalOpen = false;
+    this.confirmModalAction = null;
+  }
 
   order = signal<any>(null);
   showModal = signal<boolean>(true);
@@ -191,11 +215,18 @@ export class OrderConfirmedComponent implements OnInit {
     return null;
   }
 
-  async handleCancelOrder(): Promise<void> {
+  handleCancelOrder(): void {
+    console.log('OrderConfirmedComponent.handleCancelOrder called');
     const currentOrder = this.order();
     if (!currentOrder) return;
 
-    if (confirm('Are you sure you want to cancel this order?')) {
+    this.confirmModalTitle = 'Cancel Order';
+    this.confirmModalMessage = `Are you sure you want to cancel order #${currentOrder.order_id}?`;
+    this.confirmModalWarning = 'This action cannot be undone.';
+    this.confirmModalConfirmText = 'Cancel Order';
+    this.confirmModalCancelText = 'Keep Order';
+    this.confirmModalType = 'danger';
+    this.confirmModalAction = async () => {
       try {
         const res = await this.checkoutService.cancelOrder(currentOrder.order_id, this.getSessionId(currentOrder));
         const canceledOrder = res?.data || {
@@ -207,7 +238,8 @@ export class OrderConfirmedComponent implements OnInit {
         console.error('Failed to cancel order:', err);
         alert(err.error?.error || 'Failed to cancel the order. Please try again.');
       }
-    }
+    };
+    this.isConfirmModalOpen = true;
   }
 
   async buyAgain(): Promise<void> {

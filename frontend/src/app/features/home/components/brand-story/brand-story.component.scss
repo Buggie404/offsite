@@ -23,8 +23,6 @@ $panel-pad-h:        64px;
   display:          flex;
   flex-direction:   row;
   width:            100%;
-  max-width:        1440px;
-  margin:           0 auto;
   min-height:       567px;
   background-color: $color-bg;
   overflow:         hidden;
@@ -64,15 +62,136 @@ $panel-pad-h:        64px;
 
 // ── Right panel — content ──────────────────────────────────────
 .brand-story__content-panel {
+  position:         relative;
   flex:             0 0 50%;
   width:            50%;
   display:          flex;
   align-items:      center;       // vertical center (matches Figma justify:CENTER)
   background-color: $color-bg;
   padding:          $panel-pad-v $panel-pad-h;
+  overflow:         hidden;
+}
+
+// ── Background decorations ─────────────────────────────────────
+.brand-story__geo-dots {
+  position:          absolute;
+  z-index:           0;
+  pointer-events:    none;
+  width:             220px;
+  height:            220px;
+  top:               -40px;
+  right:             -30px;
+  background-image:  radial-gradient(rgba(84, 74, 64, 0.06) 1px, transparent 1px);
+  background-size:   16px 16px;
+}
+
+.brand-story__geo-ring {
+  position:          absolute;
+  z-index:           0;
+  pointer-events:    none;
+  width:             120px;
+  height:            120px;
+  bottom:            32px;
+  right:             12%;
+  border:            1.5px solid var(--color-sage, #cfe1b9);
+  border-radius:     50%;
+  opacity:           0.6;
+}
+
+.brand-story__geo-ring-dashed {
+  position:          absolute;
+  z-index:           0;
+  pointer-events:    none;
+  width:             70px;
+  height:            70px;
+  top:               14%;
+  right:             8%;
+  border:            1.5px dashed var(--color-latte, #c4a882);
+  border-radius:     50%;
+  opacity:           0.5;
+}
+
+.brand-story__geo-blob {
+  position:          absolute;
+  z-index:           0;
+  pointer-events:    none;
+  width:             150px;
+  height:            150px;
+  bottom:            -50px;
+  left:              -50px;
+  background:        var(--color-wheat, #e8d5b0);
+  border-radius:     46% 54% 60% 40% / 45% 40% 60% 55%;
+  opacity:           0.5;
+}
+
+.brand-story__geo-diamond {
+  position:          absolute;
+  z-index:           0;
+  pointer-events:    none;
+  width:             44px;
+  height:            44px;
+  top:               46%;
+  right:             6%;
+  border:            1.5px solid $color-green;
+  transform:         rotate(45deg);
+  opacity:           0.3;
+}
+
+.brand-story__geo-diamond-sm {
+  position:          absolute;
+  z-index:           0;
+  pointer-events:    none;
+  width:             20px;
+  height:            20px;
+  bottom:            22%;
+  right:             28%;
+  background:        var(--color-blush-pink, #efb5d0);
+  transform:         rotate(45deg);
+  opacity:           0.55;
+}
+
+.brand-story__geo-dot {
+  position:          absolute;
+  z-index:           0;
+  pointer-events:    none;
+  width:             12px;
+  height:            12px;
+  border-radius:     50%;
+  top:               8%;
+  left:              8%;
+  background:        var(--color-blush-deep, #d487a6);
+  opacity:           0.5;
+}
+
+.brand-story__geo-dot-sm {
+  position:          absolute;
+  z-index:           0;
+  pointer-events:    none;
+  width:             8px;
+  height:            8px;
+  border-radius:     50%;
+  bottom:            10%;
+  left:              20%;
+  background:        var(--color-sage-deep, #7a9a68);
+  opacity:           0.45;
+}
+
+.brand-story__geo-line {
+  position:          absolute;
+  z-index:           0;
+  pointer-events:    none;
+  width:             80px;
+  height:            1.5px;
+  top:               60%;
+  left:              -10px;
+  background:        var(--color-sage, #cfe1b9);
+  transform:         rotate(-10deg);
+  opacity:           0.5;
 }
 
 .brand-story__content {
+  position:         relative;
+  z-index:          1;
   display:          flex;
   flex-direction:   column;
   gap:              0;

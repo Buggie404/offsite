@@ -19,12 +19,148 @@ $pill-bg: #EAE1DC;
 .bestseller-section {
   width: 100%;
   background: $wheat;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    background-image: radial-gradient(rgba(84, 74, 64, 0.05) 1px, transparent 1px);
+    background-size: 16px 16px;
+    top: 10%;
+    right: -60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    width: 240px;
+    height: 240px;
+    background-image: radial-gradient(rgba(84, 74, 64, 0.05) 1px, transparent 1px);
+    background-size: 16px 16px;
+    bottom: 10%;
+    left: -60px;
+    pointer-events: none;
+    z-index: 0;
+  }
 
   &--page-bg {
     background: $cream;
 
     .section-heading {
       color: $forest;
+    }
+  }
+
+  // ── Background decorations ──
+  .geo {
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .geo--ring {
+    width: 150px;
+    height: 150px;
+    top: 8%;
+    right: 4%;
+    border: 1.5px solid $forest;
+    border-radius: 50%;
+    opacity: 0.25;
+  }
+
+  .geo--ring-dashed {
+    width: 80px;
+    height: 80px;
+    bottom: 12%;
+    right: 14%;
+    border: 1.5px dashed var(--color-latte, #C4A882);
+    border-radius: 50%;
+    opacity: 0.45;
+  }
+
+  .geo--blob {
+    width: 200px;
+    height: 200px;
+    top: -60px;
+    left: -80px;
+    background: var(--color-sage, #CFE1B9);
+    border-radius: 44% 56% 62% 38% / 42% 46% 54% 58%;
+    opacity: 0.4;
+  }
+
+  .geo--diamond {
+    width: 50px;
+    height: 50px;
+    bottom: 8%;
+    left: 4%;
+    border: 1.5px solid $warm-mid;
+    transform: rotate(45deg);
+    opacity: 0.3;
+  }
+
+  .geo--diamond-sm {
+    width: 22px;
+    height: 22px;
+    top: 20%;
+    left: 32%;
+    background: var(--color-blush-pink, #EFB5D0);
+    transform: rotate(45deg);
+    opacity: 0.5;
+  }
+
+  .geo--dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    top: 30%;
+    right: 22%;
+    background: var(--color-blush-deep, #D487A6);
+    opacity: 0.5;
+  }
+
+  .geo--dot-sm {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    bottom: 24%;
+    right: 40%;
+    background: $forest;
+    opacity: 0.4;
+  }
+
+  .geo--plus {
+    width: 18px;
+    height: 18px;
+    top: 12%;
+    left: 40%;
+    opacity: 0.4;
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      background: $warm-mid;
+    }
+
+    &::before {
+      top: 50%;
+      left: 0;
+      width: 100%;
+      height: 1.5px;
+      transform: translateY(-50%);
+    }
+
+    &::after {
+      left: 50%;
+      top: 0;
+      height: 100%;
+      width: 1.5px;
+      transform: translateX(-50%);
     }
   }
 
@@ -75,6 +211,8 @@ $pill-bg: #EAE1DC;
   padding: 88px 16px; // giảm padding 2 bên (32→16) để nhường width cho card
   gap: 24px;
   margin: 0 auto;
+  position: relative;
+  z-index: 1;
 }
 
 // ── HEADER ──
@@ -115,7 +253,8 @@ $pill-bg: #EAE1DC;
 }
 
 .section-heading {
-  font-family: 'Russo One', sans-serif;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 48px;
   line-height: 58px;
   color: $warm-mid;
@@ -179,14 +318,109 @@ $pill-bg: #EAE1DC;
   padding: 40px 0;
 }
 
+// ── GRID WRAPPER & BUTTONS ──
+.grid-wrapper {
+  position: relative;
+  width: 100%;
+  align-self: stretch;
+}
+
+.scroll-btn {
+  position: absolute;
+  top: calc(50% - 22px);
+  z-index: 10;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #FAF6F0;
+  border: 1px solid rgba(84, 74, 64, 0.18);
+  color: $dark;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(84, 74, 64, 0.08);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0;
+  visibility: hidden;
+
+  &--prev {
+    left: -22px;
+  }
+
+  &--next {
+    right: -22px;
+  }
+
+  &:hover:not(:disabled) {
+    background: $dark;
+    color: #FAF6F0;
+    border-color: $dark;
+    transform: scale(1.08);
+    box-shadow: 0 8px 24px rgba(84, 74, 64, 0.16);
+  }
+
+  &:disabled {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    cursor: not-allowed;
+  }
+}
+
+.grid-wrapper:hover {
+  .scroll-btn:not(:disabled) {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+@media (max-width: 900px) {
+  .scroll-btn {
+    display: none !important;
+  }
+}
+
 // ── GRID ──
 .product-grid {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
   width: 100%;
-  gap: 14px;
+  max-width: 100%;
+  align-self: stretch;
+  gap: 20px;
+  padding: 12px 4px 28px 4px;
+  justify-content: flex-start;
+
+  // Subtle visible scrollbar on hover/desktop
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: rgba(84, 74, 64, 0.04);
+    border-radius: 3px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(84, 74, 64, 0.15);
+    border-radius: 3px;
+    &:hover {
+      background: rgba(84, 74, 64, 0.3);
+    }
+  }
+
+  // Animation reveal
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+
+  &.is-in-view {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 // ── CARD ──
@@ -194,19 +428,23 @@ $pill-bg: #EAE1DC;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  flex: 1 1 280px;
-  min-width: 280px;
-  max-width: 360px; // tăng từ 329 → 360, cho title dài có thêm không gian
-  padding: 6px; // giảm nhẹ từ 8 → 6, dồn thêm width cho content bên trong
-  gap: 0; // gap=0, dùng flex trong body để control spacing
+  flex: 0 0 310px; // Fixed width for horizontal scrolling list
+  width: 310px;
+  min-width: 310px;
+  scroll-snap-align: start;
+  padding: 8px;
+  gap: 0;
   background: $cream;
-  border: 2px solid $wheat;
+  border: 1px solid rgba(84, 74, 64, 0.1);
+  border-radius: 12px; // Smooth rounded corners
   box-sizing: border-box;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 12px rgba(84, 74, 64, 0.04);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
 
   &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+    transform: translateY(-6px);
+    box-shadow: 0 16px 36px rgba(84, 74, 64, 0.12);
+    border-color: rgba(84, 74, 64, 0.2);
   }
 }
 
@@ -651,106 +889,13 @@ $pill-bg: #EAE1DC;
 .drag-scroll {
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none;
   cursor: grab;
   user-select: none;
   overscroll-behavior-inline: contain;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
 
   &.is-dragging {
     cursor: grabbing;
   }
 }
 
-.card {
-  flex: 1 1 0;
-  width: 100%;
-  min-width: 0;
-  max-width: none;
-  height: auto;
-  aspect-ratio: auto;
-  overflow: visible;
-}
 
-.card-body {
-  min-height: 0;
-}
-
-.card-body-top {
-  flex: 1;
-  min-height: 0;
-  gap: 0 !important;
-}
-
-.title-rating-row {
-  align-items: center;
-}
-
-.product-title {
-  display: flex;
-  align-items: flex-start;
-
-  span {
-    max-height: none;
-    overflow: visible;
-  }
-}
-
-.rating {
-  align-self: center;
-  margin-top: 0;
-}
-
-.product-details {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
-  justify-content: center;
-  gap: 12px;
-  overflow: visible;
-}
-
-.price-add-row {
-  flex: none;
-}
-
-// Keep all four canonical cards on one row at 100% zoom on 1366px+ screens.
-.main-frame {
-  padding-right: 8px;
-  padding-left: 8px;
-}
-
-.product-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  justify-content: center;
-  gap: 5px;
-  overflow: visible;
-}
-
-@media (max-width: 1200px) {
-  .product-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 900px) {
-  .main-frame {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
-  .product-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 600px) {
-  .product-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}

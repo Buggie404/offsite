@@ -14,10 +14,12 @@ export interface Collection {
   size: 'large' | 'small';
 }
 
+import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
+
 @Component({
   selector: 'app-collection',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, AnimateInViewDirective],
   templateUrl: './collection.component.html',
   styleUrls: ['./collection.component.scss'],
 })

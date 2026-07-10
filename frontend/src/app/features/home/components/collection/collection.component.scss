@@ -14,6 +14,7 @@ $wheat:       #E8D5B0;
 // SECTION WRAPPER
 // ============================================================
 .collection-section {
+  position: relative;
   max-width: 1440px;
   margin: 0 auto;
   padding: 80px 64px;
@@ -21,6 +22,192 @@ $wheat:       #E8D5B0;
   display: flex;
   flex-direction: column;
   gap: 40px;
+  overflow: hidden;
+}
+
+// ============================================================
+// BACKGROUND DECORATIONS
+// ============================================================
+.geo {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.geo--dots-tr {
+  width: 260px;
+  height: 260px;
+  top: -30px;
+  right: -50px;
+  background-image: radial-gradient(rgba(84, 74, 64, 0.06) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.geo--dots-bl {
+  width: 200px;
+  height: 200px;
+  bottom: 40px;
+  left: -50px;
+  background-image: radial-gradient(rgba(84, 74, 64, 0.06) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.geo--ring {
+  width: 140px;
+  height: 140px;
+  border: 1.5px solid $wheat;
+  border-radius: 50%;
+  top: 60px;
+  right: 18%;
+  opacity: 0.6;
+}
+
+.geo--ring-dashed {
+  width: 90px;
+  height: 90px;
+  border: 1.5px dashed var(--color-latte, #C4A882);
+  border-radius: 50%;
+  bottom: 90px;
+  right: 6%;
+  opacity: 0.5;
+}
+
+.geo--blob-sage {
+  width: 180px;
+  height: 180px;
+  background: var(--color-sage, #CFE1B9);
+  border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+  top: 18%;
+  left: -70px;
+  opacity: 0.55;
+}
+
+.geo--blob-blush {
+  width: 130px;
+  height: 130px;
+  background: var(--color-blush-pink, #EFB5D0);
+  border-radius: 58% 42% 37% 63% / 55% 40% 60% 45%;
+  bottom: -40px;
+  right: 10%;
+  opacity: 0.4;
+}
+
+.geo--diamond {
+  width: 56px;
+  height: 56px;
+  border: 1.5px solid $forest;
+  transform: rotate(45deg);
+  top: 14%;
+  right: 8%;
+  opacity: 0.3;
+}
+
+.geo--diamond-sm {
+  width: 26px;
+  height: 26px;
+  background: var(--color-blush-pink, #EFB5D0);
+  transform: rotate(45deg);
+  bottom: 18%;
+  left: 6%;
+  opacity: 0.55;
+}
+
+.geo--plus {
+  width: 20px;
+  height: 20px;
+  top: 42%;
+  left: 3%;
+  opacity: 0.45;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    background: $warm-mid;
+  }
+
+  &::before {
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 1.5px;
+    transform: translateY(-50%);
+  }
+
+  &::after {
+    left: 50%;
+    top: 0;
+    height: 100%;
+    width: 1.5px;
+    transform: translateX(-50%);
+  }
+}
+
+.geo--plus-sm {
+  width: 12px;
+  height: 12px;
+  top: 8%;
+  right: 30%;
+  opacity: 0.5;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    background: var(--color-sage-deep, #7A9A68);
+  }
+
+  &::before {
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 1.5px;
+    transform: translateY(-50%);
+  }
+
+  &::after {
+    left: 50%;
+    top: 0;
+    height: 100%;
+    width: 1.5px;
+    transform: translateX(-50%);
+  }
+}
+
+.geo--dot-blush {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-blush-deep, #D487A6);
+  top: 30%;
+  right: 3%;
+  opacity: 0.55;
+}
+
+.geo--dot-forest {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: $forest;
+  bottom: 12%;
+  right: 26%;
+  opacity: 0.4;
+}
+
+.geo--line {
+  width: 100px;
+  height: 1.5px;
+  background: var(--color-sage, #CFE1B9);
+  top: 50%;
+  right: -10px;
+  transform: rotate(-14deg);
+  opacity: 0.5;
+}
+
+.section-header,
+.collections-grid {
+  position: relative;
+  z-index: 1;
 }
 
 // ============================================================
@@ -57,8 +244,8 @@ $wheat:       #E8D5B0;
 }
 
 .section-heading {
-  font-family: 'Russo One', sans-serif;
-  font-weight: 400;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 48px;
   line-height: 58px;
   color: $forest;
@@ -102,7 +289,7 @@ $wheat:       #E8D5B0;
   color: inherit;
   text-decoration: none;
   cursor: pointer;
-  transition: box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 
   &:hover,
   &:focus-visible {

@@ -310,7 +310,9 @@
               </div>
               
               <div class="item-meta-info">
-                <h3 class="item-name font-body">{{ item.product_name }}</h3>
+                <h3 class="item-name font-body">
+                  <a [routerLink]="['/products', item.product_id]">{{ item.product_name }}</a>
+                </h3>
                 <span class="item-specs font-body">
                   {{ item.variant_name || 'Default variant' }}
                 </span>
@@ -651,4 +653,18 @@
       </div>
     </div>
   </div>
+
+  <!-- Confirmation Modal -->
+  <app-confirmation-modal
+    [isOpen]="isConfirmModalOpen"
+    [title]="confirmModalTitle"
+    [message]="confirmModalMessage"
+    [warningMessage]="confirmModalWarning"
+    [confirmText]="confirmModalConfirmText"
+    [cancelText]="confirmModalCancelText"
+    [type]="confirmModalType"
+    (confirm)="onConfirmModalConfirm()"
+    (cancel)="onConfirmModalCancel()"
+  ></app-confirmation-modal>
 </div>
+

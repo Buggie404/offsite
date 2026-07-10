@@ -6,12 +6,13 @@
 
   <!-- Background geometric decorations -->
   <div class="geo geo--circle" aria-hidden="true"></div>
-  <div class="geo geo--square" aria-hidden="true"></div>
+  <div class="geo geo--dots" aria-hidden="true"></div>
+  <div class="geo geo--dots-left" aria-hidden="true"></div>
 
   <div class="brew-container">
 
     <!-- ── HEADING ─────────────────────────────────────────── -->
-    <div class="section-header">
+    <div class="section-header reveal-fade-in" appAnimateInView>
       <div class="heading-block">
         <h2 class="heading-block__title">{{ sectionHeading }}</h2>
         <hr class="heading-block__divider" />
@@ -35,7 +36,7 @@
     </div>
 
     <!-- ── CARD GRID ────────────────────────────────────────── -->
-    <div *ngIf="!isLoading" class="card-grid">
+    <div *ngIf="!isLoading" class="card-grid" appDragScroll appAnimateInView>
 
       <article
         class="recipe-card"

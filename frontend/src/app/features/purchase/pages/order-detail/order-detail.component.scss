@@ -711,6 +711,17 @@
   font-size: 15px;
   font-weight: 600;
   color: var(--color-near-black);
+
+  a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.2s;
+
+    &:hover {
+      color: var(--color-forest-green);
+      text-decoration: underline;
+    }
+  }
 }
 
 .item-specs {

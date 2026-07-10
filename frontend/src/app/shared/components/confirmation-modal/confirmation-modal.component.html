@@ -1,0 +1,26 @@
+<div class="modal-backdrop" *ngIf="isOpen" (click)="onCancel()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <button type="button" class="close-btn" (click)="onCancel()" aria-label="Close modal">
+      <svg lucideX [size]="24"></svg>
+    </button>
+
+    <div class="icon-wrapper" [class]="'icon-wrapper--' + type">
+      <ng-container [ngSwitch]="type">
+        <svg *ngSwitchCase="'danger'" lucideAlertTriangle [size]="32"></svg>
+        <svg *ngSwitchCase="'success'" lucideCheck [size]="32"></svg>
+        <svg *ngSwitchDefault lucideInfo [size]="32"></svg>
+      </ng-container>
+    </div>
+
+    <header class="modal-header">
+      <h2 class="modal-title">{{ title }}</h2>
+      <p class="confirm-desc">{{ message }}</p>
+      <p class="warning-desc" *ngIf="warningMessage">{{ warningMessage }}</p>
+    </header>
+
+    <footer class="modal-footer">
+      <button type="button" class="btn-modal btn-cancel" (click)="onCancel()">{{ cancelText }}</button>
+      <button type="button" [class]="'btn-modal btn-confirm btn-confirm--' + type" (click)="onConfirm()">{{ confirmText }}</button>
+    </footer>
+  </div>
+</div>

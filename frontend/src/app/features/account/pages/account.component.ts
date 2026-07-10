@@ -16,6 +16,7 @@ import { ChangePaymentModalComponent } from '../../purchase/components/change-pa
 import { InlineValidator, FieldConfig } from '../../../shared/utils/inline-validator';
 import { ToastService } from '../../../shared/services/toast.service';
 import { QuickViewModalComponent } from '../../shop/components/quick-view-modal/quick-view-modal.component';
+import { ConfirmationModalComponent } from '../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { Product } from '../../home/models/product.model';
 
 const VIETNAM_BANK_LIST = ['Vietcombank', 'BIDV', 'Techcombank', 'VietinBank', 'Agribank', 'MB Bank', 'VPBank', 'ACB', 'Sacombank', 'TPBank', 'VIB', 'SHB', 'MSB', 'SeABank'];
@@ -90,6 +91,7 @@ import {
     CompletePaymentModalComponent,
     PaymentModalComponent,
     ChangePaymentModalComponent,
+    ConfirmationModalComponent,
     LucideChevronDown,
     LucideChevronUp,
     LucideArrowRight,
@@ -119,6 +121,28 @@ export class AccountComponent implements OnInit, OnDestroy {
   private zone = inject(NgZone);
   private cdr = inject(ChangeDetectorRef);
   private toastService = inject(ToastService);
+
+  // Confirmation Modal state properties
+  isConfirmModalOpen = false;
+  confirmModalTitle = '';
+  confirmModalMessage = '';
+  confirmModalWarning = '';
+  confirmModalConfirmText = 'Confirm';
+  confirmModalCancelText = 'Cancel';
+  confirmModalType: 'danger' | 'success' | 'info' = 'info';
+  confirmModalAction: (() => Promise<void> | void) | null = null;
+
+  onConfirmModalConfirm(): void {
+    this.isConfirmModalOpen = false;
+    if (this.confirmModalAction) {
+      this.confirmModalAction();
+    }
+  }
+
+  onConfirmModalCancel(): void {
+    this.isConfirmModalOpen = false;
+    this.confirmModalAction = null;
+  }
 
   // Profile data signals
   user = signal<any>(null);
@@ -1586,20 +1610,29 @@ export class AccountComponent implements OnInit, OnDestroy {
     return null;
   }
 
-  async cancelOrder(ord: any): Promise<void> {
+  cancelOrder(ord: any): void {
+    console.log('AccountComponent.cancelOrder called for order:', ord);
     if (!ord) return;
-    if (!confirm('Are you sure you want to cancel this order?')) return;
 
-    this.isLoadingOrders.set(true);
-    try {
-      const res = await this.checkoutService.cancelOrder(ord.order_id, ord.session_id);
-      this.router.navigate(['/checkout/canceled'], { state: { order: res.data } });
-    } catch (err: any) {
-      console.error('Failed to cancel order:', err);
-      alert(err.error?.error || 'Failed to cancel the order. Please try again.');
-    } finally {
-      this.isLoadingOrders.set(false);
-    }
+    this.confirmModalTitle = 'Cancel Order';
+    this.confirmModalMessage = `Are you sure you want to cancel order #${ord.order_id}?`;
+    this.confirmModalWarning = 'This action cannot be undone.';
+    this.confirmModalConfirmText = 'Cancel Order';
+    this.confirmModalCancelText = 'Keep Order';
+    this.confirmModalType = 'danger';
+    this.confirmModalAction = async () => {
+      this.isLoadingOrders.set(true);
+      try {
+        const res = await this.checkoutService.cancelOrder(ord.order_id, ord.session_id);
+        this.router.navigate(['/checkout/canceled'], { state: { order: res.data } });
+      } catch (err: any) {
+        console.error('Failed to cancel order:', err);
+        alert(err.error?.error || 'Failed to cancel the order. Please try again.');
+      } finally {
+        this.isLoadingOrders.set(false);
+      }
+    };
+    this.isConfirmModalOpen = true;
   }
 
   async buyAgain(ord: any): Promise<void> {
@@ -1643,21 +1676,30 @@ export class AccountComponent implements OnInit, OnDestroy {
     }
   }
 
-  async confirmReceipt(ord: any): Promise<void> {
+  confirmReceipt(ord: any): void {
+    console.log('AccountComponent.confirmReceipt called for order:', ord);
     if (!ord) return;
-    if (!confirm('Have you received your package? This will mark the order as delivered.')) return;
-    
-    this.isLoadingOrders.set(true);
-    try {
-      const res = await this.checkoutService.receiveOrder(ord.order_id, ord.session_id);
-      await this.fetchOrders();
-      this.openReviewModal(res.data);
-    } catch (err: any) {
-      console.error('Failed to mark order as received:', err);
-      alert(err.error?.error || 'Failed to update order status. Please try again.');
-    } finally {
-      this.isLoadingOrders.set(false);
-    }
+
+    this.confirmModalTitle = 'Confirm Receipt';
+    this.confirmModalMessage = 'Have you received your package? This will mark the order as delivered.';
+    this.confirmModalWarning = '';
+    this.confirmModalConfirmText = 'Yes, Received';
+    this.confirmModalCancelText = 'Not Yet';
+    this.confirmModalType = 'success';
+    this.confirmModalAction = async () => {
+      this.isLoadingOrders.set(true);
+      try {
+        const res = await this.checkoutService.receiveOrder(ord.order_id, ord.session_id);
+        await this.fetchOrders();
+        this.openReviewModal(res.data);
+      } catch (err: any) {
+        console.error('Failed to mark order as received:', err);
+        alert(err.error?.error || 'Failed to update order status. Please try again.');
+      } finally {
+        this.isLoadingOrders.set(false);
+      }
+    };
+    this.isConfirmModalOpen = true;
   }
 
   openReviewModal(order: any): void {

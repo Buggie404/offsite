@@ -397,3 +397,17 @@
     </footer>
   </div>
 </div>
+
+<!-- Confirmation Modal -->
+<app-confirmation-modal
+  [isOpen]="isConfirmModalOpen"
+  [title]="confirmModalTitle"
+  [message]="confirmModalMessage"
+  [warningMessage]="confirmModalWarning"
+  [confirmText]="confirmModalConfirmText"
+  [cancelText]="confirmModalCancelText"
+  [type]="confirmModalType"
+  (confirm)="onConfirmModalConfirm()"
+  (cancel)="onConfirmModalCancel()"
+></app-confirmation-modal>
+

@@ -25,5 +25,6 @@ import { BackToTopComponent } from '../../../shared/components/back-to-top/back-
     // thêm vào đây
   ],
   templateUrl: './home.component.html',   // ← đổi từ template sang templateUrl
+  styleUrls: ['./home.component.scss']
 })
 export class HomeComponent {}

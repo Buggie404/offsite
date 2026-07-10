@@ -14,6 +14,8 @@ import { CommunityService } from '../../services/community.service';
 import { Post } from '../../models/post.model';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
+import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
+import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
 
 // Fallback images (Unsplash) – dùng khi bài post trong DB không có ảnh
 const FALLBACK_IMAGES = [
@@ -50,6 +52,55 @@ const DEFAULT_CARDS = [
     image: FALLBACK_IMAGES[2],
     likes: 591,
     bgColor: BG_COLORS[2]
+  },
+  {
+    community_name: '@COFFEE.VIBES',
+    content: 'Pourover rituals. Slow mornings are the best mornings. ☕️🌾',
+    image: FALLBACK_IMAGES[0],
+    likes: 320,
+    bgColor: BG_COLORS[0]
+  },
+  {
+    community_name: '@MATCHA.LOVER',
+    content: 'Whisking ceremonial grade matcha to perfection. 🍵💚',
+    image: FALLBACK_IMAGES[1],
+    likes: 512,
+    bgColor: BG_COLORS[1]
+  },
+  {
+    community_name: '@BREW.ARTIST',
+    content: 'Espresso drops looking like gold liquid. ☕️✨',
+    image: FALLBACK_IMAGES[2],
+    likes: 422,
+    bgColor: BG_COLORS[2]
+  },
+  {
+    community_name: '@HOME.BARISTA',
+    content: 'Testing new filters for the perfect clean cup. ☕️🧪',
+    image: FALLBACK_IMAGES[0],
+    likes: 189,
+    bgColor: BG_COLORS[0]
+  },
+  {
+    community_name: '@MINIMALIST.BREW',
+    content: 'Warm tones and fresh beans. This is my offsite. 🍂☕️',
+    image: FALLBACK_IMAGES[1],
+    likes: 673,
+    bgColor: BG_COLORS[1]
+  },
+  {
+    community_name: '@LATTE.ART.DAILY',
+    content: 'Attempting a tulip pattern today. Practice makes perfect! 🌷🥛',
+    image: FALLBACK_IMAGES[2],
+    likes: 341,
+    bgColor: BG_COLORS[2]
+  },
+  {
+    community_name: '@COFFEE.AND.BOOKS',
+    content: 'Perfect pairing for a quiet rainy weekend. 📖☕️',
+    image: FALLBACK_IMAGES[0],
+    likes: 804,
+    bgColor: BG_COLORS[0]
   }
 ];
 
@@ -65,7 +116,7 @@ export interface CommunityCard {
 @Component({
   selector: 'app-community',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, DragScrollDirective, AnimateInViewDirective],
   templateUrl: './community.component.html',
   styleUrls: ['./community.component.scss']
 })
@@ -96,7 +147,7 @@ export class CommunityComponent implements OnInit {
   }
 
   private loadTopLiked() {
-    this.communityService.getTopLiked(3).subscribe({
+    this.communityService.getTopLiked(10).subscribe({
       next: (res) => {
         const posts: Post[] = res?.data ?? [];
 
@@ -105,17 +156,17 @@ export class CommunityComponent implements OnInit {
           return;
         }
 
-        this.cards = posts.slice(0, 3).map((post, i) => {
+        this.cards = posts.slice(0, 10).map((post, i) => {
           const hasMedia = post.media?.length > 0 && !!post.media[0].url;
           return this.toCard({
             postId: post._id ?? null,
             community_name: post.author?.username
               ? `@${post.author.username.toUpperCase()}`
-              : DEFAULT_CARDS[i]?.community_name ?? '@USER',
-            content: post.content || DEFAULT_CARDS[i]?.content || '',
-            image:   hasMedia ? post.media[0].url : FALLBACK_IMAGES[i],
+              : DEFAULT_CARDS[i % DEFAULT_CARDS.length]?.community_name ?? '@USER',
+            content: post.content || DEFAULT_CARDS[i % DEFAULT_CARDS.length]?.content || '',
+            image:   hasMedia ? post.media[0].url : FALLBACK_IMAGES[i % FALLBACK_IMAGES.length],
             likes:   post.like_count ?? 0,
-            bgColor: BG_COLORS[i] ?? 'var(--color-cream)'
+            bgColor: BG_COLORS[i % BG_COLORS.length] ?? 'var(--color-cream)'
           }, i);
         });
         this.cdr.markForCheck();

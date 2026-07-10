@@ -1,11 +1,11 @@
 // home/components/best-seller/best-seller.component.ts
 
-import { Component, Input, OnChanges, OnInit, SimpleChanges, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, OnChanges, OnInit, AfterViewInit, ViewChild, ElementRef, SimpleChanges, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ProductService } from '../../services/product.service';
 import { Product, getDefaultPrice, getPrimaryProductImage, isProductOutOfStock } from '../../models/product.model';
 import { CartService } from '../../../purchase/services/cart.service';
-import { LucideArrowRight, LucideEye, LucideHeart, LucideStar } from '@lucide/angular';
+import { LucideArrowRight, LucideEye, LucideHeart, LucideStar, LucideChevronLeft, LucideChevronRight } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
@@ -17,11 +17,11 @@ import { ProductReviewMetric, getDisplayProductReviewMetric } from '../../../../
 @Component({
   selector: 'app-best-seller',
   standalone: true,
-  imports: [CommonModule, RouterLink, LucideArrowRight, LucideEye, LucideHeart, LucideStar, DragScrollDirective, AnimateInViewDirective, QuickViewModalComponent],
+  imports: [CommonModule, RouterLink, LucideArrowRight, LucideEye, LucideHeart, LucideStar, LucideChevronLeft, LucideChevronRight, DragScrollDirective, AnimateInViewDirective, QuickViewModalComponent],
   templateUrl: './best-seller.component.html',
   styleUrls: ['./best-seller.component.scss'],
 })
-export class BestSellerComponent implements OnInit, OnChanges {
+export class BestSellerComponent implements OnInit, OnChanges, AfterViewInit {
   @Input() eyebrowText = 'Best sellers';
   @Input() sectionHeading = "What everyone's drinking";
   @Input() background: 'wheat' | 'page' = 'wheat';
@@ -31,10 +31,14 @@ export class BestSellerComponent implements OnInit, OnChanges {
   @Input() showEyebrow = true;
   @Input() showViewAll = true;
 
+  @ViewChild('productGrid') productGrid?: ElementRef<HTMLDivElement>;
+
   products: Product[] = [];
   isLoading = true;
   savedProductIds = new Set<number>();
   quickViewProduct: Product | null = null;
+  canScrollLeft = false;
+  canScrollRight = true;
 
   roastSwatches = [
     '#f3f8ec', '#e5f1d5', '#d7eabf', '#c9e3a9', '#b5d48a',
@@ -57,16 +61,18 @@ export class BestSellerComponent implements OnInit, OnChanges {
     if (this.productsOverride) {
       this.products = this.productsOverride;
       this.isLoading = false;
+      setTimeout(() => this.checkScrollability(), 300);
       return;
     }
 
-    this.productService.getBestSellers(4).subscribe({
+    this.productService.getBestSellers(10).subscribe({
       next: (data: Product[]) => {
         this.products = [...data].sort((a, b) =>
           Number(isProductOutOfStock(a)) - Number(isProductOutOfStock(b))
         );
         this.isLoading = false;
         this.cdr.markForCheck();
+        setTimeout(() => this.checkScrollability(), 300);
       },
       error: (err) => {
         console.error('Failed to load best sellers:', err);
@@ -80,6 +86,40 @@ export class BestSellerComponent implements OnInit, OnChanges {
     if (!changes['productsOverride'] || !this.productsOverride) return;
     this.products = this.productsOverride;
     this.isLoading = false;
+    this.cdr.markForCheck();
+    setTimeout(() => this.checkScrollability(), 300);
+  }
+
+  ngAfterViewInit(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    setTimeout(() => {
+      this.checkScrollability();
+    }, 500);
+  }
+
+  scrollGrid(direction: 'left' | 'right'): void {
+    const el = this.productGrid?.nativeElement;
+    if (!el) return;
+    const cardWidth = 330; // 310px card width + 20px gap
+    const scrollAmount = direction === 'left' ? -cardWidth : cardWidth;
+    el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+  }
+
+  onGridScroll(event: Event): void {
+    const el = event.target as HTMLElement;
+    this.updateScrollFlags(el);
+  }
+
+  private checkScrollability(): void {
+    const el = this.productGrid?.nativeElement;
+    if (el) {
+      this.updateScrollFlags(el);
+    }
+  }
+
+  private updateScrollFlags(el: HTMLElement): void {
+    this.canScrollLeft = el.scrollLeft > 5;
+    this.canScrollRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 5;
     this.cdr.markForCheck();
   }
 

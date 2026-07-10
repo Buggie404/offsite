@@ -11,10 +11,23 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 
+import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
+import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
+
 @Component({
   selector: 'app-recipe-section',
   standalone: true,
-  imports: [CommonModule, RouterLink, LucideArrowRight, LucideClock, LucideDroplet, LucideHeart, LucideStar],
+  imports: [
+    CommonModule,
+    RouterLink,
+    LucideArrowRight,
+    LucideClock,
+    LucideDroplet,
+    LucideHeart,
+    LucideStar,
+    DragScrollDirective,
+    AnimateInViewDirective
+  ],
   templateUrl: './recipe-section.component.html',
   styleUrls: ['./recipe-section.component.scss'],
 })
@@ -120,7 +133,7 @@ export class RecipeSectionComponent implements OnInit, OnChanges {
 
     const request$ = this.baseFilter
       ? this.recipeService.getRecipes(24)
-      : this.recipeService.getMostSavedRecipes(3);
+      : this.recipeService.getMostSavedRecipes(10);
 
     request$.subscribe({
       next: (data) => {
@@ -128,7 +141,7 @@ export class RecipeSectionComponent implements OnInit, OnChanges {
           ? data
               .filter(recipe => this.matchesBaseFilter(recipe))
               .sort((a, b) => (b.saves || 0) - (a.saves || 0))
-              .slice(0, 3)
+              .slice(0, 10)
           : data;
         this.isLoading = false;
         this.cdr.detectChanges();

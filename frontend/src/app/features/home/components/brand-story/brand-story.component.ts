@@ -2,10 +2,12 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
+import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
+
 @Component({
   selector: 'app-brand-story',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, AnimateInViewDirective],
   templateUrl: './brand-story.component.html',
   styleUrls: ['./brand-story.component.scss'],
 })

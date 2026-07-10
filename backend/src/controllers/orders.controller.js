@@ -694,17 +694,37 @@ async function requestRefund(req, res) {
       return res.status(400).json({ error: 'A refund request is already pending review for this order.' });
     }
 
-    const refundItems = selectedItems.map((selected) => {
+    for (const selected of selectedItems) {
       const orderItem = order.items.find(
         (item) =>
           item.product_id === selected.product_id && item.variant_id === selected.variant_id
       );
 
       if (!orderItem) {
-        throw new Error('One or more selected items were not found in this order.');
+        return res.status(400).json({ error: 'One or more selected items were not found in this order.' });
       }
 
-      const quantity = selected.quantity || orderItem.quantity;
+      if (selected.quantity !== undefined && selected.quantity !== null) {
+        const qty = parseInt(selected.quantity, 10);
+        if (isNaN(qty) || qty <= 0) {
+          return res.status(400).json({ error: `Refund quantity for ${orderItem.product_name} must be a positive number.` });
+        }
+        if (qty > orderItem.quantity) {
+          return res.status(400).json({ error: `Refund quantity for ${orderItem.product_name} cannot exceed purchased quantity (${orderItem.quantity}).` });
+        }
+      }
+    }
+
+    const refundItems = selectedItems.map((selected) => {
+      const orderItem = order.items.find(
+        (item) =>
+          item.product_id === selected.product_id && item.variant_id === selected.variant_id
+      );
+
+      const quantity = selected.quantity !== undefined && selected.quantity !== null
+        ? parseInt(selected.quantity, 10)
+        : orderItem.quantity;
+
       return {
         product_id: orderItem.product_id,
         variant_id: orderItem.variant_id,

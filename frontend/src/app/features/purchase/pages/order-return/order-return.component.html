@@ -179,9 +179,16 @@
             <div class="item-details">
               <div class="item-title font-body font-bold">{{ item.product_name }}</div>
               <div class="item-variant font-body">{{ item.variant_name }}</div>
+              
+              <!-- Quantity selector -->
+              <div class="item-quantity-selector" *ngIf="isItemSelected(item.variant_id)" (click)="$event.stopPropagation()">
+                <button type="button" class="qty-btn" (click)="decrementQty(item.variant_id)" [disabled]="(refundQuantities()[item.variant_id] || 1) <= 1">-</button>
+                <span class="qty-value font-mono">{{ refundQuantities()[item.variant_id] || 1 }}</span>
+                <button type="button" class="qty-btn" (click)="incrementQty(item.variant_id, item.quantity)" [disabled]="(refundQuantities()[item.variant_id] || 1) >= item.quantity">+</button>
+              </div>
             </div>
             <div class="item-price font-body font-bold">
-              ${{ item.unit_price.toFixed(2) }}
+              ${{ (item.unit_price * (isItemSelected(item.variant_id) ? (refundQuantities()[item.variant_id] || 1) : 1)).toFixed(2) }}
             </div>
           </div>
         </div>

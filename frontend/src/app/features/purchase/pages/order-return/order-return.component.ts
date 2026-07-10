@@ -100,6 +100,7 @@ export class OrderReturnComponent implements OnInit {
   
   // Selection states for items
   selectedItems = signal<Record<string, boolean>>({});
+  refundQuantities = signal<Record<string, number>>({});
 
   reasonsList = [
     'Damaged item',
@@ -191,12 +192,15 @@ export class OrderReturnComponent implements OnInit {
 
       // Initialize all items as selected by default
       const initialSelection: Record<string, boolean> = {};
+      const initialQuantities: Record<string, number> = {};
       if (ord.items) {
         ord.items.forEach((item: any) => {
           initialSelection[item.variant_id] = true;
+          initialQuantities[item.variant_id] = item.quantity;
         });
       }
       this.selectedItems.set(initialSelection);
+      this.refundQuantities.set(initialQuantities);
 
     } catch (err) {
       console.error('Failed to load order details for return:', err);
@@ -216,6 +220,26 @@ export class OrderReturnComponent implements OnInit {
 
   isItemSelected(variantId: string): boolean {
     return !!this.selectedItems()[variantId];
+  }
+
+  decrementQty(variantId: string) {
+    this.refundQuantities.update(qtys => {
+      const current = qtys[variantId] || 1;
+      return {
+        ...qtys,
+        [variantId]: Math.max(1, current - 1)
+      };
+    });
+  }
+
+  incrementQty(variantId: string, maxQty: number) {
+    this.refundQuantities.update(qtys => {
+      const current = qtys[variantId] || 1;
+      return {
+        ...qtys,
+        [variantId]: Math.min(maxQty, current + 1)
+      };
+    });
   }
 
   onFileSelected(event: any) {
@@ -295,7 +319,10 @@ export class OrderReturnComponent implements OnInit {
   }
 
   get subtotal(): number {
-    return this.selectedItemsList.reduce((sum: number, item: any) => sum + item.unit_price * item.quantity, 0);
+    return this.selectedItemsList.reduce((sum: number, item: any) => {
+      const qty = this.refundQuantities()[item.variant_id] || item.quantity;
+      return sum + item.unit_price * qty;
+    }, 0);
   }
 
   get discountAmount(): number {
@@ -370,7 +397,7 @@ export class OrderReturnComponent implements OnInit {
         refund_item: this.selectedItemsList.map((item: any) => ({
           product_id: item.product_id,
           variant_id: item.variant_id,
-          quantity: item.quantity
+          quantity: this.refundQuantities()[item.variant_id] || item.quantity
         })),
         refund_payment: this.selectedRefundPayment() || undefined
       };

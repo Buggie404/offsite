@@ -2,10 +2,21 @@
 
 <section class="bestseller-section" [class.bestseller-section--page-bg]="background === 'page'"
   [class.bestseller-section--plain-heading]="headingStyle === 'plain'" [class.bestseller-section--compact]="compact">
+
+  <!-- Background decorations -->
+  <div class="geo geo--ring" aria-hidden="true"></div>
+  <div class="geo geo--ring-dashed" aria-hidden="true"></div>
+  <div class="geo geo--blob" aria-hidden="true"></div>
+  <div class="geo geo--diamond" aria-hidden="true"></div>
+  <div class="geo geo--diamond-sm" aria-hidden="true"></div>
+  <div class="geo geo--dot" aria-hidden="true"></div>
+  <div class="geo geo--dot-sm" aria-hidden="true"></div>
+  <div class="geo geo--plus" aria-hidden="true"></div>
+
   <div class="main-frame">
 
     <!-- ── HEADER ── -->
-    <div class="bestsellers-header">
+    <div class="bestsellers-header reveal-fade-in" appAnimateInView>
       <div class="header-left">
         <div class="eyebrow-row" *ngIf="showEyebrow">
           <div class="divider"></div>
@@ -23,96 +34,108 @@
     <div class="loading" *ngIf="isLoading">Loading...</div>
 
     <!-- ── PRODUCT GRID ── -->
-    <div class="product-grid" *ngIf="!isLoading">
+    <div class="grid-wrapper" *ngIf="!isLoading">
+      <button type="button" class="scroll-btn scroll-btn--prev" [disabled]="!canScrollLeft"
+        (click)="scrollGrid('left')" aria-label="Previous products">
+        <svg lucideChevronLeft [size]="20" aria-hidden="true"></svg>
+      </button>
 
-      <div class="card" *ngFor="let product of products" [routerLink]="['/products', getDetailId(product)]">
+      <div class="product-grid" #productGrid (scroll)="onGridScroll($event)" appDragScroll appAnimateInView>
 
-        <!-- ── IMAGE WRAP ── -->
-        <div class="card-image-wrap">
-          <img [src]="getPrimaryImage(product)" [alt]="getPrimaryImageAlt(product)" class="product-img" />
+        <div class="card" *ngFor="let product of products" [routerLink]="['/products', getDetailId(product)]">
 
-          <div class="quick-view-overlay">
-            <button type="button" class="quick-view-trigger" [disabled]="isOutOfStock(product)"
-              (click)="openQuickView(product, $event)">
-              @if (isOutOfStock(product)) {
-              <span>OUT OF STOCK</span>
-              } @else {
-              <svg lucideEye [size]="22" aria-hidden="true"></svg>
-              }
-            </button>
-          </div>
+          <!-- ── IMAGE WRAP ── -->
+          <div class="card-image-wrap">
+            <img [src]="getPrimaryImage(product)" [alt]="getPrimaryImageAlt(product)" class="product-img" />
 
-          <button type="button" class="save-btn" [class.save-btn--active]="isSaved(product)"
-            (click)="onSave(product, $event)"
-            [attr.aria-label]="isSaved(product) ? 'Remove from saved products' : 'Save product'">
-            <svg lucideHeart [size]="16" [attr.fill]="isSaved(product) ? 'currentColor' : 'none'"
-              aria-hidden="true"></svg>
-          </button>
-
-          <div class="status-badges">
-            <span class="status-badge status-badge--best-seller" *ngIf="product.is_best_seller">BEST SELLER</span>
-            <span class="status-badge status-badge--new-arrival" *ngIf="product.is_new_arrival">NEW ARRIVAL</span>
-          </div>
-        </div>
-
-        <!-- ── CARD BODY — flex column space-between ── -->
-        <div class="card-body">
-
-          <!-- TOP: title, origin, tags, roast bar -->
-          <div class="card-body-top" [class.gap-coffee]="product.category === 'coffee'"
-            [class.gap-bundle]="product.category === 'sets_bundles'">
-
-            <!-- Title + Rating -->
-            <div class="title-rating-row">
-              <h3 class="product-title"><span>{{ product.name }}</span></h3>
-              @if (getReviewMetric(product); as reviewMetric) {
-              <div class="rating">
-                <svg lucideStar [size]="14" aria-hidden="true"></svg>
-                <!-- Hardcode 4.9 tạm — đổi thành product.rating_avg khi DB có data -->
-                <span>{{ reviewMetric.ratingAvg }}</span>
-              </div>
-              }
+            <div class="quick-view-overlay">
+              <button type="button" class="quick-view-trigger" [disabled]="isOutOfStock(product)"
+                (click)="openQuickView(product, $event)">
+                @if (isOutOfStock(product)) {
+                <span>OUT OF STOCK</span>
+                } @else {
+                <svg lucideEye [size]="22" aria-hidden="true"></svg>
+                }
+              </button>
             </div>
 
-            <!-- Origin (ẩn với sets_bundles) -->
-            <div class="product-details">
-              <p appDragScroll class="origin-text" *ngIf="product.category !== 'sets_bundles' && getOrigin(product)">
-                {{ getOrigin(product) }}
-              </p>
+            <button type="button" class="save-btn" [class.save-btn--active]="isSaved(product)"
+              (click)="onSave(product, $event)"
+              [attr.aria-label]="isSaved(product) ? 'Remove from saved products' : 'Save product'">
+              <svg lucideHeart [size]="16" [attr.fill]="isSaved(product) ? 'currentColor' : 'none'"
+                aria-hidden="true"></svg>
+            </button>
 
-              <!-- Tag pills -->
-              <div appDragScroll class="tags-row" *ngIf="getTags(product).length">
-                <div class="tag" *ngFor="let tag of getTags(product)">
-                  <span>{{ tag }}</span>
+            <div class="status-badges">
+              <span class="status-badge status-badge--best-seller" *ngIf="product.is_best_seller">BEST SELLER</span>
+              <span class="status-badge status-badge--new-arrival" *ngIf="product.is_new_arrival">NEW ARRIVAL</span>
+            </div>
+          </div>
+
+          <!-- ── CARD BODY — flex column space-between ── -->
+          <div class="card-body">
+
+            <!-- TOP: title, origin, tags, roast bar -->
+            <div class="card-body-top" [class.gap-coffee]="product.category === 'coffee'"
+              [class.gap-bundle]="product.category === 'sets_bundles'">
+
+              <!-- Title + Rating -->
+              <div class="title-rating-row">
+                <h3 class="product-title"><span>{{ product.name }}</span></h3>
+                @if (getReviewMetric(product); as reviewMetric) {
+                <div class="rating">
+                  <svg lucideStar [size]="14" aria-hidden="true"></svg>
+                  <!-- Hardcode 4.9 tạm — đổi thành product.rating_avg khi DB có data -->
+                  <span>{{ reviewMetric.ratingAvg }}</span>
                 </div>
+                }
               </div>
 
-              <!-- Roast bar — coffee only -->
-              <div class="roast-bar" *ngIf="showRoastBar(product)" appAnimateInView>
-                <span *ngFor="let color of roastSwatches; let i = index" class="swatch"
-                  [class.swatch--highlight]="isHighlightSwatch(product, i)" [style.--swatch-color]="color"></span>
-                <span class="roast-indicator" [style.--roast-column]="getHighlightIndex(product) + 1"
-                  aria-hidden="true"></span>
-              </div>
+              <!-- Origin (ẩn với sets_bundles) -->
+              <div class="product-details">
+                <p appDragScroll class="origin-text" *ngIf="product.category !== 'sets_bundles' && getOrigin(product)">
+                  {{ getOrigin(product) }}
+                </p>
 
+                <!-- Tag pills -->
+                <div appDragScroll class="tags-row" *ngIf="getTags(product).length">
+                  <div class="tag" *ngFor="let tag of getTags(product)">
+                    <span>{{ tag }}</span>
+                  </div>
+                </div>
+
+                <!-- Roast bar — coffee only -->
+                <div class="roast-bar" *ngIf="showRoastBar(product)" appAnimateInView>
+                  <span *ngFor="let color of roastSwatches; let i = index" class="swatch"
+                    [class.swatch--highlight]="isHighlightSwatch(product, i)" [style.--swatch-color]="color"></span>
+                  <span class="roast-indicator" [style.--roast-column]="getHighlightIndex(product) + 1"
+                    aria-hidden="true"></span>
+                </div>
+
+              </div>
+            </div><!-- /card-body-top -->
+
+            <!-- BOTTOM: price + add — luôn stick đáy nhờ space-between -->
+            <div class="price-add-row">
+              <span class="price">{{ getPrice(product) }}</span>
+              <button type="button" class="add-btn" [disabled]="isOutOfStock(product)"
+                [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'"
+                (click)="onAddToCart(product, $event)">
+                <span>{{ isOutOfStock(product) ? 'Out of stock' : 'Add' }}</span>
+              </button>
             </div>
-          </div><!-- /card-body-top -->
 
-          <!-- BOTTOM: price + add — luôn stick đáy nhờ space-between -->
-          <div class="price-add-row">
-            <span class="price">{{ getPrice(product) }}</span>
-            <button type="button" class="add-btn" [disabled]="isOutOfStock(product)"
-              [attr.aria-label]="isOutOfStock(product) ? 'Out of stock' : 'Add to cart'"
-              (click)="onAddToCart(product, $event)">
-              <span>{{ isOutOfStock(product) ? 'Out of stock' : 'Add' }}</span>
-            </button>
-          </div>
+          </div><!-- /card-body -->
 
-        </div><!-- /card-body -->
+        </div><!-- /card -->
 
-      </div><!-- /card -->
+      </div><!-- /product-grid -->
 
-    </div><!-- /product-grid -->
+      <button type="button" class="scroll-btn scroll-btn--next" [disabled]="!canScrollRight"
+        (click)="scrollGrid('right')" aria-label="Next products">
+        <svg lucideChevronRight [size]="20" aria-hidden="true"></svg>
+      </button>
+    </div>
 
   </div>
 </section>
