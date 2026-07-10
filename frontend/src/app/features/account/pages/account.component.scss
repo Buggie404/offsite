@@ -829,9 +829,12 @@
   /* Avatar Section */
   .profile-avatar-container {
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
     margin-bottom: 8px;
     flex-shrink: 0;
+    gap: 12px;
 
     .profile-avatar-wrapper {
       position: relative;
@@ -848,6 +851,8 @@
       align-items: center;
       justify-content: center;
       overflow: hidden;
+      border: 2.5px solid #FAF3EC;
+      box-shadow: 0 4px 12px rgba(84, 74, 64, 0.08);
 
       .default-avatar-svg {
         width: 56px;
@@ -862,29 +867,53 @@
       }
     }
 
-    .camera-edit-badge {
-      position: absolute;
-      bottom: 0;
-      right: 0;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background-color: #375534;
-      border: 2px solid #FAF3EC;
-      color: #FFFFFF;
+    .profile-avatar-actions {
       display: flex;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+    }
+
+    .btn-avatar-action {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-family: var(--font-body);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
       cursor: pointer;
-      transition: background-color 0.2s;
+      transition: all 0.2s ease;
+      background: transparent;
 
-      &:hover {
-        background-color: var(--color-forest-green-hover);
+      .action-icon-svg {
+        width: 13px;
+        height: 13px;
       }
 
-      .camera-icon-svg {
-        width: 14px;
-        height: 14px;
+      &.btn-upload {
+        background-color: var(--color-forest-green);
+        color: #FFFFFF;
+        border: 1px solid var(--color-forest-green);
+
+        &:hover {
+          background-color: var(--color-forest-green-hover);
+          border-color: var(--color-forest-green-hover);
+        }
+      }
+
+      &.btn-remove {
+        color: #C0392B;
+        border: 1px solid rgba(192, 57, 43, 0.2);
+
+        &:hover {
+          background-color: rgba(192, 57, 43, 0.05);
+          border-color: #C0392B;
+        }
       }
     }
   }
@@ -2506,6 +2535,11 @@
   border-radius: 8px !important;
   box-shadow: none !important;
 
+  &.selected {
+    border-color: #D5C3A6 !important;
+    background-color: #FDF6ED !important;
+  }
+
   &:hover {
     box-shadow: 0 4px 12px rgba(84, 74, 64, 0.05) !important;
     border-color: rgba(84, 74, 64, 0.18) !important;
@@ -2634,6 +2668,11 @@
   transition: all 0.2s ease;
   cursor: pointer;
 
+  &.selected {
+    border-color: #D5C3A6 !important;
+    background-color: #FDF6ED !important;
+  }
+
   .card-image-wrapper {
     width: 100px !important;
     height: 100px !important;
@@ -2746,26 +2785,88 @@
 
 /* Post Card Customizations */
 .post-card {
+  background-color: #FAF3EB !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  padding: 24px 28px !important;
+  position: relative;
+  transition: all 0.25s ease;
   grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 20px;
+
+  &.selected {
+    border-color: #D5C3A6 !important;
+    background-color: #FDF6ED !important;
+  }
+
+  &:hover {
+    box-shadow: 0 4px 16px rgba(84, 74, 64, 0.06);
+    border-color: rgba(84, 74, 64, 0.25) !important;
+
+    .card-image-wrapper img {
+      transform: scale(1.04);
+    }
+  }
+
+  .card-left-select {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .custom-checkbox-container {
+      padding-left: 20px;
+      margin: 0;
+      width: 20px;
+      height: 20px;
+
+      .checkmark {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        border: 1.5px solid #C4B9AD;
+        background-color: #FFF;
+        transition: all 0.2s ease;
+      }
+
+      input:checked ~ .checkmark {
+        background-color: #375534;
+        border-color: #375534;
+      }
+
+      .checkmark:after {
+        left: 7px;
+        top: 3px;
+        width: 4px;
+        height: 9px;
+        border: solid white;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+      }
+    }
+  }
 
   .avatar-wrapper {
     background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 52px !important;
+    height: 52px !important;
+    border-radius: 50% !important;
   }
 
   .post-author-avatar {
-    width: 48px;
-    height: 48px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     object-fit: cover;
-    border: 1px solid rgba(84, 74, 64, 0.15);
+    border: none;
   }
 
   .fallback-avatar {
-    width: 48px;
-    height: 48px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     background: #FAF6F4;
     border: 1px solid rgba(84, 74, 64, 0.1);
@@ -2776,53 +2877,84 @@
     opacity: 0.7;
   }
 
+  .card-details {
+    gap: 10px;
+  }
+
   .post-header-info {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
+    gap: 12px;
+    margin-bottom: 0;
+
+    .post-badge {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.05em;
+      padding: 3px 10px;
+      border-radius: 100px;
+      text-transform: uppercase;
+      line-height: 1.2;
+      display: inline-block;
+
+      &.badge-regular {
+        background-color: #B49F85;
+        color: #FFFFFF;
+      }
+
+      &.badge-recipe {
+        background-color: #CFE1B9;
+        color: #375534;
+      }
+    }
 
     .post-author-name {
-      font-family: var(--font-display);
-      font-size: 15px;
+      font-family: var(--font-body);
+      font-size: 16px;
       font-weight: 700;
-      color: var(--color-near-black);
+      color: #1A1A1A;
     }
 
     .post-date {
       font-family: var(--font-body);
       font-size: 12px;
-      color: var(--color-warm-brown);
-      opacity: 0.8;
+      color: #8C8276;
     }
   }
 
   .post-excerpt-text {
     font-family: var(--font-body);
-    font-size: 14px;
+    font-size: 13.5px;
     line-height: 1.5;
-    color: var(--color-warm-brown);
-    opacity: 0.95;
-    margin: 0 0 8px 0;
+    color: #544A40;
+    margin: 0;
+    max-width: 650px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .btn-view-post-link {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     color: #375534;
     font-family: var(--font-body);
-    font-size: 11px;
+    font-size: 13.5px;
     font-weight: 700;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     text-decoration: none;
     transition: all 0.2s ease;
-    margin-top: 8px;
+    margin-top: 0;
+    text-transform: uppercase;
 
     &:hover {
-      color: var(--color-forest-green-hover);
-      text-decoration: underline;
-
+      color: #2b4229;
+      text-decoration: none;
+      
       svg {
         transform: translateX(3px);
       }
@@ -2830,6 +2962,29 @@
 
     svg {
       transition: transform 0.2s ease;
+    }
+  }
+
+  .btn-remove-item {
+    position: static;
+    transform: none;
+    color: #375534;
+    opacity: 0.8;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    align-self: center;
+    grid-column: 4;
+
+    &:hover {
+      opacity: 1;
+      background-color: rgba(55, 85, 52, 0.08);
     }
   }
 }
@@ -2842,6 +2997,11 @@
   padding: 20px 24px !important;
   transition: all 0.2s ease;
   cursor: pointer;
+
+  &.selected {
+    border-color: #D5C3A6 !important;
+    background-color: #FDF6ED !important;
+  }
 
   .card-image-wrapper {
     width: 100px !important;
@@ -3063,9 +3223,19 @@
 
   /* Post Card details vertical alignment */
   .post-card {
+    grid-template-columns: auto auto 1fr auto !important;
+
     .card-details {
       grid-row: 1 / span 2;
       align-self: center;
+    }
+
+    .btn-remove-item {
+      grid-column: 4;
+      grid-row: 1 / span 2;
+      align-self: center;
+      position: static !important;
+      transform: none !important;
     }
   }
 

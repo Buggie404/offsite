@@ -194,7 +194,7 @@
               </div>
 
               <div class="products-grid" *ngIf="savedProducts().length > 0; else noProducts">
-                <div [id]="'product-' + item.product.product_id" class="saved-item-card product-card" *ngFor="let item of savedProducts() | slice:0:visibleLimits()['products']">
+                <div [id]="'product-' + item.product.product_id" class="saved-item-card product-card" [class.selected]="isItemSelected('products', item.product.product_id.toString())" *ngFor="let item of savedProducts() | slice:0:visibleLimits()['products']">
                   <div class="card-left-select">
                     <label class="custom-checkbox-container">
                       <input type="checkbox" [checked]="isItemSelected('products', item.product.product_id.toString())" (change)="toggleSelection('products', item.product.product_id.toString())">
@@ -264,7 +264,7 @@
               </div>
 
               <div class="recipes-grid" *ngIf="savedRecipes().length > 0; else noRecipes">
-                <div [id]="'recipe-' + item.recipe.recipe_id" class="saved-item-card recipe-card" *ngFor="let item of savedRecipes() | slice:0:visibleLimits()['recipes']" [routerLink]="['/recipes', item.recipe.slug]" (click)="saveScrollAnchor('recipe', item.recipe.recipe_id)">
+                <div [id]="'recipe-' + item.recipe.recipe_id" class="saved-item-card recipe-card" [class.selected]="isItemSelected('recipes', item.recipe.recipe_id)" *ngFor="let item of savedRecipes() | slice:0:visibleLimits()['recipes']" [routerLink]="['/recipes', item.recipe.slug]" (click)="saveScrollAnchor('recipe', item.recipe.recipe_id)">
                   <div class="card-left-select" (click)="$event.stopPropagation()">
                     <label class="custom-checkbox-container">
                       <input type="checkbox" [checked]="isItemSelected('recipes', item.recipe.recipe_id)" (change)="toggleSelection('recipes', item.recipe.recipe_id)">
@@ -343,7 +343,7 @@
               </div>
 
               <div class="posts-grid" *ngIf="savedPosts().length > 0; else noPosts">
-                <div [id]="'post-' + item.post.post_id" class="saved-item-card post-card" *ngFor="let item of savedPosts() | slice:0:visibleLimits()['posts']">
+                <div [id]="'post-' + item.post.post_id" class="saved-item-card post-card" [class.selected]="isItemSelected('posts', item.post.post_id)" *ngFor="let item of savedPosts() | slice:0:visibleLimits()['posts']">
                   <div class="card-left-select">
                     <label class="custom-checkbox-container">
                       <input type="checkbox" [checked]="isItemSelected('posts', item.post.post_id)" (change)="toggleSelection('posts', item.post.post_id)">
@@ -362,8 +362,10 @@
 
                   <div class="card-details">
                     <div class="post-header-info">
+                      <span *ngIf="item.post.post_type === 'regular'" class="post-badge badge-regular">POST</span>
+                      <span *ngIf="item.post.post_type === 'recipe'" class="post-badge badge-recipe">RECIPE</span>
                       <span class="post-author-name">{{ item.post.author?.username || 'Anonymous' }}</span>
-                      <span class="post-date">{{ getRelativeTime(item.saved_at) }}</span>
+                      <span class="post-date">{{ getRelativeTime(item.post.created_at || item.post.createdAt || item.saved_at) }}</span>
                     </div>
                     <p class="post-excerpt-text">{{ item.post.content }}</p>
                     <a
@@ -376,7 +378,7 @@
                   </div>
 
                   <button class="btn-remove-item" (click)="removeItem('posts', item.post.post_id)" aria-label="Remove item">
-                    <svg lucideX [size]="16"></svg>
+                    <svg lucideX [size]="20"></svg>
                   </button>
                 </div>
               </div>
@@ -413,7 +415,7 @@
               </div>
 
               <div class="blogs-grid" *ngIf="savedBlogs().length > 0; else noBlogs">
-                <div [id]="'blog-' + item.blog._id" class="saved-item-card blog-card" *ngFor="let item of savedBlogs() | slice:0:visibleLimits()['blogs']" [routerLink]="['/journal', item.blog.slug]" (click)="saveScrollAnchor('blog', item.blog._id)">
+                <div [id]="'blog-' + item.blog._id" class="saved-item-card blog-card" [class.selected]="isItemSelected('blogs', item.blog._id)" *ngFor="let item of savedBlogs() | slice:0:visibleLimits()['blogs']" [routerLink]="['/journal', item.blog.slug]" (click)="saveScrollAnchor('blog', item.blog._id)">
                   <div class="card-left-select" (click)="$event.stopPropagation()">
                     <label class="custom-checkbox-container">
                       <input type="checkbox" [checked]="isItemSelected('blogs', item.blog._id)" (change)="toggleSelection('blogs', item.blog._id)">
@@ -1012,19 +1014,32 @@
           <div class="profile-avatar-container">
             <div class="profile-avatar-wrapper">
               <div class="profile-avatar-inner">
-                <img *ngIf="avatarPreview() || user()?.avatar_url; else defaultAvatar" [src]="avatarPreview() || user()?.avatar_url" alt="Profile Picture">
+                <img *ngIf="avatarPreview(); else defaultAvatar" [src]="avatarPreview()" alt="Profile Picture">
                 <ng-template #defaultAvatar>
                   <svg viewBox="0 0 24 24" fill="currentColor" class="default-avatar-svg">
                     <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                   </svg>
                 </ng-template>
               </div>
-              <button type="button" class="camera-edit-badge" aria-label="Change photo" (click)="avatarInput.click()">
-                <svg viewBox="0 0 24 24" fill="currentColor" class="camera-icon-svg">
-                  <path d="M4 4h3l2-3h6l2 3h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm8 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/>
-                </svg>
-              </button>
               <input type="file" #avatarInput accept="image/*" style="display: none;" (change)="onAvatarSelected($event)">
+            </div>
+            
+            <div class="profile-avatar-actions">
+              <button type="button" class="btn-avatar-action btn-upload" (click)="avatarInput.click()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="action-icon-svg">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span>UPLOAD PHOTO</span>
+              </button>
+              <button *ngIf="avatarPreview()" type="button" class="btn-avatar-action btn-remove" (click)="removeAvatar()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="action-icon-svg">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span>REMOVE PHOTO</span>
+              </button>
             </div>
           </div>          <!-- Name Field -->
           <div class="profile-form-group" [class.field-has-error]="hasFieldError('profile_name')" [class.field-has-success]="hasFieldSuccess('profile_name')">

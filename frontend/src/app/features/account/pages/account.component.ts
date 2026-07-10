@@ -698,10 +698,14 @@ export class AccountComponent implements OnInit, OnDestroy {
     }
     this.http.get<any>('/api/auth/saved-items').subscribe({
       next: (res) => {
-        this.savedProducts.set(res.saved_products || []);
-        this.savedRecipes.set(res.saved_recipes || []);
-        this.savedPosts.set(res.saved_posts || []);
-        this.savedBlogs.set(res.saved_blogs || []);
+        const sortBySavedAtDesc = (arr: any[]) => {
+          return [...arr].sort((a, b) => new Date(b.saved_at || 0).getTime() - new Date(a.saved_at || 0).getTime());
+        };
+
+        this.savedProducts.set(sortBySavedAtDesc(res.saved_products || []));
+        this.savedRecipes.set(sortBySavedAtDesc(res.saved_recipes || []));
+        this.savedPosts.set(sortBySavedAtDesc(res.saved_posts || []));
+        this.savedBlogs.set(sortBySavedAtDesc(res.saved_blogs || []));
         if (showOverlay) {
           this.isSavedLoading.set(false);
         }
@@ -1104,6 +1108,13 @@ export class AccountComponent implements OnInit, OnDestroy {
       };
       reader.readAsDataURL(file);
     }
+  }
+
+  removeAvatar(): void {
+    this.avatarPreview.set('');
+    this.profileForm.patchValue({
+      avatar_url: ''
+    });
   }
 
   openPasswordModal(): void {
