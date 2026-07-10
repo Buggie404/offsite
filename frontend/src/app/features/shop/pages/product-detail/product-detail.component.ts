@@ -24,7 +24,8 @@ import {
   Product,
   ProductImage,
   Variant,
-  getPrimaryProductImage
+  getPrimaryProductImage,
+  isProductOutOfStock
 } from '../../../../features/home/models/product.model';
 import { CartService } from '../../../purchase/services/cart.service';
 import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
@@ -689,6 +690,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     const sameCategoryProducts = catalog.filter(product =>
       product.category === currentProduct.category
       && product.is_active !== false
+      && !isProductOutOfStock(product)
       && this.getProductIdentity(product) !== currentKey
     );
 

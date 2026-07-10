@@ -296,6 +296,7 @@
   }
 
   <section class="reviews-section" [class.reviews-section--empty]="!isReviewsLoading() && !featuredReviews().length"
+    [class.reviews-section--compact]="!isReviewsLoading() && reviewCount() <= 1"
     aria-labelledby="reviews-title">
     <div class="reviews-summary">
       <h2 id="reviews-title">The Feedback</h2>
