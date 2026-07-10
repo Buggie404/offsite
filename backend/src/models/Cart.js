@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
 
 const cartItemSchema = new mongoose.Schema({
-  product_id:   { type: String, required: true, ref: 'Product' },   // Lấy mẫu đọc từ collection Products
+  product_id:   { type: String, required: true },                    // Lấy mẫu đọc từ collection Products
   variant_id:   { type: String, required: true },                    // matches products.variants[].variant_id
   quantity:     { type: Number, required: true, min: 1 },
   price_at_add: { type: Number, required: true, min: 0 },            // snapshot of variant price
   is_selected:  { type: Boolean, default: false },                   // checkbox state, default OFF
+  bundle:       { type: mongoose.Schema.Types.Mixed, default: null }, // bundle metadata for sets/bundles
   added_at:     { type: Date,    default: Date.now }
 }, { _id: false });
 

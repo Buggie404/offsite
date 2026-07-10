@@ -5,8 +5,47 @@ const Product = require('../models/Product');
 // Resolve a guest cart line to its current Product + variant in the DB.
 // productId matches Cart.product_id (Product._id string). Falls back to the
 // numeric product_id field when the frontend sent that instead of _id.
-async function resolveProductVariant(productId, sku) {
+async function resolveProductVariant(productId, sku, bundle) {
   if (productId == null || !sku) return null;
+
+  if (String(productId).startsWith('kit_bundle_') || (bundle && bundle.bundleKey)) {
+    const b = bundle || {};
+    const mockProduct = {
+      _id: productId,
+      product_id: 999902,
+      name: b.title || 'Kit Bundle',
+      slug: productId,
+      category: 'sets_bundles',
+      variant_type: 'none',
+      images: [
+        {
+          url: b.displayImage || '',
+          public_id: productId,
+          sort_order: 0
+        }
+      ],
+      variants: [
+        {
+          sku: sku,
+          label: b.purchaseType || 'one_time',
+          price: b.discountedTotal || 0,
+          stock: 9999, // default virtual stock
+          is_default: true,
+          images: [
+            {
+              url: b.displayImage || '',
+              public_id: productId,
+              sort_order: 0
+            }
+          ]
+        }
+      ],
+      review_count: 0,
+      is_active: true
+    };
+    const mockVariant = mockProduct.variants[0];
+    return { product: mockProduct, variant: mockVariant };
+  }
 
   let product = null;
   if (mongoose.Types.ObjectId.isValid(String(productId))) {
@@ -46,13 +85,14 @@ function capQuantity(qty, stock) {
 async function enrichCart(cart) {
   const items = [];
   for (const it of cart.items) {
-    const resolved = await resolveProductVariant(it.product_id, it.variant_id);
+    const resolved = await resolveProductVariant(it.product_id, it.variant_id, it.bundle);
     if (!resolved) continue; // product/variant no longer exists -> drop
     items.push({
       product: resolved.product,
       variantSku: it.variant_id,
       quantity: it.quantity,
-      selected: it.is_selected
+      selected: it.is_selected,
+      bundle: it.bundle || undefined
     });
   }
   return { cart_id: cart.cart_id, items };
@@ -83,7 +123,7 @@ async function mergeGuestCartIntoUser(userId, guestItems) {
   const working = cart ? cart.items.map(i => i.toObject()) : [];
 
   for (const g of incoming) {
-    const resolved = await resolveProductVariant(g.product_id, g.variantSku);
+    const resolved = await resolveProductVariant(g.product_id, g.variantSku, g.bundle);
     if (!resolved) continue; // deleted product/variant -> skip
 
     const { product, variant } = resolved;
@@ -98,6 +138,9 @@ async function mergeGuestCartIntoUser(userId, guestItems) {
       working[idx].quantity = capQuantity(working[idx].quantity + addQty, stock);
       working[idx].price_at_add = variant.price; // latest price
       working[idx].is_selected = true;
+      if (g.bundle) {
+        working[idx].bundle = g.bundle;
+      }
     } else {
       // Different product, or same product but different variant -> new line.
       working.push({
@@ -106,6 +149,7 @@ async function mergeGuestCartIntoUser(userId, guestItems) {
         quantity: capQuantity(addQty, stock),
         price_at_add: variant.price,
         is_selected: true,
+        bundle: g.bundle || null,
         added_at: new Date()
       });
     }
@@ -154,7 +198,7 @@ async function replaceUserCart(userId, items) {
 
   const byKey = new Map(); // dedupe by product+variant, last wins
   for (const g of incoming) {
-    const resolved = await resolveProductVariant(g.product_id, g.variantSku);
+    const resolved = await resolveProductVariant(g.product_id, g.variantSku, g.bundle);
     if (!resolved) continue; // deleted product/variant -> drop
 
     const { product, variant } = resolved;
@@ -165,6 +209,7 @@ async function replaceUserCart(userId, items) {
       quantity: capQuantity(Math.max(1, Number(g.quantity) || 1), stock),
       price_at_add: variant.price,
       is_selected: g.selected !== undefined ? !!g.selected : true,
+      bundle: g.bundle || null,
       added_at: new Date()
     });
   }

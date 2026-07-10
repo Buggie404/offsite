@@ -656,12 +656,13 @@ export class CartService {
   }
 
   // Guest cart payload sent to the backend merge (product_id = Product._id, variant = sku).
-  getGuestCartPayload(): Array<{ product_id: string | number; variantSku: string; quantity: number; selected: boolean }> {
+  getGuestCartPayload(): Array<{ product_id: string | number; variantSku: string; quantity: number; selected: boolean; bundle?: any }> {
     return this.cartItems().map(item => ({
       product_id: item.product?._id ?? item.product?.product_id,
       variantSku: item.variantSku,
       quantity: item.quantity,
-      selected: item.selected
+      selected: item.selected,
+      bundle: item.bundle
     }));
   }
 
