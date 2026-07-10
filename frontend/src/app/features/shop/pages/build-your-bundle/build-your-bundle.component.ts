@@ -528,6 +528,14 @@ export class BuildYourBundleComponent implements OnInit {
     });
 
     this.cartService.addKitBundleToCart(bundle);
+    this.resetBuilderAfterAdd();
+  }
+
+  private resetBuilderAfterAdd(): void {
+    this.slotSelections.set({});
+    this.activeSlotKey.set(this.isBundleMode() ? 'package-0' : 'package');
+    this.persistBuilderState();
+    this.cdr.markForCheck();
   }
 
   private getBundleBrowserProducts(): Product[] {
