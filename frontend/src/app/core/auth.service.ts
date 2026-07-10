@@ -36,8 +36,6 @@ export class AuthService {
     const response = await this.http.post('/auth/login', {
       email: emailOrPhone,
       password,
-      // Send the guest (localStorage) cart so the backend can merge it into
-      // this user's cart. Backend skips merging when this is empty.
       guestCart: this.cartService.getGuestCartPayload()
     });
 
@@ -58,8 +56,30 @@ export class AuthService {
   }): Promise<any> {
     const response = await this.http.post('/auth/register', data);
 
-    this.setAuthState(response);
+    // this.setAuthState(response);
     return response;
+  }
+  
+  async verifyRegistrationOtp(
+    registration_id: string,
+    otp: string
+  ): Promise<any> {
+    const response = await this.http.post(
+      '/auth/verify-registration-otp',
+      {
+        registration_id,
+        otp
+      }
+    );
+
+    this.setAuthState(response);
+
+    return response;
+  }
+
+  // Gửi lại OTP đăng ký — reset số lần sai + hạn dùng ở backend
+  async resendRegistrationOtp(registration_id: string): Promise<any> {
+    return await this.http.post('/auth/resend-registration-otp', { registration_id });
   }
 
   // GET PROFILE
@@ -177,4 +197,3 @@ export class AuthService {
     return null;
   }
 }
-

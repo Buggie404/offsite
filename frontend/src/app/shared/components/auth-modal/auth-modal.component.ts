@@ -1,4 +1,4 @@
-import { Component, inject, HostListener, ChangeDetectorRef, ElementRef, ViewChild } from '@angular/core';
+import { Component, inject, HostListener, ChangeDetectorRef, ElementRef, ViewChild, ViewChildren, QueryList, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideX, LucideEye, LucideEyeOff } from '@lucide/angular';
@@ -15,7 +15,7 @@ import { Router } from '@angular/router';
   templateUrl: './auth-modal.component.html',
   styleUrl: './auth-modal.component.scss'
 })
-export class AuthModalComponent {
+export class AuthModalComponent implements OnDestroy {
   private authModalService = inject(AuthModalService);
   private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
@@ -25,6 +25,11 @@ export class AuthModalComponent {
   @ViewChild('loginPhoneInput') loginPhoneInput!: ElementRef<HTMLInputElement>;
   @ViewChild('loginPasswordInput') loginPasswordInput!: ElementRef<HTMLInputElement>;
   @ViewChild('loginPhonePasswordInput') loginPhonePasswordInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('signupEmailInput') signupEmailInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('signupPhoneInput') signupPhoneInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('signupPasswordInput') signupPasswordInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('signupConfirmPasswordInput') signupConfirmPasswordInput!: ElementRef<HTMLInputElement>;
+  @ViewChildren('otpInput') otpInputs!: QueryList<ElementRef<HTMLInputElement>>;
 
   isOpen = this.authModalService.isOpen;
   mode = this.authModalService.mode;
@@ -32,6 +37,21 @@ export class AuthModalComponent {
   loginTab: 'email' | 'phone' = 'email';
   showPassword = false;
   showConfirmPassword = false;
+  // OTP registration flow
+  isOtpStep = false;
+  registrationId = '';
+  registrationEmail = '';
+  otpDigits: string[] = ['', '', '', '', '', ''];
+  otpError: string | null = null;
+  otpLocked = false; // true sau 3 lần sai -> chỉ còn cách Resend
+  maskedContact = '';
+  otpChannel: 'email' | 'phone' = 'email';
+  isVerifyingOtp = false;
+  isResendingOtp = false;
+  otpCountdown = 0;
+  mockOtp = '';
+  private otpTimerHandle: ReturnType<typeof setInterval> | null = null;
+  private readonly OTP_DURATION_SECONDS = 2 * 60; // khớp OTP_EXPIRE_MS ở backend (2 phút)
 
   // Form values (Login)
   loginEmail = '';
@@ -110,6 +130,18 @@ export class AuthModalComponent {
     this.serverPhoneError = null;
     this.serverPasswordError = null;
     this.isSubmitting = false;
+
+    this.clearOtpCountdown();
+    this.isOtpStep = false;
+    this.registrationId = '';
+    this.registrationEmail = '';
+    this.otpDigits = ['', '', '', '', '', ''];
+    this.otpError = null;
+    this.otpLocked = false;
+    this.maskedContact = '';
+    this.mockOtp = '';
+    this.isVerifyingOtp = false;
+    this.isResendingOtp = false;
   }
 
   onEmailBlur(): void {
@@ -295,6 +327,14 @@ export class AuthModalComponent {
     }
 
     if (this.mode() === 'signup') {
+      // Đồng bộ lại giá trị thật từ DOM trước khi validate — cùng lý do như
+      // ở login: autofill (nhất là số điện thoại) có thể không bắn sự kiện
+      // 'input' nên ngModel chưa kịp cập nhật khi bấm submit ngay.
+      if (this.signupEmailInput?.nativeElement) this.signupEmail = this.signupEmailInput.nativeElement.value;
+      if (this.signupPhoneInput?.nativeElement) this.signupPhone = this.signupPhoneInput.nativeElement.value;
+      if (this.signupPasswordInput?.nativeElement) this.signupPassword = this.signupPasswordInput.nativeElement.value;
+      if (this.signupConfirmPasswordInput?.nativeElement) this.signupConfirmPassword = this.signupConfirmPasswordInput.nativeElement.value;
+
       this.signupNameTouched = true;
       this.signupEmailTouched = true;
       this.signupPhoneTouched = true;
@@ -313,22 +353,27 @@ export class AuthModalComponent {
 
       try {
         const normalizedPhone = this.signupPhone.replace(/\s+/g, '');
-        await this.authService.register({
+        const response = await this.authService.register({
           name: this.signupName,
           email: this.signupEmail,
           phone: normalizedPhone,
           password: this.signupPassword
         });
 
-        // Register auto-logs the user in. Stay on whatever page they
-        // were on (e.g. a recipe page they wanted to save) instead of
-        // redirecting them to the homepage.
-        this.successModalConfig = {
-          title: 'Signed Up Successfully',
-          subtitle: 'Welcome to Offsite!',
-          primaryBtn: 'CONTINUE'
-        };
-        this.showSuccessModal = true;
+        this.registrationId = response.registration_id;
+        this.registrationEmail = this.signupEmail;
+        this.maskedContact = response.maskedContact || '';
+        this.otpChannel = response.channel || 'email';
+        this.mockOtp = response.__mock || '';
+
+        this.otpLocked = false;
+        this.otpError = null;
+        this.otpDigits = ['', '', '', '', '', ''];
+        this.isOtpStep = true;
+        this.startOtpCountdown(this.OTP_DURATION_SECONDS);
+        this.cdr.detectChanges();
+        setTimeout(() => this.focusOtpInput(0), 50);
+
       } catch (err: any) {
         console.error('Registration error:', err);
         const errorCode = err?.code;
@@ -347,12 +392,32 @@ export class AuthModalComponent {
       return;
     }
 
+    // Đồng bộ lại giá trị thật từ DOM trước khi validate: một số trình duyệt
+    // (đặc biệt autofill số điện thoại trên input type="tel") không bắn sự
+    // kiện 'input' nên [(ngModel)] có thể chưa cập nhật, khiến form bị coi
+    // là invalid dù ô nhìn có vẻ đã điền đầy đủ.
+    if (this.loginTab === 'email') {
+      if (this.loginEmailInput?.nativeElement) this.loginEmail = this.loginEmailInput.nativeElement.value;
+      if (this.loginPasswordInput?.nativeElement) this.loginPassword = this.loginPasswordInput.nativeElement.value;
+    } else {
+      if (this.loginPhoneInput?.nativeElement) this.loginPhone = this.loginPhoneInput.nativeElement.value;
+      if (this.loginPhonePasswordInput?.nativeElement) this.loginPassword = this.loginPhonePasswordInput.nativeElement.value;
+    }
+
     this.emailTouched = true;
     this.phoneTouched = true;
     this.passwordTouched = true;
     this.cdr.detectChanges();
 
     if (!this.isFormValid()) {
+      // Báo lỗi cụ thể thay vì im lặng return — tránh cảm giác nút "đứng yên".
+      if (this.loginTab === 'phone' && !this.phoneError) {
+        this.serverEmailError = 'Vui lòng kiểm tra lại số điện thoại và mật khẩu.';
+        this.cdr.detectChanges();
+      } else if (this.loginTab === 'email' && !this.emailError) {
+        this.serverEmailError = 'Vui lòng kiểm tra lại email và mật khẩu.';
+        this.cdr.detectChanges();
+      }
       return;
     }
     
@@ -372,17 +437,20 @@ export class AuthModalComponent {
       await this.authService.login(normalizedIdentifier, this.loginPassword);
       this.closeAuthModal();
 
-      // If they're already on the homepage, there's nowhere left for
-      // "BACK TO HOMEPAGE" to take them — skip the success modal.
-      if (this.router.url !== '/') {
-        this.successModalConfig = {
-          title: 'Log In Successfully',
-          subtitle: "Welcome back! You're now signed in.",
-          primaryBtn: 'BACK TO HOMEPAGE',
-          // secondaryBtn: 'SIGN OUT'
-        };
-        this.showSuccessModal = true;
-      }
+      // Hiện ngay lập tức: không dùng setTimeout vì trình duyệt sẽ throttle
+      // timer khi tab bị chuyển ra nền, khiến modal có cảm giác "đợi" tới khi
+      // quay lại tab mới hiện. Luôn hiện modal dù đang ở trang nào.
+      // Nếu đang ở sẵn trang chủ thì "BACK TO HOMEPAGE" chẳng có nghĩa gì —
+      // đổi thành "CONTINUE" (onSuccessPrimary đã xử lý sẵn case này).
+      const isOnHomepage = this.router.url === '/';
+      this.successModalConfig = {
+        title: 'Log In Successfully',
+        subtitle: "Welcome back! You're now signed in.",
+        primaryBtn: isOnHomepage ? 'CONTINUE' : 'BACK TO HOMEPAGE',
+        // secondaryBtn: 'SIGN OUT'
+      };
+      this.showSuccessModal = true;
+      this.cdr.detectChanges();
     } 
       catch (err: any) {
         console.error('Login error:', err);
@@ -418,7 +486,179 @@ export class AuthModalComponent {
         this.cdr.detectChanges();
       }
   }
+  
+  // ══════════════ OTP verification step ══════════════
 
+  private startOtpCountdown(seconds: number): void {
+    this.clearOtpCountdown();
+    this.otpCountdown = seconds;
+    this.otpTimerHandle = setInterval(() => {
+      this.otpCountdown--;
+      if (this.otpCountdown <= 0) {
+        this.otpCountdown = 0;
+        this.clearOtpCountdown();
+      }
+      this.cdr.detectChanges();
+    }, 1000);
+  }
+
+  private clearOtpCountdown(): void {
+    if (this.otpTimerHandle) {
+      clearInterval(this.otpTimerHandle);
+      this.otpTimerHandle = null;
+    }
+  }
+
+  get otpCountdownLabel(): string {
+    const m = Math.floor(this.otpCountdown / 60);
+    const s = this.otpCountdown % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  get canResendOtp(): boolean {
+    return this.otpCountdown <= 0;
+  }
+
+  get otpValue(): string {
+    return this.otpDigits.join('');
+  }
+
+  private focusOtpInput(index: number): void {
+    const el = this.otpInputs?.toArray()[index]?.nativeElement;
+    if (el) {
+      el.focus();
+      el.select();
+    }
+  }
+
+  // Nhập số vào từng ô, tự nhảy sang ô kế; hỗ trợ paste cả 6 số cùng lúc
+  onOtpDigitInput(index: number, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const value = input.value.replace(/\D/g, '');
+
+    if (!value) {
+      this.otpDigits[index] = '';
+      return;
+    }
+
+    if (value.length > 1) {
+      const chars = value.split('');
+      for (let i = index; i < 6 && chars.length; i++) {
+        this.otpDigits[i] = chars.shift()!;
+      }
+      const nextEmpty = this.otpDigits.findIndex((d, i) => i >= index && !d);
+      this.focusOtpInput(nextEmpty === -1 ? 5 : nextEmpty);
+      input.value = this.otpDigits[index];
+      if (this.otpValue.length === 6) {
+        this.verifyOtp();
+      }
+      return;
+    }
+
+    this.otpDigits[index] = value;
+    if (index < 5) {
+      this.focusOtpInput(index + 1);
+    } else if (this.otpValue.length === 6) {
+      this.verifyOtp();
+    }
+  }
+
+  onOtpKeydown(index: number, event: KeyboardEvent): void {
+    if (event.key === 'Backspace' && !this.otpDigits[index] && index > 0) {
+      this.focusOtpInput(index - 1);
+    }
+  }
+
+  async verifyOtp(): Promise<void> {
+    if (this.isVerifyingOtp || this.otpLocked || !this.registrationId) return;
+    if (this.otpValue.length !== 6) return;
+
+    this.otpError = null;
+    this.isVerifyingOtp = true;
+    this.cdr.detectChanges();
+
+    try {
+      await this.authService.verifyRegistrationOtp(this.registrationId, this.otpValue);
+
+      this.clearOtpCountdown();
+      this.closeAuthModal();
+
+      // Hiện ngay lập tức, không dùng setTimeout (bị throttle khi đổi tab).
+      this.successModalConfig = {
+        title: 'Signed Up Successfully',
+        subtitle: 'Welcome to Offsite!',
+        primaryBtn: 'CONTINUE'
+      };
+      this.showSuccessModal = true;
+      this.cdr.detectChanges();
+    } catch (err: any) {
+      console.error(err);
+      const code = err?.code;
+
+      if (code === 'OTP_LOCKED') {
+        this.otpLocked = true;
+        this.clearOtpCountdown();
+      } else if (code === 'OTP_EXPIRED') {
+        this.otpError = 'This code has expired. Please resend a new code.';
+        this.clearOtpCountdown();
+      } else if (code === 'REGISTRATION_NOT_FOUND') {
+        this.otpError = 'Session expired. Please sign up again.';
+        this.clearOtpCountdown();
+        setTimeout(() => this.backToSignup(), 1500);
+      } else {
+        this.otpError = err?.error || 'Incorrect code. Please try again.';
+      }
+
+      this.otpDigits = ['', '', '', '', '', ''];
+      setTimeout(() => this.focusOtpInput(0), 50);
+    } finally {
+      this.isVerifyingOtp = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  async resendOtp(): Promise<void> {
+    if (this.isResendingOtp || !this.registrationId || (!this.canResendOtp && !this.otpLocked)) return;
+
+    this.isResendingOtp = true;
+    this.cdr.detectChanges();
+
+    try {
+      const res = await this.authService.resendRegistrationOtp(this.registrationId);
+      this.maskedContact = res.maskedContact || this.maskedContact;
+      this.mockOtp = res.__mock || '';
+      this.otpLocked = false;
+      this.otpError = null;
+      this.otpDigits = ['', '', '', '', '', ''];
+      this.startOtpCountdown(this.OTP_DURATION_SECONDS);
+      setTimeout(() => this.focusOtpInput(0), 50);
+    } catch (err: any) {
+      this.otpError = err?.error || 'Could not resend code. Please try again.';
+      if (err?.code === 'REGISTRATION_NOT_FOUND') {
+        setTimeout(() => this.backToSignup(), 1500);
+      }
+    } finally {
+      this.isResendingOtp = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  // Huỷ bước OTP, quay lại form đăng ký
+  backToSignup(): void {
+    this.clearOtpCountdown();
+    this.isOtpStep = false;
+    this.otpLocked = false;
+    this.registrationId = '';
+    this.maskedContact = '';
+    this.mockOtp = '';
+    this.otpError = null;
+    this.otpDigits = ['', '', '', '', '', ''];
+    this.cdr.detectChanges();
+  }
+
+  ngOnDestroy(): void {
+    this.clearOtpCountdown();
+  }
 
   loginWithGoogle(): void {
     window.location.href = 'http://localhost:5000/api/auth/oauth/google';

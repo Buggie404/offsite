@@ -297,6 +297,18 @@
           background-color: var(--color-latte);
         }
       }
+
+      &.strength-weak .strength-segment.filled {
+        background-color: #DC2626;
+      }
+
+      &.strength-medium .strength-segment.filled {
+        background-color: #F5A623;
+      }
+
+      &.strength-strong .strength-segment.filled {
+        background-color: #16A34A;
+      }
     }
 
     .strength-label {
@@ -306,6 +318,18 @@
       color: var(--color-latte);
       letter-spacing: 0.05em;
       text-align: right;
+
+      &.strength-weak {
+        color: #DC2626;
+      }
+
+      &.strength-medium {
+        color: #F5A623;
+      }
+
+      &.strength-strong {
+        color: #16A34A;
+      }
     }
   }
 
@@ -482,5 +506,243 @@
         color: var(--color-forest-green);
       }
     }
+  }
+
+  // ══════════════ OTP verification step ══════════════
+  .otp-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .otp-icon-circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 9999px;
+    margin-bottom: 12px;
+
+    &--success {
+      background-color: #CFE1B9;
+    }
+
+    &--failed {
+      background-color: #DC2626;
+    }
+  }
+
+  .otp-title {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--color-near-black);
+    margin: 0 0 8px;
+  }
+
+  .otp-subtitle {
+    font-family: var(--font-body);
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--color-warm-brown);
+    max-width: 320px;
+    margin: 0 0 4px;
+  }
+
+  .otp-masked-contact {
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--color-near-black);
+    white-space: nowrap;
+    margin: 0 0 12px;
+  }
+
+  .otp-dev-hint {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--color-forest-green);
+    background-color: rgba(55, 85, 52, 0.08);
+    border: 1px dashed rgba(55, 85, 52, 0.3);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin: 8px 0 0;
+  }
+
+  .otp-input-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 20px 0 8px;
+    width: 100%;
+  }
+
+  .otp-digit-input {
+    width: 44px;
+    height: 52px;
+    text-align: center;
+    font-family: var(--font-body);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-near-black);
+    background-color: #F6F3F2;
+    border: 1.5px solid rgba(84, 74, 64, 0.2);
+    border-radius: 8px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+    &:focus {
+      outline: none;
+      border-color: var(--color-forest-green);
+      box-shadow: 0 0 0 1px var(--color-forest-green);
+    }
+
+    &.filled {
+      border-color: var(--color-forest-green);
+    }
+  }
+
+  .otp-error {
+    font-family: var(--font-mono);
+    color: var(--state-error);
+    font-size: 12px;
+    margin: 4px 0 0;
+    letter-spacing: -0.01em;
+  }
+
+  .otp-countdown {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    margin: 16px 0 0;
+    color: var(--color-warm-brown);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .otp-resend-link {
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-forest-green);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      text-decoration: underline;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  .otp-action-buttons {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    margin-top: 28px;
+
+    &--stacked {
+      flex-direction: column;
+    }
+  }
+
+  .otp-btn-cancel {
+    flex: 1;
+    height: 48px;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    border: 1.5px solid var(--color-forest-green);
+    color: var(--color-near-black);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background-color: rgba(55, 85, 52, 0.06);
+    }
+
+    &--full {
+      width: 100%;
+    }
+  }
+
+  .otp-btn-confirm {
+    flex: 1;
+    height: 48px;
+    border-radius: var(--radius-pill);
+    background-color: var(--color-forest-green);
+    color: var(--color-cream);
+    border: none;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-near-black);
+    }
+
+    &:disabled {
+      background-color: rgba(84, 74, 64, 0.15);
+      color: rgba(84, 74, 64, 0.4);
+      cursor: not-allowed;
+    }
+
+    &--full {
+      width: 100%;
+    }
+  }
+
+  .otp-footer {
+    margin-top: 24px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    color: rgba(26, 26, 26, 0.25);
+  }
+}
+
+// Badge DEV OTP — nằm ngoài modal, ở góc dưới bên trái màn hình, không
+// chen vào luồng đọc chính của người dùng, chỉ để tiện dev/test.
+.otp-dev-badge {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 9999;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--color-forest-green);
+  background-color: rgba(55, 85, 52, 0.08);
+  border: 1px dashed rgba(55, 85, 52, 0.3);
+  border-radius: 6px;
+  padding: 6px 10px;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  backdrop-filter: blur(2px);
+
+  &:hover {
+    opacity: 1;
   }
 }

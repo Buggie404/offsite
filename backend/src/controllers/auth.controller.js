@@ -28,6 +28,43 @@ function generateOTP() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+const OTP_EXPIRE_MS = 2 * 60 * 1000;
+const OTP_MAX_ATTEMPTS = 3;
+
+// Che email: giữ ký tự đầu/cuối phần trước @, phần còn lại thay bằng dấu chấm
+// vd: "steve@gmail.com" -> "s...e@gmail.com"
+function maskEmail(email) {
+  const at = email.indexOf('@');
+  if (at <= 0) return email;
+  const local = email.slice(0, at);
+  const domain = email.slice(at);
+
+  if (local.length <= 2) {
+    return `${local[0]}${'*'.repeat(Math.max(local.length - 1, 1))}${domain}`;
+  }
+
+  const first = local[0];
+  const last = local[local.length - 1];
+  const dots = '.'.repeat(Math.min(Math.max(local.length - 2, 3), 8));
+  return `${first}${dots}${last}${domain}`;
+}
+
+// Che số điện thoại theo định dạng quốc tế VN: +84 xxx xxx x71 (chỉ hiện 2 số cuối)
+function maskPhone(phone) {
+  const digits = String(phone).replace(/\D/g, '');
+  const local = digits.replace(/^0+/, ''); // bỏ số 0 đầu để ghép với mã quốc gia +84
+  const lastTwo = local.slice(-2);
+  const maskedDigits = 'x'.repeat(Math.max(local.length - 2, 0)) + lastTwo;
+
+  // Chia nhóm 3 số cho dễ đọc: xxx xxx x71
+  const groups = [];
+  for (let i = 0; i < maskedDigits.length; i += 3) {
+    groups.push(maskedDigits.slice(i, i + 3));
+  }
+
+  return `+84 ${groups.join(' ')}`;
+}
+
 // Sinh community_name tự động từ tên hiển thị, đảm bảo không trùng
 async function generateCommunityName(userCollection, displayName) {
   const base = String(displayName || 'user')
@@ -82,7 +119,7 @@ async function register(req, res) {
       });
     }
 
-    const { userCollection } = await getCollections();
+    const { userCollection, otpCollection } = await getCollections();
 
    // Check trùng email/phone
     if (email) {
@@ -99,66 +136,264 @@ async function register(req, res) {
       }
     }
 
+      // Xóa yêu cầu đăng ký cũ nếu người dùng đăng ký lại
+    await otpCollection.deleteMany({
+      $or: [
+        email ? { email: email.trim().toLowerCase() } : null,
+        phone ? { phone: phone.trim() } : null
+      ].filter(Boolean)
+    });
+
     // Sinh user_id tuần tự kiểu USRXXXXX
-    const lastUser = await userCollection.findOne({}, { sort: { user_id: -1 } });
-    let nextNum = 1;
-    if (lastUser && lastUser.user_id) {
-      const match = lastUser.user_id.match(/USR(\d+)/);
-      if (match) {
-        nextNum = parseInt(match[1], 10) + 1;
-      }
-    }
-    const user_id = `USR${String(nextNum).padStart(5, '0')}`;
+    // const lastUser = await userCollection.findOne({}, { sort: { user_id: -1 } });
+    // let nextNum = 1;
+    // if (lastUser && lastUser.user_id) {
+    //   const match = lastUser.user_id.match(/USR(\d+)/);
+    //   if (match) {
+    //     nextNum = parseInt(match[1], 10) + 1;
+    //   }
+    // }
+    // const user_id = `USR${String(nextNum).padStart(5, '0')}`;
 
     // Tự động hash mật khẩu với saltRounds = 10
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const registration_id = new ObjectId().toString();
+    const otp = generateOTP();
+
+    const normalizedEmail = email ? email.trim().toLowerCase() : null;
+    const normalizedPhone = phone ? phone.trim() : null;
+
+    await otpCollection.insertOne({
+      registration_id,
+
+      email: normalizedEmail,
+      phone: normalizedPhone,
+
+      password_hash: hashedPassword,
+      profile_name: displayName,
+      avatar_url: req.body.avatar_url || null,
+      otp,
+      attempts: 0,
+
+      expiresAt: new Date(Date.now() + OTP_EXPIRE_MS),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    console.log(
+      `[REGISTER OTP] ${email || phone} -> ${otp}`
+    );
+
+    const maskedContact = normalizedEmail ? maskEmail(normalizedEmail) : maskPhone(normalizedPhone);
+
+    res.status(201).json({
+      message: 'OTP sent.',
+      registration_id,
+      maskedContact,
+      channel: normalizedEmail ? 'email' : 'phone',
+      __mock: process.env.NODE_ENV !== 'production'
+        ? otp
+        : undefined
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Xác thực OTP đăng ký
+async function verifyRegistrationOtp(req, res) {
+  try {
+    const { registration_id, otp } = req.body;
+
+    if (!registration_id || !otp) {
+      return res.status(400).json({
+        error: 'Thiếu registration_id hoặc OTP.',
+        code: 'MISSING_FIELDS'
+      });
+    }
+
+    const { userCollection, otpCollection } = await getCollections();
+
+    const pending = await otpCollection.findOne({ registration_id });
+
+    if (!pending) {
+      return res.status(404).json({
+        error: 'Yêu cầu đăng ký không tồn tại.',
+        code: 'REGISTRATION_NOT_FOUND'
+      });
+    }
+
+    if (pending.expiresAt < new Date()) {
+      await otpCollection.deleteOne({ _id: pending._id });
+
+      return res.status(400).json({
+        error: 'OTP đã hết hạn.',
+        code: 'OTP_EXPIRED'
+      });
+    }
+
+    if ((pending.attempts || 0) >= OTP_MAX_ATTEMPTS) {
+      return res.status(400).json({
+        error: 'Sai quá số lần cho phép. Vui lòng gửi lại mã.',
+        code: 'OTP_LOCKED'
+      });
+    }
+
+    if (pending.otp !== otp) {
+      const attempts = (pending.attempts || 0) + 1;
+      const remaining = OTP_MAX_ATTEMPTS - attempts;
+
+      await otpCollection.updateOne(
+        { _id: pending._id },
+        { $set: { attempts } }
+      );
+
+      if (remaining <= 0) {
+        return res.status(400).json({
+          error: 'Sai quá số lần cho phép. Vui lòng gửi lại mã.',
+          code: 'OTP_LOCKED'
+        });
+      }
+
+      return res.status(400).json({
+        error: `OTP không chính xác. Còn ${remaining} lần thử.`,
+        code: 'INVALID_OTP',
+        remainingAttempts: remaining
+      });
+    }
+
+    // Sinh user_id tuần tự
+    const lastUser = await userCollection.findOne(
+      {},
+      { sort: { user_id: -1 } }
+    );
+
+    let nextNum = 1;
+
+    if (lastUser?.user_id) {
+      const match = lastUser.user_id.match(/USR(\d+)/);
+
+      if (match) {
+        nextNum = parseInt(match[1], 10) + 1;
+      }
+    }
+
+    const user_id = `USR${String(nextNum).padStart(5, '0')}`;
+
+    // Sinh community_name
+    const community_name = await generateCommunityName(
+      userCollection,
+      pending.profile_name
+    );
 
     const newUser = {
       user_id,
-      password_hash: hashedPassword,
+      password_hash: pending.password_hash,
       oauth_providers: [],
-      profile_name: displayName,
+      profile_name: pending.profile_name,
+      avatar_url: pending.avatar_url || null,
+      community_name,
+
       role: 'customer',
       status: 'active',
+
       addresses: [],
       payment_methods: [],
       saved_products: [],
       saved_recipes: [],
       saved_posts: [],
       saved_blogs: [],
+
       createdAt: new Date(),
       updatedAt: new Date()
     };
 
-    if (email) newUser.email = email;
-    if (req.body.phone) newUser.phone = req.body.phone;
-    if (req.body.avatar_url) newUser.avatar_url = req.body.avatar_url;
-
-    // Tự sinh community_name nếu người dùng không cung cấp
-    newUser.community_name = req.body.community_name
-      ? req.body.community_name
-      : await generateCommunityName(userCollection, displayName);
+    if (pending.email) newUser.email = pending.email;
+    if (pending.phone) newUser.phone = pending.phone;
 
     const result = await userCollection.insertOne(newUser);
 
-    // Ký JWT Token (Payload: user_id tương ứng với _id trong DB để đồng bộ với middleware cũ)
+    await otpCollection.deleteOne({
+      _id: pending._id
+    });
+
     const token = jwt.sign(
-      { user_id: result.insertedId, email, role: newUser.role },
+      {
+        user_id: result.insertedId,
+        email: newUser.email || '',
+        role: newUser.role
+      },
       ACCESS_SECRET,
       { expiresIn: '8h' }
     );
 
     res.status(201).json({
-      message: 'Đăng ký tài khoản thành công',
+      message: 'Xác thực thành công.',
       token,
       user: {
         _id: result.insertedId,
         user_id: newUser.user_id,
-        email,
+        email: newUser.email || '',
+        phone: newUser.phone || '',
         profile_name: newUser.profile_name,
         role: newUser.role
       }
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message
+    });
+  }
+}
+
+// Gửi lại OTP đăng ký — reset số lần sai + hạn dùng
+async function resendRegistrationOtp(req, res) {
+  try {
+    const { registration_id } = req.body;
+
+    if (!registration_id) {
+      return res.status(400).json({
+        error: 'Thiếu registration_id.',
+        code: 'MISSING_FIELDS'
+      });
+    }
+
+    const { otpCollection } = await getCollections();
+
+    const pending = await otpCollection.findOne({ registration_id });
+
+    if (!pending) {
+      return res.status(404).json({
+        error: 'Yêu cầu đăng ký không tồn tại hoặc đã hết hạn. Vui lòng đăng ký lại.',
+        code: 'REGISTRATION_NOT_FOUND'
+      });
+    }
+
+    const otp = generateOTP();
+
+    await otpCollection.updateOne(
+      { _id: pending._id },
+      {
+        $set: {
+          otp,
+          attempts: 0,
+          expiresAt: new Date(Date.now() + OTP_EXPIRE_MS),
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    console.log(`[RESEND OTP] registration_id=${registration_id} -> ${otp}`);
+
+    const maskedContact = pending.email ? maskEmail(pending.email) : maskPhone(pending.phone);
+
+    res.status(200).json({
+      message: 'A new verification code has been sent.',
+      maskedContact,
+      __mock: process.env.NODE_ENV !== 'production'
+        ? otp
+        : undefined
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -174,9 +409,6 @@ async function login(req, res) {
     if (!email || !password) {
       return res.status(400).json({ error: 'Vui lòng cung cấp email và password.', code: 'MISSING_FIELDS' });
     }
-
-    // Chuẩn hoá email / phone: loại bỏ khoảng trắng ở đầu và cuối.
-    // Nếu là số điện thoại (không chứa ký tự '@'), loại bỏ hoàn toàn khoảng trắng bên trong.
     let identifier = String(email).trim();
     if (identifier && !identifier.includes('@')) {
       identifier = identifier.replace(/\s+/g, '');
@@ -942,6 +1174,8 @@ async function getSavedItems(req, res) {
 module.exports = {
   register,
   login,
+  verifyRegistrationOtp,
+  resendRegistrationOtp,
   adminLogin,
   logout,
   refreshToken,

@@ -9,6 +9,8 @@ router.post('/logout', authController.logout);
 router.post('/refresh', authController.refreshToken);
 router.post('/forgot-password',  authController.forgotPassword);  
 router.post('/reset-password',   authController.resetPassword);
+router.post('/verify-registration-otp', authController.verifyRegistrationOtp);
+router.post('/resend-registration-otp', authController.resendRegistrationOtp);
 
 // Profile & Password routes
 router.get('/me', authMiddleware, authController.getProfile);
