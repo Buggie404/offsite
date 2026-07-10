@@ -36,6 +36,7 @@ export class ProductCardComponent {
   @Output() productAdd = new EventEmitter<Product>();
   @Output() bundleIncrement = new EventEmitter<Product>();
   @Output() bundleDecrement = new EventEmitter<Product>();
+  @Output() detailOpen = new EventEmitter<Product>();
   isQuickViewOpen = false;
 
   constructor(
@@ -172,6 +173,7 @@ export class ProductCardComponent {
   }
 
   openProductDetail(): void {
+    this.detailOpen.emit(this.product);
     void this.router.navigate(['/products', this.getDetailId(this.product)]);
   }
 

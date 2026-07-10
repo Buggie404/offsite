@@ -448,14 +448,25 @@
         </label>
 
         <!-- Image -->
-        <div class="cart-item-image slide-cart--item-image">
+        <a
+          class="cart-item-image slide-cart--item-image"
+          [routerLink]="getCartItemDetailLink(item)"
+          (click)="openCartItemDetail()"
+          [attr.aria-label]="'View details for ' + (isBundleItem(item) ? item.bundle!.title : item.product.name)"
+        >
           <img [src]="getItemImage(item)" [alt]="isBundleItem(item) ? item.bundle!.title : item.product.name">
-        </div>
+        </a>
 
         <!-- Details -->
         <div class="cart-item-details">
           <div class="cart-item-title-row">
-            <span class="cart-item-name">{{ item.quantity }} x {{ isBundleItem(item) ? item.bundle!.title : item.product.name }}</span>
+            <a
+              class="cart-item-name"
+              [routerLink]="getCartItemDetailLink(item)"
+              (click)="openCartItemDetail()"
+            >
+              {{ item.quantity }} x {{ isBundleItem(item) ? item.bundle!.title : item.product.name }}
+            </a>
             <span class="cart-item-price">
               <ng-container *ngIf="isBundleItem(item); else regularCartPrice">
                 <span class="cart-item-price__sale">${{ getLineTotal(item) | number:'1.2-2' }}</span>

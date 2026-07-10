@@ -27,6 +27,15 @@ export interface FilterGroup {
   options: FilterOption[];
 }
 
+interface CatalogReturnState {
+  page: number;
+  scrollY: number;
+  searchQuery: string;
+  selectedSort: string;
+  filters: Record<string, string[]>;
+  createdAt: number;
+}
+
 // Hardcode filter definitions per category
 const CATEGORY_FILTERS: Record<string, FilterGroup[]> = {
   matcha: [
@@ -267,6 +276,7 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
   currentPage = 1;
   totalPages = 1;
   savedProductIds = new Set<number>();
+  private readonly returnStateTtlMs = 30 * 60 * 1000;
 
   get pagedProducts(): Product[] {
     const start = (this.currentPage - 1) * this.PAGE_SIZE;
@@ -310,6 +320,7 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
   loadProducts(): void {
     this.isLoading = true;
     this.currentPage = 1;
+    const returnState = this.takeCatalogReturnState();
     this.productService.getProducts().subscribe({
       next: (data: Product[]) => {
         // Map route slug → product category field
@@ -328,11 +339,20 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
         } else {
           this.allProducts = data.filter(p => p.category === catKey);
         }
-        this.applyFilters();
+        if (returnState) {
+          this.applyCatalogReturnControls(returnState);
+        }
+        this.applyFilters(!returnState);
+        if (returnState) {
+          this.currentPage = this.clampPage(returnState.page);
+        }
         this.isLoading = false;
         // Angular runs zoneless in this project. markForCheck() both marks this
         // view dirty and schedules a render after the HTTP callback completes.
         this.cdr.markForCheck();
+        if (returnState) {
+          this.restoreScrollPosition(returnState.scrollY);
+        }
       },
       error: (error) => {
         console.error(`Failed to load products for category "${this.category}":`, error);
@@ -343,7 +363,7 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
   }
 
   // ── APPLY FILTERS ──
-  applyFilters(): void {
+  applyFilters(resetPage = true): void {
     let products = [...this.allProducts];
     const query = this.searchQuery.trim().toLocaleLowerCase();
 
@@ -368,7 +388,7 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
 
     this.filteredProducts = this.sortProducts(products);
     this.totalPages = Math.max(1, Math.ceil(this.filteredProducts.length / this.PAGE_SIZE));
-    this.currentPage = 1;
+    this.currentPage = resetPage ? 1 : this.clampPage(this.currentPage);
   }
 
   onSearchChange(): void {
@@ -472,6 +492,84 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
     requestAnimationFrame(() => {
       this.productGrid?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+  }
+
+  saveCatalogReturnState(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    const state: CatalogReturnState = {
+      page: this.currentPage,
+      scrollY: window.scrollY,
+      searchQuery: this.searchQuery,
+      selectedSort: this.selectedSort,
+      filters: this.getSelectedFilterValues(),
+      createdAt: Date.now()
+    };
+
+    sessionStorage.setItem(this.getCatalogReturnStateKey(), JSON.stringify(state));
+  }
+
+  private takeCatalogReturnState(): CatalogReturnState | null {
+    if (!isPlatformBrowser(this.platformId)) return null;
+
+    const key = this.getCatalogReturnStateKey();
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+
+    sessionStorage.removeItem(key);
+
+    try {
+      const state = JSON.parse(raw) as CatalogReturnState;
+      if (!state || Date.now() - state.createdAt > this.returnStateTtlMs) return null;
+      return state;
+    } catch {
+      return null;
+    }
+  }
+
+  private applyCatalogReturnControls(state: CatalogReturnState): void {
+    this.searchQuery = state.searchQuery ?? '';
+    if (this.sortOptions.includes(state.selectedSort)) {
+      this.selectedSort = state.selectedSort;
+    }
+
+    this.filterGroups.forEach(group => {
+      const selectedValues = new Set(state.filters?.[group.key] ?? []);
+      group.options.forEach(option => {
+        option.checked = selectedValues.has(option.value);
+      });
+    });
+  }
+
+  private getSelectedFilterValues(): Record<string, string[]> {
+    return this.filterGroups.reduce<Record<string, string[]>>((acc, group) => {
+      const selectedValues = group.options
+        .filter(option => option.checked)
+        .map(option => option.value);
+
+      if (selectedValues.length) {
+        acc[group.key] = selectedValues;
+      }
+
+      return acc;
+    }, {});
+  }
+
+  private restoreScrollPosition(scrollY: number): void {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: Math.max(0, scrollY), behavior: 'auto' });
+      window.setTimeout(() => {
+        window.scrollTo({ top: Math.max(0, scrollY), behavior: 'auto' });
+      }, 120);
+    });
+  }
+
+  private clampPage(page: number): number {
+    return Math.min(Math.max(1, Number(page) || 1), this.totalPages);
+  }
+
+  private getCatalogReturnStateKey(): string {
+    return `offsite:category-catalog:${this.category}:return-state`;
   }
 
   private matchesFilter(product: Product, key: string, value: string): boolean {

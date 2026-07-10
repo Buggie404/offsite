@@ -122,6 +122,7 @@
             [product]="product"
             [isSaved]="isProductSaved(product)"
             (saveToggle)="onProductSave($event)"
+            (detailOpen)="saveCatalogReturnState()"
           ></app-product-card>
         }
         @if (pagedProducts.length === 0) {

@@ -141,7 +141,7 @@ export class CartService {
     if (!variant) return;
     const sku = variant.sku;
 
-    const currentItems = [...this.cartItems()];
+    let currentItems = [...this.cartItems()];
     const productKey = this.getProductKey(product);
     const existingIndex = currentItems.findIndex(
       item => this.getProductKey(item.product) === productKey && item.variantSku === sku
@@ -159,9 +159,10 @@ export class CartService {
           quantity: newQty,
           selected: true // Auto select and check when re-adding
         };
+        currentItems = this.moveItemToFront(currentItems, existingIndex);
       }
     } else {
-      currentItems.push({
+      currentItems.unshift({
         product,
         variantSku: sku,
         quantity: Math.min(Math.max(1, quantity), maxStock),
@@ -180,7 +181,7 @@ export class CartService {
 
     const displayProduct = createBundleDisplayProduct(bundle);
     const sku = bundle.displaySku;
-    const currentItems = [...this.cartItems()];
+    let currentItems = [...this.cartItems()];
     const existingIndex = currentItems.findIndex(
       (item) => item.bundle?.bundleKey === bundle.bundleKey
     );
@@ -196,8 +197,9 @@ export class CartService {
         quantity: Math.min(existingItem.quantity + addQty, maxStock),
         selected: true
       };
+      currentItems = this.moveItemToFront(currentItems, existingIndex);
     } else {
-      currentItems.push({
+      currentItems.unshift({
         product: displayProduct,
         variantSku: sku,
         quantity: Math.min(addQty, maxStock),
@@ -259,7 +261,7 @@ export class CartService {
   }
 
   updateQuantity(productId: ProductIdentifier, variantSku: string, quantity: number): void {
-    const currentItems = [...this.cartItems()];
+    let currentItems = [...this.cartItems()];
     const index = currentItems.findIndex(
       item => this.matchesProduct(item.product, productId) && item.variantSku === variantSku
     );
@@ -281,12 +283,13 @@ export class CartService {
         ...item,
         quantity
       };
+      currentItems = this.moveItemToFront(currentItems, index);
       this.saveCart(currentItems);
     }
   }
 
   updateVariant(productId: ProductIdentifier, oldVariantSku: string, newVariantSku: string): void {
-    const currentItems = [...this.cartItems()];
+    let currentItems = [...this.cartItems()];
     const index = currentItems.findIndex(
       item => this.matchesProduct(item.product, productId) && item.variantSku === oldVariantSku
     );
@@ -311,17 +314,20 @@ export class CartService {
         let mergedQty = existingNewItem.quantity + item.quantity;
         if (mergedQty > maxStock) mergedQty = maxStock;
 
-        currentItems[existingNewIndex] = {
+        const mergedItem = {
           ...existingNewItem,
           quantity: mergedQty
         };
-        // Remove old one
-        currentItems.splice(index, 1);
+        currentItems = currentItems.filter((_, itemIndex) =>
+          itemIndex !== existingNewIndex && itemIndex !== index
+        );
+        currentItems.unshift(mergedItem);
       } else {
         currentItems[index] = {
           ...item,
           variantSku: newVariantSku
         };
+        currentItems = this.moveItemToFront(currentItems, index);
       }
       this.saveCart(currentItems);
     }
@@ -412,19 +418,21 @@ export class CartService {
         mergedQty = maxStock;
       }
 
-      items[duplicateIndex] = {
+      const mergedItem = {
         ...duplicate,
         quantity: mergedQty,
         bundle: updatedBundle,
         product: refreshed.product,
         variantSku: newLineSku
       };
-      items.splice(index, 1);
-      return items;
+      return [
+        mergedItem,
+        ...items.filter((_, itemIndex) => itemIndex !== duplicateIndex && itemIndex !== index)
+      ];
     }
 
     items[index] = refreshed;
-    return items;
+    return this.moveItemToFront(items, index);
   }
 
   toggleSelection(productId: ProductIdentifier, variantSku: string): void {
@@ -647,6 +655,14 @@ export class CartService {
       });
     }
     this.saveCheckoutSummary(currentSummary);
+  }
+
+  private moveItemToFront<T>(items: T[], index: number): T[] {
+    if (index <= 0 || index >= items.length) return items;
+
+    const [item] = items.splice(index, 1);
+    items.unshift(item);
+    return items;
   }
 
   // ===== Guest cart merge & logged-in DB sync =====

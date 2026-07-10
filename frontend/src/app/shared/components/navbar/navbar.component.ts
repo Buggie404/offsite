@@ -702,6 +702,18 @@ export class NavbarComponent implements OnInit {
     );
   }
 
+  getCartItemDetailLink(item: CartItem): Array<string | number> {
+    if (this.isBundleItem(item)) {
+      return ['/shop/build-your-bundle'];
+    }
+
+    return ['/products', item.product._id || item.product.slug || item.product.product_id];
+  }
+
+  openCartItemDetail(): void {
+    this.closeCart();
+  }
+
   checkout(event?: Event): void {
     if (event) {
       event.preventDefault();

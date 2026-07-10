@@ -363,9 +363,11 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
           this.makeTag('drop', p.drinkware?.material)
         ].filter((tag): tag is ProductTag => !!tag);
       case 'sets_bundles': {
-        if (p.sets_bundles?.is_exclusive === true) return [{ icon: 'package', label: 'Exclusive set' }];
         const count = p.sets_bundles?.composition?.length ?? 0;
-        return [{ icon: 'package', label: `${count} ${count === 1 ? 'product' : 'products'}` }];
+        return [
+          count > 0 ? this.makeTag('package', `${count} ${count === 1 ? 'product' : 'products'}`) : null,
+          p.sets_bundles?.is_exclusive === true ? this.makeTag('drop', 'Exclusive for set') : null
+        ].filter((tag): tag is ProductTag => !!tag);
       }
       default:
         return (p.product_tag ?? []).map(label => ({ icon: 'package', label }));

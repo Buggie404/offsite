@@ -1,6 +1,7 @@
 $cream: #fcf2ea;
 $panel: #fff8f4;
 $image-bg: #eae1d9;
+$latte: #c4a882;
 $wheat: #e8d5b0;
 $warm: #544a40;
 $forest: #213e1f;
@@ -611,7 +612,7 @@ app-best-seller {
   gap: 20px;
   padding-bottom: 14px;
   border-bottom: 1px solid rgba(84, 74, 64, 0.26);
-  color: rgba(84, 74, 64, 0.55);
+  color: $latte;
   font-family: var(--font-mono, 'DM Mono', monospace);
   font-size: 11px;
   letter-spacing: 0.22em;
