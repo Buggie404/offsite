@@ -305,8 +305,12 @@
         <div class="reviews-score-copy">
           <div class="stars stars--large" aria-hidden="true">
             @for (star of ratingStars; track star) {
-            <svg lucideStar [size]="28" [class.star--filled]="isStarFilled(averageRating(), star)"
-              [attr.fill]="isStarFilled(averageRating(), star) ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+            <span class="star-meter" [style.--star-fill]="averageStarFill(star) + '%'">
+              <svg lucideStar [size]="28" aria-hidden="true"></svg>
+              <span class="star-meter__fill" aria-hidden="true">
+                <svg lucideStar [size]="28" class="star--filled" [attr.fill]="'currentColor'" aria-hidden="true"></svg>
+              </span>
+            </span>
             }
           </div>
           <span>Based on {{ reviewCount() }} reviews</span>
@@ -361,8 +365,12 @@
           <strong>{{ averageRating() | number:'1.1-1' }}</strong>
           <div class="stars stars--modal" aria-hidden="true">
             @for (star of ratingStars; track star) {
-            <svg lucideStar [size]="29" [class.star--filled]="isStarFilled(averageRating(), star)"
-              [attr.fill]="isStarFilled(averageRating(), star) ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+            <span class="star-meter" [style.--star-fill]="averageStarFill(star) + '%'">
+              <svg lucideStar [size]="29" aria-hidden="true"></svg>
+              <span class="star-meter__fill" aria-hidden="true">
+                <svg lucideStar [size]="29" class="star--filled" [attr.fill]="'currentColor'" aria-hidden="true"></svg>
+              </span>
+            </span>
             }
           </div>
           <span>Based on {{ reviewCount() }} reviews</span>
@@ -386,9 +394,9 @@
           <span>SORT</span>
           <span class="review-sort__select">
             <select aria-label="Sort reviews" [value]="selectedReviewSort()" (change)="onReviewSortChange($event)">
-              <option value="oldest">Oldest</option>
-              <option value="newest">Newest</option>
               <option value="highest">Highest rating</option>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
               <option value="lowest">Lowest rating</option>
             </select>
             <svg lucideChevronDown [size]="24" aria-hidden="true"></svg>

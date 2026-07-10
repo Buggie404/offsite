@@ -172,6 +172,7 @@ export class QuickViewModalComponent implements AfterViewInit, OnDestroy {
 
   previousImage(): void {
     if (this.images.length < 2) return;
+    this.normalizeCarouselPosition();
     this.isSlideTransitionEnabled = true;
     this.activeImageIndex = (this.activeImageIndex - 1 + this.images.length) % this.images.length;
     this.slidePosition -= 1;
@@ -181,6 +182,7 @@ export class QuickViewModalComponent implements AfterViewInit, OnDestroy {
 
   nextImage(): void {
     if (this.images.length < 2) return;
+    this.normalizeCarouselPosition();
     this.isSlideTransitionEnabled = true;
     this.activeImageIndex = (this.activeImageIndex + 1) % this.images.length;
     this.slidePosition += 1;
@@ -298,6 +300,8 @@ export class QuickViewModalComponent implements AfterViewInit, OnDestroy {
   }
 
   private nextImageWithoutReset(): void {
+    if (this.images.length < 2) return;
+    this.normalizeCarouselPosition();
     this.isSlideTransitionEnabled = true;
     this.activeImageIndex = (this.activeImageIndex + 1) % this.images.length;
     this.slidePosition += 1;
@@ -324,6 +328,16 @@ export class QuickViewModalComponent implements AfterViewInit, OnDestroy {
         this.cdr.detectChanges();
       });
     });
+  }
+
+  private normalizeCarouselPosition(): void {
+    const imageCount = this.images.length;
+    if (imageCount < 2) return;
+    if (this.slidePosition >= 1 && this.slidePosition <= imageCount) return;
+
+    this.isSlideTransitionEnabled = false;
+    this.slidePosition = this.activeImageIndex + 1;
+    this.cdr.detectChanges();
   }
 
   private renderImageImmediately(): void {

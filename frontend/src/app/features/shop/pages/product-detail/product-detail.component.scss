@@ -1009,6 +1009,25 @@ app-best-seller {
   }
 }
 
+.star-meter {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  line-height: 0;
+}
+
+.star-meter__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--star-fill, 0%);
+  overflow: hidden;
+
+  svg {
+    display: block;
+    max-width: none;
+  }
+}
+
 .reviews-list {
   width: min(100%, 970px);
   display: flex;

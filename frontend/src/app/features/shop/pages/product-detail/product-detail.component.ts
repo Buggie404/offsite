@@ -129,7 +129,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   reviewsTotalPages = signal<number>(1);
   isReviewsLoading = signal<boolean>(false);
   selectedReviewFilter = signal<string>('All');
-  selectedReviewSort = signal<ReviewSortOption>('oldest');
+  selectedReviewSort = signal<ReviewSortOption>('highest');
   reviewModalPage = signal<number>(1);
   brewingMethods = signal<BrewingMethodCard[]>([]);
   isBrewingMethodsLoading = signal<boolean>(false);
@@ -292,6 +292,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   previousImage(): void {
     const imageCount = this.images().length;
     if (imageCount < 2) return;
+    this.normalizeCarouselPosition(imageCount);
     this.isSlideTransitionEnabled.set(true);
     this.activeImageIndex.update(index => (index - 1 + imageCount) % imageCount);
     this.slidePosition.update(position => position - 1);
@@ -301,6 +302,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   nextImage(): void {
     const imageCount = this.images().length;
     if (imageCount < 2) return;
+    this.normalizeCarouselPosition(imageCount);
     this.isSlideTransitionEnabled.set(true);
     this.activeImageIndex.update(index => (index + 1) % imageCount);
     this.slidePosition.update(position => position + 1);
@@ -459,14 +461,20 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   }
 
   featuredReviews(): ProductReviewView[] {
-    return this.reviews().slice(0, 2);
+    return this.sortReviews([...this.reviews()], 'highest').slice(0, 2);
   }
 
   isStarFilled(rating: number, star: number): boolean {
     return star <= Math.floor(rating);
   }
 
+  averageStarFill(star: number): number {
+    const fill = this.averageRating() - (star - 1);
+    return Math.round(Math.max(0, Math.min(fill, 1)) * 100);
+  }
+
   openReviewModal(): void {
+    this.selectedReviewSort.set('highest');
     this.reviewModalPage.set(1);
     this.isReviewModalOpen.set(true);
   }
@@ -492,19 +500,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
       ? [...this.reviews()]
       : this.reviews().filter(review => review.rating === Number(filter));
 
-    return filtered.sort((a, b) => {
-      switch (this.selectedReviewSort()) {
-        case 'newest':
-          return this.getReviewTime(b) - this.getReviewTime(a);
-        case 'highest':
-          return b.rating - a.rating || this.getReviewTime(b) - this.getReviewTime(a);
-        case 'lowest':
-          return a.rating - b.rating || this.getReviewTime(a) - this.getReviewTime(b);
-        case 'oldest':
-        default:
-          return this.getReviewTime(a) - this.getReviewTime(b);
-      }
-    });
+    return this.sortReviews(filtered, this.selectedReviewSort());
   }
 
   pagedModalReviews(): ProductReviewView[] {
@@ -911,6 +907,22 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return Number.isNaN(time) ? 0 : time;
   }
 
+  private sortReviews(reviews: ProductReviewView[], sort: ReviewSortOption): ProductReviewView[] {
+    return reviews.sort((a, b) => {
+      switch (sort) {
+        case 'newest':
+          return this.getReviewTime(b) - this.getReviewTime(a);
+        case 'highest':
+          return b.rating - a.rating || this.getReviewTime(b) - this.getReviewTime(a);
+        case 'lowest':
+          return a.rating - b.rating || this.getReviewTime(a) - this.getReviewTime(b);
+        case 'oldest':
+        default:
+          return this.getReviewTime(a) - this.getReviewTime(b);
+      }
+    });
+  }
+
   private loadBrewingMethods(product: Product): void {
     if (product.category !== 'coffee' && product.category !== 'matcha') {
       this.brewingMethods.set([]);
@@ -1105,9 +1117,21 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   private nextImageWithoutReset(): void {
     const imageCount = this.images().length;
     if (imageCount < 2) return;
+    this.normalizeCarouselPosition(imageCount);
     this.isSlideTransitionEnabled.set(true);
     this.activeImageIndex.update(index => (index + 1) % imageCount);
     this.slidePosition.update(position => position + 1);
+    this.cdr.detectChanges();
+  }
+
+  private normalizeCarouselPosition(imageCount = this.images().length): void {
+    if (imageCount < 2) return;
+
+    const position = this.slidePosition();
+    if (position >= 1 && position <= imageCount) return;
+
+    this.isSlideTransitionEnabled.set(false);
+    this.slidePosition.set(this.activeImageIndex() + 1);
     this.cdr.detectChanges();
   }
 
