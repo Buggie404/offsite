@@ -28,6 +28,34 @@ function generateOTP() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+// Sinh community_name tự động từ tên hiển thị, đảm bảo không trùng
+async function generateCommunityName(userCollection, displayName) {
+  const base = String(displayName || 'user')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9._]/g, '')
+    .slice(0, 15) || 'user';
+
+  let candidate = base;
+  let attempt = 0;
+
+  // Thử tối đa vài lần, nếu trùng thì thêm số ngẫu nhiên vào cuối
+  while (await userCollection.findOne({ community_name: candidate })) {
+    attempt++;
+    const suffix = Math.floor(1000 + Math.random() * 9000);
+    candidate = `${base}${suffix}`;
+    if (attempt > 10) {
+      // fallback cực hiếm khi vẫn trùng liên tục
+      candidate = `${base}${Date.now()}`;
+      break;
+    }
+  }
+
+  return candidate;
+}
+
 // Đăng ký tài khoản mới (Register)
 async function register(req, res) {
   try {
@@ -105,8 +133,12 @@ async function register(req, res) {
 
     if (email) newUser.email = email;
     if (req.body.phone) newUser.phone = req.body.phone;
-    if (req.body.community_name) newUser.community_name = req.body.community_name;
     if (req.body.avatar_url) newUser.avatar_url = req.body.avatar_url;
+
+    // Tự sinh community_name nếu người dùng không cung cấp
+    newUser.community_name = req.body.community_name
+      ? req.body.community_name
+      : await generateCommunityName(userCollection, displayName);
 
     const result = await userCollection.insertOne(newUser);
 
@@ -929,4 +961,3 @@ module.exports = {
   toggleSavedPost,
   getSavedItems
 };
-
