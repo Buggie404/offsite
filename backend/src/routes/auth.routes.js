@@ -33,5 +33,6 @@ router.post('/saved-products', authMiddleware, authController.toggleSavedProduct
 router.post('/saved-recipes', authMiddleware, authController.toggleSavedRecipe);
 router.post('/saved-blogs', authMiddleware, authController.toggleSavedBlog);
 router.post('/saved-posts', authMiddleware, authController.toggleSavedPost);
+router.post('/saved-items-batch-delete', authMiddleware, authController.deleteSavedItemsBatch);
 
 module.exports = router;

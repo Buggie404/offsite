@@ -1221,6 +1221,43 @@ async function verifyProfileOtp(req, res) {
   }
 }
 
+async function deleteSavedItemsBatch(req, res) {
+  try {
+    const { type, ids } = req.body;
+    if (!type || !ids || !Array.isArray(ids)) {
+      return res.status(400).json({ error: 'Missing type or ids array' });
+    }
+
+    const User = require('../models/User');
+    const user = await User.findById(req.user.user_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const idSet = new Set(ids.map(id => String(id)));
+
+    if (type === 'products') {
+      user.saved_products = user.saved_products.filter(sp => !idSet.has(String(sp.product_id)));
+    } else if (type === 'recipes') {
+      user.saved_recipes = user.saved_recipes.filter(sr => !idSet.has(String(sr.recipe_id)));
+      const Recipe = require('../models/Recipe');
+      await Recipe.updateMany(
+        { recipe_id: { $in: ids } },
+        { $inc: { saves: -1 } }
+      );
+    } else if (type === 'posts') {
+      user.saved_posts = user.saved_posts.filter(sp => !idSet.has(String(sp.post_id)));
+    } else if (type === 'blogs') {
+      user.saved_blogs = user.saved_blogs.filter(sb => !idSet.has(String(sb.blog_id)));
+    } else {
+      return res.status(400).json({ error: 'Invalid type' });
+    }
+
+    await user.save();
+    res.json({ message: `${ids.length} items removed successfully` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -1245,5 +1282,6 @@ module.exports = {
   toggleSavedRecipe,
   toggleSavedBlog,
   toggleSavedPost,
-  getSavedItems
+  getSavedItems,
+  deleteSavedItemsBatch
 };

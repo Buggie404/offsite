@@ -832,21 +832,32 @@ export class AccountComponent implements OnInit, OnDestroy {
         }
 
         // Restore scroll position to the exact previous coordinates instantly
+        const hasAnyItems = this.savedProducts().length > 0 || this.savedRecipes().length > 0 ||
+                           this.savedPosts().length > 0 || this.savedBlogs().length > 0;
         setTimeout(() => {
           if (typeof window !== 'undefined') {
-            const lastScrollY = sessionStorage.getItem('lastScrollY');
-            if (lastScrollY) {
-              window.scrollTo(0, parseInt(lastScrollY, 10));
-              sessionStorage.removeItem('lastScrollY');
-              sessionStorage.removeItem('lastSavedAnchor');
+            if (!hasAnyItems) {
+              // No items left, scroll to top of saved tab
+              const contentPanel = document.querySelector('.content-panel') as HTMLElement;
+              if (contentPanel) {
+                const headerHeight = 160;
+                window.scrollTo({ top: contentPanel.offsetTop - headerHeight, behavior: 'auto' });
+              }
             } else {
-              const anchorId = sessionStorage.getItem('lastSavedAnchor');
-              if (anchorId) {
-                const element = document.getElementById(anchorId);
-                if (element) {
-                  element.scrollIntoView({ behavior: 'auto', block: 'center' });
-                }
+              const lastScrollY = sessionStorage.getItem('lastScrollY');
+              if (lastScrollY) {
+                window.scrollTo(0, parseInt(lastScrollY, 10));
+                sessionStorage.removeItem('lastScrollY');
                 sessionStorage.removeItem('lastSavedAnchor');
+              } else {
+                const anchorId = sessionStorage.getItem('lastSavedAnchor');
+                if (anchorId) {
+                  const element = document.getElementById(anchorId);
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'auto', block: 'center' });
+                  }
+                  sessionStorage.removeItem('lastSavedAnchor');
+                }
               }
             }
             // Reset min-height back to auto now that real content is rendered
@@ -1033,32 +1044,23 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (!section) return;
 
     if (!isPlatformBrowser(this.platformId)) return;
-    let selectedIds: string[] = [];
-    if (section === 'products') selectedIds = this.selectedProducts();
-    if (section === 'recipes') selectedIds = this.selectedRecipes();
-    if (section === 'posts') selectedIds = this.selectedPosts();
-    if (section === 'blogs') selectedIds = this.selectedBlogs();
 
+    // Capture IDs and section BEFORE closing modal
+    const selectedIds = this.getSelectedIdsForSection(section);
     if (selectedIds.length === 0) {
       this.closeDeleteSelectedModal();
       return;
     }
 
-    const endpointMap: { [key: string]: string } = {
-      products: '/api/auth/saved-products',
-      recipes: '/api/auth/saved-recipes',
-      posts: '/api/auth/saved-posts',
-      blogs: '/api/auth/saved-blogs'
-    };
-    const keyMap: { [key: string]: string } = {
-      products: 'productId',
-      recipes: 'recipeId',
-      posts: 'postId',
-      blogs: 'blogId'
+    // Map section to backend type
+    const typeMap: { [key: string]: string } = {
+      products: 'products',
+      recipes: 'recipes',
+      posts: 'posts',
+      blogs: 'blogs'
     };
 
-    const endpoint = endpointMap[section];
-    const key = keyMap[section];
+    const type = typeMap[section];
 
     // Optimistically update signals for smooth/instant removal
     const previousProducts = this.savedProducts();
@@ -1066,6 +1068,44 @@ export class AccountComponent implements OnInit, OnDestroy {
     const previousPosts = this.savedPosts();
     const previousBlogs = this.savedBlogs();
 
+    // Optimistically remove items
+    this.applyOptimisticRemoval(section, selectedIds, previousProducts, previousRecipes, previousPosts, previousBlogs);
+
+    // Close modal AFTER capturing all data
+    this.closeDeleteSelectedModal();
+
+    // Use batch delete endpoint for atomic operation
+    this.http.post<any>('/api/auth/saved-items-batch-delete', { type, ids: selectedIds })
+      .subscribe({
+        next: () => {
+          // Clear scroll position so it won't restore to old position
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('lastScrollY');
+            sessionStorage.removeItem('lastSavedAnchor');
+          }
+          this.fetchSavedItems(false);
+        },
+        error: (err) => {
+          console.error(`Failed to delete selected items from ${section}:`, err);
+          // Revert optimistic updates
+          this.savedProducts.set(previousProducts);
+          this.savedRecipes.set(previousRecipes);
+          this.savedPosts.set(previousPosts);
+          this.savedBlogs.set(previousBlogs);
+          this.fetchSavedItems(true);
+        }
+      });
+  }
+
+  private getSelectedIdsForSection(section: string): string[] {
+    if (section === 'products') return this.selectedProducts();
+    if (section === 'recipes') return this.selectedRecipes();
+    if (section === 'posts') return this.selectedPosts();
+    if (section === 'blogs') return this.selectedBlogs();
+    return [];
+  }
+
+  private applyOptimisticRemoval(section: string, selectedIds: string[], previousProducts: any[], previousRecipes: any[], previousPosts: any[], previousBlogs: any[]): void {
     if (section === 'products') {
       this.savedProducts.set(previousProducts.filter(item => !selectedIds.includes(item.product.product_id.toString())));
       this.selectedProducts.set([]);
@@ -1079,23 +1119,6 @@ export class AccountComponent implements OnInit, OnDestroy {
       this.savedBlogs.set(previousBlogs.filter(item => !selectedIds.includes(item.blog._id)));
       this.selectedBlogs.set([]);
     }
-
-    const requests = selectedIds.map(id => this.http.post(endpoint, { [key]: id }));
-    const promises = requests.map(req => req.toPromise());
-    
-    this.closeDeleteSelectedModal();
-
-    Promise.all(promises).then(() => {
-      this.fetchSavedItems(false);
-    }).catch(err => {
-      console.error(`Failed to delete selected items from ${section}:`, err);
-      // Revert optimistic updates
-      this.savedProducts.set(previousProducts);
-      this.savedRecipes.set(previousRecipes);
-      this.savedPosts.set(previousPosts);
-      this.savedBlogs.set(previousBlogs);
-      this.fetchSavedItems(true);
-    });
   }
 
   closeDeleteSelectedModal(): void {
