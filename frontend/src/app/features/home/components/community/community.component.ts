@@ -109,6 +109,7 @@ export interface CommunityCard {
   community_name: string;
   preview:        string;   // tối đa 10 từ + '...'
   image:          string;
+  mediaType:      'image' | 'video';
   likes:          number;
   bgColor:        string;
 }
@@ -127,6 +128,7 @@ export class CommunityComponent implements OnInit {
     community_name: d.community_name,
     preview: d.content.trim().split(/\s+/).slice(0, 10).join(' '),
     image: d.image,
+    mediaType: 'image',
     likes: d.likes,
     bgColor: d.bgColor
   }));
@@ -157,14 +159,15 @@ export class CommunityComponent implements OnInit {
         }
 
         this.cards = posts.slice(0, 10).map((post, i) => {
-          const hasMedia = post.media?.length > 0 && !!post.media[0].url;
+          const media = this.getPrimaryMedia(post);
           return this.toCard({
             postId: post._id ?? null,
-            community_name: post.author?.username
-              ? `@${post.author.username.toUpperCase()}`
+            community_name: post.author?.username?.trim()
+              ? this.formatCommunityName(post.author.username)
               : DEFAULT_CARDS[i % DEFAULT_CARDS.length]?.community_name ?? '@USER',
             content: post.content || DEFAULT_CARDS[i % DEFAULT_CARDS.length]?.content || '',
-            image:   hasMedia ? post.media[0].url : FALLBACK_IMAGES[i % FALLBACK_IMAGES.length],
+            image:   media?.url ?? FALLBACK_IMAGES[i % FALLBACK_IMAGES.length],
+            mediaType: media?.type ?? 'image',
             likes:   post.like_count ?? 0,
             bgColor: BG_COLORS[i % BG_COLORS.length] ?? 'var(--color-cream)'
           }, i);
@@ -202,15 +205,36 @@ export class CommunityComponent implements OnInit {
   }
 
   /** Map raw data → CommunityCard với preview cắt 10 từ */
-  private toCard(raw: { postId: string | null; community_name: string; content: string; image: string; likes: number; bgColor: string }, _index: number): CommunityCard {
+  private toCard(raw: { postId: string | null; community_name: string; content: string; image: string; mediaType: 'image' | 'video'; likes: number; bgColor: string }, _index: number): CommunityCard {
     return {
       postId:         raw.postId,
       community_name: raw.community_name,
       preview:        this.truncate(raw.content),
       image:          raw.image,
+      mediaType:      raw.mediaType,
       likes:          raw.likes,
       bgColor:        raw.bgColor
     };
+  }
+
+  setFallbackMedia(card: CommunityCard): void {
+    card.image = FALLBACK_IMAGES[0];
+    card.mediaType = 'image';
+  }
+
+  private getPrimaryMedia(post: Post): { url: string; type: 'image' | 'video' } | null {
+    const media = post.media?.find(item => !!item.url);
+    if (!media) return null;
+
+    return {
+      url: media.url,
+      type: media.type === 'video' ? 'video' : 'image'
+    };
+  }
+
+  private formatCommunityName(username: string): string {
+    const trimmed = username.trim();
+    return trimmed.startsWith('@') ? trimmed : `@${trimmed}`;
   }
 
   private truncate(text: string, wordLimit = 10): string {

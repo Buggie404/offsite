@@ -474,6 +474,10 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return this.sortReviews([...this.reviews()], 'highest').slice(0, 2);
   }
 
+  hasReviewComment(review: ProductReviewView): boolean {
+    return this.getReviewComment(review).length > 0;
+  }
+
   isStarFilled(rating: number, star: number): boolean {
     return star <= Math.floor(rating);
   }
@@ -947,16 +951,31 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return Number.isNaN(time) ? 0 : time;
   }
 
+  private getReviewComment(review: ProductReviewView): string {
+    const comment = review.comment.trim();
+    return comment.toLocaleLowerCase() === 'no written comment.' ? '' : comment;
+  }
+
+  private compareReviewCommentPresence(a: ProductReviewView, b: ProductReviewView): number {
+    return Number(this.hasReviewComment(b)) - Number(this.hasReviewComment(a));
+  }
+
   private sortReviews(reviews: ProductReviewView[], sort: ReviewSortOption): ProductReviewView[] {
     return reviews.sort((a, b) => {
       switch (sort) {
         case 'newest':
-          return this.getReviewTime(b) - this.getReviewTime(a);
+          return b.rating - a.rating
+            || this.compareReviewCommentPresence(a, b)
+            || this.getReviewTime(b) - this.getReviewTime(a);
         case 'highest':
-          return b.rating - a.rating || this.getReviewTime(b) - this.getReviewTime(a);
+          return b.rating - a.rating
+            || this.compareReviewCommentPresence(a, b)
+            || this.getReviewTime(b) - this.getReviewTime(a);
         case 'oldest':
         default:
-          return this.getReviewTime(a) - this.getReviewTime(b);
+          return b.rating - a.rating
+            || this.compareReviewCommentPresence(a, b)
+            || this.getReviewTime(a) - this.getReviewTime(b);
       }
     });
   }
@@ -1114,7 +1133,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
       author: review.is_anonymous ? 'Anonymous' : (review.user_snapshot?.name?.trim() || 'Guest'),
       date: this.formatReviewDate(review.created_at),
       rating: review.rating,
-      comment: review.content?.trim() || 'No written comment.'
+      comment: review.content?.trim() ?? ''
     };
   }
 

@@ -337,7 +337,7 @@
             [attr.fill]="isStarFilled(review.rating, star) ? 'currentColor' : 'none'" aria-hidden="true"></svg>
           }
         </div>
-        @if (review.comment) {
+        @if (hasReviewComment(review)) {
         <p>{{ review.comment }}</p>
         }
       </article>
@@ -428,7 +428,7 @@
                 [attr.fill]="isStarFilled(review.rating, star) ? 'currentColor' : 'none'" aria-hidden="true"></svg>
               }
             </div>
-            @if (review.comment) {
+            @if (hasReviewComment(review)) {
             <p>{{ review.comment }}</p>
             }
           </div>
