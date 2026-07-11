@@ -29,7 +29,7 @@ import { CartService, CartItem } from '../../../features/purchase/services/cart.
 import { ProductService } from '../../../features/home/services/product.service';
 import { RecipeService } from '../../../features/home/services/recipe.service';
 import { ContentService } from '../../../features/content/services/content.service';
-import { Product } from '../../../features/home/models/product.model';
+import { Product, getProductDetailSlug } from '../../../features/home/models/product.model';
 import { Recipe } from '../../../features/home/models/recipe.model';
 import { FormsModule } from '@angular/forms';
 import {
@@ -707,7 +707,11 @@ export class NavbarComponent implements OnInit {
       return ['/shop/build-your-bundle'];
     }
 
-    return ['/products', item.product._id || item.product.slug || item.product.product_id];
+    return ['/products', getProductDetailSlug(item.product)];
+  }
+
+  getProductDetailLink(product: Product): Array<string | number> {
+    return ['/products', getProductDetailSlug(product)];
   }
 
   openCartItemDetail(): void {

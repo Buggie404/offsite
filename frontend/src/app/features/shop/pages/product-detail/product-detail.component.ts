@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit, PLATFORM_ID, inject, signal } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { CommonModule, Location, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   LucideArrowRight,
@@ -24,6 +24,7 @@ import {
   Product,
   ProductImage,
   Variant,
+  getProductDetailSlug,
   getPrimaryProductImage,
   isProductOutOfStock
 } from '../../../../features/home/models/product.model';
@@ -62,7 +63,8 @@ interface ProductReviewView {
   comment: string;
 }
 
-type ReviewSortOption = 'oldest' | 'newest' | 'highest' | 'lowest';
+type ReviewSortOption = 'oldest' | 'newest' | 'highest';
+type ReviewDateSortOption = Exclude<ReviewSortOption, 'highest'>;
 
 interface BrewingMethodCard {
   slug: string;
@@ -114,6 +116,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   private authPromptService = inject(AuthPromptModalService);
   private platformId = inject(PLATFORM_ID);
   private cdr = inject(ChangeDetectorRef);
+  private location = inject(Location);
 
   product = signal<Product | null>(null);
   selectedVariant = signal<Variant | null>(null);
@@ -132,6 +135,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   isReviewsLoading = signal<boolean>(false);
   selectedReviewFilter = signal<string>('All');
   selectedReviewSort = signal<ReviewSortOption>('highest');
+  isReviewSortOpen = signal<boolean>(false);
   reviewModalPage = signal<number>(1);
   brewingMethods = signal<BrewingMethodCard[]>([]);
   isBrewingMethodsLoading = signal<boolean>(false);
@@ -145,6 +149,10 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
 
   readonly ratingStars = [1, 2, 3, 4, 5];
   readonly ratingFilters = ['All', '5', '4', '3', '2', '1'];
+  readonly reviewSortOptions: Array<{ value: ReviewDateSortOption; label: string }> = [
+    { value: 'newest', label: 'NEWEST' },
+    { value: 'oldest', label: 'OLDEST' }
+  ];
 
   readonly roastSwatches = [
     '#f3f8ec', '#e5f1d5', '#d7eabf', '#c9e3a9', '#b5d48a',
@@ -186,6 +194,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     this.productService.getProductById(productId).subscribe({
       next: (prod: Product) => {
         this.product.set(prod);
+        this.replaceUrlWithProductSlug(productId, prod);
         const defaultVariant = prod.variants?.find(variant => variant.is_default) ?? prod.variants?.[0] ?? null;
         this.selectedVariant.set(defaultVariant);
         this.isLoading.set(false);
@@ -418,7 +427,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   }
 
   getTotalPrice(): number {
-    return this.getPrice() * this.quantity();
+    return this.getPrice();
   }
 
   maxQuantity(): number {
@@ -476,23 +485,34 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
 
   openReviewModal(): void {
     this.selectedReviewSort.set('highest');
+    this.isReviewSortOpen.set(false);
     this.reviewModalPage.set(1);
     this.isReviewModalOpen.set(true);
   }
 
   closeReviewModal(): void {
+    this.isReviewSortOpen.set(false);
     this.isReviewModalOpen.set(false);
   }
 
   setReviewFilter(filter: string): void {
+    this.isReviewSortOpen.set(false);
     this.selectedReviewFilter.set(filter);
     this.reviewModalPage.set(1);
   }
 
-  onReviewSortChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value as ReviewSortOption;
+  toggleReviewSort(): void {
+    this.isReviewSortOpen.update(isOpen => !isOpen);
+  }
+
+  selectReviewSort(value: ReviewDateSortOption): void {
     this.selectedReviewSort.set(value);
+    this.isReviewSortOpen.set(false);
     this.reviewModalPage.set(1);
+  }
+
+  reviewSortLabel(): string {
+    return this.reviewSortOptions.find(option => option.value === this.selectedReviewSort())?.label ?? 'DEFAULT';
   }
 
   modalReviews(): ProductReviewView[] {
@@ -663,9 +683,27 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
         || category
         || 'included',
       icon: this.getIncludedIcon(category),
-      routeId: this.pickText(product, ['_id', 'slug', 'product_id', 'component_product_id']),
+      routeId: this.getProductRouteId(product, name),
       imageUrl: this.pickImageUrl(product, image)
     };
+  }
+
+  private replaceUrlWithProductSlug(currentId: string, product: Product): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    const slug = getProductDetailSlug(product);
+    if (!slug || currentId === slug) return;
+
+    this.location.replaceState(`/products/${slug}`);
+  }
+
+  private getProductRouteId(product: Record<string, any>, name: string): string {
+    return getProductDetailSlug({
+      name,
+      slug: this.pickText(product, ['slug']),
+      _id: this.pickText(product, ['_id']),
+      product_id: this.pickNumber(product, ['product_id', 'component_product_id']) ?? 0
+    });
   }
 
   private loadProductCatalogForRecommendations(product: Product): void {
@@ -916,8 +954,6 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
           return this.getReviewTime(b) - this.getReviewTime(a);
         case 'highest':
           return b.rating - a.rating || this.getReviewTime(b) - this.getReviewTime(a);
-        case 'lowest':
-          return a.rating - b.rating || this.getReviewTime(a) - this.getReviewTime(b);
         case 'oldest':
         default:
           return this.getReviewTime(a) - this.getReviewTime(b);

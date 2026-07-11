@@ -369,13 +369,36 @@
   letter-spacing: var(--text-cta-tracking, 0.06em);
   text-transform: uppercase;
   cursor: pointer;
-  transition: transform 160ms ease, background 160ms ease, opacity 160ms ease;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, transform 160ms ease, opacity 160ms ease;
 
-  &:hover:not(:disabled) { transform: translateY(-2px); }
   &:disabled { opacity: 0.45; cursor: not-allowed; }
 
-  &--secondary { color: #375534; background: #f9efeb; }
-  &--primary { color: #fff8f4; background: #375534; border-color: #375534; }
+  &--secondary {
+    color: #375534;
+    background: #f9efeb;
+
+    &:hover:not(:disabled),
+    &:focus-visible:not(:disabled) {
+      color: #375534;
+      background: #cfe1b9;
+      border-color: transparent;
+      animation: quick-view-button-pop 360ms cubic-bezier(0.2, 1.4, 0.38, 1);
+    }
+  }
+
+  &--primary {
+    color: #fff8f4;
+    background: #375534;
+    border-color: #375534;
+
+    &:hover:not(:disabled),
+    &:focus-visible:not(:disabled) {
+      color: #375534;
+      background: transparent;
+      border-color: #375534;
+      animation: quick-view-button-pop 360ms cubic-bezier(0.2, 1.4, 0.38, 1);
+    }
+  }
 }
 
 button:focus-visible {
@@ -385,6 +408,11 @@ button:focus-visible {
 
 @keyframes backdrop-in { from { opacity: 0; } }
 @keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
+@keyframes quick-view-button-pop {
+  0% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-5px) scale(1.025); }
+  100% { transform: translateY(-1px) scale(1); }
+}
 
 @media (max-width: 900px) {
   .quick-view-backdrop { padding: 12px; align-items: center; }

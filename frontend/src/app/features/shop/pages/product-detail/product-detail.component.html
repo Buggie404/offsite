@@ -384,18 +384,27 @@
           }
         </div>
 
-        <label class="review-sort">
-          <span>SORT</span>
-          <span class="review-sort__select">
-            <select aria-label="Sort reviews" [value]="selectedReviewSort()" (change)="onReviewSortChange($event)">
-              <option value="highest">Highest rating</option>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="lowest">Lowest rating</option>
-            </select>
-            <svg lucideChevronDown [size]="24" aria-hidden="true"></svg>
-          </span>
-        </label>
+        <div class="review-sort-dropdown" [class.is-open]="isReviewSortOpen()">
+          <button type="button" class="review-sort-dropdown__trigger" (click)="toggleReviewSort()"
+            [attr.aria-expanded]="isReviewSortOpen()" aria-haspopup="listbox">
+            <span>SORT: {{ reviewSortLabel() }}</span>
+            <svg lucideChevronDown [size]="16" class="review-sort-dropdown__icon"
+              [class.is-open]="isReviewSortOpen()" aria-hidden="true"></svg>
+          </button>
+          @if (isReviewSortOpen()) {
+          <ul class="review-sort-dropdown__menu" role="listbox" aria-label="Sort reviews">
+            @for (option of reviewSortOptions; track option.value) {
+            <li>
+              <button type="button" class="review-sort-dropdown__item"
+                [class.is-active]="option.value === selectedReviewSort()" (click)="selectReviewSort(option.value)"
+                role="option" [attr.aria-selected]="option.value === selectedReviewSort()">
+                {{ option.label }}
+              </button>
+            </li>
+            }
+          </ul>
+          }
+        </div>
       </div>
 
       <div class="reviews-modal__body">

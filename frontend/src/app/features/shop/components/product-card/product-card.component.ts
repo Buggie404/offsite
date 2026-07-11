@@ -6,6 +6,7 @@ import { Router } from '@angular/router';
 import {
   Product,
   getDefaultPrice,
+  getProductDetailSlug,
   getPrimaryProductImage,
   isProductNewArrivalEligible,
   isProductOutOfStock
@@ -118,7 +119,7 @@ export class ProductCardComponent {
   }
 
   getDetailId(p: Product): string {
-    return p._id || String(p.product_id);
+    return getProductDetailSlug(p);
   }
 
   isOutOfStock(p: Product): boolean {
