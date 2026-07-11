@@ -109,6 +109,17 @@ export class AuthModalComponent implements OnDestroy {
     this.resetForm();
   }
 
+  // Dùng cho nút X, click ra ngoài overlay, và phím Escape.
+  // Nếu đang ở giữa bước OTP thì chỉ huỷ bước OTP (như bấm CANCEL) —
+  // giữ modal mở, quay về form đăng ký — thay vì đóng sạch cả modal.
+  closeOrCancelOtp(): void {
+    if (this.mode() === 'signup' && this.isOtpStep) {
+      this.backToSignup();
+    } else {
+      this.closeAuthModal();
+    }
+  }
+
   resetForm(): void {
     this.loginEmail = '';
     this.loginPhone = '';
@@ -730,7 +741,7 @@ export class AuthModalComponent implements OnDestroy {
   @HostListener('document:keydown.escape')
   onEscapeKeydown(): void {
     if (this.isOpen()) {
-      this.closeAuthModal();
+      this.closeOrCancelOtp();
     }
   }
 }

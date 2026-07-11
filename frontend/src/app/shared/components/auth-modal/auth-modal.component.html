@@ -1,8 +1,8 @@
 <!-- Auth Modal -->
-<div class="auth-modal-overlay" [class.open]="isOpen()" (click)="closeAuthModal()"></div>
+<div class="auth-modal-overlay" [class.open]="isOpen()" (click)="closeOrCancelOtp()"></div>
 <div class="auth-modal-wrapper" [class.open]="isOpen()">
   <div class="auth-modal-card">
-    <button class="auth-close-btn" (click)="closeAuthModal()" aria-label="Close modal">
+    <button class="auth-close-btn" (click)="closeOrCancelOtp()" aria-label="Close modal">
       <svg lucideX [size]="20"></svg>
     </button>
     
