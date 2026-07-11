@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
-import { CommonModule, isPlatformBrowser, Location } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { LucideArrowLeft, LucideBookmark, LucideClock, LucideCalendar, LucideAlertCircle, LucideLink, LucideArrowRight, LucideCheck } from '@lucide/angular';
@@ -248,20 +248,8 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
     });
   }
 
-  private location = inject(Location);
-
   goBack(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      if (window.history.length > 1) {
-        this.location.back();
-      } else {
-        const navigationExtras: any = {};
-        if (this.categoryFilter) {
-          navigationExtras.queryParams = { category: this.categoryFilter };
-        }
-        this.router.navigate(['/journal'], navigationExtras);
-      }
-    }
+    void this.router.navigate(['/journal']);
   }
 
   navigateToArticle(slug: string): void {

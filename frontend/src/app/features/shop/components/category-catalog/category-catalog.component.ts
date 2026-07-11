@@ -422,13 +422,21 @@ export class CategoryCatalogComponent implements OnInit, OnChanges, OnDestroy {
   applyFilters(resetPage = true): void {
     this.closeSort();
     let products = [...this.allProducts];
-    const query = this.searchQuery.trim().toLocaleLowerCase();
+    const searchTerms = this.searchQuery
+      .trim()
+      .toLocaleLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
 
-    if (query) {
-      products = products.filter(product =>
-        product.name.toLocaleLowerCase().includes(query)
-        || (product.description ?? '').toLocaleLowerCase().includes(query)
-      );
+    if (searchTerms.length > 0) {
+      products = products.filter(product => {
+        const productName = product.name.toLocaleLowerCase();
+
+        // Every typed word must occur in the product name. This keeps a
+        // multi-word search focused on the product itself, not incidental
+        // wording in its description; word order does not matter.
+        return searchTerms.every(term => productName.includes(term));
+      });
     }
 
     for (const group of this.filterGroups) {

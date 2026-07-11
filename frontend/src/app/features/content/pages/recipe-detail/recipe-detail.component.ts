@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef, HostListener } from '@angular/core';
-import { CommonModule, isPlatformBrowser, Location } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { 
@@ -630,15 +630,7 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     }
   }
 
-  private location = inject(Location);
-
   goBack(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      if (window.history.length > 1) {
-        this.location.back();
-      } else {
-        this.router.navigate(['/recipes']);
-      }
-    }
+    void this.router.navigate(['/recipes']);
   }
 }
