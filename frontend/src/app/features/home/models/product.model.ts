@@ -72,6 +72,20 @@ export interface Product {
 }
 
 // Helper: lấy origin từ bất kỳ category nào
+export function slugifyProductName(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+export function getProductDetailSlug(p: Pick<Product, 'name' | 'slug' | '_id' | 'product_id'>): string {
+  return slugifyProductName(p.name) || p.slug?.trim() || p._id || String(p.product_id);
+}
+
 export function getProductOrigin(p: Product): string {
   if (p.matcha?.origin) return p.matcha.origin;
   if (p.coffee?.product_origin) return p.coffee.product_origin;

@@ -34,6 +34,16 @@ function isProductOutOfStock(product) {
     || product.variants.every(variant => (variant.stock ?? 0) <= 0);
 }
 
+function slugifyProductName(value = '') {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 async function getProductCategoryCounts(req, res) {
   try {
     const groupedCounts = await Product.aggregate([
@@ -74,7 +84,12 @@ async function getProductById(req, res) {
           ]
         };
 
-    const product = await Product.findOne(query);
+    let product = await Product.findOne(query);
+    if (!product && !mongoose.Types.ObjectId.isValid(id)) {
+      const products = await Product.find({ is_active: true });
+      product = products.find(candidate => slugifyProductName(candidate.name) === id) ?? null;
+    }
+
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }

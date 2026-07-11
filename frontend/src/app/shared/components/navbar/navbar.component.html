@@ -321,7 +321,7 @@
           </div>
 
           <div class="results-list" *ngIf="filteredProducts.length > 0; else noProducts">
-            <a [routerLink]="['/products', product._id]" (click)="closeSearch()" class="product-result-card" 
+            <a [routerLink]="getProductDetailLink(product)" (click)="closeSearch()" class="product-result-card" 
                *ngFor="let product of (searchFilter === 'ALL' ? filteredProducts.slice(0, 3) : filteredProducts)">
               <div class="product-img-wrapper">
                 <img [src]="product.images?.[0]?.url || 'assets/placeholder.jpg'" [alt]="product.name">

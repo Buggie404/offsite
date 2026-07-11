@@ -3,7 +3,7 @@
 import { Component, Input, OnChanges, OnInit, AfterViewInit, ViewChild, ElementRef, SimpleChanges, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ProductService } from '../../services/product.service';
-import { Product, getDefaultPrice, getPrimaryProductImage, isProductOutOfStock } from '../../models/product.model';
+import { Product, getDefaultPrice, getProductDetailSlug, getPrimaryProductImage, isProductOutOfStock } from '../../models/product.model';
 import { CartService } from '../../../purchase/services/cart.service';
 import { LucideArrowRight, LucideEye, LucideHeart, LucideStar, LucideChevronLeft, LucideChevronRight } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
@@ -194,7 +194,7 @@ export class BestSellerComponent implements OnInit, OnChanges, AfterViewInit {
   }
 
   getDetailId(p: Product): string {
-    return p._id || String(p.product_id);
+    return getProductDetailSlug(p);
   }
 
   isOutOfStock(p: Product): boolean {

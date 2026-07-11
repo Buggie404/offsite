@@ -1,12 +1,14 @@
 // shop/components/category-catalog/category-catalog.component.ts
 
-import { Component, ElementRef, Input, OnInit, OnChanges, SimpleChanges, ViewChild, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { Component, ElementRef, HostListener, Input, OnInit, OnChanges, OnDestroy, SimpleChanges, ViewChild, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { NavigationStart, Router } from '@angular/router';
 import {
   LucideChevronDown, LucideChevronRight, LucideCheck, LucideChevronLeft,
   LucideSearch, LucideX, LucideSearchX, LucideRotateCcw
 } from '@lucide/angular';
+import { Subscription } from 'rxjs';
 import { ProductCardComponent } from '../product-card/product-card.component';
 import { ProductService } from '../../../home/services/product.service';
 import { Product, getDefaultPrice, isProductOutOfStock } from '../../../home/models/product.model';
@@ -182,6 +184,13 @@ const CATEGORY_FILTERS: Record<string, FilterGroup[]> = {
 
   bundles: [
     {
+      key: 'setType', label: 'SET TYPE', isOpen: true,
+      options: [
+        { label: 'Exclusive Sets', value: 'exclusive_set', checked: false },
+        { label: 'Standard Sets', value: 'included_products', checked: false },
+      ]
+    },
+    {
       key: 'priceRange', label: 'PRICE RANGE', isOpen: true,
       options: [
         { label: 'Under $25', value: 'under_25',  checked: false },
@@ -246,9 +255,10 @@ const CATEGORY_FILTERS: Record<string, FilterGroup[]> = {
   templateUrl: './category-catalog.component.html',
   styleUrls: ['./category-catalog.component.scss']
 })
-export class CategoryCatalogComponent implements OnInit, OnChanges {
+export class CategoryCatalogComponent implements OnInit, OnChanges, OnDestroy {
   @Input() category: string = '';
   @ViewChild('productGrid') productGrid?: ElementRef<HTMLElement>;
+  @ViewChild('sortDropdown') sortDropdown?: ElementRef<HTMLElement>;
 
 
   // ── FILTER STATE ──
@@ -261,10 +271,25 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
 
   // ── SEARCH & SORT STATE ──
   searchQuery = '';
-  readonly sortOptions = [
+  private readonly categorySortOptions = [
     'BEST SELLERS',
     'NEW ARRIVALS',
-    'NAME',
+    'NAME - A TO Z',
+    'NAME - Z TO A',
+    'PRICE - LOW TO HIGH',
+    'PRICE - HIGH TO LOW'
+  ];
+  private readonly bestSellerSortOptions = [
+    'BEST SELLERS',
+    'NAME - A TO Z',
+    'NAME - Z TO A',
+    'PRICE - LOW TO HIGH',
+    'PRICE - HIGH TO LOW'
+  ];
+  private readonly newArrivalSortOptions = [
+    'NEW ARRIVALS',
+    'NAME - A TO Z',
+    'NAME - Z TO A',
     'PRICE - LOW TO HIGH',
     'PRICE - HIGH TO LOW'
   ];
@@ -283,8 +308,16 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
     return this.filteredProducts.slice(start, start + this.PAGE_SIZE);
   }
 
+  get sortOptions(): string[] {
+    if (this.category === 'best-seller') return this.bestSellerSortOptions;
+    if (this.category === 'new-arrival') return this.newArrivalSortOptions;
+    return this.categorySortOptions;
+  }
+
   private platformId = inject(PLATFORM_ID);
   private cdr = inject(ChangeDetectorRef);
+  private router = inject(Router);
+  private routerEventsSubscription?: Subscription;
 
   constructor(
     private productService: ProductService,
@@ -293,6 +326,11 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
   ) {}
 
   ngOnInit(): void {
+    this.routerEventsSubscription = this.router.events.subscribe(event => {
+      if (event instanceof NavigationStart) {
+        this.closeSort();
+      }
+    });
     this.loadFilters();
     if (isPlatformBrowser(this.platformId)) {
       this.loadSavedProducts();
@@ -300,11 +338,27 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
     }
   }
 
+  ngOnDestroy(): void {
+    this.routerEventsSubscription?.unsubscribe();
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['category'] && !changes['category'].firstChange) {
+      this.closeSort();
       this.loadFilters();
       this.loadProducts();
     }
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!isPlatformBrowser(this.platformId) || !this.isSortOpen) return;
+
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    if (this.sortDropdown?.nativeElement.contains(target)) return;
+
+    this.closeSort();
   }
 
   // ── LOAD FILTER CONFIG ──
@@ -318,6 +372,8 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
 
   // ── LOAD PRODUCTS FROM API ──
   loadProducts(): void {
+    this.closeSort();
+    this.ensureSelectedSortAvailable();
     this.isLoading = true;
     this.currentPage = 1;
     const returnState = this.takeCatalogReturnState();
@@ -364,6 +420,7 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
 
   // ── APPLY FILTERS ──
   applyFilters(resetPage = true): void {
+    this.closeSort();
     let products = [...this.allProducts];
     const query = this.searchQuery.trim().toLocaleLowerCase();
 
@@ -439,6 +496,7 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
   // ── PAGINATION ──
   prevPage(): void {
     if (this.currentPage > 1) {
+      this.closeSort();
       this.currentPage--;
       this.scrollToFirstProduct();
     }
@@ -446,6 +504,7 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
 
   nextPage(): void {
     if (this.currentPage < this.totalPages) {
+      this.closeSort();
       this.currentPage++;
       this.scrollToFirstProduct();
     }
@@ -496,6 +555,7 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
 
   saveCatalogReturnState(): void {
     if (!isPlatformBrowser(this.platformId)) return;
+    this.closeSort();
 
     const state: CatalogReturnState = {
       page: this.currentPage,
@@ -507,6 +567,12 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
     };
 
     sessionStorage.setItem(this.getCatalogReturnStateKey(), JSON.stringify(state));
+  }
+
+  private closeSort(): void {
+    if (!this.isSortOpen) return;
+    this.isSortOpen = false;
+    this.cdr.markForCheck();
   }
 
   private takeCatalogReturnState(): CatalogReturnState | null {
@@ -531,6 +597,8 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
     this.searchQuery = state.searchQuery ?? '';
     if (this.sortOptions.includes(state.selectedSort)) {
       this.selectedSort = state.selectedSort;
+    } else {
+      this.ensureSelectedSortAvailable();
     }
 
     this.filterGroups.forEach(group => {
@@ -539,6 +607,11 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
         option.checked = selectedValues.has(option.value);
       });
     });
+  }
+
+  private ensureSelectedSortAvailable(): void {
+    if (this.sortOptions.includes(this.selectedSort)) return;
+    this.selectedSort = this.sortOptions[0] ?? 'BEST SELLERS';
   }
 
   private getSelectedFilterValues(): Record<string, string[]> {
@@ -586,6 +659,10 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
       return product.category === value;
     }
 
+    if (key === 'setType') {
+      return this.matchesSetBundleFilter(product, value);
+    }
+
     if (key === 'grade' && this.normalizeFilterValue(value) === 'related tea') {
       return !product.matcha?.product_grade;
     }
@@ -631,6 +708,25 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
     return normalizedProductValue === normalizedFilterValue;
   }
 
+  private matchesSetBundleFilter(product: Product, value: string): boolean {
+    if (product.category !== 'sets_bundles') return false;
+
+    const normalizedSetType = this.normalizeFilterValue(product.sets_bundles?.set_type ?? '');
+    const compositionCount = product.sets_bundles?.composition?.length ?? 0;
+
+    if (value === 'exclusive_set') {
+      return product.sets_bundles?.is_exclusive === true
+        || normalizedSetType.includes('exclusive');
+    }
+
+    if (value === 'included_products') {
+      return product.sets_bundles?.is_exclusive !== true
+        && compositionCount > 0;
+    }
+
+    return false;
+  }
+
   private normalizeFilterValue(value: string): string {
     const normalized = value
       .trim()
@@ -661,8 +757,10 @@ export class CategoryCatalogComponent implements OnInit, OnChanges {
         Number(Boolean(b.is_new_arrival)) - Number(Boolean(a.is_new_arrival))
         || b.product_id - a.product_id
       );
-    } else if (this.selectedSort === 'NAME') {
+    } else if (this.selectedSort === 'NAME' || this.selectedSort === 'NAME - A TO Z') {
       sorted.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+    } else if (this.selectedSort === 'NAME - Z TO A') {
+      sorted.sort((a, b) => b.name.localeCompare(a.name, 'en', { sensitivity: 'base' }));
     } else if (this.selectedSort === 'PRICE - LOW TO HIGH') {
       sorted.sort((a, b) => getDefaultPrice(a) - getDefaultPrice(b));
     } else if (this.selectedSort === 'PRICE - HIGH TO LOW') {

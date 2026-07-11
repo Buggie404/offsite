@@ -110,7 +110,7 @@ export class QuickViewModalComponent implements AfterViewInit, OnDestroy {
   }
 
   get totalPrice(): number {
-    return (this.selectedVariant?.price ?? 0) * this.quantity;
+    return this.selectedVariant?.price ?? 0;
   }
 
   ngAfterViewInit(): void {

@@ -76,7 +76,7 @@
           }
         </div>
 
-        <div class="sort-dropdown" [class.is-open]="isSortOpen">
+        <div #sortDropdown class="sort-dropdown" [class.is-open]="isSortOpen">
           <button type="button" class="sort-dropdown__trigger" (click)="toggleSort()">
             <span>SORT: {{ selectedSort }}</span>
             <svg
