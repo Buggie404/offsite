@@ -75,7 +75,8 @@ async function getProductCategoryCounts(req, res) {
 async function getProductById(req, res) {
   try {
     const { id } = req.params;
-    const query = mongoose.Types.ObjectId.isValid(id)
+    const isObjectId = mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id);
+    const query = isObjectId
       ? { _id: id }
       : {
           $or: [
@@ -85,7 +86,7 @@ async function getProductById(req, res) {
         };
 
     let product = await Product.findOne(query);
-    if (!product && !mongoose.Types.ObjectId.isValid(id)) {
+    if (!product && !isObjectId) {
       const products = await Product.find({ is_active: true });
       product = products.find(candidate => slugifyProductName(candidate.name) === id) ?? null;
     }

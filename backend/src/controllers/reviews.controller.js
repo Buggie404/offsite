@@ -18,7 +18,7 @@ async function getProductReviews(req, res) {
 
     const productDoc = await Product.findOne({
       $or: [
-        ...(Product.db.base.Types.ObjectId.isValid(productId) ? [{ _id: productId }] : []),
+        ...(Product.db.base.Types.ObjectId.isValid(productId) && /^[0-9a-fA-F]{24}$/.test(productId) ? [{ _id: productId }] : []),
         ...(Number.isNaN(Number(productId)) ? [] : [{ product_id: Number(productId) }])
       ]
     }).select('_id product_id').lean();
