@@ -694,31 +694,38 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   width: 100%;
   max-width: 640px;
   margin-top: 40px;
   padding: 16px 24px;
   border: none;
   border-radius: var(--radius-pill);
-  background: var(--bundle-cta-bg);
-  color: var(--bundle-cta-text);
   font-family: var(--font-body);
   font-size: var(--text-cta-size);
   font-weight: var(--text-cta-weight);
   line-height: var(--text-cta-line-height);
   letter-spacing: var(--text-cta-tracking);
   text-transform: uppercase;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+  cursor: not-allowed;
 
-  &:hover:not(:disabled) {
-    background: var(--color-forest-green-hover);
-  }
+  /* ── Dimmed / incomplete state (default when slots not all filled) ── */
+  background: #cbd5e1;
+  color: #64748b;
 
-  &:disabled {
-    cursor: not-allowed;
+  /* ── Ready state: all slots filled ── */
+  &--ready {
+    background: var(--bundle-cta-bg);
+    color: var(--bundle-cta-text);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--color-forest-green-hover);
+    }
   }
 }
+
 
 // ─── Right: Product Browser ───────────────────────────────────
 .product-browser {

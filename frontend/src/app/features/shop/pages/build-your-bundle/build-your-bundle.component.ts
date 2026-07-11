@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { PLATFORM_ID } from '@angular/core';
-import { LucideChevronDown, LucidePlus, LucideX } from '@lucide/angular';
+import { LucideChevronDown, LucidePlus, LucideX, LucideShoppingCart } from '@lucide/angular';
 import { ProductService } from '../../../home/services/product.service';
 import {
   Product,
@@ -83,7 +83,7 @@ const DRINKWARE_PLACEHOLDER = 'assets/images/build-bundle/drinkware.png';
 @Component({
   selector: 'app-build-your-bundle',
   standalone: true,
-  imports: [CommonModule, LucideChevronDown, LucidePlus, LucideX, ProductCardComponent],
+  imports: [CommonModule, LucideChevronDown, LucidePlus, LucideX, LucideShoppingCart, ProductCardComponent],
   templateUrl: './build-your-bundle.component.html',
   styleUrl: './build-your-bundle.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -96,6 +96,8 @@ export class BuildYourBundleComponent implements OnInit {
   private readonly bundleState = inject(BundleBuilderStateService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly platformId = inject(PLATFORM_ID);
+
+  @ViewChild('productBrowser') productBrowserRef?: ElementRef<HTMLElement>;
 
   private pendingSlotRestore: Partial<Record<SlotKey, PersistedSlotSelection>> | null = null;
 
@@ -254,6 +256,9 @@ export class BuildYourBundleComponent implements OnInit {
     this.resetSelections();
     this.activeSlotKey.set(this.mapActiveSlotOnKitChange(previousType, kitType, previousActive));
     this.persistBuilderState();
+
+    // Scroll the product browser back to the top so the user sees products from the start
+    this.scrollProductBrowserToTop();
   }
 
   selectPackSize(size: PackSize): void {
@@ -698,6 +703,20 @@ export class BuildYourBundleComponent implements OnInit {
   private persistBuilderState(): void {
     if (!isPlatformBrowser(this.platformId)) return;
     this.bundleState.saveSnapshot(this.buildSnapshot());
+  }
+
+  /** Scroll the product browser panel back to the top after switching kit types. */
+  private scrollProductBrowserToTop(): void {
+    const el = this.productBrowserRef?.nativeElement;
+    if (!el) return;
+
+    // On desktop the panel itself is the scrollable container (overflow-y: auto, max-height).
+    // On mobile/tablet the page scrolls, so we use scrollIntoView as a fallback.
+    if (el.scrollHeight > el.clientHeight) {
+      el.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   private pruneSelectionsForPackSize(packSize: PackSize): void {

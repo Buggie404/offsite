@@ -283,6 +283,7 @@
         border-bottom: 1px solid rgba(84, 74, 64, 0.15);
         box-shadow: 0 12px 36px rgba(84, 74, 64, 0.08);
         z-index: 1010;
+        overflow: hidden;
         opacity: 0;
         pointer-events: none;
         transform: translateY(10px);
@@ -299,14 +300,153 @@
         }
 
         .mega-menu-inner {
+          position: relative;
+          z-index: 1;
           max-width: 1500px;
           margin: 0 auto;
-          padding: 40px 64px;
+          padding: 34px 64px 40px;
           display: grid;
           grid-template-columns: 1.2fr 3fr 2fr;
+          align-items: stretch;
           gap: 80px;
           box-sizing: border-box;
           transition: all 0.3s ease;
+        }
+
+        .mega-decor {
+          position: absolute;
+          z-index: 0;
+          pointer-events: none;
+        }
+
+        .mega-decor--diamond {
+          width: 44px;
+          height: 44px;
+          left: 18%;
+          bottom: 42px;
+          border: 2px solid rgba(55, 85, 52, 0.22);
+          transform: rotate(45deg);
+        }
+
+        .mega-decor--diamond-sm {
+          width: 22px;
+          height: 22px;
+          right: 28%;
+          top: 78px;
+          background: rgba(212, 135, 166, 0.34);
+          transform: rotate(45deg);
+        }
+
+        .mega-decor--triangle {
+          width: 0;
+          height: 0;
+          right: 12%;
+          bottom: 88px;
+          border-right: 25px solid transparent;
+          border-bottom: 43px solid rgba(212, 135, 166, 0.48);
+          border-left: 25px solid transparent;
+          transform: rotate(10deg);
+        }
+
+        .mega-decor--line {
+          width: 150px;
+          height: 2px;
+          left: 36%;
+          bottom: 48px;
+          background: rgba(55, 85, 52, 0.22);
+          transform: rotate(-10deg);
+        }
+
+        .mega-decor--line-sm {
+          width: 72px;
+          height: 1.5px;
+          right: 19%;
+          top: 118px;
+          background: rgba(196, 168, 130, 0.28);
+          transform: rotate(13deg);
+        }
+
+        .mega-decor--square {
+          width: 28px;
+          height: 28px;
+          left: 54%;
+          top: 52px;
+          border: 1.5px solid rgba(196, 168, 130, 0.38);
+          transform: rotate(18deg);
+        }
+
+        .mega-decor--ring {
+          width: 118px;
+          height: 118px;
+          right: -38px;
+          bottom: 20px;
+          border: 1.5px solid rgba(55, 85, 52, 0.15);
+          border-radius: 50%;
+        }
+
+        .mega-decor--ring-sm {
+          width: 38px;
+          height: 38px;
+          left: 8%;
+          bottom: 28px;
+          background: rgba(232, 207, 121, 0.46);
+          border-radius: 50%;
+        }
+
+        .mega-decor--dot {
+          width: 12px;
+          height: 12px;
+          left: 31%;
+          top: 118px;
+          background: rgba(55, 85, 52, 0.32);
+          border-radius: 50%;
+        }
+
+        .mega-decor--dot-sm {
+          width: 8px;
+          height: 8px;
+          right: 34%;
+          bottom: 36px;
+          background: rgba(196, 168, 130, 0.38);
+          border-radius: 50%;
+        }
+
+        .mega-decor--slash {
+          width: 46px;
+          height: 1.5px;
+          left: 66%;
+          bottom: 58px;
+          background: rgba(55, 85, 52, 0.2);
+          transform: rotate(24deg);
+        }
+
+        .mega-decor--ring-left {
+          width: 17px;
+          height: 17px;
+          left: 29%;
+          bottom: 36px;
+          background: rgba(218, 181, 85, 0.58);
+          border-radius: 50%;
+        }
+
+        .mega-decor--triangle-sm {
+          width: 0;
+          height: 0;
+          left: 63%;
+          top: 46px;
+          border-right: 14px solid transparent;
+          border-bottom: 24px solid rgba(212, 135, 166, 0.34);
+          border-left: 14px solid transparent;
+          transform: rotate(-16deg);
+        }
+
+        .mega-decor--line-long {
+          width: 170px;
+          height: 1.5px;
+          right: 30%;
+          bottom: 32px;
+          background: rgba(196, 168, 130, 0.2);
+          transform: rotate(20deg);
         }
 
         .mega-col {
@@ -315,10 +455,10 @@
 
           .column-title {
             font-family: var(--font-body);
-            font-size: 12px;
+            font-size: 17px;
             font-weight: 700;
             color: var(--color-forest-green);
-            letter-spacing: 0.08em;
+            letter-spacing: 0.1em;
             margin-bottom: 24px;
             text-transform: uppercase;
             display: block;
@@ -329,7 +469,7 @@
           border-right: 1px solid rgba(84, 74, 64, 0.15);
           padding-right: 20px;
           justify-content: flex-start;
-          padding-top: 12px;
+          padding-top: 22px;
 
           .promo-links {
             list-style: none;
@@ -337,14 +477,14 @@
             padding: 0;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 24px;
 
             .promo-link {
               font-family: var(--font-body);
-              font-size: 18px;
+              font-size: 20px;
               font-weight: 700;
               color: var(--color-forest-green);
-              letter-spacing: 0.06em;
+              letter-spacing: 0.08em;
               text-decoration: none;
               text-transform: uppercase;
               transition: color 0.25s ease, padding-left 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -360,6 +500,8 @@
         .mega-col-center {
           border-right: 1px solid rgba(84, 74, 64, 0.15);
           padding-right: 40px;
+          justify-content: flex-start;
+          padding-top: 6px;
 
           .category-grid {
             display: flex;
@@ -367,7 +509,7 @@
             justify-content: space-between;
             align-items: flex-start;
             gap: 12px;
-            padding-top: 12px;
+            padding-top: 6px;
 
             .category-item {
               display: flex;
@@ -724,6 +866,10 @@
   border-bottom: 1px solid rgba(84, 74, 64, 0.15);
   box-shadow: 0 10px 30px rgba(84, 74, 64, 0.08);
   z-index: 999;
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   transform: translateY(-10px);
   opacity: 0;
   pointer-events: none;
@@ -931,6 +1077,16 @@
 
       .nav-item-mega {
         .mega-menu {
+          .mega-decor--ring,
+          .mega-decor--ring-sm,
+          .mega-decor--diamond-sm,
+          .mega-decor--ring-left,
+          .mega-decor--triangle-sm,
+          .mega-decor--line-long,
+          .mega-decor--triangle {
+            display: none;
+          }
+
           .mega-menu-inner {
             max-width: 100% !important;
             padding: 24px 32px !important;
@@ -943,6 +1099,7 @@
 
             .mega-col-center {
               padding-right: 20px !important;
+              transform: none !important;
 
               .category-grid {
                 display: grid !important;
@@ -1025,6 +1182,18 @@
         display: flex;
       }
     }
+  }
+
+  .mobile-drawer {
+    max-height: calc(100dvh - 150px);
+
+    .mobile-nav-links {
+      padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
+  .promobar-hidden .mobile-drawer {
+    max-height: calc(100dvh - 70px);
   }
 }
 

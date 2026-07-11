@@ -1,4 +1,14 @@
-import { AfterViewInit, ChangeDetectorRef, Component, DestroyRef, ElementRef, HostListener, OnInit, ViewChild, inject } from '@angular/core';
+import {
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  ElementRef,
+  HostListener,
+  OnInit,
+  ViewChild,
+  inject
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, interval, startWith, switchMap } from 'rxjs';
@@ -10,7 +20,10 @@ import {
   LucideBell,
   LucideX,
   LucideTruck,
-  LucideUndo2
+  LucideUndo2,
+  LucideMenu,
+  LucideAlertTriangle,
+  LucideArrowRight
 } from '@lucide/angular';
 import { AdminAuthService } from '../../services/admin-auth.service';
 import { AdminRefreshService } from '../../services/admin-refresh.service';
@@ -32,7 +45,10 @@ import {
     LucideBell,
     LucideX,
     LucideTruck,
-    LucideUndo2
+    LucideUndo2,
+    LucideMenu,
+    LucideAlertTriangle,
+    LucideArrowRight
   ],
   templateUrl: './admin-layout.component.html',
   styleUrl: './admin-layout.component.scss'
@@ -56,10 +72,18 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   notifications: AdminNotification[] = [];
   unreadCount = 0;
 
+  /** Whether the mobile/tablet slide-in sidebar is visible */
+  sidebarOpen = false;
+
   private readonly pollIntervalMs = 30_000;
 
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
+    if (this.sidebarOpen) {
+      this.closeSidebar();
+      return;
+    }
+
     if (this.showNotifications) {
       this.closeNotifications();
       return;
@@ -91,6 +115,7 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
       .subscribe(() => {
         this.updateOrdersLinkActive();
         this.closeNotifications();
+        this.closeSidebar();
       });
 
     this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
@@ -156,6 +181,23 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     return this.notifications.some((item) => item.type === 'ready_to_ship');
   }
 
+  get hasUrgentNotifications(): boolean {
+    return this.notifications.some((item) => item.type === 'urgent_processing');
+  }
+
+  /** Notifications filtered by type — used by the sectioned panel UI */
+  get refundNotifications(): AdminNotification[] {
+    return this.notifications.filter((item) => item.type === 'refund_pending');
+  }
+
+  get shipNotifications(): AdminNotification[] {
+    return this.notifications.filter((item) => item.type === 'ready_to_ship');
+  }
+
+  get urgentNotifications(): AdminNotification[] {
+    return this.notifications.filter((item) => item.type === 'urgent_processing');
+  }
+
   onSearchInput(value: string): void {
     this.searchQuery = value;
     this.router.navigate(['/admin/orders'], {
@@ -170,7 +212,22 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
       event.preventDefault();
       this.adminRefresh.refreshOrdersList();
     }
+    this.closeSidebar();
   }
+
+  // ── Sidebar ──────────────────────────────────────────────────────────────
+
+  openSidebar(): void {
+    this.sidebarOpen = true;
+    this.cdr.markForCheck();
+  }
+
+  closeSidebar(): void {
+    this.sidebarOpen = false;
+    this.cdr.markForCheck();
+  }
+
+  // ── Notifications ─────────────────────────────────────────────────────────
 
   toggleNotifications(event: MouseEvent): void {
     event.stopPropagation();
@@ -218,6 +275,12 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     void this.router.navigate(['/admin/orders'], { queryParams: { status: 'processing' } });
   }
 
+  viewAllUrgent(event: MouseEvent): void {
+    event.stopPropagation();
+    this.closeNotifications();
+    void this.router.navigate(['/admin/orders'], { queryParams: { status: 'processing' } });
+  }
+
   formatNotificationTime(value: string): string {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
@@ -229,6 +292,8 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
       minute: '2-digit'
     });
   }
+
+  // ── Sign-out modal ────────────────────────────────────────────────────────
 
   openSignOutModal(): void {
     this.closeNotifications();
