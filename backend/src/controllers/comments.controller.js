@@ -16,7 +16,9 @@ async function resolvePostIdString(postId) {
 async function getCommentsByPostId(req, res) {
   try {
     const { postId } = req.params;
-    const { page = 1, limit = 20, parent_id = null } = req.query;
+    const { page = 1, limit = 20 } = req.query;
+
+    const parent_id = req.query.parent_id;
 
     const post_id = await resolvePostIdString(postId);
     if (!post_id) {
@@ -24,13 +26,13 @@ async function getCommentsByPostId(req, res) {
     }
 
     const query = { post_id };
-    
-    // Support filtering by parent_id (e.g. parent_id = null for top-level comments)
-    if (parent_id === 'null' || parent_id === null) {
-      query.parent_id = null;
+
+    if (parent_id === 'null') {
+      query.parent_id = null; // chỉ lấy comment gốc
     } else if (parent_id) {
-      query.parent_id = parent_id;
+      query.parent_id = parent_id; // chỉ lấy reply của 1 comment cụ thể
     }
+    // parent_id undefined (không truyền param) => giữ nguyên query chỉ có post_id, trả về tất cả
 
     const skipCount = (parseInt(page, 10) - 1) * parseInt(limit, 10);
     const limitCount = parseInt(limit, 10);

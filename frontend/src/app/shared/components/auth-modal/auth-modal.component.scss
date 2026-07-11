@@ -560,6 +560,21 @@
     margin: 0 0 12px;
   }
 
+  .otp-attempts-hint {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--color-warm-brown);
+    margin: 0 0 12px;
+
+    &.attempts-low {
+      color: var(--state-error);
+    }
+
+    strong {
+      font-weight: 700;
+    }
+  }
+
   .otp-dev-hint {
     font-family: var(--font-mono);
     font-size: 11px;
@@ -656,60 +671,76 @@
 
     &--stacked {
       flex-direction: column;
+      align-items: center;
     }
   }
 
   .otp-btn-cancel {
     flex: 1;
-    height: 48px;
+    height: 52px;
     border-radius: var(--radius-pill);
     background: transparent;
-    border: 1.5px solid var(--color-forest-green);
+    border: 2px solid var(--color-forest-green);
     color: var(--color-near-black);
     font-family: var(--font-body);
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s ease, transform 0.15s ease;
 
     &:hover {
       background-color: rgba(55, 85, 52, 0.06);
     }
 
+    &:active {
+      transform: scale(0.98);
+    }
+
     &--full {
+      flex: none;
       width: 100%;
+      max-width: 280px;
     }
   }
 
   .otp-btn-confirm {
     flex: 1;
-    height: 48px;
+    height: 52px;
     border-radius: var(--radius-pill);
     background-color: var(--color-forest-green);
     color: var(--color-cream);
     border: none;
     font-family: var(--font-body);
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    box-shadow: 0 3px 8px rgba(55, 85, 52, 0.28);
+    transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
 
     &:hover:not(:disabled) {
       background-color: var(--color-near-black);
+      box-shadow: 0 4px 10px rgba(26, 26, 26, 0.3);
+    }
+
+    &:active:not(:disabled) {
+      transform: scale(0.98);
     }
 
     &:disabled {
       background-color: rgba(84, 74, 64, 0.15);
       color: rgba(84, 74, 64, 0.4);
       cursor: not-allowed;
+      box-shadow: none;
     }
 
     &--full {
+      flex: none;
       width: 100%;
+      max-width: 280px;
     }
   }
 

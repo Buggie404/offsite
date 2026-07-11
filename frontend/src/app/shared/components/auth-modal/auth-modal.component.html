@@ -310,6 +310,9 @@
             Enter the 6-digit code sent to your {{ otpChannel === 'email' ? 'email' : 'phone' }}
           </p>
           <p class="otp-masked-contact">{{ maskedContact }}</p>
+          <p class="otp-attempts-hint" [class.attempts-low]="otpAttemptsLeft <= 1">
+            You have <strong>{{ otpAttemptsLeft }}</strong> of {{ OTP_MAX_ATTEMPTS }} attempts left
+          </p>
 
           <div class="otp-countdown">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none">

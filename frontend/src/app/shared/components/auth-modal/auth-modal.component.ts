@@ -1,4 +1,4 @@
-import { Component, inject, HostListener, ChangeDetectorRef, ElementRef, ViewChild, ViewChildren, QueryList, OnDestroy } from '@angular/core';
+import { Component, inject, HostListener, ChangeDetectorRef, ElementRef, ViewChild, ViewChildren, QueryList, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideX, LucideEye, LucideEyeOff } from '@lucide/angular';
@@ -43,12 +43,14 @@ export class AuthModalComponent implements OnDestroy {
   registrationEmail = '';
   otpDigits: string[] = ['', '', '', '', '', ''];
   otpError: string | null = null;
-  otpLocked = false; // true sau 3 lần sai -> chỉ còn cách Resend
+  otpLocked = false; // true sau khi hết lượt thử -> chỉ còn cách Resend
+  readonly OTP_MAX_ATTEMPTS = 3;
+  otpAttemptsLeft = this.OTP_MAX_ATTEMPTS; // hiện cho user biết còn mấy lần thử
   maskedContact = '';
   otpChannel: 'email' | 'phone' = 'email';
   isVerifyingOtp = false;
   isResendingOtp = false;
-  otpCountdown = 0;
+  otpCountdown = signal(0); // signal để UI tự vẽ lại mỗi giây, không phụ thuộc zone/click
   mockOtp = '';
   private otpTimerHandle: ReturnType<typeof setInterval> | null = null;
   private readonly OTP_DURATION_SECONDS = 2 * 60; // khớp OTP_EXPIRE_MS ở backend (2 phút)
@@ -138,6 +140,7 @@ export class AuthModalComponent implements OnDestroy {
     this.otpDigits = ['', '', '', '', '', ''];
     this.otpError = null;
     this.otpLocked = false;
+    this.otpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
     this.maskedContact = '';
     this.mockOtp = '';
     this.isVerifyingOtp = false;
@@ -367,6 +370,7 @@ export class AuthModalComponent implements OnDestroy {
         this.mockOtp = response.__mock || '';
 
         this.otpLocked = false;
+        this.otpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
         this.otpError = null;
         this.otpDigits = ['', '', '', '', '', ''];
         this.isOtpStep = true;
@@ -382,7 +386,7 @@ export class AuthModalComponent implements OnDestroy {
         } else if (errorCode === 'PHONE_EXISTS') {
           this.serverPhoneError = 'This phone number is already registered.';
         } else {
-          this.serverEmailError = err?.error || 'An error occurred during registration.';
+          this.serverEmailError = 'An error occurred during registration. Please try again.';
         }
         this.cdr.detectChanges();
       } finally {
@@ -412,10 +416,10 @@ export class AuthModalComponent implements OnDestroy {
     if (!this.isFormValid()) {
       // Báo lỗi cụ thể thay vì im lặng return — tránh cảm giác nút "đứng yên".
       if (this.loginTab === 'phone' && !this.phoneError) {
-        this.serverEmailError = 'Vui lòng kiểm tra lại số điện thoại và mật khẩu.';
+        this.serverEmailError = 'Please check your phone number and password.';
         this.cdr.detectChanges();
       } else if (this.loginTab === 'email' && !this.emailError) {
-        this.serverEmailError = 'Vui lòng kiểm tra lại email và mật khẩu.';
+        this.serverEmailError = 'Please check your email and password.';
         this.cdr.detectChanges();
       }
       return;
@@ -440,14 +444,15 @@ export class AuthModalComponent implements OnDestroy {
       // Hiện ngay lập tức: không dùng setTimeout vì trình duyệt sẽ throttle
       // timer khi tab bị chuyển ra nền, khiến modal có cảm giác "đợi" tới khi
       // quay lại tab mới hiện. Luôn hiện modal dù đang ở trang nào.
-      // Nếu đang ở sẵn trang chủ thì "BACK TO HOMEPAGE" chẳng có nghĩa gì —
-      // đổi thành "CONTINUE" (onSuccessPrimary đã xử lý sẵn case này).
+      // Nếu đang ở sẵn trang chủ thì chỉ cần "CONTINUE" — "BACK TO HOMEPAGE"
+      // chẳng có nghĩa gì khi đã ở đó. Nếu đang ở trang khác thì cho cả 2 lựa
+      // chọn: CONTINUE (ở lại trang hiện tại) hoặc BACK TO HOMEPAGE.
       const isOnHomepage = this.router.url === '/';
       this.successModalConfig = {
         title: 'Log In Successfully',
         subtitle: "Welcome back! You're now signed in.",
-        primaryBtn: isOnHomepage ? 'CONTINUE' : 'BACK TO HOMEPAGE',
-        // secondaryBtn: 'SIGN OUT'
+        primaryBtn: 'CONTINUE',
+        ...(isOnHomepage ? {} : { secondaryBtn: 'BACK TO HOMEPAGE' })
       };
       this.showSuccessModal = true;
       this.cdr.detectChanges();
@@ -455,7 +460,6 @@ export class AuthModalComponent implements OnDestroy {
       catch (err: any) {
         console.error('Login error:', err);
         const errorCode = err?.code;
-        const errorMessage = err?.error || 'An error occurred during login.';
 
         if (errorCode === 'ACCOUNT_NOT_FOUND') {
           this.serverEmailError = 'Email or phone not found.';
@@ -466,6 +470,8 @@ export class AuthModalComponent implements OnDestroy {
               this.loginPhoneInput?.nativeElement?.focus();
             }
           }, 50);
+        } else if (errorCode === 'OAUTH_ACCOUNT') {
+          this.serverEmailError = 'This account was registered with Google or Facebook. Please continue with the same method.';
         } else if (errorCode === 'ADMIN_NOT_ALLOWED') {
           this.serverEmailError = 'Admin accounts cannot log in here.';
         } else if (errorCode === 'INCORRECT_PASSWORD') {
@@ -478,7 +484,7 @@ export class AuthModalComponent implements OnDestroy {
             }
           }, 50);
         } else {
-          this.serverEmailError = errorMessage;
+          this.serverEmailError = 'An error occurred during login. Please try again.';
         }
         this.cdr.detectChanges();
       } finally {
@@ -491,14 +497,13 @@ export class AuthModalComponent implements OnDestroy {
 
   private startOtpCountdown(seconds: number): void {
     this.clearOtpCountdown();
-    this.otpCountdown = seconds;
+    this.otpCountdown.set(seconds);
     this.otpTimerHandle = setInterval(() => {
-      this.otpCountdown--;
-      if (this.otpCountdown <= 0) {
-        this.otpCountdown = 0;
+      this.otpCountdown.update(v => v - 1);
+      if (this.otpCountdown() <= 0) {
+        this.otpCountdown.set(0);
         this.clearOtpCountdown();
       }
-      this.cdr.detectChanges();
     }, 1000);
   }
 
@@ -510,13 +515,13 @@ export class AuthModalComponent implements OnDestroy {
   }
 
   get otpCountdownLabel(): string {
-    const m = Math.floor(this.otpCountdown / 60);
-    const s = this.otpCountdown % 60;
+    const m = Math.floor(this.otpCountdown() / 60);
+    const s = this.otpCountdown() % 60;
     return `${m}:${String(s).padStart(2, '0')}`;
   }
 
   get canResendOtp(): boolean {
-    return this.otpCountdown <= 0;
+    return this.otpCountdown() <= 0;
   }
 
   get otpValue(): string {
@@ -584,10 +589,12 @@ export class AuthModalComponent implements OnDestroy {
       this.closeAuthModal();
 
       // Hiện ngay lập tức, không dùng setTimeout (bị throttle khi đổi tab).
+      const isOnHomepage = this.router.url === '/';
       this.successModalConfig = {
         title: 'Signed Up Successfully',
         subtitle: 'Welcome to Offsite!',
-        primaryBtn: 'CONTINUE'
+        primaryBtn: 'CONTINUE',
+        ...(isOnHomepage ? {} : { secondaryBtn: 'BACK TO HOMEPAGE' })
       };
       this.showSuccessModal = true;
       this.cdr.detectChanges();
@@ -597,6 +604,7 @@ export class AuthModalComponent implements OnDestroy {
 
       if (code === 'OTP_LOCKED') {
         this.otpLocked = true;
+        this.otpAttemptsLeft = 0;
         this.clearOtpCountdown();
       } else if (code === 'OTP_EXPIRED') {
         this.otpError = 'This code has expired. Please resend a new code.';
@@ -606,7 +614,22 @@ export class AuthModalComponent implements OnDestroy {
         this.clearOtpCountdown();
         setTimeout(() => this.backToSignup(), 1500);
       } else {
-        this.otpError = err?.error || 'Incorrect code. Please try again.';
+        // Ưu tiên số lần còn lại backend trả về, nếu không có thì tự đếm ở client
+        // (giả định trùng số lượt tối đa với backend, OTP_MAX_ATTEMPTS).
+        this.otpAttemptsLeft = typeof err?.remainingAttempts === 'number'
+          ? err.remainingAttempts
+          : Math.max(0, this.otpAttemptsLeft - 1);
+
+        // Tự dựng message tiếng Anh ở frontend, không lấy err.error (backend trả tiếng Việt).
+        // Số lượt còn lại đã hiện riêng ở otp-attempts-hint phía trên, nên ở đây chỉ cần báo sai.
+        this.otpError = 'Incorrect code. Please try again.';
+
+        // Fallback: nếu đếm tới 0 mà backend chưa kịp trả OTP_LOCKED (lệch nhịp),
+        // tự khoá luôn ở client để tránh cho nhập thêm quá số lượt cho phép.
+        if (this.otpAttemptsLeft <= 0) {
+          this.otpLocked = true;
+          this.clearOtpCountdown();
+        }
       }
 
       this.otpDigits = ['', '', '', '', '', ''];
@@ -628,12 +651,15 @@ export class AuthModalComponent implements OnDestroy {
       this.maskedContact = res.maskedContact || this.maskedContact;
       this.mockOtp = res.__mock || '';
       this.otpLocked = false;
+      this.otpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
       this.otpError = null;
       this.otpDigits = ['', '', '', '', '', ''];
       this.startOtpCountdown(this.OTP_DURATION_SECONDS);
       setTimeout(() => this.focusOtpInput(0), 50);
     } catch (err: any) {
-      this.otpError = err?.error || 'Could not resend code. Please try again.';
+      this.otpError = err?.code === 'REGISTRATION_NOT_FOUND'
+        ? 'Session expired. Please sign up again.'
+        : 'Could not resend code. Please try again.';
       if (err?.code === 'REGISTRATION_NOT_FOUND') {
         setTimeout(() => this.backToSignup(), 1500);
       }
@@ -684,8 +710,15 @@ export class AuthModalComponent implements OnDestroy {
 
   onSuccessSecondary(): void {
     this.showSuccessModal = false;
-    this.closeAuthModal();
-    this.authService.logout();
+    if (this.successModalConfig.secondaryBtn === 'BACK TO HOMEPAGE') {
+      this.closeAuthModal();
+      this.router.navigate(['/']);
+    } else if (this.successModalConfig.secondaryBtn === 'SIGN OUT') {
+      this.closeAuthModal();
+      this.authService.logout();
+    } else {
+      this.closeAuthModal();
+    }
   }
 
   onSuccessClose(): void {
