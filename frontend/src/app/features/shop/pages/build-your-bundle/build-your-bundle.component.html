@@ -186,16 +186,23 @@
         <button
           type="button"
           class="add-to-cart-btn"
+          [class.add-to-cart-btn--ready]="canAddBundleToCart()"
           [disabled]="!canAddBundleToCart()"
           (click)="addBundleToCart()"
         >
-          ADD TO CART
+          @if (!canAddBundleToCart()) {
+            <svg lucideShoppingCart aria-hidden="true" [size]="16"></svg>
+            Complete your selection
+          } @else {
+            <svg lucideShoppingCart aria-hidden="true" [size]="16"></svg>
+            Add to cart
+          }
         </button>
       </div>
     </aside>
 
     <!-- Right: Product Browser -->
-    <section class="product-browser">
+    <section class="product-browser" #productBrowser>
       @if (!activeSlotKey()) {
         <div class="product-browser__empty">
           <p class="product-browser__empty-title">Select a slot to browse</p>
