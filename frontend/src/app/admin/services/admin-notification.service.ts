@@ -60,10 +60,8 @@ export class AdminNotificationService {
         );
 
         // Urgent = processing orders that have been open ≥ URGENT_PROCESSING_DAYS
-        // and haven't been notified yet today.
         const urgentItems = processing
           .filter((order) => this.isOrderOverdue(order))
-          .filter((order) => this.shouldShowUrgentToday(order.order_id))
           .map((order) => this.toNotification(order, 'urgent_processing'));
 
         return [...refundItems, ...shipItems, ...urgentItems].sort(
@@ -75,7 +73,12 @@ export class AdminNotificationService {
 
   getUnreadCount(notifications: AdminNotification[]): number {
     const readIds = this.getReadIds();
-    return notifications.filter((item) => !readIds.has(item.id)).length;
+    return notifications.filter((item) => {
+      if (item.type === 'urgent_processing') {
+        return this.shouldShowUrgentToday(item.orderId) && !readIds.has(item.id);
+      }
+      return !readIds.has(item.id);
+    }).length;
   }
 
   markAsRead(notificationId: string): void {
