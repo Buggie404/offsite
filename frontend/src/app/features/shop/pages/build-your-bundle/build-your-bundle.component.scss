@@ -87,6 +87,10 @@
   line-height: 1.1;
   letter-spacing: -0.02em;
   color: var(--color-near-black);
+
+  @media (max-width: 768px) {
+    font-size: 28px;
+  }
 }
 
 .bundle-intro {
@@ -206,6 +210,26 @@
   &--three .pack-slot {
     --slot-scale: 1.85;
   }
+
+  @media (max-width: 640px) {
+    --slot-image-height: 180px;
+    min-height: 240px;
+    padding: 20px 8px 16px;
+    gap: 8px;
+
+    .pack-slot {
+      --slot-scale: 1.25;
+    }
+  }
+
+  @media (max-width: 480px) {
+    --slot-image-height: 150px;
+    min-height: 200px;
+
+    .pack-slot {
+      --slot-scale: 1.1;
+    }
+  }
 }
 
 .pack-slot-item {
@@ -224,6 +248,16 @@
     width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
     max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
     opacity 0.25s ease;
+
+  @media (max-width: 640px) {
+    width: 140px;
+    flex-basis: 140px;
+  }
+
+  @media (max-width: 480px) {
+    width: 110px;
+    flex-basis: 110px;
+  }
 
   &--active {
     z-index: 1;
@@ -325,6 +359,46 @@
     max-width: 150px;
   }
 
+  @media (max-width: 640px) {
+    .pack-slot-item,
+    .pack-slot-item--optional {
+      width: 95px;
+      flex-basis: 95px;
+      max-width: 95px;
+    }
+
+    .pack-slot__img {
+      height: 120px;
+      max-width: 90px;
+    }
+
+    .pack-slot__selected-img,
+    .pack-slot--filled .pack-slot__selected-img {
+      height: 100px;
+      max-width: 80px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .pack-slot-item,
+    .pack-slot-item--optional {
+      width: 75px;
+      flex-basis: 75px;
+      max-width: 75px;
+    }
+
+    .pack-slot__img {
+      height: 90px;
+      max-width: 70px;
+    }
+
+    .pack-slot__selected-img,
+    .pack-slot--filled .pack-slot__selected-img {
+      height: 80px;
+      max-width: 60px;
+    }
+  }
+
   .slot-plus--optional {
     width: 22px;
     max-width: 22px;
@@ -378,6 +452,16 @@
       opacity 0.15s ease;
     will-change: transform;
     pointer-events: none;
+
+    @media (max-width: 640px) {
+      height: 190px;
+      max-width: 135px;
+    }
+
+    @media (max-width: 480px) {
+      height: 150px;
+      max-width: 105px;
+    }
   }
 
   &__img--placeholder {
@@ -416,6 +500,16 @@
       filter 0.18s ease;
     will-change: transform;
     pointer-events: none;
+
+    @media (max-width: 640px) {
+      height: 160px;
+      max-width: 130px;
+    }
+
+    @media (max-width: 480px) {
+      height: 130px;
+      max-width: 100px;
+    }
   }
 
   &__remove {
@@ -464,6 +558,16 @@
   &--filled &__selected-img {
     height: 220px;
     max-width: 240px;
+
+    @media (max-width: 640px) {
+      height: 130px;
+      max-width: 110px;
+    }
+
+    @media (max-width: 480px) {
+      height: 110px;
+      max-width: 90px;
+    }
   }
 
   &--active.pack-slot--filled &__selected-img {
