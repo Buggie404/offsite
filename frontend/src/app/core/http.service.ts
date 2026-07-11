@@ -51,8 +51,19 @@ export class HttpService {
 
     const res = await fetch(this.baseURL + url, options);
 
+    // Các endpoint auth công khai: 401 ở đây nghĩa là "sai thông tin đăng nhập",
+    // không phải "access token hết hạn" → không được đi qua cơ chế refresh token.
+    const isPublicAuthEndpoint =
+      url.startsWith('/auth/login') ||
+      url.startsWith('/auth/register') ||
+      url.startsWith('/auth/verify-registration-otp') ||
+      url.startsWith('/auth/resend-registration-otp') ||
+      url.startsWith('/auth/forgot-password') ||
+      url.startsWith('/auth/reset-password') ||
+      url.startsWith('/auth/refresh');
+
     // HANDLE 401 → TRY REFRESH TOKEN
-    if (res.status === 401 && retry) {
+    if (res.status === 401 && retry && !isPublicAuthEndpoint) {
       const refreshed = await this.refreshToken();
 
       if (refreshed) {
@@ -130,4 +141,3 @@ export class HttpService {
     localStorage.removeItem('refreshToken');
   }
 }
-
