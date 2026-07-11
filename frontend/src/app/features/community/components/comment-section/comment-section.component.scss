@@ -5,7 +5,6 @@ $text-muted: #544A40;
 $light-grey: #ECECE9;
 $transition-speed: 0.25s;
 
-// ── COMMENTS LIST ──
 .comments-loading,
 .comments-empty {
   color: $text-muted;
@@ -157,27 +156,11 @@ $transition-speed: 0.25s;
   }
 }
 
-// Ô reply nằm ngay dưới comment/reply vừa bấm "Reply" — chỉ còn giữ margin
-// bao ngoài, phần input/nút bên trong dùng chung style .composer-row bên dưới
-// (cùng markup composerRow template với ô comment chính) để 2 nơi đồng bộ giao diện.
-.inline-reply-box {
-  margin-top: 10px;
-}
-
-// ── COMPOSER ROW — dùng chung cho cả ô comment chính (.comment-composer)
-// lẫn ô reply inline (.inline-reply-box), vì cả 2 cùng render từ 1 template
-// composerRow. Để top-level (không lồng trong .comment-composer) thì mới
-// áp dụng được cho cả hai chỗ, tránh trường hợp reply-box bị rớt về style
-// mặc định của trình duyệt như trước.
-.comment-composer,
-.inline-reply-box {
-  margin-top: 8px;
-}
-
 .composer-row {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
 
   input {
     flex: 1;
@@ -193,61 +176,72 @@ $transition-speed: 0.25s;
       border-color: $forest-green;
     }
   }
-}
 
-.composer-clear-btn {
-  background: none;
-  border: none;
-  color: $text-muted;
-  cursor: pointer;
-  font-size: 0.95rem;
-  flex-shrink: 0;
-  padding: 6px;
-  transition: color $transition-speed;
-
-  &:hover {
-    color: #D32F2F;
-  }
-}
-
-.composer-cancel-btn {
-  background: none;
-  border: none;
-  color: $text-muted;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 600;
-  flex-shrink: 0;
-  padding: 6px 4px;
-  transition: color $transition-speed;
-
-  &:hover {
-    color: $forest-green;
-  }
-}
-
-.composer-send-btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: none;
-  background: $light-grey;
-  color: $text-muted;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: not-allowed;
-  flex-shrink: 0;
-  transition: background $transition-speed, color $transition-speed, transform $transition-speed;
-
-  &:not(:disabled) {
-    background: $forest-green;
-    color: $white;
+  .composer-clear-btn {
+    background: none;
+    border: none;
+    color: $text-muted;
     cursor: pointer;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+    padding: 6px;
+    transition: color $transition-speed;
 
     &:hover {
-      background: #2c4429;
-      transform: scale(1.05);
+      color: #D32F2F;
+    }
+  }
+
+  .composer-send-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: $light-grey;
+    color: $text-muted;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: not-allowed;
+    flex-shrink: 0;
+    transition: background $transition-speed, color $transition-speed, transform $transition-speed;
+
+    &:not(:disabled) {
+      background: $forest-green;
+      color: $white;
+      cursor: pointer;
+
+      &:hover {
+        background: #2c4429;
+        transform: scale(1.05);
+      }
     }
   }
 }
+
+.comment-composer {
+  margin-top: 16px;
+}
+
+.inline-reply-box {
+  margin-top: 10px;
+  width: 100%;
+
+  .composer-row {
+    input {
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      border-radius: 18px;
+    }
+    .composer-send-btn {
+      width: 40px;
+      height: 40px;
+      svg {
+        width: 20px;
+        height: 20px;
+      }
+    }
+  }
+}
+
+

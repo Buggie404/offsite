@@ -1,92 +1,64 @@
-<ng-container *ngIf="isLoggedIn(); else loginRequired">
+<div class="feed-wrapper" [class.blurred]="!isLoggedIn()">
+  <app-hero-banner></app-hero-banner>
 
-    <app-hero-banner></app-hero-banner>
+  <app-feed-toolbar
+      [activeCategory]="activeCategory"
+      [sort]="sort"
+      (createPost)="openCreatePost()"
+      (createRecipe)="openCreateRecipe()"
+      (categoryChange)="onCategoryChange($event)"
+      (sortChange)="onSortChange($event)">
+  </app-feed-toolbar>
 
-    <app-feed-toolbar
-        [activeCategory]="activeCategory"
-        [sort]="sort"
-        (createPost)="openCreatePost()"
-        (createRecipe)="openCreateRecipe()"
-        (categoryChange)="onCategoryChange($event)"
-        (sortChange)="onSortChange($event)">
-    </app-feed-toolbar>
+  <section class="community-section">
+      <div class="container">
+          <div class="community-grid">
+              <app-post-card
+                  *ngFor="let post of posts"
+                  [post]="post"
+                  (like)="likePost($event)"
+                  (openDetail)="goToDetail($event)">
+              </app-post-card>
+          </div>
 
-    <section class="community-section">
-
-        <div class="container">
-
-            <div class="community-grid">
-                <app-post-card
-                    *ngFor="let post of posts"
-                    [post]="post"
-                    (openDetail)="goToDetail($event)">
-                </app-post-card>
-            </div>
-
-            <div
-                class="load-more"
-                *ngIf="hasMore">
-
-                <button
-                    class="btn-load"
-                    (click)="loadMore()">
-
-                    <span>LOAD NEW POSTS</span>
-
-                    <svg
-                        width="12"
-                        height="8"
-                        viewBox="0 0 12 8"
-                        fill="none">
-
-                        <path
-                            d="M1 1L6 6L11 1"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"/>
-
-                    </svg>
-                </button>
-            </div>
-        </div>
-
-    </section>
-
-    <app-create-post-modal
-        *ngIf="showCreatePost"
-        (close)="closeCreatePost()">
-    </app-create-post-modal>
-
-    <app-create-recipe-modal
-        *ngIf="showCreateRecipe"
-        (close)="closeCreateRecipe()">
-    </app-create-recipe-modal>
-
-</ng-container>
-
-<ng-template #loginRequired>
-  <div class="community-block-overlay" *ngIf="!isAuthModalOpen()">
-    <div class="community-block-card">
-      <div class="community-block-header">
-        <img src="assets/images/logo-full-dark.svg" alt="Offsite" class="community-block-logo" />
+          <div class="load-more" *ngIf="hasMore">
+              <button class="btn-load" (click)="loadMore()">
+                  <span>LOAD NEW POSTS</span>
+                  <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+                      <path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+              </button>
+          </div>
       </div>
+  </section>
+</div>
 
-      <div class="community-block-body">
-        <h2 class="community-block-title">JOIN OUR COMMUNITY</h2>
-        <p class="community-block-subtitle">
-          LOG IN TO SEE STORIES, SHARE RECIPES, AND CONNECT WITH FELLOW COFFEE & MATCHA LOVERS.
-        </p>
+<div class="community-block-overlay" *ngIf="!isLoggedIn() && !isAuthModalOpen()">
+  <div class="community-block-card">
+    <div class="community-block-header">
+      <img src="assets/images/logo-full-dark.svg" alt="Offsite" class="community-block-logo" />
+    </div>
 
-        <div class="community-block-actions">
+    <div class="community-block-body">
+      <h2 class="community-block-title">JOIN OUR COMMUNITY</h2>
+      <p class="community-block-subtitle">
+        LOG IN TO SEE STORIES, SHARE RECIPES, AND CONNECT WITH FELLOW COFFEE & MATCHA LOVERS.
+      </p>
+
+      <div class="community-block-actions">
         <button class="community-block-btn" (click)="openLoginModal()">
             LOG IN
         </button>
         <button class="community-block-btn-outline" (click)="goHome()">
             MAYBE LATER
         </button>
-        </div>
       </div>
     </div>
   </div>
-</ng-template>
+</div>
+
+<app-create-post-modal *ngIf="showCreatePost" (close)="closeCreatePost()"></app-create-post-modal>
+<app-create-recipe-modal *ngIf="showCreateRecipe" (close)="closeCreateRecipe()"></app-create-recipe-modal>
+
+<app-back-to-top></app-back-to-top>
+

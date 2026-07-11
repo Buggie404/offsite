@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, inject, ChangeDetectorRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -9,10 +9,6 @@ interface CommentThread extends Comment {
   replies: Comment[];
 }
 
-// Tự chủ hoàn toàn: chỉ cần truyền postId, component tự gọi API load/gửi/like comment,
-// không phụ thuộc vào state của component cha (post-detail).
-// NOTE: vẫn emit commentCountChange ra ngoài để post-detail cập nhật số đếm
-// hiển thị trên post ngay lập tức, không cần đợi user F5 / load lại post.
 @Component({
   selector: 'app-comment-section',
   standalone: true,
@@ -27,27 +23,19 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
 
   @Input() postId!: string;
 
-  // Emits the authoritative total comment count (top-level + replies) every
-  // time it changes, straight from the server response — parent listens to
-  // this instead of trying to guess/increment locally.
   @Output() commentCountChange = new EventEmitter<number>();
 
   commentThreads: CommentThread[] = [];
   commentsLoading = false;
 
-  // Comment composer state
-  newCommentText = '';
-  // parentId: top-level comment_id gửi kèm khi submit (backend chỉ hỗ trợ 1 cấp lồng)
-  // anchorId: id của item (comment gốc hoặc reply) vừa bấm "Reply", dùng để hiện ô nhập đúng vị trí
+  mainCommentText = '';
+  replyCommentText = '';
+  
   replyingTo: { parentId: string; anchorId: string; username: string } | null = null;
   postingComment = false;
 
-  // Track comment ids đã like trong session này (backend không lưu per-user like state cho comment)
   likedCommentIds = new Set<string>();
 
-  // Dùng để force re-render timeAgo() định kỳ — text như "JUST NOW" / "3M AGO"
-  // chỉ đổi khi Angular chạy change detection, mà CD chỉ chạy khi có event.
-  // Không có interval thì thời gian bị "đứng hình" cho đến lần user tương tác kế tiếp.
   private timeTickHandle?: ReturnType<typeof setInterval>;
 
   ngOnInit(): void {
@@ -57,6 +45,26 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.timeTickHandle) clearInterval(this.timeTickHandle);
+  }
+
+  // Lắng nghe sự kiện click chuột trên toàn màn hình
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    // Nếu không có ô reply nào đang mở thì bỏ qua
+    if (!this.replyingTo) return;
+
+    const target = event.target as HTMLElement;
+
+    // Bỏ qua nếu user vừa click vào chính nút "Reply" (để không bị tắt ngay lúc vừa mở)
+    if (target.closest('.comment-reply-btn')) return;
+
+    // Bỏ qua nếu user click vào bên trong khung nhập reply (đang gõ phím, click nút gửi...)
+    if (target.closest('.inline-reply-box')) return;
+
+    // Nếu click ra không gian ngoài VÀ khung text đang trống -> Tự động đóng
+    if (!this.replyCommentText.trim()) {
+      this.cancelReply();
+    }
   }
 
   loadComments(): void {
@@ -95,35 +103,41 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
 
   startReply(parentId: string, anchorId: string, username: string): void {
     this.replyingTo = { parentId, anchorId, username };
-    this.newCommentText = '';
+    this.replyCommentText = ''; 
   }
 
   cancelReply(): void {
     this.replyingTo = null;
-    this.newCommentText = '';
+    this.replyCommentText = '';
   }
 
-  // Xóa nội dung đang gõ ở ô comment chính (nút X)
-  clearComment(): void {
-    this.newCommentText = '';
-  }
-
-  submitComment(): void {
-    if (!this.postId || !this.newCommentText.trim() || this.postingComment) return;
+  submitComment(isReply: boolean): void {
+    const text = isReply ? this.replyCommentText : this.mainCommentText;
+    
+    if (!this.postId || !text.trim() || this.postingComment) return;
 
     this.postingComment = true;
-    const parentId = this.replyingTo?.parentId || null;
-    const replyToUsername = this.replyingTo?.username || null;
+    let parentId = null;
+    let replyToUsername = null;
+
+    if (isReply && this.replyingTo) {
+      parentId = this.replyingTo.parentId;
+      replyToUsername = this.replyingTo.username;
+    }
 
     this.communityService.createComment(
       this.postId,
-      this.newCommentText.trim(),
+      text.trim(),
       parentId,
       replyToUsername
     ).subscribe({
       next: () => {
-        this.newCommentText = '';
-        this.replyingTo = null;
+        if (isReply) {
+          this.replyCommentText = '';
+          this.replyingTo = null;
+        } else {
+          this.mainCommentText = '';
+        }
         this.postingComment = false;
         this.loadComments();
       },
@@ -154,7 +168,6 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
     return this.likedCommentIds.has(comment.comment_id);
   }
 
-  // ── Relative time ──
   timeAgo(dateStr: string): string {
     const created = new Date(dateStr).getTime();
     const now = Date.now();
@@ -170,3 +183,5 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
     return `${days}D AGO`;
   }
 }
+
+

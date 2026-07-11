@@ -7,45 +7,30 @@
   </div>
 
   <div class="comment-thread" *ngFor="let comment of commentThreads">
-
-    <!-- Top-level comment -->
     <ng-container *ngTemplateOutlet="commentRow; context: { $implicit: comment, isReply: false, parentId: comment.comment_id }"></ng-container>
 
-    <!-- Replies -->
     <div class="comment-replies" *ngIf="comment.replies.length > 0">
       <ng-container *ngFor="let reply of comment.replies">
         <ng-container *ngTemplateOutlet="commentRow; context: { $implicit: reply, isReply: true, parentId: comment.comment_id }"></ng-container>
       </ng-container>
     </div>
-
   </div>
 
 </div>
 
-<!-- Composer cho comment mới; ẩn khi đang mở ô reply inline của 1 comment cụ thể -->
-<div class="comment-composer" *ngIf="!replyingTo">
-  <ng-container *ngTemplateOutlet="composerRow; context: { placeholder: 'Add a comment...', showCancel: false }"></ng-container>
-</div>
-
-<!--
-  Composer row dùng chung cho cả ô comment chính lẫn ô reply inline, để icon
-  gửi/xóa luôn nằm đúng cùng 1 vị trí thay vì lặp markup 2 lần và bị lệch nhau.
--->
-<ng-template #composerRow let-placeholder="placeholder" let-showCancel="showCancel">
+<div class="comment-composer">
   <div class="composer-row">
     <input
       type="text"
-      [placeholder]="placeholder"
-      [(ngModel)]="newCommentText"
-      (keydown.enter)="submitComment()">
-    <button type="button" class="composer-clear-btn" *ngIf="newCommentText.trim()" (click)="clearComment()">✕</button>
-    <button type="button" class="composer-cancel-btn" *ngIf="showCancel" (click)="cancelReply()">Cancel</button>
+      placeholder="Add a comment..."
+      [(ngModel)]="mainCommentText"
+      (keydown.enter)="submitComment(false)">
+    <button type="button" class="composer-clear-btn" *ngIf="mainCommentText.trim()" (click)="mainCommentText = ''">✕</button>
     <button
       type="button"
       class="composer-send-btn"
-      [disabled]="!newCommentText.trim() || postingComment"
-      (click)="submitComment()">
-      <!-- Up-arrow-in-circle, distinct from the share icon (which uses a diagonal arrow) -->
+      [disabled]="!mainCommentText.trim() || postingComment"
+      (click)="submitComment(false)">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
         <path d="M12 16V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -53,9 +38,8 @@
       </svg>
     </button>
   </div>
-</ng-template>
+</div>
 
-<!-- Template dùng chung cho cả comment gốc và reply, tránh lặp markup 2 lần -->
 <ng-template #commentRow let-comment let-isReply="isReply" let-parentId="parentId">
   <div class="comment-item" [class.comment-item--reply]="isReply">
     <div class="comment-avatar" [class.comment-avatar--sm]="isReply">
@@ -89,10 +73,30 @@
         </button>
       </div>
 
-      <!-- Ô reply inline, xuất hiện ngay dưới item vừa bấm "Reply" -->
       <div class="inline-reply-box" *ngIf="replyingTo?.anchorId === comment.comment_id">
-        <ng-container *ngTemplateOutlet="composerRow; context: { placeholder: 'Reply to @' + replyingTo!.username + '...', showCancel: true }"></ng-container>
+        <div class="composer-row">
+          <input
+            type="text"
+            [placeholder]="'Reply to @' + replyingTo!.username + '...'"
+            [(ngModel)]="replyCommentText"
+            (keydown.enter)="submitComment(true)">
+          <button type="button" class="composer-clear-btn" *ngIf="replyCommentText.trim()" (click)="replyCommentText = ''">✕</button>
+          <button
+            type="button"
+            class="composer-send-btn"
+            [disabled]="!replyCommentText.trim() || postingComment"
+            (click)="submitComment(true)">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+              <path d="M12 16V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8.5 11.5L12 8L15.5 11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
       </div>
+      
     </div>
   </div>
 </ng-template>
+
+

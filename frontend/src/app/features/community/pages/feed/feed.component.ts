@@ -13,6 +13,7 @@ import { CreatePostModalComponent } from '../../components/create-post-modal/cre
 import { CreateRecipeModalComponent } from '../../components/create-recipe-modal/create-recipe-modal.component';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthModalService } from '../../../../core/auth-modal.service';
+import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 
 @Component({
   selector: 'app-feed',
@@ -23,7 +24,8 @@ import { AuthModalService } from '../../../../core/auth-modal.service';
     FeedToolbarComponent,
     PostCardComponent,
     CreatePostModalComponent,
-    CreateRecipeModalComponent
+    CreateRecipeModalComponent,
+    BackToTopComponent
   ],
   templateUrl: './feed.component.html',
   styleUrls: ['./feed.component.scss']
@@ -36,7 +38,6 @@ export class FeedComponent implements OnInit {
   private authService = inject(AuthService);
   private authModalService = inject(AuthModalService);
 
-  // Signal có sẵn từ AuthService, tự động cập nhật khi login/logout
   isLoggedIn = this.authService.isAuthenticated;
   isAuthModalOpen = this.authModalService.isOpen;
 
@@ -55,8 +56,18 @@ export class FeedComponent implements OnInit {
   private fetch$ = new Subject<void>();
 
   constructor() {
-    // Subscription lấy feed — set up ngay từ đầu, không phụ thuộc trạng thái
-    // login tại thời điểm khởi tạo, để effect() bên dưới luôn có sẵn nơi để bắn tín hiệu vào.
+    // Tự động gọi API lấy data thật của User ngay khi đăng nhập thành công
+    effect(() => {
+      const loggedIn = this.isLoggedIn();
+      if (loggedIn) {
+        this.page = 1;
+        this.loadFeed();
+      }
+    });
+  }
+
+  ngOnInit(): void {
+    // Không chặn Guest ở đây nữa, gọi API bình thường để có data nền mờ
     this.fetch$.pipe(
       switchMap(() =>
         this.communityService.getFeed(this.page, this.limit, this.activeCategory, this.sort)
@@ -78,20 +89,8 @@ export class FeedComponent implements OnInit {
       }
     });
 
-    // Trước đây gate đăng nhập nằm trong ngOnInit — chỉ chạy 1 lần lúc component
-    // khởi tạo. Nếu lúc đó chưa login, cả đoạn load feed bị bỏ qua và không bao
-    // giờ chạy lại, kể cả sau khi user login thành công qua modal (isLoggedIn
-    // là signal, đổi giá trị nhưng Angular không tự re-run ngOnInit) → feed
-    // trống trắng cho tới khi F5 lại trang. effect() ở đây tự chạy lại mỗi khi
-    // isLoggedIn() đổi giá trị, kể cả xảy ra sau khi component đã sống một lúc.
-    effect(() => {
-      if (this.isLoggedIn()) {
-        this.loadFeed();
-      }
-    });
+    this.loadFeed();
   }
-
-  ngOnInit(): void {}
 
   openLoginModal(): void {
     this.authModalService.open('login');
@@ -127,11 +126,28 @@ export class FeedComponent implements OnInit {
     this.loadFeed();
   }
 
+  likePost(postId: string): void {
+    // Chặn Like nếu chưa đăng nhập (đề phòng click lọt qua lớp mờ)
+    if (!this.isLoggedIn()) {
+      this.openLoginModal();
+      return;
+    }
+
+    this.communityService.likePost(postId).subscribe(res => {
+      const post = this.posts.find(p => p.post_id === postId);
+      if (post) {
+        post.like_count = res.like_count;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
   goToDetail(postId: string): void {
     this.router.navigate(['/community/post', postId]);
   }
 
   openCreatePost(): void {
+    if (!this.isLoggedIn()) return this.openLoginModal();
     this.showCreatePost = true;
   }
 
@@ -140,6 +156,7 @@ export class FeedComponent implements OnInit {
   }
 
   openCreateRecipe(): void {
+    if (!this.isLoggedIn()) return this.openLoginModal();
     this.showCreateRecipe = true;
   }
 
@@ -147,3 +164,4 @@ export class FeedComponent implements OnInit {
     this.showCreateRecipe = false;
   }
 }
+

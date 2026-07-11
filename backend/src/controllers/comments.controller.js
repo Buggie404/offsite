@@ -56,12 +56,6 @@ async function getCommentsByPostId(req, res) {
   }
 }
 
-// Resolve whatever the client sent as "parent_id" (could be the canonical
-// comment_id string, or a Mongo _id if the client is inconsistent) to the
-// CANONICAL top-level comment_id. Returns null if no parent was requested,
-// throws a tagged error if a parent was requested but doesn't exist / isn't
-// top-level — this turns a previously silent "reply vanishes from the UI"
-// bug into a loud, catchable 400 instead of a false-success 200/201.
 async function resolveParentCommentId(post_id, rawParentId) {
   if (!rawParentId) return null;
 
@@ -79,9 +73,6 @@ async function resolveParentCommentId(post_id, rawParentId) {
     throw err;
   }
 
-  // Backend only supports 1 level of nesting — if someone replies to a reply,
-  // re-parent onto that reply's own top-level comment so it doesn't create an
-  // orphaned 2nd-level thread that the frontend's flat grouping can't render.
   const canonicalParentId = parentComment.parent_id || parentComment.comment_id;
   return canonicalParentId;
 }
