@@ -131,7 +131,6 @@
 
         <div class="social-buttons">
           <button type="button" class="social-btn google-btn" (click)="loginWithGoogle()">
-            <!-- Google Logo SVG -->
             <svg class="social-icon" viewBox="0 0 24 24" width="18" height="18">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -142,7 +141,6 @@
           </button>
 
           <button type="button" class="social-btn facebook-btn" (click)="loginWithFacebook()">
-            <!-- Facebook Logo SVG -->
             <svg class="social-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
               <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
             </svg>
@@ -159,11 +157,9 @@
     <!-- SIGN IN / SIGN UP MODE -->
     <div *ngIf="mode() === 'signup'" class="auth-body">
 
-      <!-- Signup form -->
       <ng-container *ngIf="!isOtpStep">
         <form (submit)="onSubmitAuth($event)" class="auth-form signup-form">
 
-          <!-- Full Name -->
           <div class="auth-input-group">
             <label class="auth-input-label">FULL NAME</label>
             <input 
@@ -179,43 +175,23 @@
             <div *ngIf="signupNameError" class="error-message">{{ signupNameError }}</div>
           </div>
 
-          <!-- Email Address -->
           <div class="auth-input-group">
-            <label class="auth-input-label">EMAIL ADDRESS</label>
+            <label class="auth-input-label">EMAIL OR PHONE NUMBER</label>
             <input 
-              #signupEmailInput
-              type="email" 
+              #signupIdentifierInput
+              type="text" 
               class="auth-input" 
-              [class.input-error]="signupEmailError || serverEmailError"
-              [(ngModel)]="signupEmail"
-              name="signupEmail"
-              (blur)="signupEmailTouched = true"
-              (input)="signupEmailTouched = true; serverEmailError = null"
-              placeholder="ritual@offsite.com" 
+              [class.input-error]="signupIdentifierError || serverIdentifierError"
+              [(ngModel)]="signupIdentifier"
+              name="signupIdentifier"
+              (blur)="signupIdentifierTouched = true"
+              (input)="signupIdentifierTouched = true; serverIdentifierError = null"
+              placeholder="ritual@offsite.com or 0901234567" 
               required>
-            <div *ngIf="signupEmailError" class="error-message">{{ signupEmailError }}</div>
-            <div *ngIf="!signupEmailError && serverEmailError" class="error-message">{{ serverEmailError }}</div>
+            <div *ngIf="signupIdentifierError" class="error-message">{{ signupIdentifierError }}</div>
+            <div *ngIf="!signupIdentifierError && serverIdentifierError" class="error-message">{{ serverIdentifierError }}</div>
           </div>
 
-          <!-- Phone Number -->
-          <div class="auth-input-group">
-            <label class="auth-input-label">PHONE NUMBER</label>
-            <input 
-              #signupPhoneInput
-              type="tel" 
-              class="auth-input" 
-              [class.input-error]="signupPhoneError || serverPhoneError"
-              [(ngModel)]="signupPhone"
-              name="signupPhone"
-              (blur)="signupPhoneTouched = true"
-              (input)="signupPhoneTouched = true; serverPhoneError = null"
-              placeholder="enter your phone number" 
-              required>
-            <div *ngIf="signupPhoneError" class="error-message">{{ signupPhoneError }}</div>
-            <div *ngIf="!signupPhoneError && serverPhoneError" class="error-message">{{ serverPhoneError }}</div>
-          </div>
-
-          <!-- Password -->
           <div class="auth-input-group">
             <label class="auth-input-label">PASSWORD</label>
             <div class="password-input-wrapper">
@@ -239,7 +215,6 @@
                 <svg *ngIf="showPassword" lucideEye [size]="18"></svg>
               </button>
             </div>
-            <!-- Password Strength Meter -->
             <div class="password-strength-container" *ngIf="signupPassword">
               <div
                 class="strength-bar"
@@ -259,7 +234,6 @@
             <div *ngIf="signupPasswordError" class="error-message">{{ signupPasswordError }}</div>
           </div>
 
-          <!-- Confirm Password -->
           <div class="auth-input-group">
             <label class="auth-input-label">CONFIRM PASSWORD</label>
             <div class="password-input-wrapper">
@@ -296,8 +270,6 @@
 
       <!-- OTP VERIFICATION STEP -->
       <div *ngIf="isOtpStep" class="otp-step">
-
-        <!-- Normal: nhập OTP -->
         <ng-container *ngIf="!otpLocked">
           <div class="otp-icon-circle otp-icon-circle--success">
             <svg width="26" height="20" viewBox="0 0 26 20" fill="none">
@@ -330,19 +302,34 @@
             </button>
           </div>
 
-          <div class="otp-input-row">
+          <!-- TRÙM CUỐI: KHU VỰC OTP NÀY ĐÃ ĐƯỢC CHỐNG LỖI BỘ GÕ -->
+          <div class="otp-input-container" style="position: relative; display: flex; justify-content: center; cursor: text;" (click)="focusHiddenInput()">
+            
+            <!-- Ô INPUT TÀNG HÌNH: Hứng trọn 6 số, không nhảy focus -->
             <input
-              *ngFor="let digit of otpDigits; let i = index"
-              #otpInput
-              type="text"
+              #hiddenOtpInput
+              type="tel"
               inputmode="numeric"
+              autocomplete="one-time-code"
               maxlength="6"
-              class="otp-digit-input"
-              [class.filled]="digit"
-              [value]="digit"
-              (input)="onOtpDigitInput(i, $event)"
-              (keydown)="onOtpKeydown(i, $event)"
-              [attr.aria-label]="'OTP digit ' + (i + 1)">
+              [value]="otpValue"
+              (input)="onHiddenOtpInput($event)"
+              style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 10; cursor: pointer; color: transparent; background: transparent; caret-color: transparent;"
+            >
+
+            <!-- 6 Ô BÙ NHÌN: Dùng mảng otpDigits để vẽ an toàn -->
+            <div class="otp-input-row" style="pointer-events: none;">
+              <input
+                *ngFor="let digit of otpDigits; trackBy: trackByFn"
+                type="text"
+                readonly
+                tabindex="-1"
+                class="otp-digit-input"
+                [class.filled]="digit"
+                [value]="digit"
+              >
+            </div>
+            
           </div>
 
           <p class="otp-error" *ngIf="otpError">{{ otpError }}</p>
@@ -408,7 +395,7 @@
   (onClose)="onSuccessClose()">
 </app-success-modal>
 
-<!-- DEV MODE OTP badge — góc dưới trái, không chồng lên modal -->
+<!-- DEV MODE OTP badge -->
 <div class="otp-dev-badge" *ngIf="mockOtp && mode() === 'signup' && isOtpStep">
   DEV OTP: {{ mockOtp }}
 </div>
