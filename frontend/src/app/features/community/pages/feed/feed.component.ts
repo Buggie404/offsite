@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, ChangeDetectorRef, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { Subject, switchMap } from 'rxjs'; 
+import { Subject, switchMap, startWith } from 'rxjs';
 
 import { Post } from '../../models/post.model';
 import { CommunityService } from '../../services/community.service';
@@ -14,6 +14,7 @@ import { CreateRecipeModalComponent } from '../../components/create-recipe-modal
 import { AuthService } from '../../../../core/auth.service';
 import { AuthModalService } from '../../../../core/auth-modal.service';
 import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
+import { ShareModalComponent } from '../../components/share-modal/share-modal.component';
 
 @Component({
   selector: 'app-feed',
@@ -25,7 +26,8 @@ import { BackToTopComponent } from '../../../../shared/components/back-to-top/ba
     PostCardComponent,
     CreatePostModalComponent,
     CreateRecipeModalComponent,
-    BackToTopComponent
+    BackToTopComponent,
+    ShareModalComponent
   ],
   templateUrl: './feed.component.html',
   styleUrls: ['./feed.component.scss']
@@ -52,15 +54,16 @@ export class FeedComponent implements OnInit {
 
   showCreatePost = false;
   showCreateRecipe = false;
+  
+  showShareModal = false;
+  shareUrl = '';
 
   private fetch$ = new Subject<void>();
-  private isFirstLoginEffect = true; // Cờ theo dõi effect lần đầu
+  private isFirstLoginEffect = true; 
 
   constructor() {
     effect(() => {
       const loggedIn = this.isLoggedIn();
-      
-      // 🛑 Bỏ qua lần chạy đầu tiên khi component vừa khởi tạo để không ghi đè mất Data cũ lúc back về
       if (this.isFirstLoginEffect) {
         this.isFirstLoginEffect = false;
         return;
@@ -74,8 +77,8 @@ export class FeedComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // 1. Luôn thiết lập luồng lắng nghe gọi API
     this.fetch$.pipe(
+      startWith(undefined), 
       switchMap(() =>
         this.communityService.getFeed(this.page, this.limit, this.activeCategory, this.sort)
       )
@@ -96,7 +99,6 @@ export class FeedComponent implements OnInit {
       }
     });
 
-    // 2. LOGIC KIỂM TRA VÀ PHỤC HỒI STATE
     if (this.communityService.shouldRestoreState && this.communityService.feedState.posts.length > 0) {
       const state = this.communityService.feedState;
       this.posts = state.posts;
@@ -105,17 +107,14 @@ export class FeedComponent implements OnInit {
       this.activeCategory = state.activeCategory;
       this.sort = state.sort;
       
-      // Reset cờ để các lần nhấn vào Menu "Community" sau sẽ được load mới như bình thường
       this.communityService.shouldRestoreState = false;
 
-      // Chờ Angular render DOM (các thẻ card bài viết) xong rồi mới cuộn
       this.cdr.detectChanges();
       setTimeout(() => {
         window.scrollTo({ top: state.scrollY, behavior: 'instant' });
       }, 50);
       
     } else {
-      // Nếu không có State cũ (Ví dụ: F5 trang, hoặc nhấn từ Navbar vào) -> Load data mới
       this.loading = true;
       this.fetch$.next();
     }
@@ -155,6 +154,7 @@ export class FeedComponent implements OnInit {
     this.loadFeed();
   }
 
+  // ── FIX LỖI MẤT TRẠNG THÁI LIKE/SAVE Ở ĐÂY ──
   likePost(postId: string): void {
     if (!this.isLoggedIn()) {
       this.openLoginModal();
@@ -162,16 +162,52 @@ export class FeedComponent implements OnInit {
     }
 
     this.communityService.likePost(postId).subscribe(res => {
-      const post = this.posts.find(p => p.post_id === postId);
-      if (post) {
-        post.like_count = res.like_count;
+      const postIndex = this.posts.findIndex(p => p.post_id === postId);
+      if (postIndex > -1) {
+        // Chỉ ghi đè lại đúng số like và trạng thái liked, giữ nguyên saved
+        this.posts[postIndex].like_count = res.like_count;
+        this.posts[postIndex].liked = res.liked;
         this.cdr.detectChanges();
       }
     });
   }
 
+  savePost(postId: string): void {
+    if (!this.isLoggedIn()) {
+      this.openLoginModal();
+      return;
+    }
+
+    this.communityService.savePost(postId).subscribe(res => {
+      const postIndex = this.posts.findIndex(p => p.post_id === postId);
+      if (postIndex > -1) {
+        // Chỉ ghi đè lại đúng số save và trạng thái saved, giữ nguyên liked
+        this.posts[postIndex].save_count = res.save_count;
+        this.posts[postIndex].saved = res.saved; 
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  sharePost(postId: string): void {
+    const postIndex = this.posts.findIndex(p => p.post_id === postId);
+    if (postIndex > -1) {
+      this.shareUrl = `${window.location.origin}/community/post/${postId}`;
+      this.showShareModal = true;
+      this.cdr.detectChanges();
+
+      this.communityService.sharePost(postId).subscribe(res => {
+        this.posts[postIndex].share_count = res.share_count;
+        this.cdr.detectChanges();
+      });
+    }
+  }
+
+  closeShareModal(): void {
+    this.showShareModal = false;
+  }
+
   goToDetail(postId: string): void {
-    // 🚀 LƯU TRỮ VỊ TRÍ SCROLL VÀ TOÀN BỘ DATA HIỆN TẠI TRƯỚC KHI RỜI ĐI 🚀
     this.communityService.feedState = {
       posts: this.posts,
       page: this.page,
@@ -203,4 +239,3 @@ export class FeedComponent implements OnInit {
     this.showCreateRecipe = false;
   }
 }
-
