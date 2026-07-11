@@ -83,6 +83,8 @@ $panel-pad-h:        64px;
   right:             -30px;
   background-image:  radial-gradient(rgba(84, 74, 64, 0.06) 1px, transparent 1px);
   background-size:   16px 16px;
+  transform:         translate3d(0, var(--parallax-y, 0px), 0);
+  will-change:       transform;
 }
 
 .brand-story__geo-ring {
@@ -96,6 +98,8 @@ $panel-pad-h:        64px;
   border:            1.5px solid var(--color-sage, #cfe1b9);
   border-radius:     50%;
   opacity:           0.6;
+  transform:         translate3d(0, var(--parallax-y, 0px), 0);
+  will-change:       transform;
 }
 
 .brand-story__geo-ring-dashed {
@@ -109,6 +113,8 @@ $panel-pad-h:        64px;
   border:            1.5px dashed var(--color-latte, #c4a882);
   border-radius:     50%;
   opacity:           0.5;
+  transform:         translate3d(0, var(--parallax-y, 0px), 0);
+  will-change:       transform;
 }
 
 .brand-story__geo-blob {
@@ -122,6 +128,8 @@ $panel-pad-h:        64px;
   background:        var(--color-wheat, #e8d5b0);
   border-radius:     46% 54% 60% 40% / 45% 40% 60% 55%;
   opacity:           0.5;
+  transform:         translate3d(0, var(--parallax-y, 0px), 0);
+  will-change:       transform;
 }
 
 .brand-story__geo-diamond {
@@ -133,7 +141,8 @@ $panel-pad-h:        64px;
   top:               46%;
   right:             6%;
   border:            1.5px solid $color-green;
-  transform:         rotate(45deg);
+  transform:         translate3d(0, var(--parallax-y, 0px), 0) rotate(45deg);
+  will-change:       transform;
   opacity:           0.3;
 }
 
@@ -146,7 +155,8 @@ $panel-pad-h:        64px;
   bottom:            22%;
   right:             28%;
   background:        var(--color-blush-pink, #efb5d0);
-  transform:         rotate(45deg);
+  transform:         translate3d(0, var(--parallax-y, 0px), 0) rotate(45deg);
+  will-change:       transform;
   opacity:           0.55;
 }
 
@@ -161,6 +171,8 @@ $panel-pad-h:        64px;
   left:              8%;
   background:        var(--color-blush-deep, #d487a6);
   opacity:           0.5;
+  transform:         translate3d(0, var(--parallax-y, 0px), 0);
+  will-change:       transform;
 }
 
 .brand-story__geo-dot-sm {
@@ -168,12 +180,14 @@ $panel-pad-h:        64px;
   z-index:           0;
   pointer-events:    none;
   width:             8px;
-  height:            8px;
+  height:             8px;
   border-radius:     50%;
   bottom:            10%;
   left:              20%;
   background:        var(--color-sage-deep, #7a9a68);
   opacity:           0.45;
+  transform:         translate3d(0, var(--parallax-y, 0px), 0);
+  will-change:       transform;
 }
 
 .brand-story__geo-line {
@@ -185,7 +199,8 @@ $panel-pad-h:        64px;
   top:               60%;
   left:              -10px;
   background:        var(--color-sage, #cfe1b9);
-  transform:         rotate(-10deg);
+  transform:         translate3d(0, var(--parallax-y, 0px), 0) rotate(-10deg);
+  will-change:       transform;
   opacity:           0.5;
 }
 

@@ -4,14 +4,14 @@
   [class.bestseller-section--plain-heading]="headingStyle === 'plain'" [class.bestseller-section--compact]="compact">
 
   <!-- Background decorations -->
-  <div class="geo geo--ring" aria-hidden="true"></div>
-  <div class="geo geo--ring-dashed" aria-hidden="true"></div>
-  <div class="geo geo--blob" aria-hidden="true"></div>
-  <div class="geo geo--diamond" aria-hidden="true"></div>
-  <div class="geo geo--diamond-sm" aria-hidden="true"></div>
-  <div class="geo geo--dot" aria-hidden="true"></div>
-  <div class="geo geo--dot-sm" aria-hidden="true"></div>
-  <div class="geo geo--plus" aria-hidden="true"></div>
+  <div class="geo geo--ring" [appParallax]="0.15" aria-hidden="true"></div>
+  <div class="geo geo--ring-dashed" [appParallax]="-0.18" aria-hidden="true"></div>
+  <div class="geo geo--blob" [appParallax]="0.09" aria-hidden="true"></div>
+  <div class="geo geo--diamond" [appParallax]="0.22" aria-hidden="true"></div>
+  <div class="geo geo--diamond-sm" [appParallax]="-0.25" aria-hidden="true"></div>
+  <div class="geo geo--dot" [appParallax]="0.28" aria-hidden="true"></div>
+  <div class="geo geo--dot-sm" [appParallax]="-0.22" aria-hidden="true"></div>
+  <div class="geo geo--plus" [appParallax]="0.2" aria-hidden="true"></div>
 
   <div class="main-frame">
 

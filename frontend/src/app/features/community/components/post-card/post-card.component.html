@@ -30,7 +30,7 @@
       </div>
       <div class="header-tags">
         <span class="badge-inline" *ngIf="!hasMedia && post.post_type === 'recipe'">RECIPE</span>
-        <span class="base-chip" [class.base-chip--matcha]="post.base === 'MATCHA'" [class.base-chip--coffee]="post.base === 'COFFEE'">{{ post.base }}</span>
+        <span class="base-chip" [class.base-chip--matcha]="post.base === 'MATCHA'" [class.base-chip--coffee]="post.base === 'COFFEE'" [class.base-chip--recipe]="post.base === 'RECIPE'">{{ post.base }}</span>
       </div>
     </div>
 

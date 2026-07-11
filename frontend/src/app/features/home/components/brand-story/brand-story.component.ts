@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
+import { ParallaxDirective } from '../../../../shared/directives/parallax.directive';
 
 @Component({
   selector: 'app-brand-story',
   standalone: true,
-  imports: [CommonModule, RouterLink, AnimateInViewDirective],
+  imports: [CommonModule, RouterLink, AnimateInViewDirective, ParallaxDirective],
   templateUrl: './brand-story.component.html',
   styleUrls: ['./brand-story.component.scss'],
 })

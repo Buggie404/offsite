@@ -32,6 +32,8 @@ $wheat:       #E8D5B0;
   position: absolute;
   z-index: 0;
   pointer-events: none;
+  transform: translate3d(0, var(--parallax-y, 0px), 0);
+  will-change: transform;
 }
 
 .geo--dots-tr {
@@ -96,7 +98,7 @@ $wheat:       #E8D5B0;
   width: 56px;
   height: 56px;
   border: 1.5px solid $forest;
-  transform: rotate(45deg);
+  transform: translate3d(0, var(--parallax-y, 0px), 0) rotate(45deg);
   top: 14%;
   right: 8%;
   opacity: 0.3;
@@ -106,7 +108,7 @@ $wheat:       #E8D5B0;
   width: 26px;
   height: 26px;
   background: var(--color-blush-pink, #EFB5D0);
-  transform: rotate(45deg);
+  transform: translate3d(0, var(--parallax-y, 0px), 0) rotate(45deg);
   bottom: 18%;
   left: 6%;
   opacity: 0.55;
@@ -200,7 +202,7 @@ $wheat:       #E8D5B0;
   background: var(--color-sage, #CFE1B9);
   top: 50%;
   right: -10px;
-  transform: rotate(-14deg);
+  transform: translate3d(0, var(--parallax-y, 0px), 0) rotate(-14deg);
   opacity: 0.5;
 }
 

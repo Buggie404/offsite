@@ -15,15 +15,236 @@
 }
 
 .community-section {
+    position: relative;
+    overflow: hidden;
     background: var(--color-cream);
     padding: 64px 0 96px;
 }
 
 .container {
+    position: relative;
+    z-index: 1;
     width: 100%;
     max-width: var(--container-max);
     margin: 0 auto;
     padding: 0 var(--container-padding-desktop);
+}
+
+// === Ambient floating background graphics ===
+.community-bg-decor {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+// — Soft blurred color blobs —
+.decor-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(6px);
+    animation-name: decor-blob-drift;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    will-change: transform;
+}
+
+.decor-blob--sage  { background: var(--color-sage); }
+.decor-blob--latte { background: var(--color-latte); }
+.decor-blob--blush { background: var(--color-blush-pink); }
+.decor-blob--wheat { background: var(--color-wheat); }
+
+.decor-blob--1 { top: -6%;   left: -6%;   width: 260px; height: 260px; opacity: 0.35; animation-duration: 22s; }
+.decor-blob--2 { top: 20%;   right: -8%;  width: 220px; height: 220px; opacity: 0.3;  animation-duration: 26s; animation-delay: -6s; }
+.decor-blob--3 { top: 48%;   left: -8%;   width: 200px; height: 200px; opacity: 0.3;  animation-duration: 19s; animation-delay: -3s; }
+.decor-blob--4 { bottom: 18%; right: -6%; width: 240px; height: 240px; opacity: 0.32; animation-duration: 24s; animation-delay: -10s; }
+.decor-blob--5 { bottom: -8%; left: 10%;  width: 300px; height: 300px; opacity: 0.28; animation-duration: 28s; animation-delay: -14s; }
+.decor-blob--6 { top: 2%;    left: 44%;   width: 160px; height: 160px; opacity: 0.22; animation-duration: 17s; animation-delay: -5s; }
+
+@keyframes decor-blob-drift {
+    0%   { transform: translate(0, 0) scale(1); }
+    50%  { transform: translate(16px, -20px) scale(1.08); }
+    100% { transform: translate(0, 0) scale(1); }
+}
+
+.decor-icon {
+    position: absolute;
+    opacity: 0.12;
+    animation-name: decor-float;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    will-change: transform;
+}
+
+// — Secondary color variants (from styles/variables.scss) —
+.decor-icon--forest      { color: var(--color-forest-green); }
+.decor-icon--sage-deep   { color: var(--color-sage-deep); }
+.decor-icon--latte       { color: var(--color-latte); }
+.decor-icon--blush-deep  { color: var(--color-blush-deep); }
+.decor-icon--blush-pink  { color: var(--color-blush-pink); opacity: 0.16; }
+.decor-icon--brown       { color: var(--color-warm-brown); }
+
+// — Scattered positions + individual timing (staggered for an organic feel) —
+.decor-icon--1  { top: 6%;    left: 4%;    animation-duration: 14s; }
+.decor-icon--2  { top: 18%;   right: 8%;   animation-duration: 18s; animation-delay: -3s; }
+.decor-icon--3  { top: 42%;   left: 12%;   animation-duration: 11s; animation-delay: -6s; }
+.decor-icon--4  { top: 58%;   right: 16%;  animation-duration: 16s; animation-delay: -2s; }
+.decor-icon--5  { bottom: 12%; left: 22%;  animation-duration: 13s; animation-delay: -8s; }
+.decor-icon--6  { bottom: 6%;  right: 6%;  animation-duration: 20s; animation-delay: -10s; }
+.decor-icon--7  { top: 30%;   left: 42%;   animation-duration: 15s; animation-delay: -4s; }
+.decor-icon--8  { top: 74%;   left: 6%;    animation-duration: 12s; animation-delay: -7s; }
+.decor-icon--9  { top: 8%;    left: 48%;   animation-duration: 10s; animation-delay: -1s; }
+.decor-icon--10 { bottom: 22%; right: 38%; animation-duration: 17s; animation-delay: -9s; }
+.decor-icon--11 { top: 50%;   right: 4%;   animation-duration: 19s; animation-delay: -5s; }
+.decor-icon--12 { bottom: 32%; left: 58%;  animation-duration: 9s;  animation-delay: -3.5s; }
+.decor-icon--13 { top: 66%;   left: 34%;   animation-duration: 21s; animation-delay: -11s; }
+.decor-icon--14 { top: 88%;   right: 26%;  animation-duration: 13.5s; animation-delay: -6.5s; }
+
+// — Extra icons, biased toward the far left/right cream margins so they read past the grid —
+.decor-icon--15 { top: 24%;   left: 1%;    animation-duration: 16s; animation-delay: -2s; }
+.decor-icon--16 { top: 36%;   right: 2%;   animation-duration: 14s; animation-delay: -9s; }
+.decor-icon--17 { bottom: 40%; left: 2%;   animation-duration: 18s; animation-delay: -5s; }
+.decor-icon--18 { bottom: 48%; right: 1%;  animation-duration: 11s; animation-delay: -3s; }
+.decor-icon--19 { top: 4%;    right: 30%;  animation-duration: 20s; animation-delay: -12s; }
+.decor-icon--20 { bottom: 4%; left: 46%;   animation-duration: 12.5s; animation-delay: -1s; }
+.decor-icon--21 { top: 92%;   left: 3%;    animation-duration: 15.5s; animation-delay: -7s; }
+.decor-icon--22 { top: 96%;   right: 3%;   animation-duration: 23s; animation-delay: -13s; }
+
+@keyframes decor-float {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    25%  { transform: translate(10px, -18px) rotate(6deg); }
+    50%  { transform: translate(-6px, -6px) rotate(-4deg); }
+    75%  { transform: translate(-12px, 12px) rotate(3deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+// === Scroll Parallax Animation Keyframes ===
+@keyframes scroll-parallax-kf {
+    from {
+        transform: translateY(0) rotate(0deg);
+    }
+    to {
+        transform: translateY(var(--scroll-dist, 100px)) rotate(var(--scroll-rot, 20deg));
+    }
+}
+
+// === Custom background graphic elements ===
+.decor-custom {
+    position: absolute;
+    opacity: 0.14;
+    will-change: transform;
+    animation: decor-float 16s ease-in-out infinite;
+    pointer-events: none;
+    transition: transform 0.15s cubic-bezier(0.1, 0.8, 0.3, 1);
+}
+
+// Staggered offsets and custom scroll metrics for custom elements
+.decor-custom--bean-1  { top: 12%;  left: 2%;   width: 48px; height: 48px;  --scroll-dist: -220px; --scroll-rot: 40deg;   --scroll-factor: -0.25; --scroll-rot-factor: 0.05;  animation-delay: -1s; }
+.decor-custom--bean-2  { top: 52%;  right: 8%;  width: 42px; height: 42px;  --scroll-dist: 160px;  --scroll-rot: -50deg;  --scroll-factor: 0.18;  --scroll-rot-factor: -0.06; animation-delay: -5s; }
+.decor-custom--bean-3  { bottom: 8%; left: 8%;  width: 46px; height: 46px;  --scroll-dist: -260px; --scroll-rot: 65deg;   --scroll-factor: -0.30; --scroll-rot-factor: 0.08;  animation-delay: -9s; }
+
+.decor-custom--leaf-1  { top: 28%;  left: 8%;   width: 48px; height: 48px;  --scroll-dist: 140px;  --scroll-rot: -70deg;  --scroll-factor: 0.15;  --scroll-rot-factor: -0.08; animation-delay: -3s; }
+.decor-custom--leaf-2  { top: 68%;  left: 3%;   width: 54px; height: 54px;  --scroll-dist: -240px; --scroll-rot: 45deg;   --scroll-factor: -0.28; --scroll-rot-factor: 0.06;  animation-delay: -7s; }
+.decor-custom--leaf-3  { bottom: 18%; right: 4%; width: 44px; height: 44px;  --scroll-dist: 180px;  --scroll-rot: -35deg;  --scroll-factor: 0.22;  --scroll-rot-factor: -0.04; animation-delay: -11s; }
+
+.decor-custom--steam-1 { top: 38%;  right: 5%;  width: 58px; height: 58px;  --scroll-dist: -120px; --scroll-rot: 15deg;   --scroll-factor: -0.14; --scroll-rot-factor: 0.02;  animation-delay: -2s; }
+.decor-custom--steam-2 { bottom: 28%; left: 6%;  width: 62px; height: 62px;  --scroll-dist: 150px;  --scroll-rot: -20deg;  --scroll-factor: 0.18;  --scroll-rot-factor: -0.03; animation-delay: -8s; }
+
+// === Distribute scroll offsets to existing icons dynamically ===
+.decor-icon {
+    transition: transform 0.15s cubic-bezier(0.1, 0.8, 0.3, 1);
+}
+
+.decor-icon:nth-child(even) {
+    --scroll-dist: -180px;
+    --scroll-rot: 45deg;
+    --scroll-factor: -0.20;
+    --scroll-rot-factor: 0.05;
+}
+.decor-icon:nth-child(odd) {
+    --scroll-dist: 130px;
+    --scroll-rot: -30deg;
+    --scroll-factor: 0.16;
+    --scroll-rot-factor: -0.03;
+}
+.decor-icon:nth-child(3n) {
+    --scroll-dist: -260px;
+    --scroll-rot: 80deg;
+    --scroll-factor: -0.28;
+    --scroll-rot-factor: 0.09;
+}
+.decor-icon:nth-child(5n) {
+    --scroll-dist: 90px;
+    --scroll-rot: -15deg;
+    --scroll-factor: 0.11;
+    --scroll-rot-factor: -0.02;
+}
+
+// === Distribute scroll offsets to blobs dynamically ===
+.decor-blob {
+    transition: transform 0.15s cubic-bezier(0.1, 0.8, 0.3, 1);
+}
+.decor-blob:nth-child(even) {
+    --scroll-dist: -100px;
+    --scroll-factor: -0.12;
+}
+.decor-blob:nth-child(odd) {
+    --scroll-dist: 80px;
+    --scroll-factor: 0.10;
+}
+
+// === Native CSS Scroll-driven Animations Support ===
+@supports (animation-timeline: scroll()) {
+    .decor-blob,
+    .decor-icon,
+    .decor-custom {
+        animation-name: scroll-parallax-kf !important;
+        animation-timeline: scroll(root) !important;
+        animation-timing-function: linear !important;
+        animation-fill-mode: both !important;
+        animation-duration: auto !important;
+        animation-delay: 0s !important;
+        animation-iteration-count: 1 !important;
+    }
+}
+
+// === JS/TS Scroll Parallax Fallback Support ===
+.scroll-fallback-active {
+    .decor-blob,
+    .decor-icon,
+    .decor-custom {
+        animation-name: none !important;
+        transform: translateY(calc(var(--scroll-y, 0) * var(--scroll-factor, 0.1) * 1px)) rotate(calc(var(--scroll-y, 0) * var(--scroll-rot-factor, 0.02) * 1deg)) !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .decor-icon,
+    .decor-blob,
+    .decor-custom {
+        animation: none !important;
+        transform: none !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .decor-icon,
+    .decor-custom {
+        opacity: 0.08;
+    }
+    .decor-icon--blush-pink { opacity: 0.1; }
+    .decor-icon--2, .decor-icon--4, .decor-icon--9, .decor-icon--10, .decor-icon--13,
+    .decor-icon--16, .decor-icon--18, .decor-icon--19, .decor-icon--22,
+    .decor-custom--bean-2, .decor-custom--leaf-3, .decor-custom--steam-1 {
+        display: none;
+    }
+    .decor-blob {
+        opacity: 0.18;
+    }
+    .decor-blob--2, .decor-blob--4 {
+        display: none;
+    }
 }
 
 .community-grid {
@@ -32,39 +253,174 @@
     gap: 32px;
 }
 
-.load-more {
-    display: flex;
-    justify-content: center;
-    margin-top: 56px;
-}
+// === Motivation Banner ===
+.motivation-banner {
+    position: relative;
+    background: linear-gradient(135deg, #274026 0%, #3e5e3a 100%);
+    border-radius: 20px;
+    padding: 40px;
+    margin-top: 48px;
+    margin-bottom: 24px;
+    box-shadow: 0 12px 32px rgba(55, 85, 52, 0.15);
+    overflow: hidden;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.08);
 
-.btn-load {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 16px 32px;
-    border: none;
-    border-radius: 999px;
-    background: var(--color-forest-green);
-    cursor: pointer;
-    transition: .25s;
-
-    span {
-        color: white;
-        font-family: var(--font-body);
-        font-size: 14px;
-        font-weight: 600;
-        letter-spacing: .1em;
+    &::before {
+        content: '';
+        position: absolute;
+        width: 300px;
+        height: 300px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.04);
+        right: -80px;
+        top: -120px;
+        pointer-events: none;
     }
 
-    svg {
-        color: white;
+    &::after {
+        content: '';
+        position: absolute;
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.03);
+        left: -50px;
+        bottom: -80px;
+        pointer-events: none;
+    }
+}
+
+.motivation-banner__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+    position: relative;
+    z-index: 1;
+
+    @media (max-width: 992px) {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 24px;
+    }
+}
+
+.motivation-banner__content {
+    max-width: 60%;
+
+    @media (max-width: 992px) {
+        max-width: 100%;
+    }
+}
+
+.motivation-banner__title {
+    font-family: 'Russo One', sans-serif;
+    font-size: 28px;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    background: linear-gradient(120deg, #ffffff 0%, #f0ebd9 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+
+    @media (max-width: 576px) {
+        font-size: 22px;
+    }
+}
+
+.motivation-banner__text {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(250, 240, 235, 0.85);
+}
+
+.motivation-banner__actions {
+    display: flex;
+    gap: 16px;
+    flex-shrink: 0;
+
+    @media (max-width: 576px) {
+        width: 100%;
+        flex-direction: column;
+    }
+}
+
+.btn-motivation {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 28px;
+    border-radius: 999px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: none;
+
+    .btn-icon {
+        transition: transform 0.3s ease;
     }
 
     &:hover {
         transform: translateY(-2px);
-        opacity: .92;
+        .btn-icon {
+            transform: scale(1.1) rotate(5deg);
+        }
     }
+
+    @media (max-width: 576px) {
+        width: 100%;
+    }
+}
+
+.btn-motivation--primary {
+    background: #FAF0EB;
+    color: #375534;
+    box-shadow: 0 4px 12px rgba(250, 240, 235, 0.2);
+
+    &:hover {
+        background: #ffffff;
+        box-shadow: 0 6px 16px rgba(255, 255, 255, 0.3);
+    }
+}
+
+.btn-motivation--secondary {
+    background: transparent;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.6);
+    }
+}
+
+// === Infinite Scroll ===
+
+.loading-more-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 32px 0;
+    width: 100%;
+}
+
+.spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(55, 85, 52, 0.1);
+    border-radius: 50%;
+    border-top-color: var(--color-forest-green);
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 @media (max-width: 1024px) {

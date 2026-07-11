@@ -13,6 +13,7 @@ import { AuthPromptModalService } from '../../../../shared/components/auth-promp
 
 import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
+import { ParallaxDirective } from '../../../../shared/directives/parallax.directive';
 
 @Component({
   selector: 'app-recipe-section',
@@ -26,7 +27,8 @@ import { AnimateInViewDirective } from '../../../../shared/directives/animate-in
     LucideHeart,
     LucideStar,
     DragScrollDirective,
-    AnimateInViewDirective
+    AnimateInViewDirective,
+    ParallaxDirective
   ],
   templateUrl: './recipe-section.component.html',
   styleUrls: ['./recipe-section.component.scss'],

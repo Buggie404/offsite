@@ -189,8 +189,6 @@ async function createRecipe(req, res) {
       }
     }
     const post_id = `POST${String(nextNumPost).padStart(6, '0')}`;
-    const isCoffee = title.toUpperCase().includes('COFFEE');
-    const baseVal = isCoffee ? 'COFFEE' : 'MATCHA';
 
     const newPost = new Post({
       post_id,
@@ -207,7 +205,7 @@ async function createRecipe(req, res) {
         type: 'image'
       }],
       recipe_id: recipe_id,
-      base: baseVal,
+      base: 'RECIPE',
       like_count: 0,
       comment_count: 0,
       share_count: 0,

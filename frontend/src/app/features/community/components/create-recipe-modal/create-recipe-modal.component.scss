@@ -181,6 +181,19 @@
     outline: none;
     border-color: #375534;
   }
+
+  &.invalid {
+    border-color: #BA1A1A;
+  }
+}
+
+.field-error {
+  display: block;
+  min-height: 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  line-height: 14px;
+  color: #BA1A1A;
 }
 
 .select-input {
@@ -214,6 +227,10 @@
   &:focus {
     outline: none;
     border-color: #375534;
+  }
+
+  &.invalid {
+    border-color: #BA1A1A;
   }
 }
 
@@ -336,7 +353,12 @@
     flex: 3;
   }
   .flex-qty {
-    flex: 1;
+    flex: 1.2;
+    min-width: 60px;
+  }
+  .flex-unit {
+    flex: 1.5;
+    min-width: 80px;
   }
 }
 

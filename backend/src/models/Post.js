@@ -19,7 +19,7 @@ const postSchema = new mongoose.Schema({
   content: { type: String, default: "" },
   media: { type: [mediaSchema], default: [] },
   recipe_id: { type: String, default: null },
-  base: { type: String, enum: ['MATCHA', 'COFFEE'], required: true },
+  base: { type: String, enum: ['MATCHA', 'COFFEE', 'RECIPE'], required: true },
   like_count: { type: Number, default: 0 },
   comment_count: { type: Number, default: 0 },
   share_count: { type: Number, default: 0 },

@@ -86,6 +86,7 @@
     color:#20160e;
     cursor:pointer;
     transition:.2s;
+    flex-shrink: 0;
 }
 
 .filter.active{
@@ -102,4 +103,65 @@
     background:white;
     color:#2e2116;
     cursor:pointer;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  :host {
+    padding: 0 16px;
+    margin-top: 24px;
+    margin-bottom: 24px;
+  }
+
+  .feed-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .toolbar-left h1 {
+    font-size: 36px;
+  }
+
+  .toolbar-right {
+    width: 100%;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    
+    .btn-create {
+      flex: 1;
+      height: 36px;
+      padding: 0 10px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+  }
+
+  .toolbar-filter-row {
+    width: 100%;
+    gap: 8px;
+    justify-content: space-between;
+    overflow: hidden;
+  }
+
+  .toolbar-filters {
+    flex: 1;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    margin-bottom: -4px;
+    
+    &::-webkit-scrollbar {
+      display: none;
+    }
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

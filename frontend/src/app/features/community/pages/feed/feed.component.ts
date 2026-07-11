@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, ChangeDetectorRef, effect } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, effect, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { Subject, switchMap, startWith } from 'rxjs';
@@ -15,6 +15,7 @@ import { AuthService } from '../../../../core/auth.service';
 import { AuthModalService } from '../../../../core/auth-modal.service';
 import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 import { ShareModalComponent } from '../../components/share-modal/share-modal.component';
+import { LucideLeaf, LucideCoffee, LucideSparkles, LucideDroplet, LucideDessert, LucideStar, LucideHeart } from '@lucide/angular';
 
 @Component({
   selector: 'app-feed',
@@ -27,12 +28,19 @@ import { ShareModalComponent } from '../../components/share-modal/share-modal.co
     CreatePostModalComponent,
     CreateRecipeModalComponent,
     BackToTopComponent,
-    ShareModalComponent
+    ShareModalComponent,
+    LucideLeaf,
+    LucideCoffee,
+    LucideSparkles,
+    LucideDroplet,
+    LucideDessert,
+    LucideStar,
+    LucideHeart
   ],
   templateUrl: './feed.component.html',
   styleUrls: ['./feed.component.scss']
 })
-export class FeedComponent implements OnInit {
+export class FeedComponent implements OnInit, OnDestroy {
 
   private communityService = inject(CommunityService);
   private cdr = inject(ChangeDetectorRef);
@@ -49,7 +57,7 @@ export class FeedComponent implements OnInit {
   loading = false;
   hasMore = true;
 
-  activeCategory: 'MATCHA' | 'COFFEE' | '' = '';
+  activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '' = '';
   sort: 'created_at' | 'like_count' = 'created_at';
 
   showCreatePost = false;
@@ -60,6 +68,9 @@ export class FeedComponent implements OnInit {
 
   private fetch$ = new Subject<void>();
   private isFirstLoginEffect = true; 
+
+  isScrollTimelineSupported = true;
+  private scrollFrameId: number | null = null;
 
   constructor() {
     effect(() => {
@@ -77,11 +88,21 @@ export class FeedComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    if (typeof window !== 'undefined') {
+      this.isScrollTimelineSupported =
+        typeof CSS !== 'undefined' &&
+        CSS.supports &&
+        (CSS.supports('animation-timeline: scroll()') || CSS.supports('animation-timeline', 'scroll()'));
+      
+      this.updateScrollParallax();
+    }
+
     this.fetch$.pipe(
       startWith(undefined), 
-      switchMap(() =>
-        this.communityService.getFeed(this.page, this.limit, this.activeCategory, this.sort)
-      )
+      switchMap(() => {
+        const userId = this.activeCategory === 'MY_POST' ? this.authService.getUser()?.user_id : undefined;
+        return this.communityService.getFeed(this.page, this.limit, this.activeCategory, this.sort, userId);
+      })
     ).subscribe({
       next: (res) => {
         if (this.page === 1) {
@@ -92,6 +113,12 @@ export class FeedComponent implements OnInit {
         this.hasMore = res.data.length === this.limit;
         this.loading = false;
         this.cdr.detectChanges();
+
+        // Check if we need to load more (e.g. if the initial content doesn't fill the screen yet)
+        setTimeout(() => {
+          this.checkScroll();
+          this.updateScrollParallax();
+        }, 150);
       },
       error: () => {
         this.loading = false;
@@ -112,6 +139,7 @@ export class FeedComponent implements OnInit {
       this.cdr.detectChanges();
       setTimeout(() => {
         window.scrollTo({ top: state.scrollY, behavior: 'instant' });
+        this.updateScrollParallax();
       }, 50);
       
     } else {
@@ -140,7 +168,7 @@ export class FeedComponent implements OnInit {
     this.loadFeed();
   }
 
-  onCategoryChange(category: 'MATCHA' | 'COFFEE' | ''): void {
+  onCategoryChange(category: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | ''): void {
     if (this.loading) return;
     this.activeCategory = category;
     this.page = 1;
@@ -237,5 +265,44 @@ export class FeedComponent implements OnInit {
 
   closeCreateRecipe(): void {
     this.showCreateRecipe = false;
+  }
+
+  @HostListener('window:scroll', [])
+  onWindowScroll(): void {
+    this.checkScroll();
+    this.updateScrollParallax();
+  }
+
+  checkScroll(): void {
+    if (!this.hasMore || this.loading || !this.isLoggedIn() || this.posts.length === 0) {
+      return;
+    }
+
+    const threshold = 400; // Load more when within 400px from the bottom
+    const height = document.documentElement.scrollHeight;
+    const position = window.scrollY + window.innerHeight;
+
+    if (position >= height - threshold) {
+      this.loadMore();
+    }
+  }
+
+  updateScrollParallax(): void {
+    if (this.isScrollTimelineSupported || typeof window === 'undefined') return;
+
+    if (this.scrollFrameId) {
+      cancelAnimationFrame(this.scrollFrameId);
+    }
+
+    this.scrollFrameId = requestAnimationFrame(() => {
+      const scrollY = window.scrollY;
+      document.documentElement.style.setProperty('--scroll-y', `${scrollY}`);
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.scrollFrameId) {
+      cancelAnimationFrame(this.scrollFrameId);
+    }
   }
 }

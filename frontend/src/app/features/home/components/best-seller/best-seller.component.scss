@@ -61,6 +61,8 @@ $pill-bg: #EAE1DC;
     position: absolute;
     z-index: 0;
     pointer-events: none;
+    transform: translate3d(0, var(--parallax-y, 0px), 0);
+    will-change: transform;
   }
 
   .geo--ring {
@@ -99,7 +101,7 @@ $pill-bg: #EAE1DC;
     bottom: 8%;
     left: 4%;
     border: 1.5px solid $warm-mid;
-    transform: rotate(45deg);
+    transform: translate3d(0, var(--parallax-y, 0px), 0) rotate(45deg);
     opacity: 0.3;
   }
 
@@ -109,7 +111,7 @@ $pill-bg: #EAE1DC;
     top: 20%;
     left: 32%;
     background: var(--color-blush-pink, #EFB5D0);
-    transform: rotate(45deg);
+    transform: translate3d(0, var(--parallax-y, 0px), 0) rotate(45deg);
     opacity: 0.5;
   }
 
