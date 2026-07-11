@@ -52,10 +52,28 @@
         </button>
       </div>
 
-      <select class="sort-select" [value]="sort" (change)="onSortChange($event)">
-        <option value="created_at">Latest</option>
-        <option value="like_count">Trending</option>
-      </select>
+      <div class="custom-dropdown" [class.open]="isDropdownOpen">
+        <div class="dropdown-trigger" (click)="toggleDropdown($event)">
+          <span>{{ sort === 'created_at' ? 'Latest' : 'Trending' }}</span>
+          <span class="dropdown-arrow"></span>
+        </div>
+        <div class="dropdown-menu" *ngIf="isDropdownOpen">
+          <div 
+            class="dropdown-item" 
+            [class.active]="sort === 'created_at'" 
+            (click)="selectSort('created_at', $event)"
+          >
+            Latest
+          </div>
+          <div 
+            class="dropdown-item" 
+            [class.active]="sort === 'like_count'" 
+            (click)="selectSort('like_count', $event)"
+          >
+            Trending
+          </div>
+        </div>
+      </div>
 
     </div>
   </div>

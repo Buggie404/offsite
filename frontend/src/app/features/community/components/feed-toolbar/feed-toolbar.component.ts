@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, HostListener, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -18,6 +18,10 @@ export class FeedToolbarComponent {
   @Output() categoryChange = new EventEmitter<'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | ''>();
   @Output() sortChange = new EventEmitter<'created_at' | 'like_count'>();
 
+  isDropdownOpen = false;
+
+  constructor(private elementRef: ElementRef) {}
+
   onCreatePost() {
     this.createPost.emit();
   }
@@ -31,8 +35,23 @@ export class FeedToolbarComponent {
     this.categoryChange.emit(value);
   }
 
-  onSortChange(event: Event) {
-    const value = (event.target as HTMLSelectElement).value as 'created_at' | 'like_count';
-    this.sortChange.emit(value);
+  toggleDropdown(event: MouseEvent) {
+    event.stopPropagation();
+    this.isDropdownOpen = !this.isDropdownOpen;
+  }
+
+  selectSort(value: 'created_at' | 'like_count', event: MouseEvent) {
+    event.stopPropagation();
+    if (this.sort !== value) {
+      this.sortChange.emit(value);
+    }
+    this.isDropdownOpen = false;
+  }
+
+  @HostListener('document:click', ['$event'])
+  onClickOutside(event: Event) {
+    if (!this.elementRef.nativeElement.contains(event.target)) {
+      this.isDropdownOpen = false;
+    }
   }
 }
