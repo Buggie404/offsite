@@ -334,6 +334,69 @@
   }
 
 
+  .auth-forgot-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -8px;
+  }
+
+  .forgot-password-link {
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-warm-brown);
+    cursor: pointer;
+    text-decoration: none;
+
+    &:hover {
+      color: var(--color-forest-green);
+      text-decoration: underline;
+    }
+  }
+
+  .auth-helper-text {
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--color-warm-brown);
+    opacity: 0.8;
+    margin: -8px 0 0;
+    text-align: left;
+  }
+
+  .forgot-reset-form {
+    text-align: left;
+    margin-top: 20px;
+  }
+
+  .forgot-back-btn {
+    height: 48px;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    border: 2px solid var(--color-forest-green);
+    color: var(--color-near-black);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    width: 100%;
+    margin-top: -4px;
+    transition: background-color 0.2s ease, transform 0.15s ease;
+
+    &:hover {
+      background-color: rgba(55, 85, 52, 0.06);
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+
   .auth-divider {
     display: flex;
     align-items: center;
@@ -761,17 +824,18 @@
   bottom: 16px;
   z-index: 9999;
   font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   color: var(--color-forest-green);
-  background-color: rgba(55, 85, 52, 0.08);
-  border: 1px dashed rgba(55, 85, 52, 0.3);
-  border-radius: 6px;
-  padding: 6px 10px;
-  opacity: 0.6;
+  background-color: #ffffff;
+  border: 2px solid var(--color-forest-green);
+  border-radius: 10px;
+  padding: 12px 20px;
+  opacity: 1;
   transition: opacity 0.2s ease;
   pointer-events: none;
-  backdrop-filter: blur(2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
 
   &:hover {
     opacity: 1;

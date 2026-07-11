@@ -105,7 +105,6 @@
               </div>
             </div>
 
-
             <!-- Right side: Info fields -->
             <div class="card-info-grid">
               <div class="info-field">
@@ -242,7 +241,6 @@
             </div>
           </div>
 
-          <!-- Saved Recipes Section -->
           <div class="saved-section" [class.collapsed]="!sectionsExpanded().recipes">
             <div class="section-header" (click)="toggleSection('recipes')">
               <h2 class="section-title">Saved Recipes <span class="item-count">({{ savedRecipes().length }} items)</span></h2>
@@ -321,7 +319,6 @@
             </div>
           </div>
 
-          <!-- Saved Posts Section -->
           <div class="saved-section" [class.collapsed]="!sectionsExpanded().posts">
             <div class="section-header" (click)="toggleSection('posts')">
               <h2 class="section-title">Saved Posts <span class="item-count">({{ savedPosts().length }} items)</span></h2>
@@ -393,7 +390,6 @@
             </div>
           </div>
 
-          <!-- Saved Blogs Section -->
           <div class="saved-section" [class.collapsed]="!sectionsExpanded().blogs">
             <div class="section-header" (click)="toggleSection('blogs')">
               <h2 class="section-title">Saved Blogs <span class="item-count">({{ savedBlogs().length }} items)</span></h2>
@@ -480,7 +476,6 @@
         </div>
       </div>
 
-      <!-- Address Tab (New Empty State) -->
       <div class="tab-content address-empty-content-tab" *ngIf="activeTab() === 'address' && sortedAddresses().length === 0">
         <div class="address-empty-state-wrapper">
           <div class="address-empty-icon-container">
@@ -496,7 +491,6 @@
         </div>
       </div>
 
-      <!-- Address Tab (List State) -->
       <div class="tab-content address-list-tab" *ngIf="activeTab() === 'address' && sortedAddresses().length > 0">
         <div class="address-cards-wrapper">
           <div 
@@ -547,9 +541,7 @@
         </div>
       </div>
 
-      <!-- Orders Tab -->
       <div class="tab-content orders-tab-content" *ngIf="activeTab() === 'orders'">
-        <!-- Stats Summary Grid -->
         <div class="orders-stats-grid">
           <div class="stat-card">
             <span class="stat-number">{{ totalOrdersCount() }}</span>
@@ -569,7 +561,6 @@
           </div>
         </div>
 
-        <!-- Filter and Sort Row -->
         <div class="orders-filter-row">
           <div class="search-box">
             <svg lucideSearch [size]="18" class="search-icon"></svg>
@@ -595,7 +586,6 @@
           </div>
         </div>
 
-        <!-- Status Filter Sub-Tabs -->
         <div class="orders-status-tabs">
           <button class="status-tab" [class.active]="orderStatusFilter() === 'all'" (click)="setOrderStatusFilter('all')">
             All <span class="count-badge" [class.active]="orderStatusFilter() === 'all'">{{ orders().length }}</span>
@@ -620,22 +610,18 @@
           </button>
         </div>
 
-        <!-- Orders Loading state -->
         <div *ngIf="isLoadingOrders()" class="orders-loading-state">
           <span class="orders-spinner"></span>
           <p>Loading orders...</p>
         </div>
 
-        <!-- Orders List -->
         <div class="orders-list-wrapper" *ngIf="!isLoadingOrders()">
-          <!-- Empty State -->
           <div *ngIf="filteredOrders().length === 0" class="orders-empty-state">
             <svg lucideShoppingBag [size]="48" class="empty-icon"></svg>
             <h3>No Orders Found</h3>
             <p>We couldn't find any orders matching your criteria.</p>
           </div>
 
-          <!-- Order Cards -->
           <div 
             *ngFor="let order of paginatedOrders()" 
             class="order-result-card animate-fade-in"
@@ -658,7 +644,6 @@
               </div>
             </div>
 
-            <!-- Card Inner Body -->
             <div class="card-inner-body" *ngIf="order.items && order.items.length">
               <div class="product-thumb-container">
                 <img [src]="productThumb(order.items[0])" [alt]="order.items[0]?.product_name" class="product-thumbnail" />
@@ -671,9 +656,7 @@
               </div>
             </div>
 
-            <!-- Card Actions Footer -->
             <div class="card-actions-footer" (click)="$event.stopPropagation()">
-              <!-- Complete Payment Button: shown for pending status -->
               <button
                 *ngIf="order.order_status === 'pending'"
                 type="button"
@@ -684,7 +667,6 @@
                 Complete Payment
               </button>
 
-              <!-- Cancel Button: shown for pending/processing status -->
               <button
                 *ngIf="order.order_status === 'pending' || order.order_status === 'processing'"
                 type="button"
@@ -699,7 +681,6 @@
                 Cancel Order
               </button>
 
-              <!-- Shipping Status Actions -->
               <ng-container *ngIf="order.order_status === 'shipping'">
                 <button type="button" class="btn-solid-action" (click)="trackCarrierOrder(order)">
                   <svg lucideTruck [size]="16" class="btn-icon"></svg>
@@ -711,7 +692,6 @@
                 </button>
               </ng-container>
 
-              <!-- Delivered Status Actions -->
               <ng-container *ngIf="order.order_status === 'delivered'">
                 <button type="button" class="btn-solid-action" (click)="buyAgain(order)">
                   <svg lucideRefreshCw [size]="16" class="btn-icon"></svg>
@@ -726,7 +706,6 @@
                 </button>
               </ng-container>
 
-              <!-- Canceled Status Actions -->
               <button
                 *ngIf="order.order_status === 'canceled' || order.order_status === 'cancelled'"
                 type="button"
@@ -739,7 +718,6 @@
             </div>
           </div>
 
-          <!-- Pagination -->
           <div class="orders-pagination" *ngIf="totalPages() > 1">
             <button class="pagination-btn" [disabled]="currentPage() === 1" (click)="setCurrentPage(currentPage() - 1)">
               <svg lucideChevronLeft [size]="16"></svg>
@@ -759,7 +737,6 @@
         </div>
       </div>
 
-      <!-- Payment Tab (Empty State) -->
       <div class="tab-content payment-empty-content-tab" *ngIf="activeTab() === 'payment' && sortedPaymentMethods().length === 0 && !isAddingCard()">
         <div class="address-empty-state-wrapper">
           <div class="address-empty-icon-container">
@@ -770,7 +747,6 @@
         </div>
       </div>
 
-      <!-- Payment Tab (List State) -->
       <div class="tab-content payment-list-tab" *ngIf="activeTab() === 'payment' && sortedPaymentMethods().length > 0 && !isAddingCard()">
         <div class="saved-cards-label">SAVED CARDS ({{ sortedPaymentMethods().length }})</div>
         <div class="payment-cards-wrapper">
@@ -816,14 +792,12 @@
         </div>
       </div>
 
-      <!-- Add Payment Card Inline Panel -->
       <div class="tab-content payment-add-card-tab animate-fade-in" *ngIf="activeTab() === 'payment' && isAddingCard()">
         <div class="payment-add-card-wrapper">
           <h2 class="form-section-title" style="font-size: 22px; font-weight: 700; margin: 0 0 6px 0; color: var(--color-near-black);">Add New Payment Method</h2>
           <p class="form-section-subtitle" style="font-size: 14px; color: var(--color-warm-brown); opacity: 0.6; margin: 0 0 32px 0;">Your card details are encrypted and secure</p>
 
           <form (ngSubmit)="submitCardForm()" class="payment-card-inline-form">
-            <!-- Card Type Selector -->
             <div class="form-row card-type-selector-row" style="margin-bottom: 24px;">
               <label class="info-label" style="display: block; margin-bottom: 8px;">CARD TYPE</label>
               <div class="payment-card-type-selector">
@@ -858,7 +832,6 @@
               </div>
             </div>
 
-            <!-- Card Number -->
             <div class="form-row" style="margin-bottom: 20px;">
               <div class="form-group full-width" style="display: flex; flex-direction: column; gap: 6px;">
                 <label class="info-label">CARD NUMBER</label>
@@ -874,17 +847,14 @@
                     (blur)="formatCardNumber()"
                     style="padding-right: 50px;"
                   />
-                  <!-- Inline card brand thumbnail -->
                   <img *ngIf="inlineCardBrand === 'Visa'" src="assets/images/payment_visa.png" class="inline-brand-icon" style="position: absolute; right: 16px; height: 20px; width: auto; object-fit: contain;" />
                   <img *ngIf="inlineCardBrand === 'Mastercard'" src="assets/images/payment_mastercard.png" class="inline-brand-icon" style="position: absolute; right: 16px; height: 20px; width: auto; object-fit: contain;" />
                   <img *ngIf="inlineCardBrand === 'Napas'" src="assets/images/payment_napas.png" class="inline-brand-icon" style="position: absolute; right: 16px; height: 20px; width: auto; object-fit: contain;" />
                 </div>
-                <!-- Inline validation messages -->
                 <div id="account-card-num-error" class="field-error animate-fade-in" style="color: #C0392B; font-size: 12px; margin-top: 4px; font-weight: 600;"></div>
               </div>
             </div>
 
-            <!-- Cardholder Name -->
             <div class="form-row" style="margin-bottom: 20px;">
               <div class="form-group full-width" style="display: flex; flex-direction: column; gap: 6px;">
                 <label class="info-label">CARDHOLDER NAME</label>
@@ -897,12 +867,10 @@
                   placeholder="Full name as shown on card"
                   (blur)="formatCardholderName()"
                 />
-                <!-- Inline validation messages -->
                 <div id="account-card-holder-name-error" class="field-error animate-fade-in" style="color: #C0392B; font-size: 12px; margin-top: 4px; font-weight: 600;"></div>
               </div>
             </div>
 
-            <!-- Expiry & CVV / Issued Bank -->
             <div class="form-row inline-row">
               <div class="form-group half-width" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
                 <label class="info-label">EXPIRED DATE</label>
@@ -915,11 +883,9 @@
                   placeholder="MM / YY"
                   maxlength="7"
                 />
-                <!-- Inline validation messages -->
                 <div id="account-card-expiry-error" class="field-error animate-fade-in" style="color: #C0392B; font-size: 12px; margin-top: 4px; font-weight: 600;"></div>
               </div>
 
-              <!-- CVC (Visa/Mastercard) -->
               <div class="form-group half-width" style="flex: 1; display: flex; flex-direction: column; gap: 6px;" *ngIf="cardCategory() === 'credit_debit'">
                 <label class="info-label">CVV</label>
                 <input
@@ -931,11 +897,9 @@
                   placeholder="123"
                   maxlength="3"
                 />
-                <!-- Inline validation messages -->
                 <div id="account-card-cvc-error" class="field-error animate-fade-in" style="color: #C0392B; font-size: 12px; margin-top: 4px; font-weight: 600;"></div>
               </div>
 
-              <!-- Issued Bank (Napas) -->
               <div class="form-group half-width" style="flex: 1; display: flex; flex-direction: column; gap: 6px;" *ngIf="cardCategory() === 'domestic_atm'">
                 <label class="info-label">ISSUED BANK</label>
                 <input
@@ -963,7 +927,6 @@
                   <option value="MSB">MSB</option>
                   <option value="SeABank">SeABank</option>
                 </datalist>
-                <!-- Inline validation messages -->
                 <div id="account-card-bank-error" class="field-error animate-fade-in" style="color: #C0392B; font-size: 12px; margin-top: 4px; font-weight: 600;"></div>
               </div>
             </div>
@@ -981,7 +944,6 @@
         </div>
       </div>
 
-      <!-- Placeholder tabs -->
       <div class="tab-content placeholder-tab" *ngIf="activeTab() !== 'profile' && activeTab() !== 'saved' && activeTab() !== 'address' && activeTab() !== 'orders' && activeTab() !== 'payment'">
         <div class="profile-info-card empty-state-card">
           <svg lucideShoppingBag [size]="48" class="empty-icon" *ngIf="activeTab() === 'orders'"></svg>
@@ -994,7 +956,6 @@
     </main>
   </div>
 
-  <!-- Edit Profile Modal -->
   <div class="modal-overlay edit-profile-overlay" *ngIf="showEditModal()" (click)="closeEditModal()">
     <div class="modal-content edit-profile-modal" (click)="$event.stopPropagation()">
       <div class="profile-modal-header">
@@ -1007,10 +968,10 @@
         </button>
       </div>
 
-      <form [formGroup]="profileForm" (ngSubmit)="onUpdateProfile()">
+      <!-- 1. Form Điền Thông Tin Cập Nhật -->
+      <form [formGroup]="profileForm" (ngSubmit)="onUpdateProfile()" *ngIf="!isOtpStep">
         <div class="profile-modal-body">
           
-          <!-- Avatar Section -->
           <div class="profile-avatar-container">
             <div class="profile-avatar-wrapper">
               <div class="profile-avatar-inner">
@@ -1041,7 +1002,8 @@
                 <span>REMOVE PHOTO</span>
               </button>
             </div>
-          </div>          <!-- Name Field -->
+          </div>          
+
           <div class="profile-form-group" [class.field-has-error]="hasFieldError('profile_name')" [class.field-has-success]="hasFieldSuccess('profile_name')">
             <label for="profile_name">NAME</label>
             <div class="profile-input-wrapper">
@@ -1055,7 +1017,6 @@
             <div id="profile_name-error" class="field-error-msg"></div>
           </div>
 
-          <!-- Community Name Field -->
           <div class="profile-form-group" [class.field-has-error]="hasFieldError('community_name')" [class.field-has-success]="hasFieldSuccess('community_name')">
             <label for="community_name">COMMUNITY NAME</label>
             <div class="profile-input-wrapper">
@@ -1069,7 +1030,6 @@
             <div id="community_name-error" class="field-error-msg"></div>
           </div>
 
-          <!-- Email Field -->
           <div class="profile-form-group" [class.field-has-error]="hasFieldError('email')" [class.field-has-success]="hasFieldSuccess('email')">
             <label for="email">EMAIL</label>
             <div class="profile-input-wrapper">
@@ -1083,7 +1043,6 @@
             <div id="email-error" class="field-error-msg"></div>
           </div>
 
-          <!-- Phone Field -->
           <div class="profile-form-group" [class.field-has-error]="hasFieldError('phone')" [class.field-has-success]="hasFieldSuccess('phone')">
             <label for="phone">PHONE</label>
             <div class="profile-input-wrapper">
@@ -1096,7 +1055,7 @@
             </div>
             <div id="phone-error" class="field-error-msg"></div>
           </div>
-          <!-- Alert Messages (General, not field-specific) -->
+          
           <div class="alert alert-error" *ngIf="errorMessage() && !hasFieldError('profile_name') && !hasFieldError('community_name') && !hasFieldError('email') && !hasFieldError('phone')">
             <span>{{ errorMessage() }}</span>
           </div>
@@ -1125,10 +1084,105 @@
           </button>
         </div>
       </form>
+
+      <!-- 2. Form Nhập OTP Xác Thực (Chống lỗi nảy phím kép) -->
+      <div *ngIf="isOtpStep" class="otp-step" style="padding: 24px; text-align: center;">
+        <ng-container *ngIf="!otpLocked">
+          <div class="otp-icon-circle otp-icon-circle--success" style="margin: 0 auto 16px auto; width: 48px; height: 48px; background: rgba(55,85,52,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+            <svg width="24" height="20" viewBox="0 0 26 20" fill="none">
+              <path d="M2 10L9 17L24 2" stroke="#375534" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+
+          <h2 class="otp-title" style="font-size: 24px; font-weight: 600; color: #375534; margin-bottom: 8px;">Verify New Contact</h2>
+          <p class="otp-subtitle" style="font-size: 15px; color: #544a40; margin-bottom: 12px; line-height: 1.5;">
+            Enter the 6-digit code sent to your new email/phone to confirm changes.
+          </p>
+          
+          <p class="otp-attempts-hint" style="font-size: 13px; color: #8c7e6c; margin-bottom: 24px;">
+            You have <strong>{{ otpAttemptsLeft }}</strong> of {{ OTP_MAX_ATTEMPTS }} attempts left
+          </p>
+
+          <div class="otp-countdown" style="display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 600; color: #8c7e6c; margin-bottom: 24px;">
+            <span *ngIf="!canResendOtp">RESEND OTP IN {{ otpCountdownLabel }}</span>
+            <button type="button" style="background: none; border: none; color: #375534; font-weight: 700; cursor: pointer; padding: 0; text-decoration: underline;" *ngIf="canResendOtp" [disabled]="isResendingOtp" (click)="resendOtp()">
+              {{ isResendingOtp ? 'RESENDING...' : 'RESEND OTP' }}
+            </button>
+          </div>
+
+          <!-- CONTAINER HỨNG PHÍM TÀNG HÌNH -->
+          <div class="otp-input-container" style="position: relative; display: flex; justify-content: center; cursor: text; margin-bottom: 24px;" (click)="focusHiddenInput()">
+            <input
+              #hiddenOtpInput
+              type="tel"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              maxlength="6"
+              [value]="otpValue"
+              (input)="onHiddenOtpInput($event)"
+              style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 10; cursor: pointer; color: transparent; background: transparent; caret-color: transparent;"
+            >
+
+            <div class="otp-input-row" style="pointer-events: none; display: flex; gap: 8px;">
+              <input
+                *ngFor="let digit of otpDigits; trackBy: trackByFn"
+                type="text"
+                readonly
+                tabindex="-1"
+                class="otp-digit-input"
+                [class.filled]="digit"
+                [value]="digit"
+                style="width: 48px; height: 56px; text-align: center; font-size: 24px; font-weight: 600; border: 1.5px solid #e5e5e5; border-radius: 8px; background: #fff; color: #375534;"
+              >
+            </div>
+          </div>
+
+          <p class="error-message" *ngIf="otpError" style="color: #d32f2f; font-size: 14px; font-weight: 500; margin-bottom: 24px;">{{ otpError }}</p>
+
+          <div class="otp-action-buttons" style="display: flex; gap: 12px; justify-content: center;">
+            <button type="button" class="btn-profile-cancel" style="flex: 1; padding: 12px; border: 1px solid #e5e5e5; border-radius: 8px; background: #fff; font-weight: 600; color: #544a40; cursor: pointer;" (click)="cancelOtp()">CANCEL</button>
+            <button
+              type="button"
+              class="btn-profile-save"
+              [disabled]="otpValue.length !== 6 || isVerifyingOtp"
+              (click)="verifyUpdateOtp()"
+              style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: #375534; color: #fff; font-weight: 600; cursor: pointer;">
+              {{ isVerifyingOtp ? 'VERIFYING...' : 'CONFIRM NOW' }}
+            </button>
+          </div>
+        </ng-container>
+
+        <!-- Locked State -->
+        <ng-container *ngIf="otpLocked">
+          <div class="otp-icon-circle otp-icon-circle--failed" style="margin: 0 auto 16px auto; width: 48px; height: 48px; background: #d32f2f; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M6 6l12 12M18 6L6 18" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+
+          <h2 class="otp-title" style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px;">Verification Failed</h2>
+          <p class="otp-subtitle" style="font-size: 15px; color: #544a40; margin-bottom: 24px; line-height: 1.5;">
+            You've entered the wrong code too many times. Please request a new code to try again.
+          </p>
+
+          <p class="error-message" *ngIf="otpError" style="color: #d32f2f; font-size: 14px; font-weight: 500; margin-bottom: 24px;">{{ otpError }}</p>
+
+          <div class="otp-action-buttons otp-action-buttons--stacked" style="display: flex; flex-direction: column; gap: 12px;">
+            <button
+              type="button"
+              class="btn-profile-save"
+              style="width: 100%; padding: 12px; border: none; border-radius: 8px; background: #375534; color: #fff; font-weight: 600; cursor: pointer;"
+              [disabled]="isResendingOtp"
+              (click)="resendOtp()">
+              {{ isResendingOtp ? 'RESENDING...' : 'RESEND CODE' }}
+            </button>
+            <button type="button" class="btn-profile-cancel" style="width: 100%; padding: 12px; border: 1px solid #e5e5e5; border-radius: 8px; background: #fff; font-weight: 600; color: #544a40; cursor: pointer;" (click)="cancelOtp()">CANCEL</button>
+          </div>
+        </ng-container>
+      </div>
     </div>
   </div>
 
-  <!-- Change Password Modal -->
   <div class="modal-overlay change-password-overlay" *ngIf="showPasswordModal()" (click)="closePasswordModal()">
     <div class="modal-content change-password-modal" (click)="$event.stopPropagation()">
       <div class="change-password-header">
@@ -1144,7 +1198,6 @@
       <form [formGroup]="passwordForm" (ngSubmit)="onChangePassword()">
         <div class="change-password-body">
           
-          <!-- Current Password -->
           <div class="change-password-form-group">
             <label for="oldPassword">CURRENT PASSWORD</label>
             <div class="password-input-wrapper">
@@ -1165,7 +1218,6 @@
             <div id="oldPassword-error" class="field-error-msg"></div>
           </div>
 
-          <!-- New Password -->
           <div class="change-password-form-group">
             <label for="newPassword">NEW PASSWORD</label>
             <div class="password-input-wrapper">
@@ -1183,7 +1235,6 @@
                 <svg *ngIf="showNewPassword()" lucideEye [size]="18"></svg>
               </button>
             </div>
-            <!-- Password Strength Meter -->
             <div class="password-strength-container" *ngIf="passwordForm.get('newPassword')?.value" [class.strength-weak]="newPasswordStrengthScore === 1" [class.strength-medium]="newPasswordStrengthScore === 2" [class.strength-strong]="newPasswordStrengthScore === 3">
               <div class="strength-bar">
                 <div class="strength-segment" [class.filled]="newPasswordStrengthScore >= 1"></div>
@@ -1195,7 +1246,6 @@
             <div id="newPassword-error" class="field-error-msg"></div>
           </div>
 
-          <!-- Confirm Password -->
           <div class="change-password-form-group">
             <label for="confirmPassword">CONFIRM PASSWORD</label>
             <div class="password-input-wrapper">
@@ -1216,7 +1266,6 @@
             <div id="confirmPassword-error" class="field-error-msg"></div>
           </div>
 
-          <!-- Alert Messages -->
           <div class="alert alert-error" *ngIf="errorMessage()">
             <span>{{ errorMessage() }}</span>
           </div>
@@ -1269,7 +1318,6 @@
     (orderUpdated)="onReviewOrderUpdated($event)"
   ></app-review-modal>
 
-  <!-- Delete Selected Items Modal -->
   <div class="modal-overlay delete-selected-overlay" *ngIf="showDeleteSelectedModal()" (click)="closeDeleteSelectedModal()">
     <div class="modal-content delete-selected-modal" (click)="$event.stopPropagation()">
       <button type="button" class="close-btn" (click)="closeDeleteSelectedModal()" aria-label="Close dialog">
@@ -1292,7 +1340,6 @@
     </div>
   </div>
 
-  <!-- Delete Card Modal -->
   <div class="modal-overlay delete-selected-overlay" *ngIf="showDeleteCardModal()" (click)="closeDeleteCardModal()">
     <div class="modal-content delete-selected-modal" (click)="$event.stopPropagation()">
       <button type="button" class="close-btn" (click)="closeDeleteCardModal()" aria-label="Close dialog">
@@ -1313,7 +1360,6 @@
       </div>
     </div>
   </div>
-  <!-- Quick View Modal for Saved Products -->
   <app-quick-view-modal
     *ngIf="selectedQuickViewProduct()"
     [product]="selectedQuickViewProduct()!"
@@ -1322,7 +1368,6 @@
     (saveToggle)="onQuickViewSaveToggle($event)">
   </app-quick-view-modal>
 
-  <!-- ================= COMPLETE PAYMENT MODAL OVERLAY ================= -->
   <app-complete-payment-modal
     *ngIf="showCompletePaymentModal() && (selectedOrderForPayment()?.order_status === 'pending' || selectedOrderForPayment()?.status === 'pending')"
     (close)="closeCompletePaymentModal()"
@@ -1339,7 +1384,6 @@
                      (canceled)="onPaymentCanceled()">
   </app-payment-modal>
 
-  <!-- ================= CHANGE PAYMENT METHOD MODAL OVERLAY ================= -->
   <app-change-payment-modal
     [isOpen]="showChangePaymentModal()"
     [orderId]="selectedOrderForPayment()?.order_id"
@@ -1348,33 +1392,27 @@
     (changed)="onPaymentMethodChanged($event)">
   </app-change-payment-modal>
 
-  <!-- ================= CARRIER TRACKING MODAL OVERLAY ================= -->
   <div class="modal-overlay animate-fade-in" *ngIf="showTrackingModal()" (click)="showTrackingModal.set(false)"
        style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999;">
     <div class="modal-container animate-scale-up" (click)="$event.stopPropagation()" 
          style="background: #fff; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); max-width: 480px; width: 90%; text-align: center; padding: 32px; position: relative; border: 1.5px solid rgba(84, 74, 64, 0.15); box-sizing: border-box;">
-      <!-- Close button -->
       <button class="modal-close-btn" (click)="showTrackingModal.set(false)" aria-label="Close modal"
               style="position: absolute; top: 16px; right: 16px; background: transparent; border: none; cursor: pointer; color: #8c7e6c; display: flex; align-items: center; justify-content: center; padding: 4px; border-radius: 50%; width: 32px; height: 32px; transition: background 0.2s;">
         <svg lucideX [size]="20" class="close-icon"></svg>
       </button>
 
-      <!-- Truck Icon Wrapper -->
       <div class="wallet-circle-wrapper" style="background: rgba(46, 125, 50, 0.1); color: #2e7d32; margin: 0 auto 24px auto; display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%;">
         <svg lucideTruck [size]="28" class="wallet-icon"></svg>
       </div>
 
-      <!-- Title -->
       <h2 class="modal-title font-body" style="margin-bottom: 16px; font-weight: 600; font-size: 24px; color: #375534;">Track Your Package</h2>
 
-      <!-- Description -->
       <p class="modal-desc font-body" style="color: #544a40; margin-bottom: 28px; font-size: 15px; line-height: 1.6;">
         You are being redirected to the Giao Hang Nhanh (GHN) tracking page.
         <br><br>
         Your tracking code is: <strong style="font-size: 18px; color: #1a1a1a; letter-spacing: 0.5px;">{{ activeTrackingCode() }}</strong>
       </p>
 
-      <!-- Actions -->
       <div class="modal-actions" style="margin-top: 24px;">
         <button class="modal-btn-primary font-body" (click)="showTrackingModal.set(false)" 
                 style="width: 100%; padding: 14px; border-radius: 8px; font-weight: 600; cursor: pointer; background: #375534; color: #fff; border: none; transition: background 0.2s;">
@@ -1384,7 +1422,6 @@
     </div>
   </div>
 
-  <!-- Confirmation Modal -->
   <app-confirmation-modal
     [isOpen]="isConfirmModalOpen"
     [title]="confirmModalTitle"
@@ -1398,3 +1435,8 @@
   ></app-confirmation-modal>
 </div>
 
+<!-- 🛠 DEV MODE OTP badge trôi nổi ở góc dưới trái xịn sò, không che lấp UI modal -->
+<div *ngIf="mockOtp && isOtpStep" 
+     style="position: fixed; bottom: 24px; left: 24px; z-index: 99999; background-color: #ffffff; border: 2px solid #22c55e; color: #15803d; padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 16px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2); display: flex; align-items: center; gap: 8px;">
+  🛠 DEV OTP: <span style="font-size: 24px; font-weight: 800; letter-spacing: 2px;">{{ mockOtp }}</span>
+</div>

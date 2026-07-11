@@ -32,6 +32,10 @@ export class AuthModalComponent implements OnDestroy {
   // Input tàng hình hứng OTP
   @ViewChild('hiddenOtpInput') hiddenOtpInput!: ElementRef<HTMLInputElement>;
 
+  // Forgot password
+  @ViewChild('forgotIdentifierInput') forgotIdentifierInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('hiddenForgotOtpInput') hiddenForgotOtpInput!: ElementRef<HTMLInputElement>;
+
   isOpen = this.authModalService.isOpen;
   mode = this.authModalService.mode;
 
@@ -94,6 +98,26 @@ export class AuthModalComponent implements OnDestroy {
     primaryBtn: '',
   };
 
+  // ══════════════ Forgot password flow ══════════════
+  forgotStep: 'request' | 'reset' = 'request';
+  forgotIdentifier = '';
+  forgotIdentifierTouched = false;
+  serverForgotError: string | null = null;
+  isSendingForgotOtp = false;
+  mockForgotOtp = '';
+
+  forgotOtpValue = '';
+  forgotOtpDigits: string[] = ['', '', '', '', '', ''];
+  forgotOtpError: string | null = null;
+
+  forgotNewPassword = '';
+  forgotConfirmPassword = '';
+  forgotNewPasswordTouched = false;
+  forgotConfirmPasswordTouched = false;
+  showForgotPassword = false;
+  showForgotConfirmPassword = false;
+  isResettingPassword = false;
+
   setLoginTab(tab: 'email' | 'phone'): void {
     this.loginTab = tab;
     this.resetForm();
@@ -114,6 +138,8 @@ export class AuthModalComponent implements OnDestroy {
   closeOrCancelOtp(): void {
     if (this.mode() === 'signup' && this.isOtpStep) {
       this.backToSignup();
+    } else if (this.mode() === 'forgot' && this.forgotStep === 'reset') {
+      this.cancelForgotOtp();
     } else {
       this.closeAuthModal();
     }
@@ -155,6 +181,29 @@ export class AuthModalComponent implements OnDestroy {
     this.mockOtp = '';
     this.isVerifyingOtp = false;
     this.isResendingOtp = false;
+
+    this.resetForgotState();
+  }
+
+  private resetForgotState(): void {
+    this.forgotStep = 'request';
+    this.forgotIdentifier = '';
+    this.forgotIdentifierTouched = false;
+    this.serverForgotError = null;
+    this.isSendingForgotOtp = false;
+    this.mockForgotOtp = '';
+
+    this.forgotOtpValue = '';
+    this.forgotOtpDigits = ['', '', '', '', '', ''];
+    this.forgotOtpError = null;
+
+    this.forgotNewPassword = '';
+    this.forgotConfirmPassword = '';
+    this.forgotNewPasswordTouched = false;
+    this.forgotConfirmPasswordTouched = false;
+    this.showForgotPassword = false;
+    this.showForgotConfirmPassword = false;
+    this.isResettingPassword = false;
   }
 
   onEmailBlur(): void { this.emailTouched = true; }
@@ -233,6 +282,58 @@ export class AuthModalComponent implements OnDestroy {
 
   get signupPasswordStrengthLabel(): string {
     const score = this.signupPasswordStrengthScore;
+    if (score === 3) return 'STRONG';
+    if (score === 2) return 'MEDIUM';
+    if (score === 1) return 'WEAK';
+    return '';
+  }
+
+  // ══════════════ Forgot password getters ══════════════
+  get forgotIdentifierError(): string | null {
+    if (!this.forgotIdentifier) return this.forgotIdentifierTouched ? 'Email or phone is required' : null;
+    const val = this.forgotIdentifier.trim();
+    const isEmail = val.includes('@');
+    if (isEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(val)) return 'Invalid email format';
+    } else {
+      const normalizedPhone = val.replace(/\s+/g, '');
+      if (!/^\d+$/.test(normalizedPhone)) return 'Phone number must contain digits only';
+      if (normalizedPhone.length < 10 || normalizedPhone.length > 11) return 'Phone number must be 10 to 11 digits';
+    }
+    return null;
+  }
+
+  get forgotNewPasswordError(): string | null {
+    if (!this.forgotNewPassword) return this.forgotNewPasswordTouched ? 'New password is required' : null;
+    if (this.forgotNewPassword.length < 8 || this.forgotNewPassword.length > 15) return 'Password must be 8-15 characters';
+    if (/\s/.test(this.forgotNewPassword)) return 'Password cannot contain spaces';
+    return null;
+  }
+
+  get forgotConfirmPasswordError(): string | null {
+    if (!this.forgotConfirmPassword) return this.forgotConfirmPasswordTouched ? 'Confirm password is required' : null;
+    if (this.forgotConfirmPassword !== this.forgotNewPassword) return 'Passwords do not match';
+    return null;
+  }
+
+  get forgotPasswordStrengthScore(): number {
+    const p = this.forgotNewPassword;
+    if (!p) return 0;
+    const hasLower = /[a-z]/.test(p);
+    const hasUpper = /[A-Z]/.test(p);
+    const hasDigit = /[0-9]/.test(p);
+    const hasSpecial = /[^A-Za-z0-9]/.test(p);
+    const groupsCount = (hasLower ? 1 : 0) + (hasUpper ? 1 : 0) + (hasDigit ? 1 : 0) + (hasSpecial ? 1 : 0);
+
+    if (p.length < 8) return 1;
+    if (p.length >= 10 && groupsCount >= 3) return 3;
+    if (groupsCount >= 2) return 2;
+    return 1;
+  }
+
+  get forgotPasswordStrengthLabel(): string {
+    const score = this.forgotPasswordStrengthScore;
     if (score === 3) return 'STRONG';
     if (score === 2) return 'MEDIUM';
     if (score === 1) return 'WEAK';
@@ -396,6 +497,162 @@ export class AuthModalComponent implements OnDestroy {
     } finally {
         this.isSubmitting = false;
         this.cdr.detectChanges();
+    }
+  }
+
+  // ══════════════ Forgot password flow ══════════════
+
+  openForgotPassword(): void {
+    // Mang theo sẵn giá trị user vừa gõ ở tab đang active, khỏi bắt gõ lại
+    const prefill = this.loginTab === 'email' ? this.loginEmail : this.loginPhone;
+    this.forgotIdentifier = prefill ? prefill.trim() : '';
+    this.forgotIdentifierTouched = false;
+    this.serverForgotError = null;
+    this.forgotStep = 'request';
+    this.authModalService.setMode('forgot');
+    this.cdr.detectChanges();
+    setTimeout(() => this.forgotIdentifierInput?.nativeElement?.focus(), 50);
+  }
+
+  backToLoginFromForgot(): void {
+    this.clearOtpCountdown();
+    this.resetForgotState();
+    this.authModalService.setMode('login');
+    this.cdr.detectChanges();
+  }
+
+  cancelForgotOtp(): void {
+    this.clearOtpCountdown();
+    this.forgotStep = 'request';
+    this.forgotOtpValue = '';
+    this.forgotOtpDigits = ['', '', '', '', '', ''];
+    this.forgotOtpError = null;
+    this.mockForgotOtp = '';
+    this.forgotNewPassword = '';
+    this.forgotConfirmPassword = '';
+    this.forgotNewPasswordTouched = false;
+    this.forgotConfirmPasswordTouched = false;
+    this.cdr.detectChanges();
+  }
+
+  toggleForgotPasswordVisibility(): void { this.showForgotPassword = !this.showForgotPassword; }
+  toggleForgotConfirmPasswordVisibility(): void { this.showForgotConfirmPassword = !this.showForgotConfirmPassword; }
+
+  async sendForgotOtp(event?: Event): Promise<void> {
+    if (event) event.preventDefault();
+
+    this.forgotIdentifierTouched = true;
+    this.cdr.detectChanges();
+    if (this.forgotIdentifierError || !this.forgotIdentifier.trim()) return;
+
+    this.serverForgotError = null;
+    this.isSendingForgotOtp = true;
+    this.cdr.detectChanges();
+
+    try {
+      const res = await this.authService.forgotPassword(this.forgotIdentifier.trim());
+      this.mockForgotOtp = res?.__mock || '';
+      this.forgotOtpValue = '';
+      this.forgotOtpDigits = ['', '', '', '', '', ''];
+      this.forgotOtpError = null;
+      this.forgotStep = 'reset';
+      this.startOtpCountdown(this.OTP_DURATION_SECONDS);
+      this.cdr.detectChanges();
+      setTimeout(() => this.focusHiddenForgotInput(), 50);
+    } catch (err: any) {
+      this.serverForgotError = err?.error || 'Could not send code. Please try again.';
+      this.cdr.detectChanges();
+    } finally {
+      this.isSendingForgotOtp = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  async resendForgotOtp(): Promise<void> {
+    if (this.isSendingForgotOtp || !this.canResendOtp) return;
+
+    this.isSendingForgotOtp = true;
+    this.cdr.detectChanges();
+
+    try {
+      const res = await this.authService.forgotPassword(this.forgotIdentifier.trim());
+      this.mockForgotOtp = res?.__mock || '';
+      this.forgotOtpValue = '';
+      this.forgotOtpDigits = ['', '', '', '', '', ''];
+      this.forgotOtpError = null;
+      this.startOtpCountdown(this.OTP_DURATION_SECONDS);
+      setTimeout(() => this.focusHiddenForgotInput(), 50);
+    } catch (err: any) {
+      this.forgotOtpError = err?.error || 'Could not resend code. Please try again.';
+    } finally {
+      this.isSendingForgotOtp = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  focusHiddenForgotInput(): void {
+    if (this.hiddenForgotOtpInput?.nativeElement) {
+      this.hiddenForgotOtpInput.nativeElement.focus();
+    }
+  }
+
+  onHiddenForgotOtpInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    let val = input.value.replace(/\D/g, '');
+
+    if (val.length > 6) {
+      val = val.substring(0, 6);
+    }
+
+    this.forgotOtpValue = val;
+    input.value = val;
+
+    for (let i = 0; i < 6; i++) {
+      this.forgotOtpDigits[i] = val[i] || '';
+    }
+    this.forgotOtpError = null;
+    this.cdr.detectChanges();
+  }
+
+  async submitResetPassword(event?: Event): Promise<void> {
+    if (event) event.preventDefault();
+
+    this.forgotNewPasswordTouched = true;
+    this.forgotConfirmPasswordTouched = true;
+    this.cdr.detectChanges();
+
+    if (this.forgotOtpValue.length !== 6) {
+      this.forgotOtpError = 'Please enter the 6-digit code.';
+      this.cdr.detectChanges();
+      return;
+    }
+    if (this.forgotNewPasswordError || this.forgotConfirmPasswordError) return;
+
+    this.forgotOtpError = null;
+    this.isResettingPassword = true;
+    this.cdr.detectChanges();
+
+    try {
+      await this.authService.resetPassword(this.forgotIdentifier.trim(), this.forgotOtpValue, this.forgotNewPassword);
+      this.clearOtpCountdown();
+      this.closeAuthModal();
+
+      this.successModalConfig = {
+        title: 'Password Reset',
+        subtitle: 'Your password has been changed. Please log in with your new password.',
+        primaryBtn: 'LOG IN',
+      };
+      this.showSuccessModal = true;
+      this.resetForgotState();
+      this.cdr.detectChanges();
+    } catch (err: any) {
+      this.forgotOtpError = err?.error || 'Incorrect or expired code. Please try again.';
+      this.forgotOtpValue = '';
+      this.forgotOtpDigits = ['', '', '', '', '', ''];
+      setTimeout(() => this.focusHiddenForgotInput(), 50);
+    } finally {
+      this.isResettingPassword = false;
+      this.cdr.detectChanges();
     }
   }
 

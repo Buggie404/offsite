@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, signal, computed, NgZone, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, signal, computed, NgZone, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -149,6 +149,24 @@ export class AccountComponent implements OnInit, OnDestroy {
   isLoading = signal<boolean>(true);
   isSubmitting = signal<boolean>(false);
   avatarPreview = signal<string>('');
+
+  // ══════════════ OTP UPDATE PROFILE STATE ══════════════
+  @ViewChild('hiddenOtpInput') hiddenOtpInput!: ElementRef<HTMLInputElement>;
+  isOtpStep = false;
+  otpValue = '';
+  otpDigits: string[] = ['', '', '', '', '', ''];
+  otpError: string | null = null;
+  otpLocked = false;
+  readonly OTP_MAX_ATTEMPTS = 3;
+  otpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
+  otpCountdown = signal(0);
+  mockOtp = '';
+  private otpTimerHandle: ReturnType<typeof setInterval> | null = null;
+  private readonly OTP_DURATION_SECONDS = 2 * 60;
+  updateToken = '';
+  pendingUpdateData: any = null;
+  isVerifyingOtp = false;
+  isResendingOtp = false;
 
   // Saved items signals
   savedProducts = signal<any[]>([]);
@@ -445,6 +463,7 @@ export class AccountComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.clearOtpCountdown(); // Dọn dẹp timer
     if (this.cardValidator) {
       this.cardValidator.detach();
       this.cardValidator = null;
@@ -452,6 +471,10 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (this.profileValidator) {
       this.profileValidator.detach();
       this.profileValidator = null;
+    }
+    if (this.passwordValidator) {
+      this.passwordValidator.detach();
+      this.passwordValidator = null;
     }
     if (typeof window !== 'undefined') {
       delete (window as any).getAccountCardType;
@@ -1088,6 +1111,7 @@ export class AccountComponent implements OnInit, OnDestroy {
   openEditModal(): void {
     this.errorMessage.set('');
     this.successMessage.set('');
+    this.isOtpStep = false; // Reset flow state
     if (this.user()) {
       this.profileForm.patchValue({
         profile_name: this.user().profile_name || '',
@@ -1104,6 +1128,10 @@ export class AccountComponent implements OnInit, OnDestroy {
 
   closeEditModal(): void {
     this.showEditModal.set(false);
+    this.isOtpStep = false;
+    this.clearOtpCountdown();
+    this.otpValue = '';
+    this.otpDigits = ['', '', '', '', '', ''];
     if (this.profileValidator) {
       this.profileValidator.detach();
       this.profileValidator = null;
@@ -1111,6 +1139,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     this.profileForm.reset();
     this.avatarPreview.set('');
   }
+
   onAvatarSelected(event: any): void {
     const files = event.target.files;
     if (files && files.length > 0) {
@@ -1284,61 +1313,187 @@ export class AccountComponent implements OnInit, OnDestroy {
     return '';
   }
 
-  onUpdateProfile(): void {
+  // ══════════════ UPDATE PROFILE & OTP LOGIC ══════════════
+  async onUpdateProfile(): Promise<void> {
     if (this.profileForm.invalid) return;
     if (this.profileValidator && !this.profileValidator.validateAll()) return;
 
-    // Cache previous user data for rollback in case of server error
-    const previousUser = this.user();
     const formValue = this.profileForm.value;
+    this.isSubmitting.set(true);
 
-    // Optimistically update frontend state
-    const optimisticallyUpdatedUser = {
-      ...previousUser,
-      profile_name: formValue.profile_name,
-      community_name: formValue.community_name,
-      email: formValue.email,
-      phone: formValue.phone,
-      avatar_url: formValue.avatar_url || previousUser?.avatar_url
-    };
+    try {
+      // Gửi yêu cầu cập nhật (Backend kiểm tra nếu đổi Email/Phone thì trả về requiresOtp = true)
+      const res = await this.http.post<any>('/api/auth/request-profile-update', formValue).toPromise();
 
-    this.user.set(optimisticallyUpdatedUser);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('user', JSON.stringify(optimisticallyUpdatedUser));
+      if (res.requiresOtp) {
+        this.updateToken = res.update_token;
+        this.mockOtp = res.__mock || '';
+        this.pendingUpdateData = formValue;
+
+        this.isOtpStep = true;
+        this.otpLocked = false;
+        this.otpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
+        this.otpError = null;
+        this.otpValue = '';
+        this.otpDigits = ['', '', '', '', '', ''];
+        this.startOtpCountdown(this.OTP_DURATION_SECONDS);
+        this.cdr.detectChanges();
+        setTimeout(() => this.focusHiddenInput(), 50);
+      } else {
+        // Nếu không thay đổi gì nhạy cảm thì backend lưu trực tiếp
+        this.user.set(res.user);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user', JSON.stringify(res.user));
+        }
+        this.toastService.success('Profile updated successfully!');
+        this.closeEditModal();
+      }
+    } catch (err: any) {
+      const errMsg = err.error?.error || 'Failed to update profile.';
+      this.errorMessage.set(errMsg);
+    } finally {
+      this.isSubmitting.set(false);
+      this.cdr.detectChanges();
+    }
+  }
+
+  private startOtpCountdown(seconds: number): void {
+    this.clearOtpCountdown();
+    this.otpCountdown.set(seconds);
+    this.otpTimerHandle = setInterval(() => {
+      this.otpCountdown.update(v => v - 1);
+      if (this.otpCountdown() <= 0) {
+        this.otpCountdown.set(0);
+        this.clearOtpCountdown();
+      }
+    }, 1000);
+  }
+
+  private clearOtpCountdown(): void {
+    if (this.otpTimerHandle) {
+      clearInterval(this.otpTimerHandle);
+      this.otpTimerHandle = null;
+    }
+  }
+
+  get otpCountdownLabel(): string {
+    const m = Math.floor(this.otpCountdown() / 60);
+    const s = this.otpCountdown() % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  get canResendOtp(): boolean {
+    return this.otpCountdown() <= 0;
+  }
+
+  trackByFn(index: number): number {
+    return index;
+  }
+
+  focusHiddenInput(): void {
+    if (this.hiddenOtpInput?.nativeElement) {
+      this.hiddenOtpInput.nativeElement.focus();
+    }
+  }
+
+  onHiddenOtpInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    let val = input.value.replace(/\D/g, '');
+
+    if (val.length > 6) {
+      val = val.substring(0, 6);
     }
 
-    // Instantly close modal and show success toast
-    this.toastService.success('Profile updated successfully!');
-    this.closeEditModal();
+    this.otpValue = val;
+    input.value = val;
 
-    this.http.put<{ message: string; user: any }>('/api/auth/profile', formValue)
-      .subscribe({
-        next: (response) => {
-          this.zone.run(() => {
-            this.user.set(response.user);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('user', JSON.stringify(response.user));
-            }
-          });
-        },
-        error: (err) => {
-          this.zone.run(() => {
-            // Rollback to original state
-            this.user.set(previousUser);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('user', JSON.stringify(previousUser));
-            }
-            
-            const errMsg = err.error?.error || 'Failed to update profile.';
-            this.toastService.error(`Update failed: ${errMsg}`);
-            
-            // Reopen edit modal and show error message
-            this.openEditModal();
-            this.errorMessage.set(errMsg);
-          });
-        }
-      });
+    for (let i = 0; i < 6; i++) {
+      this.otpDigits[i] = val[i] || '';
+    }
+    this.cdr.detectChanges();
+
+    if (this.otpValue.length === 6) {
+      this.verifyUpdateOtp();
+    }
   }
+
+  async verifyUpdateOtp(): Promise<void> {
+    if (this.otpLocked || !this.updateToken || this.otpValue.length !== 6) return;
+    this.otpError = null;
+    this.isVerifyingOtp = true;
+    this.cdr.detectChanges();
+
+    try {
+      const res = await this.http.post<any>('/api/auth/verify-profile-update', {
+        update_token: this.updateToken,
+        otp: this.otpValue
+      }).toPromise();
+
+      this.clearOtpCountdown();
+      this.isOtpStep = false;
+      this.user.set(res.user);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user', JSON.stringify(res.user));
+      }
+      this.toastService.success('Profile updated and verified successfully!');
+      this.closeEditModal();
+    } catch (err: any) {
+      const code = err?.error?.code || err?.code;
+      if (code === 'OTP_LOCKED') {
+        this.otpLocked = true;
+        this.otpAttemptsLeft = 0;
+        this.clearOtpCountdown();
+      } else {
+        this.otpAttemptsLeft = Math.max(0, this.otpAttemptsLeft - 1);
+        this.otpError = err.error?.error || 'Incorrect code. Please try again.';
+        if (this.otpAttemptsLeft <= 0) {
+          this.otpLocked = true;
+          this.clearOtpCountdown();
+        }
+      }
+      this.otpValue = '';
+      this.otpDigits = ['', '', '', '', '', ''];
+      setTimeout(() => this.focusHiddenInput(), 50);
+    } finally {
+      this.isVerifyingOtp = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  async resendOtp(): Promise<void> {
+    if (!this.updateToken || (!this.canResendOtp && !this.otpLocked)) return;
+    this.isResendingOtp = true;
+    this.cdr.detectChanges();
+
+    try {
+      const res = await this.http.post<any>('/api/auth/resend-profile-update-otp', {
+        update_token: this.updateToken
+      }).toPromise();
+
+      this.mockOtp = res.__mock || '';
+      this.otpLocked = false;
+      this.otpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
+      this.otpError = null;
+      this.otpValue = '';
+      this.otpDigits = ['', '', '', '', '', ''];
+      this.startOtpCountdown(this.OTP_DURATION_SECONDS);
+      setTimeout(() => this.focusHiddenInput(), 50);
+    } catch (err: any) {
+      this.otpError = 'Could not resend code. Please try again.';
+    } finally {
+      this.isResendingOtp = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  cancelOtp(): void {
+    this.isOtpStep = false;
+    this.clearOtpCountdown();
+    this.otpValue = '';
+    this.otpDigits = ['', '', '', '', '', ''];
+    this.cdr.detectChanges();
+  }
+  // ══════════════ END OTP LOGIC ══════════════
 
   onChangePassword(): void {
     if (this.passwordValidator && !this.passwordValidator.validateAll()) return;
@@ -2092,5 +2247,3 @@ export class AccountComponent implements OnInit, OnDestroy {
   }
 
 }
-
-

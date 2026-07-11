@@ -82,6 +82,18 @@ export class AuthService {
     return await this.http.post('/auth/resend-registration-otp', { registration_id });
   }
 
+  // FORGOT / RESET PASSWORD
+
+  // Gửi OTP đặt lại mật khẩu về email hoặc phone (backend tự nhận diện loại identifier)
+  async forgotPassword(identifier: string): Promise<any> {
+    return await this.http.post('/auth/forgot-password', { identifier });
+  }
+
+  // Xác thực OTP + đặt mật khẩu mới trong cùng 1 lần gọi (theo đúng contract của backend)
+  async resetPassword(identifier: string, otp: string, newPassword: string): Promise<any> {
+    return await this.http.post('/auth/reset-password', { identifier, otp, newPassword });
+  }
+
   // GET PROFILE
   async getMe(): Promise<any> {
     return await this.http.get('/auth/profile');

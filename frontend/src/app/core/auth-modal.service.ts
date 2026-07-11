@@ -5,12 +5,12 @@ import { Injectable, signal } from '@angular/core';
 })
 export class AuthModalService {
   private isOpenSignal = signal<boolean>(false);
-  private modeSignal = signal<'login' | 'signup'>('login');
+  private modeSignal = signal<'login' | 'signup' | 'forgot'>('login');
 
   readonly isOpen = this.isOpenSignal.asReadonly();
   readonly mode = this.modeSignal.asReadonly();
 
-  open(mode: 'login' | 'signup' = 'login'): void {
+  open(mode: 'login' | 'signup' | 'forgot' = 'login'): void {
     this.modeSignal.set(mode);
     this.isOpenSignal.set(true);
   }
@@ -19,7 +19,7 @@ export class AuthModalService {
     this.isOpenSignal.set(false);
   }
 
-  setMode(mode: 'login' | 'signup'): void {
+  setMode(mode: 'login' | 'signup' | 'forgot'): void {
     this.modeSignal.set(mode);
   }
 }

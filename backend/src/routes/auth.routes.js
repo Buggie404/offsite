@@ -15,7 +15,9 @@ router.post('/resend-registration-otp', authController.resendRegistrationOtp);
 // Profile & Password routes
 router.get('/me', authMiddleware, authController.getProfile);
 router.get('/profile', authMiddleware, authController.getProfile);
-router.put('/profile', authMiddleware, authController.updateProfile);
+router.post('/request-profile-update', authMiddleware, authController.requestProfileUpdate);
+router.post('/verify-profile-update', authMiddleware, authController.verifyProfileUpdate);
+router.post('/resend-profile-update-otp', authMiddleware, authController.resendProfileUpdateOtp);
 router.put('/change-password', authMiddleware, authController.changePassword);
 
 // Address and Payment Method routes

@@ -36,7 +36,6 @@ const OTP_EXPIRE_MS = 2 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 3;
 
 // Che email: giữ ký tự đầu/cuối phần trước @, phần còn lại thay bằng dấu chấm
-// vd: "steve@gmail.com" -> "s...e@gmail.com"
 function maskEmail(email) {
   const at = email.indexOf('@');
   if (at <= 0) return email;
@@ -88,7 +87,6 @@ async function generateCommunityName(userCollection, displayName) {
     const suffix = Math.floor(1000 + Math.random() * 9000);
     candidate = `${base}${suffix}`;
     if (attempt > 10) {
-      // fallback cực hiếm khi vẫn trùng liên tục
       candidate = `${base}${Date.now()}`;
       break;
     }
@@ -125,7 +123,7 @@ async function register(req, res) {
 
     const { userCollection, otpCollection } = await getCollections();
 
-   // Check trùng email/phone
+    // Check trùng email/phone
     if (email) {
       const emailExists = await userCollection.findOne({ email: email.trim().toLowerCase() });
       if (emailExists) {
@@ -140,24 +138,13 @@ async function register(req, res) {
       }
     }
 
-      // Xóa yêu cầu đăng ký cũ nếu người dùng đăng ký lại
+    // Xóa yêu cầu đăng ký cũ nếu người dùng đăng ký lại
     await otpCollection.deleteMany({
       $or: [
         email ? { email: email.trim().toLowerCase() } : null,
         phone ? { phone: phone.trim() } : null
       ].filter(Boolean)
     });
-
-    // Sinh user_id tuần tự kiểu USRXXXXX
-    // const lastUser = await userCollection.findOne({}, { sort: { user_id: -1 } });
-    // let nextNum = 1;
-    // if (lastUser && lastUser.user_id) {
-    //   const match = lastUser.user_id.match(/USR(\d+)/);
-    //   if (match) {
-    //     nextNum = parseInt(match[1], 10) + 1;
-    //   }
-    // }
-    // const user_id = `USR${String(nextNum).padStart(5, '0')}`;
 
     // Tự động hash mật khẩu với saltRounds = 10
     const saltRounds = 10;
@@ -170,24 +157,19 @@ async function register(req, res) {
 
     await otpCollection.insertOne({
       registration_id,
-
       email: normalizedEmail,
       phone: normalizedPhone,
-
       password_hash: hashedPassword,
       profile_name: displayName,
       avatar_url: req.body.avatar_url || null,
       otp,
       attempts: 0,
-
       expiresAt: new Date(Date.now() + OTP_EXPIRE_MS),
       createdAt: new Date(),
       updatedAt: new Date()
     });
 
-    console.log(
-      `[REGISTER OTP] ${email || phone} -> ${otp}`
-    );
+    console.log(`[REGISTER OTP] ${email || phone} -> ${otp}`);
 
     const maskedContact = normalizedEmail ? maskEmail(normalizedEmail) : maskPhone(normalizedPhone);
 
@@ -196,9 +178,7 @@ async function register(req, res) {
       registration_id,
       maskedContact,
       channel: normalizedEmail ? 'email' : 'phone',
-      __mock: process.env.NODE_ENV !== 'production'
-        ? otp
-        : undefined
+      __mock: process.env.NODE_ENV !== 'production' ? otp : undefined
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -211,85 +191,49 @@ async function verifyRegistrationOtp(req, res) {
     const { registration_id, otp } = req.body;
 
     if (!registration_id || !otp) {
-      return res.status(400).json({
-        error: 'Thiếu registration_id hoặc OTP.',
-        code: 'MISSING_FIELDS'
-      });
+      return res.status(400).json({ error: 'Thiếu registration_id hoặc OTP.', code: 'MISSING_FIELDS' });
     }
 
     const { userCollection, otpCollection } = await getCollections();
-
     const pending = await otpCollection.findOne({ registration_id });
 
     if (!pending) {
-      return res.status(404).json({
-        error: 'Yêu cầu đăng ký không tồn tại.',
-        code: 'REGISTRATION_NOT_FOUND'
-      });
+      return res.status(404).json({ error: 'Yêu cầu đăng ký không tồn tại.', code: 'REGISTRATION_NOT_FOUND' });
     }
 
     if (pending.expiresAt < new Date()) {
       await otpCollection.deleteOne({ _id: pending._id });
-
-      return res.status(400).json({
-        error: 'OTP đã hết hạn.',
-        code: 'OTP_EXPIRED'
-      });
+      return res.status(400).json({ error: 'OTP đã hết hạn.', code: 'OTP_EXPIRED' });
     }
 
     if ((pending.attempts || 0) >= OTP_MAX_ATTEMPTS) {
-      return res.status(400).json({
-        error: 'Sai quá số lần cho phép. Vui lòng gửi lại mã.',
-        code: 'OTP_LOCKED'
-      });
+      return res.status(400).json({ error: 'Sai quá số lần cho phép. Vui lòng gửi lại mã.', code: 'OTP_LOCKED' });
     }
 
     if (pending.otp !== otp) {
       const attempts = (pending.attempts || 0) + 1;
       const remaining = OTP_MAX_ATTEMPTS - attempts;
 
-      await otpCollection.updateOne(
-        { _id: pending._id },
-        { $set: { attempts } }
-      );
+      await otpCollection.updateOne( { _id: pending._id }, { $set: { attempts } });
 
       if (remaining <= 0) {
-        return res.status(400).json({
-          error: 'Sai quá số lần cho phép. Vui lòng gửi lại mã.',
-          code: 'OTP_LOCKED'
-        });
+        return res.status(400).json({ error: 'Sai quá số lần cho phép. Vui lòng gửi lại mã.', code: 'OTP_LOCKED' });
       }
 
-      return res.status(400).json({
-        error: `OTP không chính xác. Còn ${remaining} lần thử.`,
-        code: 'INVALID_OTP',
-        remainingAttempts: remaining
-      });
+      return res.status(400).json({ error: `OTP không chính xác. Còn ${remaining} lần thử.`, code: 'INVALID_OTP', remainingAttempts: remaining });
     }
 
     // Sinh user_id tuần tự
-    const lastUser = await userCollection.findOne(
-      {},
-      { sort: { user_id: -1 } }
-    );
-
+    const lastUser = await userCollection.findOne({}, { sort: { user_id: -1 } });
     let nextNum = 1;
-
     if (lastUser?.user_id) {
       const match = lastUser.user_id.match(/USR(\d+)/);
-
-      if (match) {
-        nextNum = parseInt(match[1], 10) + 1;
-      }
+      if (match) nextNum = parseInt(match[1], 10) + 1;
     }
-
     const user_id = `USR${String(nextNum).padStart(5, '0')}`;
 
     // Sinh community_name
-    const community_name = await generateCommunityName(
-      userCollection,
-      pending.profile_name
-    );
+    const community_name = await generateCommunityName(userCollection, pending.profile_name);
 
     const newUser = {
       user_id,
@@ -298,17 +242,14 @@ async function verifyRegistrationOtp(req, res) {
       profile_name: pending.profile_name,
       avatar_url: pending.avatar_url || null,
       community_name,
-
       role: 'customer',
       status: 'active',
-
       addresses: [],
       payment_methods: [],
       saved_products: [],
       saved_recipes: [],
       saved_posts: [],
       saved_blogs: [],
-
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -317,17 +258,10 @@ async function verifyRegistrationOtp(req, res) {
     if (pending.phone) newUser.phone = pending.phone;
 
     const result = await userCollection.insertOne(newUser);
-
-    await otpCollection.deleteOne({
-      _id: pending._id
-    });
+    await otpCollection.deleteOne({ _id: pending._id });
 
     const token = jwt.sign(
-      {
-        user_id: result.insertedId,
-        email: newUser.email || '',
-        role: newUser.role
-      },
+      { user_id: result.insertedId, email: newUser.email || '', role: newUser.role },
       ACCESS_SECRET,
       { expiresIn: '8h' }
     );
@@ -345,37 +279,24 @@ async function verifyRegistrationOtp(req, res) {
       }
     });
   } catch (error) {
-    res.status(500).json({
-      error: error.message
-    });
+    res.status(500).json({ error: error.message });
   }
 }
 
-// Gửi lại OTP đăng ký — reset số lần sai + hạn dùng
+// Gửi lại OTP đăng ký
 async function resendRegistrationOtp(req, res) {
   try {
     const { registration_id } = req.body;
-
-    if (!registration_id) {
-      return res.status(400).json({
-        error: 'Thiếu registration_id.',
-        code: 'MISSING_FIELDS'
-      });
-    }
+    if (!registration_id) return res.status(400).json({ error: 'Thiếu registration_id.', code: 'MISSING_FIELDS' });
 
     const { otpCollection } = await getCollections();
-
     const pending = await otpCollection.findOne({ registration_id });
 
     if (!pending) {
-      return res.status(404).json({
-        error: 'Yêu cầu đăng ký không tồn tại hoặc đã hết hạn. Vui lòng đăng ký lại.',
-        code: 'REGISTRATION_NOT_FOUND'
-      });
+      return res.status(404).json({ error: 'Yêu cầu đăng ký không tồn tại hoặc đã hết hạn. Vui lòng đăng ký lại.', code: 'REGISTRATION_NOT_FOUND' });
     }
 
     const otp = generateOTP();
-
     await otpCollection.updateOne(
       { _id: pending._id },
       {
@@ -389,15 +310,12 @@ async function resendRegistrationOtp(req, res) {
     );
 
     console.log(`[RESEND OTP] registration_id=${registration_id} -> ${otp}`);
-
     const maskedContact = pending.email ? maskEmail(pending.email) : maskPhone(pending.phone);
 
     res.status(200).json({
       message: 'A new verification code has been sent.',
       maskedContact,
-      __mock: process.env.NODE_ENV !== 'production'
-        ? otp
-        : undefined
+      __mock: process.env.NODE_ENV !== 'production' ? otp : undefined
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -409,7 +327,6 @@ async function login(req, res) {
   try {
     const { email, password } = req.body;
 
-
     if (!email || !password) {
       return res.status(400).json({ error: 'Vui lòng cung cấp email và password.', code: 'MISSING_FIELDS' });
     }
@@ -419,43 +336,32 @@ async function login(req, res) {
 
     const { userCollection } = await getCollections();
    
-    // Tìm user bằng email hoặc phone (sau khi đã chuẩn hoá)
     const user = await userCollection.findOne({
-      $or: [
-        { email: identifier },
-        { phone: identifier }
-      ]
+      $or: [ { email: identifier }, { phone: identifier } ]
     });   
     if (!user) {
       return res.status(404).json({ error: 'Tài khoản không tồn tại trong hệ thống.', code: 'ACCOUNT_NOT_FOUND' });
     }
 
-    // Nếu là tài khoản OAuth (không có password_hash)
     if (!user.password_hash) {
       return res.status(400).json({ error: 'Tài khoản này được đăng ký thông qua mạng xã hội.', code: 'OAUTH_ACCOUNT' });
     }
 
-    // Kiểm tra phân quyền: admin không được đăng nhập tại đây
     if (user.role === 'admin') {
       return res.status(403).json({ error: 'Tài khoản admin không được phép đăng nhập tại đây.', code: 'ADMIN_NOT_ALLOWED' });
     }
 
-    // So sánh password plain với password_hash
     const isValid = await bcrypt.compare(password, user.password_hash);
     if (!isValid) {
       return res.status(401).json({ error: 'Mật khẩu không chính xác.', code: 'INCORRECT_PASSWORD' });
     }
 
-    // Ký JWT Token
     const token = jwt.sign(
       { user_id: user._id, email: user.email || '', role: user.role },
       ACCESS_SECRET,
       { expiresIn: '8h' }
     );
 
-    // Merge guest cart (localStorage payload) into this user's DB cart.
-    // Guest -> user, one way; only activates when guestCart has items.
-    // Never let a merge failure block login.
     let mergedCart = null;
     try {
       const guestCart = req.body.guestCart || req.body.guestItems || [];
@@ -482,7 +388,7 @@ async function login(req, res) {
   }
 }
 
-// Đăng nhập Admin (chỉ role admin)
+// Đăng nhập Admin
 async function adminLogin(req, res) {
   try {
     const { email, password } = req.body;
@@ -555,21 +461,21 @@ async function refreshToken(req, res) {
     const user = await userCollection.findOne({ _id: new ObjectId(payload.sub) });
     if (!user) return res.status(404).json({ error: 'Tài khoản không tồn tại.' });
 
-  const accessToken = jwt.sign(
-    { user_id: user._id, email: user.email || '', role: user.role },
-    ACCESS_SECRET,
-    { expiresIn: '8h' }
-  );
+    const accessToken = jwt.sign(
+      { user_id: user._id, email: user.email || '', role: user.role },
+      ACCESS_SECRET,
+      { expiresIn: '8h' }
+    );
 
-  const refreshToken = jwt.sign(
-    { user_id: user._id },
-    REFRESH_SECRET,
-    { expiresIn: '7d' }
-  );
+    const newRefreshToken = jwt.sign(
+      { user_id: user._id },
+      REFRESH_SECRET,
+      { expiresIn: '7d' }
+    );
 
-  res.json({
+    res.json({
       token: accessToken,
-      refreshToken,
+      refreshToken: newRefreshToken,
       user: {
         _id: user._id,
         user_id: user.user_id,
@@ -577,12 +483,12 @@ async function refreshToken(req, res) {
         role: user.role
       }
     });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 }
 
-// Lấy thông tin trang cá nhân (Get Profile)
+// Lấy thông tin trang cá nhân
 async function getProfile(req, res) {
   try {
     const { ObjectId } = require('mongodb');
@@ -600,81 +506,198 @@ async function getProfile(req, res) {
   }
 }
 
-// Cập nhật trang cá nhân (Update Profile)
-async function updateProfile(req, res) {
+// ══════════════ CẬP NHẬT TRANG CÁ NHÂN (CÓ OTP) ══════════════
+
+// Yêu cầu cập nhật Profile
+async function requestProfileUpdate(req, res) {
   try {
     const { ObjectId } = require('mongodb');
-    const { profile_name, email, phone, community_name } = req.body;
+    const { profile_name, email, phone, community_name, avatar_url } = req.body;
 
     if (!profile_name) {
       return res.status(400).json({ error: 'Họ và tên không được để trống.' });
     }
 
-    const { userCollection } = await getCollections();
+    const { userCollection, otpCollection } = await getCollections();
     const userId = new ObjectId(req.user.user_id);
+    const user = await userCollection.findOne({ _id: userId });
 
-    // Kiểm tra trùng email
-    if (email) {
-      const emailUser = await userCollection.findOne({
-        email: email.trim(),
-        _id: { $ne: userId }
-      });
-      if (emailUser) {
-        return res.status(409).json({ error: 'Email đã được sử dụng bởi tài khoản khác.' });
-      }
+    if (!user) return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+
+    const normalizedEmail = email ? email.trim().toLowerCase() : null;
+    const normalizedPhone = phone ? phone.trim() : null;
+    const normalizedCommunity = community_name ? community_name.trim() : null;
+
+    // Check trùng lặp
+    if (normalizedEmail && normalizedEmail !== user.email) {
+      const emailUser = await userCollection.findOne({ email: normalizedEmail, _id: { $ne: userId } });
+      if (emailUser) return res.status(409).json({ error: 'Email đã được sử dụng bởi tài khoản khác.' });
     }
 
-    // Kiểm tra trùng số điện thoại
-    if (phone) {
-      const phoneUser = await userCollection.findOne({
-        phone: phone.trim(),
-        _id: { $ne: userId }
-      });
-      if (phoneUser) {
-        return res.status(409).json({ error: 'Số điện thoại đã được sử dụng bởi tài khoản khác.' });
-      }
+    if (normalizedPhone && normalizedPhone !== user.phone) {
+      const phoneUser = await userCollection.findOne({ phone: normalizedPhone, _id: { $ne: userId } });
+      if (phoneUser) return res.status(409).json({ error: 'Số điện thoại đã được sử dụng bởi tài khoản khác.' });
     }
 
-    // Kiểm tra trùng community_name
-    if (community_name) {
-      const communityUser = await userCollection.findOne({
-        community_name: community_name.trim(),
-        _id: { $ne: userId }
-      });
-      if (communityUser) {
-        return res.status(409).json({ error: 'Tên cộng đồng đã được sử dụng bởi tài khoản khác.' });
-      }
+    if (normalizedCommunity && normalizedCommunity !== user.community_name) {
+      const communityUser = await userCollection.findOne({ community_name: normalizedCommunity, _id: { $ne: userId } });
+      if (communityUser) return res.status(409).json({ error: 'Tên cộng đồng đã được sử dụng bởi tài khoản khác.' });
     }
 
+    const isEmailChanged = normalizedEmail !== (user.email || null);
+    const isPhoneChanged = normalizedPhone !== (user.phone || null);
+
+    // Nếu đổi thông tin nhạy cảm (Email/Phone) -> Yêu cầu OTP
+    if (isEmailChanged || isPhoneChanged) {
+      const update_token = new ObjectId().toString();
+      const otp = generateOTP();
+      
+      await otpCollection.deleteMany({ user_id: userId, type: 'profile_update' });
+
+      await otpCollection.insertOne({
+        user_id: userId,
+        update_token,
+        otp,
+        pending_data: {
+          profile_name: profile_name.trim(),
+          email: normalizedEmail,
+          phone: normalizedPhone,
+          community_name: normalizedCommunity,
+          avatar_url: avatar_url !== undefined ? avatar_url : user.avatar_url
+        },
+        type: 'profile_update',
+        attempts: 0,
+        expiresAt: new Date(Date.now() + OTP_EXPIRE_MS),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      console.log(`[PROFILE UPDATE OTP] User ${userId} -> ${otp}`);
+
+      return res.json({
+        requiresOtp: true,
+        update_token,
+        __mock: process.env.NODE_ENV !== 'production' ? otp : undefined
+      });
+    }
+
+    // Nếu không thay đổi nhạy cảm -> Cập nhật luôn
     const updateFields = {
       profile_name: profile_name.trim(),
       updatedAt: new Date()
     };
-    if (email) updateFields.email = email.trim();
-    if (phone) updateFields.phone = phone.trim();
-    if (community_name !== undefined) updateFields.community_name = community_name ? community_name.trim() : null;
-    if (req.body.avatar_url !== undefined) updateFields.avatar_url = req.body.avatar_url;
+    if (normalizedCommunity !== undefined) updateFields.community_name = normalizedCommunity;
+    if (avatar_url !== undefined) updateFields.avatar_url = avatar_url;
 
-    await userCollection.updateOne(
-      { _id: userId },
-      { $set: updateFields }
-    );
+    await userCollection.updateOne({ _id: userId }, { $set: updateFields });
+    const updatedUser = await userCollection.findOne({ _id: userId }, { projection: { password_hash: 0 } });
 
-    const updatedUser = await userCollection.findOne(
-      { _id: userId },
-      { projection: { password_hash: 0 } }
-    );
+    res.json({ requiresOtp: false, user: updatedUser });
 
-    res.json({
-      message: 'Cập nhật thông tin thành công.',
-      user: updatedUser
-    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 }
 
-// Đổi mật khẩu (Change Password)
+// Xác thực OTP Cập nhật Profile
+async function verifyProfileUpdate(req, res) {
+  try {
+    const { ObjectId } = require('mongodb');
+    const { update_token, otp } = req.body;
+
+    if (!update_token || !otp) {
+      return res.status(400).json({ error: 'Thiếu thông tin xác thực.' });
+    }
+
+    const { userCollection, otpCollection } = await getCollections();
+    const pending = await otpCollection.findOne({ update_token, type: 'profile_update' });
+
+    if (!pending) {
+      return res.status(404).json({ error: 'Yêu cầu không tồn tại hoặc đã hết hạn.', code: 'REGISTRATION_NOT_FOUND' });
+    }
+
+    if (pending.expiresAt < new Date()) {
+      await otpCollection.deleteOne({ _id: pending._id });
+      return res.status(400).json({ error: 'Mã OTP đã hết hạn.', code: 'OTP_EXPIRED' });
+    }
+
+    if ((pending.attempts || 0) >= OTP_MAX_ATTEMPTS) {
+      return res.status(400).json({ error: 'Sai quá số lần cho phép.', code: 'OTP_LOCKED' });
+    }
+
+    if (pending.otp !== String(otp).trim()) {
+      const attempts = (pending.attempts || 0) + 1;
+      const remaining = OTP_MAX_ATTEMPTS - attempts;
+      await otpCollection.updateOne({ _id: pending._id }, { $set: { attempts } });
+
+      if (remaining <= 0) {
+        return res.status(400).json({ error: 'Sai quá số lần cho phép.', code: 'OTP_LOCKED' });
+      }
+      return res.status(400).json({ error: 'Mã OTP không chính xác.', code: 'INVALID_OTP', remainingAttempts: remaining });
+    }
+
+    // OTP đúng -> Cập nhật CSDL
+    const userId = new ObjectId(pending.user_id);
+    const { profile_name, email, phone, community_name, avatar_url } = pending.pending_data;
+
+    const updateFields = {
+      profile_name,
+      email,
+      phone,
+      community_name,
+      updatedAt: new Date()
+    };
+    if (avatar_url !== undefined) updateFields.avatar_url = avatar_url;
+
+    await userCollection.updateOne({ _id: userId }, { $set: updateFields });
+    await otpCollection.deleteOne({ _id: pending._id });
+
+    const updatedUser = await userCollection.findOne({ _id: userId }, { projection: { password_hash: 0 } });
+
+    res.json({ message: 'Success', user: updatedUser });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Gửi lại OTP Cập nhật Profile
+async function resendProfileUpdateOtp(req, res) {
+  try {
+    const { update_token } = req.body;
+    if (!update_token) return res.status(400).json({ error: 'Thiếu update_token.' });
+
+    const { otpCollection } = await getCollections();
+    const pending = await otpCollection.findOne({ update_token, type: 'profile_update' });
+
+    if (!pending) {
+      return res.status(404).json({ error: 'Yêu cầu không tồn tại hoặc đã hết hạn.', code: 'REGISTRATION_NOT_FOUND' });
+    }
+
+    const otp = generateOTP();
+    await otpCollection.updateOne(
+      { _id: pending._id },
+      {
+        $set: {
+          otp,
+          attempts: 0,
+          expiresAt: new Date(Date.now() + OTP_EXPIRE_MS),
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    res.json({
+      message: 'Đã gửi lại mã OTP.',
+      __mock: process.env.NODE_ENV !== 'production' ? otp : undefined
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Đổi mật khẩu
 async function changePassword(req, res) {
   try {
     const { ObjectId } = require('mongodb');
@@ -702,7 +725,8 @@ async function changePassword(req, res) {
         return res.status(401).json({ error: 'Mật khẩu cũ không chính xác.' });
       }
     } else {
-      return res.status(400).json({ error: 'Tài khoản này đăng nhập qua MXH và chưa tạo mật khẩu.' });  }
+      return res.status(400).json({ error: 'Tài khoản này đăng nhập qua MXH và chưa tạo mật khẩu.' });  
+    }
 
     const saltRounds = 10;
     const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
@@ -718,7 +742,7 @@ async function changePassword(req, res) {
   }
 }
 
-// Forgot + Refresh
+// Forgot + Reset
 async function forgotPassword(req, res) {
   try {
     let { identifier } = req.body;
@@ -729,37 +753,29 @@ async function forgotPassword(req, res) {
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier.trim());
     identifier = normalizeIdentity(identifier, isEmail);
 
-
     const { userCollection, otpCollection } = await getCollections();
     const user = await findUser(userCollection, identifier, identifier);
 
-
-    // Luôn trả 200 để không lộ user có tồn tại hay không
     if (!user) {
       return res.json({ message: 'Nếu tài khoản tồn tại, bạn sẽ nhận được mã OTP.' });
     }
 
-    // Xoá OTP cũ nếu có
     await otpCollection.deleteMany({ user_id: user._id });
 
     const otp = generateOTP();
     await otpCollection.insertOne({
       user_id  : user._id,
       otp,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 phút
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       createdAt: new Date()
     });
 
-    // MOCK: log ra console thay vì gửi thật
     console.log(`\n[MOCK OTP] ${identifier} → ${otp}\n`);
-
 
     res.json({
       message : 'Mã OTP đã được gửi.',
       __mock  : process.env.NODE_ENV !== 'production' ? otp : undefined
     });
-
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -775,7 +791,6 @@ async function resetPassword(req, res) {
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier.trim());
     identifier = normalizeIdentity(identifier, isEmail);
 
-
     if (newPassword.length < 8 || newPassword.length > 15 || /\s/.test(newPassword)) {
       return res.status(400).json({ error: 'Mật khẩu từ 8 đến 15 kí tự, không chứa khoảng trắng.' });
     }
@@ -786,8 +801,8 @@ async function resetPassword(req, res) {
 
     const otpRecord = await otpCollection.findOne({ user_id: user._id });
     if (!otpRecord) {
-      return res.status(400).json({ error: 'Không tìm thấy yêu cầu đặt lại mật khẩu.' });    }
-
+      return res.status(400).json({ error: 'Không tìm thấy yêu cầu đặt lại mật khẩu.' });    
+    }
 
     if (new Date() > new Date(otpRecord.expiresAt)) {
       await otpCollection.deleteOne({ _id: otpRecord._id });
@@ -805,9 +820,7 @@ async function resetPassword(req, res) {
     );
     await otpCollection.deleteOne({ _id: otpRecord._id });
 
-
     res.json({ message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.' });
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -824,11 +837,9 @@ async function addAddress(req, res) {
     const { ObjectId } = require('mongodb');
     const userId = new ObjectId(req.user.user_id);
 
-    // Check current addresses
     const user = await userCollection.findOne({ _id: userId });
     const currentAddresses = user.addresses || [];
 
-    // Rule: If first address, it MUST be default
     const shouldBeDefault = currentAddresses.length === 0 ? true : !!is_default;
 
     const newAddressId = new ObjectId();
@@ -878,12 +889,10 @@ async function updateAddress(req, res) {
       return res.status(404).json({ error: 'Address not found' });
     }
 
-    // Rule: If only 1 address exists, it MUST be default
     let finalIsDefault = is_default;
     if (currentAddresses.length === 1) {
       finalIsDefault = true;
     } else if (is_default === false && targetAddress.is_default) {
-      // User tries to unset default. Switch default to another address.
       const otherAddress = currentAddresses.find(a => a._id.toString() !== id);
       if (otherAddress) {
         await userCollection.updateOne(
@@ -1012,7 +1021,6 @@ async function deletePaymentMethod(req, res) {
   }
 }
 
-// Toggle saved product
 async function toggleSavedProduct(req, res) {
   try {
     const { productId } = req.body;
@@ -1037,7 +1045,6 @@ async function toggleSavedProduct(req, res) {
   }
 }
 
-// Toggle saved recipe
 async function toggleSavedRecipe(req, res) {
   try {
     const { recipeId } = req.body;
@@ -1069,7 +1076,6 @@ async function toggleSavedRecipe(req, res) {
   }
 }
 
-// Toggle saved blog
 async function toggleSavedBlog(req, res) {
   try {
     const { blogId } = req.body;
@@ -1094,7 +1100,6 @@ async function toggleSavedBlog(req, res) {
   }
 }
 
-// Toggle saved post
 async function toggleSavedPost(req, res) {
   try {
     const { postId } = req.body;
@@ -1119,7 +1124,6 @@ async function toggleSavedPost(req, res) {
   }
 }
 
-// Get all saved items populated
 async function getSavedItems(req, res) {
   try {
     const mongoose = require('mongoose');
@@ -1132,19 +1136,15 @@ async function getSavedItems(req, res) {
     const user = await User.findById(req.user.user_id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Populate Products
     const productIds = user.saved_products.map(sp => parseInt(sp.product_id)).filter(id => !isNaN(id));
     const products = await Product.find({ product_id: { $in: productIds } });
 
-    // Populate Recipes
     const recipeIds = user.saved_recipes.map(sr => sr.recipe_id);
     const recipes = await Recipe.find({ recipe_id: { $in: recipeIds } });
 
-    // Populate Posts
     const postIds = user.saved_posts.map(sp => sp.post_id);
     const posts = await Post.find({ post_id: { $in: postIds } });
 
-    // Populate Blogs
     const blogIds = user.saved_blogs.map(sb => sb.blog_id).filter(id => mongoose.Types.ObjectId.isValid(id));
     const blogs = await Blog.find({ _id: { $in: blogIds } });
 
@@ -1183,7 +1183,9 @@ module.exports = {
   logout,
   refreshToken,
   getProfile,
-  updateProfile,
+  requestProfileUpdate,  
+  verifyProfileUpdate,   
+  resendProfileUpdateOtp,
   changePassword,
   forgotPassword,  
   resetPassword,

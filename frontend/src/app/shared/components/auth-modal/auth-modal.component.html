@@ -121,6 +121,10 @@
           </div>
         </div>
 
+        <div class="auth-forgot-row">
+          <button type="button" class="forgot-password-link" (click)="openForgotPassword()">Forgot password?</button>
+        </div>
+
         <button type="submit" class="submit-btn" [disabled]="isSubmitting">LOG IN</button>
 
         <div class="auth-divider">
@@ -378,8 +382,170 @@
 
     </div>
 
+    <!-- FORGOT PASSWORD MODE -->
+    <div *ngIf="mode() === 'forgot'" class="auth-body">
+
+      <!-- STEP 1: Ask for email/phone -->
+      <ng-container *ngIf="forgotStep === 'request'">
+        <form (submit)="sendForgotOtp($event)" class="auth-form">
+          <div class="auth-input-group">
+            <label class="auth-input-label">EMAIL OR PHONE</label>
+            <input
+              #forgotIdentifierInput
+              type="text"
+              class="auth-input"
+              [class.input-error]="forgotIdentifierError || serverForgotError"
+              [(ngModel)]="forgotIdentifier"
+              name="forgotIdentifier"
+              (blur)="forgotIdentifierTouched = true"
+              (input)="forgotIdentifierTouched = true; serverForgotError = null"
+              placeholder="ritual@offsite.com or phone number"
+              required>
+            <div *ngIf="forgotIdentifierError" class="error-message">{{ forgotIdentifierError }}</div>
+            <div *ngIf="!forgotIdentifierError && serverForgotError" class="error-message">{{ serverForgotError }}</div>
+          </div>
+
+          <p class="auth-helper-text">We'll send a 6-digit code to reset your password.</p>
+
+          <button type="submit" class="submit-btn" [disabled]="isSendingForgotOtp">
+            {{ isSendingForgotOtp ? 'SENDING...' : 'SEND CODE' }}
+          </button>
+
+          <button type="button" class="forgot-back-btn" (click)="backToLoginFromForgot()">Back to log in</button>
+        </form>
+      </ng-container>
+
+      <!-- STEP 2: Enter OTP + set new password -->
+      <div *ngIf="forgotStep === 'reset'" class="otp-step">
+        <div class="otp-icon-circle otp-icon-circle--success">
+          <svg width="26" height="20" viewBox="0 0 26 20" fill="none">
+            <path d="M2 10L9 17L24 2" stroke="#375534" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <h2 class="otp-title">Reset Your Password</h2>
+        <p class="otp-subtitle">Enter the 6-digit code sent to</p>
+        <p class="otp-masked-contact">{{ forgotIdentifier }}</p>
+
+        <div class="otp-countdown">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+            <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span *ngIf="!canResendOtp">RESEND OTP IN {{ otpCountdownLabel }}</span>
+          <button
+            type="button"
+            class="otp-resend-link"
+            *ngIf="canResendOtp"
+            [disabled]="isSendingForgotOtp"
+            (click)="resendForgotOtp()">
+            {{ isSendingForgotOtp ? 'RESENDING...' : 'RESEND OTP' }}
+          </button>
+        </div>
+
+        <div class="otp-input-container" style="position: relative; display: flex; justify-content: center; cursor: text;" (click)="focusHiddenForgotInput()">
+          <input
+            #hiddenForgotOtpInput
+            type="tel"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            [value]="forgotOtpValue"
+            (input)="onHiddenForgotOtpInput($event)"
+            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 10; cursor: pointer; color: transparent; background: transparent; caret-color: transparent;"
+          >
+          <div class="otp-input-row" style="pointer-events: none;">
+            <input
+              *ngFor="let digit of forgotOtpDigits; trackBy: trackByFn"
+              type="text"
+              readonly
+              tabindex="-1"
+              class="otp-digit-input"
+              [class.filled]="digit"
+              [value]="digit"
+            >
+          </div>
+        </div>
+
+        <form (submit)="submitResetPassword($event)" class="auth-form forgot-reset-form">
+          <div class="auth-input-group">
+            <label class="auth-input-label">NEW PASSWORD</label>
+            <div class="password-input-wrapper">
+              <input
+                [type]="showForgotPassword ? 'text' : 'password'"
+                class="auth-input password-input"
+                [class.input-error]="forgotNewPasswordError"
+                [(ngModel)]="forgotNewPassword"
+                name="forgotNewPassword"
+                (blur)="forgotNewPasswordTouched = true"
+                (input)="forgotNewPasswordTouched = true"
+                placeholder="8-15 chars, no spaces"
+                required>
+              <button
+                type="button"
+                class="password-toggle-btn"
+                (click)="toggleForgotPasswordVisibility()"
+                [attr.aria-label]="showForgotPassword ? 'Hide password' : 'Show password'">
+                <svg *ngIf="!showForgotPassword" lucideEyeOff [size]="18"></svg>
+                <svg *ngIf="showForgotPassword" lucideEye [size]="18"></svg>
+              </button>
+            </div>
+            <div class="password-strength-container" *ngIf="forgotNewPassword" [class.strength-weak]="forgotPasswordStrengthScore === 1" [class.strength-medium]="forgotPasswordStrengthScore === 2" [class.strength-strong]="forgotPasswordStrengthScore === 3">
+              <div class="strength-bar">
+                <div class="strength-segment" [class.filled]="forgotPasswordStrengthScore >= 1"></div>
+                <div class="strength-segment" [class.filled]="forgotPasswordStrengthScore >= 2"></div>
+                <div class="strength-segment" [class.filled]="forgotPasswordStrengthScore >= 3"></div>
+              </div>
+              <span class="strength-label">{{ forgotPasswordStrengthLabel }}</span>
+            </div>
+            <div *ngIf="forgotNewPasswordError" class="error-message">{{ forgotNewPasswordError }}</div>
+          </div>
+
+          <div class="auth-input-group">
+            <label class="auth-input-label">CONFIRM NEW PASSWORD</label>
+            <div class="password-input-wrapper">
+              <input
+                [type]="showForgotConfirmPassword ? 'text' : 'password'"
+                class="auth-input password-input"
+                [class.input-error]="forgotConfirmPasswordError"
+                [(ngModel)]="forgotConfirmPassword"
+                name="forgotConfirmPassword"
+                (blur)="forgotConfirmPasswordTouched = true"
+                (input)="forgotConfirmPasswordTouched = true"
+                placeholder="Must match new password"
+                required>
+              <button
+                type="button"
+                class="password-toggle-btn"
+                (click)="toggleForgotConfirmPasswordVisibility()"
+                [attr.aria-label]="showForgotConfirmPassword ? 'Hide password' : 'Show password'">
+                <svg *ngIf="!showForgotConfirmPassword" lucideEyeOff [size]="18"></svg>
+                <svg *ngIf="showForgotConfirmPassword" lucideEye [size]="18"></svg>
+              </button>
+            </div>
+            <div *ngIf="forgotConfirmPasswordError" class="error-message">{{ forgotConfirmPasswordError }}</div>
+          </div>
+
+          <p class="otp-error" *ngIf="forgotOtpError">{{ forgotOtpError }}</p>
+
+          <div class="otp-action-buttons">
+            <button type="button" class="otp-btn-cancel" (click)="cancelForgotOtp()">CANCEL</button>
+            <button
+              type="submit"
+              class="otp-btn-confirm"
+              [disabled]="forgotOtpValue.length !== 6 || !!forgotNewPasswordError || !!forgotConfirmPasswordError || isResettingPassword">
+              {{ isResettingPassword ? 'RESETTING...' : 'RESET PASSWORD' }}
+            </button>
+          </div>
+        </form>
+
+        <div class="otp-footer">© Offsite 2026 · Ho Chi Minh City, Vietnam</div>
+      </div>
+
+    </div>
+
     <!-- T&C Footer -->
-    <div class="auth-footer" *ngIf="!(mode() === 'signup' && isOtpStep)">
+    <div class="auth-footer" *ngIf="!(mode() === 'signup' && isOtpStep) && mode() !== 'forgot'">
       <span class="footer-muted-text">
         By continuing, you agree to our <a href="#" class="footer-link">Terms of Service</a> & <a href="#" class="footer-link">Privacy Policy</a>
       </span>
@@ -398,4 +564,8 @@
 <!-- DEV MODE OTP badge -->
 <div class="otp-dev-badge" *ngIf="mockOtp && mode() === 'signup' && isOtpStep">
   DEV OTP: {{ mockOtp }}
+</div>
+
+<div class="otp-dev-badge" *ngIf="mockForgotOtp && mode() === 'forgot' && forgotStep === 'reset'">
+  DEV OTP: {{ mockForgotOtp }}
 </div>
