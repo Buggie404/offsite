@@ -10,7 +10,11 @@ const { mergeGuestCartIntoUser } = require('../services/cart-merge.service');
 function normalizeIdentity(value, isEmail = false) {
   if (!value) return null;
   let v = String(value).trim();
-  if (!isEmail) v = v.replace(/\s+/g, '');
+  if (!isEmail) {
+    v = v.replace(/\s+/g, '');
+  } else {
+    v = v.toLowerCase();
+  }
   return v;
 }
 
@@ -410,9 +414,8 @@ async function login(req, res) {
       return res.status(400).json({ error: 'Vui lòng cung cấp email và password.', code: 'MISSING_FIELDS' });
     }
     let identifier = String(email).trim();
-    if (identifier && !identifier.includes('@')) {
-      identifier = identifier.replace(/\s+/g, '');
-    }
+    const isEmail = identifier.includes('@');
+    identifier = normalizeIdentity(identifier, isEmail);
 
     const { userCollection } = await getCollections();
    
@@ -488,7 +491,7 @@ async function adminLogin(req, res) {
       return res.status(400).json({ error: 'Vui lòng cung cấp email và password.', code: 'MISSING_FIELDS' });
     }
 
-    const identifier = String(email).trim();
+    const identifier = normalizeIdentity(email, true);
     const { userCollection } = await getCollections();
 
     const user = await userCollection.findOne({ email: identifier });
