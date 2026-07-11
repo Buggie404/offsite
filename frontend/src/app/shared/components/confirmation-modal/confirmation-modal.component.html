@@ -1,26 +1,41 @@
-<div class="modal-backdrop" *ngIf="isOpen" (click)="onCancel()">
-  <div class="modal-container" (click)="$event.stopPropagation()">
-    <button type="button" class="close-btn" (click)="onCancel()" aria-label="Close modal">
-      <svg lucideX [size]="24"></svg>
+<div class="modal-overlay" *ngIf="isOpen" (click)="cancel.emit()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <button type="button" class="close-btn" (click)="cancel.emit()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
     </button>
 
-    <div class="icon-wrapper" [class]="'icon-wrapper--' + type">
-      <ng-container [ngSwitch]="type">
-        <svg *ngSwitchCase="'danger'" lucideAlertTriangle [size]="32"></svg>
-        <svg *ngSwitchCase="'success'" lucideCheck [size]="32"></svg>
-        <svg *ngSwitchDefault lucideInfo [size]="32"></svg>
-      </ng-container>
+    <div class="modal-icon" [ngClass]="type">
+      <svg *ngIf="type === 'danger'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        <line x1="10" y1="11" x2="10" y2="17"></line>
+        <line x1="14" y1="11" x2="14" y2="17"></line>
+      </svg>
+
+      <svg *ngIf="type === 'success'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+      </svg>
+
+      <svg *ngIf="type === 'info'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+      </svg>
     </div>
 
-    <header class="modal-header">
-      <h2 class="modal-title">{{ title }}</h2>
-      <p class="confirm-desc">{{ message }}</p>
-      <p class="warning-desc" *ngIf="warningMessage">{{ warningMessage }}</p>
-    </header>
+    <h3 class="modal-title">{{ title }}</h3>
+    <p class="modal-message">{{ message }}</p>
+    <p class="modal-warning" *ngIf="warningMessage">{{ warningMessage }}</p>
 
-    <footer class="modal-footer">
-      <button type="button" class="btn-modal btn-cancel" (click)="onCancel()">{{ cancelText }}</button>
-      <button type="button" [class]="'btn-modal btn-confirm btn-confirm--' + type" (click)="onConfirm()">{{ confirmText }}</button>
-    </footer>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" (click)="cancel.emit()">{{ cancelText }}</button>
+      <button type="button" class="btn-confirm" [ngClass]="type" (click)="confirm.emit()">{{ confirmText }}</button>
+    </div>
   </div>
 </div>
+
+

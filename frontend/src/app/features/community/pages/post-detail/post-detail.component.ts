@@ -43,6 +43,16 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   showPostOptions = false;
   isConfirmModalOpen = false;
 
+  get deleteModalTitle(): string {
+    return this.post?.post_type === 'recipe' ? 'Delete Recipe?' : 'Delete Post?';
+  }
+
+  get deleteModalMessage(): string {
+    return this.post?.post_type === 'recipe' 
+      ? 'Are you sure you want to delete this recipe?' 
+      : 'Are you sure you want to delete this post?';
+  }
+
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
@@ -82,7 +92,6 @@ export class PostDetailComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ── Phân quyền và xóa bài ──
   get isPostAuthor(): boolean {
     const currentUser = this.authService.getUser();
     if (!currentUser || !this.post) return false;
@@ -251,4 +260,5 @@ export class PostDetailComponent implements OnInit, OnDestroy {
     this.router.navigate(['/community']);
   }
 }
+
 
