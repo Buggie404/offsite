@@ -81,7 +81,12 @@ async function getPostById(req, res) {
       }
     }
 
-    res.json({ ...post.toObject(), liked, saved });
+    let recipeDetails = null;
+    if (post.post_type === 'recipe' && post.recipe_id) {
+      recipeDetails = await Recipe.findOne({ recipe_id: post.recipe_id });
+    }
+
+    res.json({ ...post.toObject(), liked, saved, recipe: recipeDetails });
   } catch (error) {
     console.error('Error fetching post:', error);
     res.status(500).json({ error: 'Failed to retrieve post' });

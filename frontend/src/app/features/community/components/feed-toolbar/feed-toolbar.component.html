@@ -36,6 +36,20 @@
         >
           Matcha
         </button>
+        <button
+          class="filter"
+          [class.active]="activeCategory === 'RECIPE'"
+          (click)="onFilterClick('RECIPE')"
+        >
+          Recipe
+        </button>
+        <button
+          class="filter"
+          [class.active]="activeCategory === 'MY_POST'"
+          (click)="onFilterClick('MY_POST')"
+        >
+          My Post
+        </button>
       </div>
 
       <select class="sort-select" [value]="sort" (change)="onSortChange($event)">

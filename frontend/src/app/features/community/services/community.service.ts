@@ -34,7 +34,7 @@ export class CommunityService {
     posts: [] as Post[],
     page: 1,
     hasMore: true,
-    activeCategory: '' as 'MATCHA' | 'COFFEE' | '',
+    activeCategory: '' as 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '',
     sort: 'created_at' as 'created_at' | 'like_count',
     scrollY: 0
   };
@@ -44,11 +44,18 @@ export class CommunityService {
   getFeed(
     page: number = 1,
     limit: number = 9,
-    base: 'MATCHA' | 'COFFEE' | '' = '',
-    sort: 'created_at' | 'like_count' = 'created_at'
+    activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '' = '',
+    sort: 'created_at' | 'like_count' = 'created_at',
+    userId?: string
   ): Observable<FeedResponse> {
     let url = `${this.apiUrl}?page=${page}&limit=${limit}`;
-    if (base) url += `&base=${base}`;
+    if (activeCategory === 'COFFEE' || activeCategory === 'MATCHA') {
+      url += `&base=${activeCategory}`;
+    } else if (activeCategory === 'RECIPE') {
+      url += `&post_type=recipe`;
+    } else if (activeCategory === 'MY_POST' && userId) {
+      url += `&user_id=${userId}`;
+    }
     if (sort === 'like_count') url += '&sort=like_count';
     return this.http.get<FeedResponse>(url);
   }

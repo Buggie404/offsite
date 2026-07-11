@@ -24,25 +24,18 @@
         </div>
 
         <div class="field-block">
-          <label class="field-label">RECIPE TITLE *</label>
-          <input
-            class="text-input"
-            type="text"
-            placeholder="e.g., My matcha morning ritual"
-            [(ngModel)]="title"
-            name="title"
-          />
+          <label class="field-label" for="recipe-title-input">RECIPE TITLE *</label>
+          <input id="recipe-title-input" class="text-input" type="text" placeholder="e.g., My matcha morning ritual"
+            [(ngModel)]="title" name="title" (blur)="onFieldBlur('recipe-title-input')" />
+          <span id="recipe-title-error" class="field-error"></span>
         </div>
 
         <div class="field-block">
-          <label class="field-label">DESCRIPTION *</label>
-          <textarea
-            class="content-textarea"
-            rows="4"
+          <label class="field-label" for="recipe-description-textarea">DESCRIPTION *</label>
+          <textarea id="recipe-description-textarea" class="content-textarea" rows="4"
             placeholder="Tell the story of your recipe — the pause, the steam, the quiet moment that resets everything…"
-            [(ngModel)]="description"
-            name="description"
-          ></textarea>
+            [(ngModel)]="description" name="description" (blur)="onFieldBlur('recipe-description-textarea')"></textarea>
+          <span id="recipe-description-error" class="field-error"></span>
         </div>
       </section>
 
@@ -69,6 +62,7 @@
             <svg lucideX [size]="14"></svg>
           </button>
         </div>
+        <span class="field-error" *ngIf="showPhotoError">A cover photo is required.</span>
       </section>
 
       <!-- RECIPE DETAILS -->
@@ -80,23 +74,34 @@
 
         <div class="details-grid">
           <div class="field-block">
-            <label class="field-label">SERVINGS</label>
-            <input class="text-input" type="number" min="1" placeholder="2" [(ngModel)]="servings" name="servings" />
+            <label class="field-label" for="recipe-servings-input">SERVINGS</label>
+            <input id="recipe-servings-input" class="text-input" type="text" inputmode="numeric"
+              placeholder="1" [ngModel]="servings" (input)="sanitizeNumberInput($event, 'servings')" name="servings" (keydown)="blockNonNumericKey($event)"
+              (paste)="sanitizeNumericPaste($event)" (blur)="onFieldBlur('recipe-servings-input')" />
+            <span id="recipe-servings-error" class="field-error"></span>
           </div>
           <div class="field-block">
-            <label class="field-label">PREP TIME (MIN)</label>
-            <input class="text-input" type="number" min="0" placeholder="10" [(ngModel)]="prepTime" name="prepTime" />
+            <label class="field-label" for="recipe-preptime-input">PREP TIME (MIN)</label>
+            <input id="recipe-preptime-input" class="text-input" type="text" inputmode="numeric"
+              placeholder="1" [ngModel]="prepTime" (input)="sanitizeNumberInput($event, 'prepTime')" name="prepTime" (keydown)="blockNonNumericKey($event)"
+              (paste)="sanitizeNumericPaste($event)" (blur)="onFieldBlur('recipe-preptime-input')" />
+            <span id="recipe-preptime-error" class="field-error"></span>
           </div>
           <div class="field-block">
-            <label class="field-label">COOK TIME (MIN)</label>
-            <input class="text-input" type="number" min="0" placeholder="5" [(ngModel)]="cookTime" name="cookTime" />
+            <label class="field-label" for="recipe-cooktime-input">COOK TIME (MIN)</label>
+            <input id="recipe-cooktime-input" class="text-input" type="text" inputmode="numeric"
+              placeholder="1" [ngModel]="cookTime" (input)="sanitizeNumberInput($event, 'cookTime')" name="cookTime" (keydown)="blockNonNumericKey($event)"
+              (paste)="sanitizeNumericPaste($event)" (blur)="onFieldBlur('recipe-cooktime-input')" />
+            <span id="recipe-cooktime-error" class="field-error"></span>
           </div>
           <div class="field-block">
-            <label class="field-label">DIFFICULTY</label>
-            <select class="select-input" [(ngModel)]="difficulty" name="difficulty">
+            <label class="field-label" for="recipe-difficulty-select">DIFFICULTY *</label>
+            <select id="recipe-difficulty-select" class="select-input" [(ngModel)]="difficulty" name="difficulty"
+              (blur)="onFieldBlur('recipe-difficulty-select')">
               <option value="" disabled>Select difficulty</option>
               <option *ngFor="let d of allDifficulties" [value]="d">{{ d | titlecase }}</option>
             </select>
+            <span id="recipe-difficulty-error" class="field-error"></span>
           </div>
         </div>
       </section>
@@ -110,12 +115,31 @@
         </div>
 
         <div class="ingredient-row" *ngFor="let ing of ingredients; let i = index">
-          <input class="text-input flex-name" type="text" placeholder="Ingredient name" [(ngModel)]="ing.name" [name]="'ing-name-' + i" />
-          <input class="text-input flex-qty" type="number" placeholder="1" [(ngModel)]="ing.quantity" [name]="'ing-qty-' + i" />
-          <button class="row-remove" type="button" (click)="removeIngredient(i)" [disabled]="ingredients.length === 1" aria-label="Remove ingredient">
+          <input class="text-input flex-name" type="text" placeholder="Ingredient name" [(ngModel)]="ing.name"
+            [name]="'ing-name-' + i" (input)="ingredientsTouched = true" (blur)="ingredientsTouched = true" />
+          <input class="text-input flex-qty" type="text" inputmode="numeric" placeholder="Qty" [ngModel]="ing.quantity"
+            [name]="'ing-qty-' + i" (keydown)="blockNonNumericKey($event)" (paste)="sanitizeNumericPaste($event)"
+            (input)="sanitizeNumberInput($event, 'ingredient', i)" />
+          <input class="text-input flex-unit" type="text" list="units" placeholder="Unit (g, ml...)" [(ngModel)]="ing.unit"
+            [name]="'ing-unit-' + i" />
+          <button class="row-remove" type="button" (click)="removeIngredient(i)" [disabled]="ingredients.length === 1"
+            aria-label="Remove ingredient">
             <svg lucideX [size]="12"></svg>
           </button>
         </div>
+        <datalist id="units">
+          <option value="g">
+          <option value="kg">
+          <option value="ml">
+          <option value="l">
+          <option value="tsp">
+          <option value="tbsp">
+          <option value="cup">
+          <option value="oz">
+          <option value="pcs">
+          <option value="pinch">
+        </datalist>
+        <span class="field-error" *ngIf="showIngredientsError">At least one ingredient is required.</span>
       </section>
 
       <!-- TOOLS -->
@@ -127,7 +151,8 @@
         </div>
 
         <div class="ingredient-row" *ngFor="let tool of tools; let i = index">
-          <input class="text-input flex-name" type="text" placeholder="e.g., Bamboo whisk" [(ngModel)]="tool.name" [name]="'tool-name-' + i" />
+          <input class="text-input flex-name" type="text" placeholder="e.g., Bamboo whisk" [(ngModel)]="tool.name"
+            [name]="'tool-name-' + i" />
           <button class="row-remove" type="button" (click)="removeTool(i)" aria-label="Remove tool">
             <svg lucideX [size]="12"></svg>
           </button>
@@ -146,19 +171,17 @@
           <div class="step-item" *ngFor="let step of steps; let i = index">
             <div class="step-item-header">
               <span class="step-label">STEP {{ i + 1 }}</span>
-              <button class="row-remove" type="button" (click)="removeStep(i)" [disabled]="steps.length === 1" aria-label="Remove step">
+              <button class="row-remove" type="button" (click)="removeStep(i)" [disabled]="steps.length === 1"
+                aria-label="Remove step">
                 <svg lucideX [size]="12"></svg>
               </button>
             </div>
-            <textarea
-              class="content-textarea"
-              rows="3"
-              placeholder="Describe this step..."
-              [(ngModel)]="step.description"
-              [name]="'step-desc-' + i"
-            ></textarea>
+            <textarea class="content-textarea" rows="3" placeholder="Describe this step..."
+              [(ngModel)]="step.description" [name]="'step-desc-' + i" (input)="stepsTouched = true"
+              (blur)="stepsTouched = true"></textarea>
           </div>
         </div>
+        <span class="field-error" *ngIf="showStepsError">At least one step is required.</span>
       </section>
 
       <!-- SERVE STYLE -->
@@ -169,13 +192,8 @@
         </div>
 
         <div class="serve-style-row">
-          <button
-            type="button"
-            class="serve-pill"
-            *ngFor="let style of serveStyles"
-            [class.selected]="selectedServeStyle === style"
-            (click)="selectServeStyle(style)"
-          >
+          <button type="button" class="serve-pill" *ngFor="let style of serveStyles"
+            [class.selected]="selectedServeStyle === style" (click)="selectServeStyle(style)">
             <svg lucideCircleCheck [size]="18"></svg>
             <span>{{ style | titlecase }}</span>
           </button>
@@ -188,7 +206,7 @@
     <!-- Footer -->
     <div class="modal-footer">
       <button class="btn-cancel" type="button" (click)="onRequestClose()">CANCEL</button>
-      <button class="btn-post" type="button" [disabled]="isSubmitting" (click)="submitRecipe()">
+      <button class="btn-post" type="button" [disabled]="isSubmitting || !isFormValid" (click)="submitRecipe()">
         {{ isSubmitting ? 'PUBLISHING...' : 'PUBLISH RECIPE' }}
       </button>
     </div>

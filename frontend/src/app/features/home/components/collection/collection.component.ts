@@ -15,11 +15,12 @@ export interface Collection {
 }
 
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
+import { ParallaxDirective } from '../../../../shared/directives/parallax.directive';
 
 @Component({
   selector: 'app-collection',
   standalone: true,
-  imports: [CommonModule, RouterLink, AnimateInViewDirective],
+  imports: [CommonModule, RouterLink, AnimateInViewDirective, ParallaxDirective],
   templateUrl: './collection.component.html',
   styleUrls: ['./collection.component.scss'],
 })

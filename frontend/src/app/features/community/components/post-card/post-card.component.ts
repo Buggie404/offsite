@@ -27,7 +27,9 @@ export class PostCardComponent {
   }
 
   get cardColor(): string {
-    return this.post?.base === 'COFFEE' ? '#EFEBE6' : '#EAEFE9';
+    if (this.post?.base === 'COFFEE') return '#EFEBE6';
+    if (this.post?.base === 'RECIPE') return '#F2E9DC';
+    return '#EAEFE9';
   }
 
   onCardClick(): void {

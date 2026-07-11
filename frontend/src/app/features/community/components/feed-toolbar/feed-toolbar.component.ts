@@ -10,12 +10,12 @@ import { CommonModule } from '@angular/common';
 })
 export class FeedToolbarComponent {
 
-  @Input() activeCategory: 'MATCHA' | 'COFFEE' | '' = '';
+  @Input() activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '' = '';
   @Input() sort: 'created_at' | 'like_count' = 'created_at';
 
   @Output() createPost = new EventEmitter<void>();
   @Output() createRecipe = new EventEmitter<void>();
-  @Output() categoryChange = new EventEmitter<'MATCHA' | 'COFFEE' | ''>();
+  @Output() categoryChange = new EventEmitter<'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | ''>();
   @Output() sortChange = new EventEmitter<'created_at' | 'like_count'>();
 
   onCreatePost() {
@@ -26,7 +26,7 @@ export class FeedToolbarComponent {
     this.createRecipe.emit();
   }
 
-  onFilterClick(value: 'MATCHA' | 'COFFEE' | '') {
+  onFilterClick(value: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '') {
     if (this.activeCategory === value) return;
     this.categoryChange.emit(value);
   }

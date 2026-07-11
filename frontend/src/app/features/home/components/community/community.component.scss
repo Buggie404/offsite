@@ -40,6 +40,8 @@
   position: absolute;
   z-index: 0;
   pointer-events: none;
+  transform: translate3d(0, var(--parallax-y, 0px), 0);
+  will-change: transform;
 }
 
 .geo--ring {
@@ -78,7 +80,7 @@
   top: 40%;
   left: 4%;
   border: 1.5px solid var(--color-warm-brown);
-  transform: rotate(45deg);
+  transform: translate3d(0, var(--parallax-y, 0px), 0) rotate(45deg);
   opacity: 0.3;
 }
 

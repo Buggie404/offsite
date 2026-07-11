@@ -170,6 +170,11 @@
     color: #7B614A;
     border-color: #7B614A;
   }
+
+  &--recipe {
+    color: #375534;
+    border-color: #375534;
+  }
 }
 
 
@@ -200,6 +205,7 @@
     font-family: 'DM Sans', serif; 
     font-size: 1.8rem; 
     font-weight: 400;
+    font-style: italic;
     line-height: 1.35;
     color: #2A2A2A; 
     text-align: left; 

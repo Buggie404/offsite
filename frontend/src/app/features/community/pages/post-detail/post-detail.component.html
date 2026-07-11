@@ -22,7 +22,7 @@
         <p class="author-name">@{{ post.author.username }}</p>
         <p class="post-time">{{ timeAgo(post.created_at) }}</p>
       </div>
-      <span class="base-chip" [class.base-chip--matcha]="post.base === 'MATCHA'" [class.base-chip--coffee]="post.base === 'COFFEE'">{{ post.base }}</span>
+      <span class="base-chip" [class.base-chip--matcha]="post.base === 'MATCHA'" [class.base-chip--coffee]="post.base === 'COFFEE'" [class.base-chip--recipe]="post.base === 'RECIPE'">{{ post.base }}</span>
       
       <div class="post-options" *ngIf="isPostAuthor">
         <button type="button" class="options-trigger" (click)="togglePostOptions($event)">
@@ -38,7 +38,67 @@
       </div>
     </div>
 
-    <p class="post-content">
+    <div class="recipe-intro" *ngIf="post.post_type === 'recipe' && post.recipe">
+      <h1 class="recipe-title">{{ post.recipe.title }}</h1>
+
+      <!-- Specs Grid (Below title, above description) -->
+      <div class="recipe-specs">
+        <div class="spec-item">
+          <span class="spec-label">PREP TIME</span>
+          <span class="spec-val">{{ post.recipe.metadata.prepTime }} MINS</span>
+        </div>
+        <div class="spec-item" *ngIf="post.recipe.metadata.cookTime">
+          <span class="spec-label">COOK TIME</span>
+          <span class="spec-val">{{ post.recipe.metadata.cookTime }} MINS</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-label">YIELD</span>
+          <span class="spec-val">{{ post.recipe.metadata.servings }} {{ post.recipe.metadata.servings === 1 ? 'Serving' : 'Servings' }}</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-label">DIFFICULTY</span>
+          <span class="spec-val difficulty-badge" [ngClass]="post.recipe.metadata.difficulty.toLowerCase()">
+            {{ post.recipe.metadata.difficulty }}
+          </span>
+        </div>
+        <div class="spec-item" *ngIf="post.recipe.metadata.tags && post.recipe.metadata.tags.length">
+          <span class="spec-label">SERVE STYLE</span>
+          <span class="spec-val">{{ post.recipe.metadata.tags.join(', ') | titlecase }}</span>
+        </div>
+      </div>
+
+      <p class="recipe-description">{{ post.recipe.description }}</p>
+    </div>
+
+    <!-- Recipe Info Details Block (Text-only display) - Moved above image -->
+    <div class="recipe-info-block-text" *ngIf="post.post_type === 'recipe' && post.recipe">
+      <!-- Ingredients & Tools -->
+      <div class="recipe-text-section">
+        <h3 class="section-title">Ingredients & Tools</h3>
+        <ul class="recipe-text-list">
+          <li *ngFor="let ing of post.recipe.ingredients">
+            • <span class="qty" *ngIf="ing.quantity">{{ ing.quantity }} {{ ing.unit }} </span>
+            <span class="optional" *ngIf="ing.optional">(Optional) </span>
+            {{ ing.name }}
+          </li>
+          <li *ngFor="let tool of post.recipe.tools">
+            • {{ tool.name }}
+          </li>
+        </ul>
+      </div>
+
+      <!-- Steps -->
+      <div class="recipe-text-section">
+        <h3 class="section-title">Instructions</h3>
+        <div class="recipe-text-steps">
+          <div class="recipe-text-step" *ngFor="let step of post.recipe.steps; let idx = index">
+            <p class="step-desc-line">{{ idx + 1 }}. {{ step.description }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="post-content" *ngIf="post.post_type !== 'recipe'">
       <ng-container *ngFor="let part of postContentParts">
         <span *ngIf="part.isTag" class="hashtag">{{ part.text }}</span>
         <ng-container *ngIf="!part.isTag">{{ part.text }}</ng-container>

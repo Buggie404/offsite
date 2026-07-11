@@ -11,13 +11,14 @@ import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
+import { ParallaxDirective } from '../../../../shared/directives/parallax.directive';
 import { QuickViewModalComponent } from '../../../shop/components/quick-view-modal/quick-view-modal.component';
 import { ProductReviewMetric, getDisplayProductReviewMetric } from '../../../../shared/data/mock-product-reviews';
 
 @Component({
   selector: 'app-best-seller',
   standalone: true,
-  imports: [CommonModule, RouterLink, LucideArrowRight, LucideEye, LucideHeart, LucideStar, LucideChevronLeft, LucideChevronRight, DragScrollDirective, AnimateInViewDirective, QuickViewModalComponent],
+  imports: [CommonModule, RouterLink, LucideArrowRight, LucideEye, LucideHeart, LucideStar, LucideChevronLeft, LucideChevronRight, DragScrollDirective, AnimateInViewDirective, ParallaxDirective, QuickViewModalComponent],
   templateUrl: './best-seller.component.html',
   styleUrls: ['./best-seller.component.scss'],
 })

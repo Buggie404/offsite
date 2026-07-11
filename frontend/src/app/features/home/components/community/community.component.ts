@@ -16,6 +16,7 @@ import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
+import { ParallaxDirective } from '../../../../shared/directives/parallax.directive';
 
 // Fallback images (Unsplash) – dùng khi bài post trong DB không có ảnh
 const FALLBACK_IMAGES = [
@@ -117,7 +118,7 @@ export interface CommunityCard {
 @Component({
   selector: 'app-community',
   standalone: true,
-  imports: [CommonModule, DragScrollDirective, AnimateInViewDirective],
+  imports: [CommonModule, DragScrollDirective, AnimateInViewDirective, ParallaxDirective],
   templateUrl: './community.component.html',
   styleUrls: ['./community.component.scss']
 })

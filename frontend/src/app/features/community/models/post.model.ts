@@ -1,3 +1,5 @@
+import { Recipe } from '../../home/models/recipe.model';
+
 export interface PostAuthor {
   username: string;
   avatar_url: string | null;
@@ -20,7 +22,7 @@ export interface Post {
   media: PostMedia[];
 
   recipe_id: string | null;
-  base: 'MATCHA' | 'COFFEE';
+  base: 'MATCHA' | 'COFFEE' | 'RECIPE';
   like_count: number;
   comment_count: number;
   share_count: number;
@@ -30,6 +32,8 @@ export interface Post {
 
   created_at: string;
   updatedAt: string;
+
+  recipe?: Recipe;
 }
 
 export interface FeedResponse {
