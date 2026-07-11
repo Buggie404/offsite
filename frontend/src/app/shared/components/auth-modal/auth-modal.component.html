@@ -490,13 +490,21 @@
                 <svg *ngIf="showForgotPassword" lucideEye [size]="18"></svg>
               </button>
             </div>
-            <div class="password-strength-container" *ngIf="forgotNewPassword" [class.strength-weak]="forgotPasswordStrengthScore === 1" [class.strength-medium]="forgotPasswordStrengthScore === 2" [class.strength-strong]="forgotPasswordStrengthScore === 3">
-              <div class="strength-bar">
+            <div class="password-strength-container" *ngIf="forgotNewPassword">
+              <div
+                class="strength-bar"
+                [class.strength-weak]="forgotPasswordStrengthScore === 1"
+                [class.strength-medium]="forgotPasswordStrengthScore === 2"
+                [class.strength-strong]="forgotPasswordStrengthScore === 3">
                 <div class="strength-segment" [class.filled]="forgotPasswordStrengthScore >= 1"></div>
                 <div class="strength-segment" [class.filled]="forgotPasswordStrengthScore >= 2"></div>
                 <div class="strength-segment" [class.filled]="forgotPasswordStrengthScore >= 3"></div>
               </div>
-              <span class="strength-label">{{ forgotPasswordStrengthLabel }}</span>
+              <span
+                class="strength-label"
+                [class.strength-weak]="forgotPasswordStrengthScore === 1"
+                [class.strength-medium]="forgotPasswordStrengthScore === 2"
+                [class.strength-strong]="forgotPasswordStrengthScore === 3">{{ forgotPasswordStrengthLabel }}</span>
             </div>
             <div *ngIf="forgotNewPasswordError" class="error-message">{{ forgotNewPasswordError }}</div>
           </div>
@@ -533,7 +541,7 @@
             <button
               type="submit"
               class="otp-btn-confirm"
-              [disabled]="forgotOtpValue.length !== 6 || !!forgotNewPasswordError || !!forgotConfirmPasswordError || isResettingPassword">
+              [disabled]="forgotOtpValue.length !== 6 || !isForgotResetFormValid || isResettingPassword">
               {{ isResettingPassword ? 'RESETTING...' : 'RESET PASSWORD' }}
             </button>
           </div>

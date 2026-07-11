@@ -48,8 +48,8 @@
 
 .auth-modal-card {
   position: relative;
-  width: 440px;
-  max-width: 90%;
+  width: 500px;
+  max-width: 92%;
   background-color: var(--color-cream);
   border-radius: 16px;
   box-shadow: 0 20px 40px rgba(55, 85, 52, 0.15);
@@ -368,6 +368,8 @@
   }
 
   .forgot-reset-form {
+    width: 100%;
+    align-self: stretch;
     text-align: left;
     margin-top: 20px;
   }
@@ -741,6 +743,8 @@
   .otp-btn-cancel {
     flex: 1;
     height: 52px;
+    padding: 0 16px;
+    white-space: nowrap;
     border-radius: var(--radius-pill);
     background: transparent;
     border: 2px solid var(--color-forest-green);
@@ -771,6 +775,8 @@
   .otp-btn-confirm {
     flex: 1;
     height: 52px;
+    padding: 0 12px;
+    white-space: nowrap;
     border-radius: var(--radius-pill);
     background-color: var(--color-forest-green);
     color: var(--color-cream);

@@ -317,6 +317,13 @@ export class AuthModalComponent implements OnDestroy {
     return null;
   }
 
+  get isForgotResetFormValid(): boolean {
+    const p = this.forgotNewPassword;
+    const validNewPassword = !!p && p.length >= 8 && p.length <= 15 && !/\s/.test(p);
+    const validConfirmPassword = !!this.forgotConfirmPassword && this.forgotConfirmPassword === p;
+    return validNewPassword && validConfirmPassword;
+  }
+
   get forgotPasswordStrengthScore(): number {
     const p = this.forgotNewPassword;
     if (!p) return 0;
