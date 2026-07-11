@@ -108,8 +108,8 @@ export class AdminSignInComponent implements OnInit {
       return;
     }
 
-    if (this.password.length < 6) {
-      this.passwordError = 'Password must be at least 6 characters';
+    if (this.password.length < 8 || this.password.length > 15) {
+      this.passwordError = 'Password must be 8-15 characters';
       return;
     }
 
