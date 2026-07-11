@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -11,6 +11,8 @@ interface CommentThread extends Comment {
 
 // Tự chủ hoàn toàn: chỉ cần truyền postId, component tự gọi API load/gửi/like comment,
 // không phụ thuộc vào state của component cha (post-detail).
+// NOTE: vẫn emit commentCountChange ra ngoài để post-detail cập nhật số đếm
+// hiển thị trên post ngay lập tức, không cần đợi user F5 / load lại post.
 @Component({
   selector: 'app-comment-section',
   standalone: true,
@@ -18,12 +20,17 @@ interface CommentThread extends Comment {
   templateUrl: './comment-section.component.html',
   styleUrls: ['./comment-section.component.scss']
 })
-export class CommentSectionComponent implements OnInit {
+export class CommentSectionComponent implements OnInit, OnDestroy {
 
   private communityService = inject(CommunityService);
   private cdr = inject(ChangeDetectorRef);
 
   @Input() postId!: string;
+
+  // Emits the authoritative total comment count (top-level + replies) every
+  // time it changes, straight from the server response — parent listens to
+  // this instead of trying to guess/increment locally.
+  @Output() commentCountChange = new EventEmitter<number>();
 
   commentThreads: CommentThread[] = [];
   commentsLoading = false;
@@ -38,8 +45,18 @@ export class CommentSectionComponent implements OnInit {
   // Track comment ids đã like trong session này (backend không lưu per-user like state cho comment)
   likedCommentIds = new Set<string>();
 
+  // Dùng để force re-render timeAgo() định kỳ — text như "JUST NOW" / "3M AGO"
+  // chỉ đổi khi Angular chạy change detection, mà CD chỉ chạy khi có event.
+  // Không có interval thì thời gian bị "đứng hình" cho đến lần user tương tác kế tiếp.
+  private timeTickHandle?: ReturnType<typeof setInterval>;
+
   ngOnInit(): void {
     this.loadComments();
+    this.timeTickHandle = setInterval(() => this.cdr.detectChanges(), 30000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.timeTickHandle) clearInterval(this.timeTickHandle);
   }
 
   loadComments(): void {
@@ -48,6 +65,7 @@ export class CommentSectionComponent implements OnInit {
       next: (res) => {
         this.commentThreads = this.buildThreads(res.data);
         this.commentsLoading = false;
+        this.commentCountChange.emit(res.total);
         this.cdr.detectChanges();
       },
       error: () => {
@@ -82,6 +100,7 @@ export class CommentSectionComponent implements OnInit {
 
   cancelReply(): void {
     this.replyingTo = null;
+    this.newCommentText = '';
   }
 
   // Xóa nội dung đang gõ ở ô comment chính (nút X)
@@ -108,7 +127,8 @@ export class CommentSectionComponent implements OnInit {
         this.postingComment = false;
         this.loadComments();
       },
-      error: () => {
+      error: (err) => {
+        console.error('Failed to submit comment:', err);
         this.postingComment = false;
         this.cdr.detectChanges();
       }

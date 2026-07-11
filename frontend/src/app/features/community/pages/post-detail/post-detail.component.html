@@ -133,8 +133,13 @@
 
     <hr class="divider">
 
-    <!-- ── COMMENT SECTION (tự chủ, chỉ cần truyền postId) ── -->
-    <app-comment-section [postId]="post.post_id"></app-comment-section>
+    <!-- ── COMMENT SECTION (tự chủ, chỉ cần truyền postId) ──
+         commentCountChange: nhận số comment thật từ server ngay khi user
+         post/reply comment, để badge trên post cập nhật realtime. -->
+    <app-comment-section
+      [postId]="post.post_id"
+      (commentCountChange)="onCommentCountChange($event)">
+    </app-comment-section>
 
   </div>
 

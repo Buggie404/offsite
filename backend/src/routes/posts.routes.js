@@ -17,5 +17,6 @@ router.put('/:id', authMiddleware, upload.none(), postsController.updatePost);
 router.delete('/:id', authMiddleware, postsController.deletePost);
 router.post('/:id/like', authMiddleware, postsController.likePost);
 router.post('/:id/save', authMiddleware, postsController.savePost);
+router.post('/:id/share', authMiddleware, postsController.sharePost); // NEW: wires up sharePost so share_count actually increments
 
 module.exports = router;

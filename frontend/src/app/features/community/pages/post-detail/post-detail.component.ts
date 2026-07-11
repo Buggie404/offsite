@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -15,7 +15,7 @@ import { ShareModalComponent } from '../../components/share-modal/share-modal.co
   templateUrl: './post-detail.component.html',
   styleUrls: ['./post-detail.component.scss']
 })
-export class PostDetailComponent implements OnInit {
+export class PostDetailComponent implements OnInit, OnDestroy {
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -38,6 +38,11 @@ export class PostDetailComponent implements OnInit {
   activeMediaIndex = 0;
   playingVideoIndex: number | null = null;
 
+  // Force re-render các label thời gian tương đối (post + comment) định kỳ,
+  // vì Angular chỉ re-evaluate template expression khi có change detection,
+  // không tự "tick" theo đồng hồ thật.
+  private timeTickHandle?: ReturnType<typeof setInterval>;
+
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
@@ -46,6 +51,11 @@ export class PostDetailComponent implements OnInit {
       return;
     }
     this.loadPost(id);
+    this.timeTickHandle = setInterval(() => this.cdr.detectChanges(), 30000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.timeTickHandle) clearInterval(this.timeTickHandle);
   }
 
   loadPost(id: string): void {
@@ -156,6 +166,22 @@ export class PostDetailComponent implements OnInit {
 
   sharePost(): void {
     this.showShareModal = true;
+
+    // NOTE: this assumes CommunityService gets a `sharePost(postId)` method
+    // hitting the new POST /posts/:id/share endpoint (see posts.controller.js).
+    // Wire that method up in community.service.ts if it doesn't exist yet.
+    if (!this.post) return;
+    this.communityService.sharePost(this.post.post_id).subscribe({
+      next: (res) => {
+        if (this.post) {
+          this.post.share_count = res.share_count;
+          this.cdr.detectChanges();
+        }
+      },
+      error: (err) => {
+        console.error('Failed to record share:', err);
+      }
+    });
   }
 
   closeShareModal(): void {
@@ -164,6 +190,16 @@ export class PostDetailComponent implements OnInit {
 
   get shareUrl(): string {
     return window.location.href;
+  }
+
+  // Called from (commentCountChange) on <app-comment-section> — keeps the
+  // comment count badge in sync the moment a comment/reply is posted,
+  // instead of only updating on the next full page load.
+  onCommentCountChange(total: number): void {
+    if (this.post) {
+      this.post.comment_count = total;
+      this.cdr.detectChanges();
+    }
   }
 
   parseContentTags(content: string): { text: string; isTag: boolean }[] {

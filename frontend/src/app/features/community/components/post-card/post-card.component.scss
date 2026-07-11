@@ -134,32 +134,50 @@
   min-height: calc(var(--text-body-sm-line-height) * 2);
 }
 
-.likes {
-
+// ── Action row: like / comment / share / save ──
+// Thay cho .likes/.like-btn cũ — giờ có đủ 4 icon, cùng hàng, spread đều.
+.card-actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   margin-top: auto;
-
+  gap: var(--space-2);
 }
 
-.like-btn {
+.action-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   padding: 0;
   border: none;
   background: transparent;
   cursor: pointer;
-  color: var(--state-error);
+  color: var(--color-near-black);
+  opacity: .55;
   font-family: var(--font-mono);
   font-size: var(--text-label-size);
   font-weight: 600;
+  transition: opacity .15s ease, color .15s ease;
 
+  svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    opacity: .85;
+  }
 }
 
-.heart-icon {
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
+// Like active — dùng đúng token màu đỏ đã có sẵn của design system
+.action-btn--like.active {
+  color: var(--state-error);
+  opacity: 1;
+}
 
+// Save active — dùng warm-brown để khác màu với like, tránh nhầm 2 trạng thái
+.action-btn--save.active {
+  color: var(--color-warm-brown);
+  opacity: 1;
 }

@@ -1,23 +1,36 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject, ChangeDetectorRef } from '@angular/core';
 import { Post } from '../../models/post.model';
 import { CommonModule } from '@angular/common';
+import { CommunityService } from '../../services/community.service';
+import { ShareModalComponent } from '../share-modal/share-modal.component';
 
 @Component({
   selector: 'app-post-card',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ShareModalComponent],
   templateUrl: './post-card.component.html',
   styleUrls: ['./post-card.component.scss']
 })
 export class PostCardComponent {
 
+  private communityService = inject(CommunityService);
+  private cdr = inject(ChangeDetectorRef);
+
   @Input() post!: Post;
 
   @Output() like = new EventEmitter<string>();
-  @Output() openDetail = new EventEmitter<string>(); // thêm dòng này
+  @Output() openDetail = new EventEmitter<string>();
   @Output() comment = new EventEmitter<string>();
   @Output() share = new EventEmitter<string>();
   @Output() save = new EventEmitter<string>();
+
+  // Guard chống double-click spam trong lúc request đang bay
+  liking = false;
+  saving = false;
+
+  // Share dùng modal (giống post-detail) thay vì copy-link im lặng, nên user
+  // thấy rõ hành động đã xảy ra + có lựa chọn nền tảng để share tới.
+  showShareModal = false;
 
   get image(): string {
     if (this.post.media?.length) {
@@ -71,28 +84,82 @@ export class PostCardComponent {
     return words.slice(0, 10).join(' ') + '...';
   }
 
-  onLike() {
-    this.like.emit(this.post.post_id);
+  // ── Like — self-contained, không cần cha wire subscribe mới hoạt động ──
+  onLike(): void {
+    if (this.liking) return;
+    this.liking = true;
+    this.communityService.likePost(this.post.post_id).subscribe({
+      next: (res) => {
+        this.post.liked = res.liked;
+        this.post.like_count = res.like_count;
+        this.liking = false;
+        this.like.emit(this.post.post_id);
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.liking = false;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
-  onCardClick() {
-    this.openDetail.emit(this.post.post_id); 
+  // ── Save ──
+  onSave(): void {
+    if (this.saving) return;
+    this.saving = true;
+    this.communityService.savePost(this.post.post_id).subscribe({
+      next: (res) => {
+        this.post.saved = res.saved;
+        this.post.save_count = res.save_count;
+        this.saving = false;
+        this.save.emit(this.post.post_id);
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.saving = false;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
-  onImageError(event: Event) {
+  // ── Share — mở modal ngay trên card (giống post-detail), không cần vào chi tiết ──
+  get shareUrl(): string {
+    return `${window.location.origin}/community/post/${this.post.post_id}`;
+  }
+
+  onShare(): void {
+    this.showShareModal = true;
+
+    this.communityService.sharePost(this.post.post_id).subscribe({
+      next: (res) => {
+        this.post.share_count = res.share_count;
+        this.share.emit(this.post.post_id);
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        // Modal vẫn mở dù record share lỗi — user vẫn share được, chỉ là
+        // con số không tăng; không chặn thao tác của họ vì việc này.
+      }
+    });
+  }
+
+  closeShareModal(): void {
+    this.showShareModal = false;
+  }
+
+  // Comment cần ô nhập nên không thể "gõ" ngay trên card — bấm sẽ mở post
+  // detail, cuộn thẳng tới khung comment (post-detail đã có #comments-section).
+  onComment(): void {
+    this.comment.emit(this.post.post_id);
+    this.openDetail.emit(this.post.post_id);
+  }
+
+  onCardClick(): void {
+    this.openDetail.emit(this.post.post_id);
+  }
+
+  onImageError(event: Event): void {
     (event.target as HTMLImageElement).src =
       'https://images.unsplash.com/photo-1515823662972-da6a2e4d3002?q=80&w=400&auto=format&fit=crop';
-  }
-
-  onComment() {
-    this.comment.emit(this.post.post_id);
-  }
-
-  onShare() {
-    this.share.emit(this.post.post_id);
-  }
-
-  onSave() {
-    this.save.emit(this.post.post_id);
   }
 }

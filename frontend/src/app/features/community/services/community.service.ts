@@ -87,6 +87,23 @@ export class CommunityService {
 
   }
 
+  // NEW: records a share and returns the updated share_count.
+  // Backed by POST /api/posts/:id/share (posts.controller.js -> sharePost).
+  sharePost(id: string): Observable<{
+    message: string;
+    share_count: number;
+  }> {
+
+    return this.http.post<{
+      message: string;
+      share_count: number;
+    }>(
+      `${this.apiUrl}/${id}/share`,
+      {}
+    );
+
+  }
+
   // ── Comments ──
 
   getComments(postId: string, page: number = 1, limit: number = 50): Observable<CommentsResponse> {

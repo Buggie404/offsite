@@ -266,6 +266,11 @@ async function likePost(req, res) {
         p => p.post_id !== post.post_id
       );
 
+      // FIX: this was previously missing — like_count was never decremented
+      // on unlike, so the number stayed inflated forever and only the
+      // active/filled icon state reflected the unlike.
+      post.like_count = Math.max(0, post.like_count - 1);
+
       message = 'Post unliked successfully';
 
     } else {
@@ -361,6 +366,38 @@ async function savePost(req, res) {
   }
 }
 
+// NEW: record a share. Doesn't require auth-specific state (no "unshare"
+// concept) — just increments a counter each time the share modal action
+// that actually completes a share is invoked.
+async function sharePost(req, res) {
+  try {
+    const { id } = req.params;
+
+    let query = {};
+    if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
+      query = { _id: id };
+    } else {
+      query = { post_id: id };
+    }
+
+    const post = await Post.findOne(query);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    post.share_count += 1;
+    await post.save();
+
+    res.json({
+      message: 'Share recorded',
+      share_count: post.share_count
+    });
+  } catch (error) {
+    console.error('Error recording share:', error);
+    res.status(500).json({ error: 'Failed to record share' });
+  }
+}
+
 module.exports = {
   getAllPosts,
   getPostById,
@@ -368,5 +405,6 @@ module.exports = {
   updatePost,
   deletePost,
   likePost,
-  savePost
+  savePost,
+  sharePost
 };

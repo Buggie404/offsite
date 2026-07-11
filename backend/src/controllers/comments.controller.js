@@ -56,11 +56,41 @@ async function getCommentsByPostId(req, res) {
   }
 }
 
+// Resolve whatever the client sent as "parent_id" (could be the canonical
+// comment_id string, or a Mongo _id if the client is inconsistent) to the
+// CANONICAL top-level comment_id. Returns null if no parent was requested,
+// throws a tagged error if a parent was requested but doesn't exist / isn't
+// top-level — this turns a previously silent "reply vanishes from the UI"
+// bug into a loud, catchable 400 instead of a false-success 200/201.
+async function resolveParentCommentId(post_id, rawParentId) {
+  if (!rawParentId) return null;
+
+  let parentQuery;
+  if (mongoose.Types.ObjectId.isValid(rawParentId) && /^[0-9a-fA-F]{24}$/.test(rawParentId)) {
+    parentQuery = { _id: rawParentId, post_id };
+  } else {
+    parentQuery = { comment_id: rawParentId, post_id };
+  }
+
+  const parentComment = await Comment.findOne(parentQuery);
+  if (!parentComment) {
+    const err = new Error('Parent comment not found');
+    err.code = 'PARENT_NOT_FOUND';
+    throw err;
+  }
+
+  // Backend only supports 1 level of nesting — if someone replies to a reply,
+  // re-parent onto that reply's own top-level comment so it doesn't create an
+  // orphaned 2nd-level thread that the frontend's flat grouping can't render.
+  const canonicalParentId = parentComment.parent_id || parentComment.comment_id;
+  return canonicalParentId;
+}
+
 // Create a comment
 async function createComment(req, res) {
   try {
     const { postId } = req.params;
-    const { content, parent_id = null, reply_to_username = null } = req.body;
+    const { content, parent_id: rawParentId = null, reply_to_username = null } = req.body;
 
     if (!content || content.trim() === '') {
       return res.status(400).json({ error: 'Comment content cannot be empty' });
@@ -82,6 +112,17 @@ async function createComment(req, res) {
     const user = await User.findById(req.user.user_id);
     if (!user) {
       return res.status(404).json({ error: 'User profile not found' });
+    }
+
+    // Resolve parent_id to the canonical comment_id (or reject if invalid)
+    let parent_id;
+    try {
+      parent_id = await resolveParentCommentId(post.post_id, rawParentId);
+    } catch (err) {
+      if (err.code === 'PARENT_NOT_FOUND') {
+        return res.status(400).json({ error: 'Parent comment not found for this post' });
+      }
+      throw err;
     }
 
     // Generate sequential comment_id starting from CMT700001
