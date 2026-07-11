@@ -491,6 +491,15 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     return 'Others';
   }
 
+  getViewAllShopLink(): string {
+    if (!this.recipe) return '/shop/matcha';
+    const base = this.getRecipeBaseLabel(this.recipe);
+    if (base === 'Coffee') {
+      return '/shop/coffee';
+    }
+    return '/shop/matcha';
+  }
+
   toggleFavorite(recipe: Recipe, event: Event): void {
     event.preventDefault();
     event.stopPropagation();
