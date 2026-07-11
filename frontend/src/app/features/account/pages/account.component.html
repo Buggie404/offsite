@@ -162,7 +162,7 @@
       </div>
 
       <!-- Saved Tab -->
-      <div class="tab-content saved-items-tab-container" *ngIf="activeTab() === 'saved'" [style.minHeight]="savedMinHeight()">
+      <div class="tab-content saved-items-tab-container" [class.saved-empty-content-tab]="!isSavedLoading() && !hasAnySavedItems()" *ngIf="activeTab() === 'saved'" [style.minHeight]="savedMinHeight()">
         <!-- Sub-loading State for Saved Items -->
         <div class="saved-loading-overlay" *ngIf="isSavedLoading()">
           <svg lucideLoader [size]="32" class="spin-icon"></svg>
@@ -1014,7 +1014,9 @@
                 </svg>
               </span>
             </div>
-            <div id="profile_name-error" class="field-error-msg"></div>
+            <div id="profile_name-error" class="field-error-msg" *ngIf="getFieldError('profile_name')">
+              {{ getFieldError('profile_name') }}
+            </div>
           </div>
 
           <div class="profile-form-group" [class.field-has-error]="hasFieldError('community_name')" [class.field-has-success]="hasFieldSuccess('community_name')">
@@ -1027,33 +1029,27 @@
                 </svg>
               </span>
             </div>
-            <div id="community_name-error" class="field-error-msg"></div>
+            <div id="community_name-error" class="field-error-msg" *ngIf="getFieldError('community_name')">
+              {{ getFieldError('community_name') }}
+            </div>
           </div>
 
-          <div class="profile-form-group" [class.field-has-error]="hasFieldError('email')" [class.field-has-success]="hasFieldSuccess('email')">
+          <!-- Email Field -->
+          <div class="profile-form-group">
             <label for="email">EMAIL</label>
-            <div class="profile-input-wrapper">
-              <input type="email" id="email" formControlName="email" placeholder="Enter your email address">
-              <span class="status-icon success-checkmark" *ngIf="hasFieldSuccess('email')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              </span>
+            <div class="profile-input-wrapper profile-readonly-wrapper">
+              <input type="email" id="email" formControlName="email" readonly [placeholder]="user()?.email ? 'Enter your email address' : 'Not provided'">
+              <button type="button" class="btn-change-contact" (click)="openChangeModal('email')">{{ user()?.email ? 'CHANGE' : 'ADD' }}</button>
             </div>
-            <div id="email-error" class="field-error-msg"></div>
           </div>
 
-          <div class="profile-form-group" [class.field-has-error]="hasFieldError('phone')" [class.field-has-success]="hasFieldSuccess('phone')">
+          <!-- Phone Field -->
+          <div class="profile-form-group">
             <label for="phone">PHONE</label>
-            <div class="profile-input-wrapper">
-              <input type="text" id="phone" formControlName="phone" placeholder="Enter your phone number">
-              <span class="status-icon success-checkmark" *ngIf="hasFieldSuccess('phone')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              </span>
+            <div class="profile-input-wrapper profile-readonly-wrapper">
+              <input type="text" id="phone" formControlName="phone" readonly [placeholder]="user()?.phone ? 'Enter your phone number' : 'Not provided'">
+              <button type="button" class="btn-change-contact" (click)="openChangeModal('phone')">{{ user()?.phone ? 'CHANGE' : 'ADD' }}</button>
             </div>
-            <div id="phone-error" class="field-error-msg"></div>
           </div>
           
           <div class="alert alert-error" *ngIf="errorMessage() && !hasFieldError('profile_name') && !hasFieldError('community_name') && !hasFieldError('email') && !hasFieldError('phone')">
@@ -1084,105 +1080,171 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
 
-      <!-- 2. Form Nhập OTP Xác Thực (Chống lỗi nảy phím kép) -->
-      <div *ngIf="isOtpStep" class="otp-step" style="padding: 24px; text-align: center;">
-        <ng-container *ngIf="!otpLocked">
-          <div class="otp-icon-circle otp-icon-circle--success" style="margin: 0 auto 16px auto; width: 48px; height: 48px; background: rgba(55,85,52,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-            <svg width="24" height="20" viewBox="0 0 26 20" fill="none">
-              <path d="M2 10L9 17L24 2" stroke="#375534" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
+  <!-- Change Contact Info Modal -->
+  <div class="modal-overlay change-contact-overlay" *ngIf="showChangeContactModal()" (click)="closeChangeModal()">
+    <div class="modal-content change-contact-modal" (click)="$event.stopPropagation()">
+      <div class="profile-modal-header">
+        <h2 class="profile-modal-title">
+          Change {{ changeContactType() === 'email' ? 'Email Address' : 'Phone Number' }}
+        </h2>
+        <button type="button" class="profile-close-btn" (click)="closeChangeModal()" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="close-icon-svg">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
 
-          <h2 class="otp-title" style="font-size: 24px; font-weight: 600; color: #375534; margin-bottom: 8px;">Verify New Contact</h2>
-          <p class="otp-subtitle" style="font-size: 15px; color: #544a40; margin-bottom: 12px; line-height: 1.5;">
-            Enter the 6-digit code sent to your new email/phone to confirm changes.
-          </p>
-          
-          <p class="otp-attempts-hint" style="font-size: 13px; color: #8c7e6c; margin-bottom: 24px;">
-            You have <strong>{{ otpAttemptsLeft }}</strong> of {{ OTP_MAX_ATTEMPTS }} attempts left
-          </p>
-
-          <div class="otp-countdown" style="display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 600; color: #8c7e6c; margin-bottom: 24px;">
-            <span *ngIf="!canResendOtp">RESEND OTP IN {{ otpCountdownLabel }}</span>
-            <button type="button" style="background: none; border: none; color: #375534; font-weight: 700; cursor: pointer; padding: 0; text-decoration: underline;" *ngIf="canResendOtp" [disabled]="isResendingOtp" (click)="resendOtp()">
-              {{ isResendingOtp ? 'RESENDING...' : 'RESEND OTP' }}
-            </button>
-          </div>
-
-          <!-- CONTAINER HỨNG PHÍM TÀNG HÌNH -->
-          <div class="otp-input-container" style="position: relative; display: flex; justify-content: center; cursor: text; margin-bottom: 24px;" (click)="focusHiddenInput()">
-            <input
-              #hiddenOtpInput
-              type="tel"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              maxlength="6"
-              [value]="otpValue"
-              (input)="onHiddenOtpInput($event)"
-              style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 10; cursor: pointer; color: transparent; background: transparent; caret-color: transparent;"
-            >
-
-            <div class="otp-input-row" style="pointer-events: none; display: flex; gap: 8px;">
+      <div class="profile-modal-body">
+        <!-- STEP 1: ENTER NEW VALUE -->
+        <ng-container *ngIf="!isChangeOtpStep()">
+          <div class="profile-form-group" [class.field-has-error]="changeOtpError()">
+            <label for="newContactInput">
+              NEW {{ changeContactType() === 'email' ? 'EMAIL ADDRESS' : 'PHONE NUMBER' }}
+            </label>
+            <div class="profile-input-wrapper">
               <input
-                *ngFor="let digit of otpDigits; trackBy: trackByFn"
                 type="text"
-                readonly
-                tabindex="-1"
-                class="otp-digit-input"
-                [class.filled]="digit"
-                [value]="digit"
-                style="width: 48px; height: 56px; text-align: center; font-size: 24px; font-weight: 600; border: 1.5px solid #e5e5e5; border-radius: 8px; background: #fff; color: #375534;"
+                id="newContactInput"
+                [placeholder]="changeContactType() === 'email' ? 'Enter new email address' : 'Enter new phone number'"
+                [value]="newContactValue()"
+                (input)="onContactValueChange($any($event.target).value)"
               >
+            </div>
+            <div class="field-error-msg" *ngIf="changeOtpError()">
+              <span>{{ changeOtpError() }}</span>
             </div>
           </div>
 
-          <p class="error-message" *ngIf="otpError" style="color: #d32f2f; font-size: 14px; font-weight: 500; margin-bottom: 24px;">{{ otpError }}</p>
-
-          <div class="otp-action-buttons" style="display: flex; gap: 12px; justify-content: center;">
-            <button type="button" class="btn-profile-cancel" style="flex: 1; padding: 12px; border: 1px solid #e5e5e5; border-radius: 8px; background: #fff; font-weight: 600; color: #544a40; cursor: pointer;" (click)="cancelOtp()">CANCEL</button>
+          <div class="profile-modal-footer" style="margin-top: 12px; padding: 0;">
+            <button type="button" class="btn-profile-cancel" (click)="closeChangeModal()">CANCEL</button>
             <button
               type="button"
               class="btn-profile-save"
-              [disabled]="otpValue.length !== 6 || isVerifyingOtp"
-              (click)="verifyUpdateOtp()"
-              style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: #375534; color: #fff; font-weight: 600; cursor: pointer;">
-              {{ isVerifyingOtp ? 'VERIFYING...' : 'CONFIRM NOW' }}
+              [disabled]="isSendingChangeOtp() || !newContactValue().trim()"
+              (click)="sendChangeOtp()"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon" style="width: 16px; height: 16px; margin-right: 8px;" *ngIf="isSendingChangeOtp()">
+                <line x1="12" y1="2" x2="12" y2="6"></line>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                <line x1="2" y1="12" x2="6" y2="12"></line>
+                <line x1="18" y1="12" x2="22" y2="12"></line>
+                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+              </svg>
+              SEND CODE
             </button>
           </div>
         </ng-container>
 
-        <!-- Locked State -->
-        <ng-container *ngIf="otpLocked">
-          <div class="otp-icon-circle otp-icon-circle--failed" style="margin: 0 auto 16px auto; width: 48px; height: 48px; background: #d32f2f; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path d="M6 6l12 12M18 6L6 18" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
-            </svg>
-          </div>
+        <!-- STEP 2: VERIFY OTP -->
+        <ng-container *ngIf="isChangeOtpStep()">
+          <ng-container *ngIf="!changeOtpLocked()">
+            <div class="otp-step">
+              <div class="otp-icon-circle otp-icon-circle--success">
+                <svg width="26" height="20" viewBox="0 0 26 20" fill="none">
+                  <path d="M2 10L9 17L24 2" stroke="#375534" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
 
-          <h2 class="otp-title" style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px;">Verification Failed</h2>
-          <p class="otp-subtitle" style="font-size: 15px; color: #544a40; margin-bottom: 24px; line-height: 1.5;">
-            You've entered the wrong code too many times. Please request a new code to try again.
-          </p>
+              <h2 class="otp-title">Verify Your Profile</h2>
+              <p class="otp-subtitle">
+                Enter the 6-digit code sent to your {{ changeContactType() === 'email' ? 'email' : 'phone' }}
+              </p>
+              <p class="otp-masked-contact">{{ changeMaskedContact() }}</p>
+              <p class="otp-attempts-hint" [class.attempts-low]="changeOtpAttemptsLeft() <= 1">
+                You have <strong>{{ changeOtpAttemptsLeft() }}</strong> of 3 attempts left
+              </p>
 
-          <p class="error-message" *ngIf="otpError" style="color: #d32f2f; font-size: 14px; font-weight: 500; margin-bottom: 24px;">{{ otpError }}</p>
+              <div class="otp-countdown">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="margin-right: 4px; display: inline-block; vertical-align: middle;">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                  <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span *ngIf="!canResendChangeOtp">RESEND CODE IN {{ changeOtpCountdownLabel }}</span>
+                <button
+                  type="button"
+                  class="otp-resend-link"
+                  *ngIf="canResendChangeOtp"
+                  [disabled]="isSendingChangeOtp()"
+                  (click)="resendChangeOtp()">
+                  {{ isSendingChangeOtp() ? 'RESENDING...' : 'RESEND CODE' }}
+                </button>
+              </div>
 
-          <div class="otp-action-buttons otp-action-buttons--stacked" style="display: flex; flex-direction: column; gap: 12px;">
-            <button
-              type="button"
-              class="btn-profile-save"
-              style="width: 100%; padding: 12px; border: none; border-radius: 8px; background: #375534; color: #fff; font-weight: 600; cursor: pointer;"
-              [disabled]="isResendingOtp"
-              (click)="resendOtp()">
-              {{ isResendingOtp ? 'RESENDING...' : 'RESEND CODE' }}
-            </button>
-            <button type="button" class="btn-profile-cancel" style="width: 100%; padding: 12px; border: 1px solid #e5e5e5; border-radius: 8px; background: #fff; font-weight: 600; color: #544a40; cursor: pointer;" (click)="cancelOtp()">CANCEL</button>
-          </div>
+              <!-- OTP Input boxes -->
+              <div class="otp-input-container" style="position: relative; display: flex; justify-content: center; cursor: text; margin: 20px 0 8px; width: 100%;" (click)="focusHiddenChangeInput()">
+                <!-- Hidden input -->
+                <input
+                  #hiddenChangeOtpInput
+                  type="tel"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  maxlength="6"
+                  [value]="changeOtpValue()"
+                  (input)="onHiddenChangeOtpInput($event)"
+                  style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 10; cursor: pointer; color: transparent; background: transparent; caret-color: transparent;"
+                >
+
+                <!-- Visible digit placeholders -->
+                <div class="otp-input-row" style="pointer-events: none; display: flex; gap: 10px; justify-content: center; width: 100%;">
+                  <input
+                    *ngFor="let digit of changeOtpDigits(); trackBy: trackByFn"
+                    type="text"
+                    readonly
+                    tabindex="-1"
+                    class="otp-digit-input"
+                    [class.filled]="digit"
+                    [value]="digit"
+                  >
+                </div>
+              </div>
+
+              <p class="otp-error" *ngIf="changeOtpError()">{{ changeOtpError() }}</p>
+
+              <div class="otp-action-buttons" style="display: flex; gap: 12px; width: 100%; margin-top: 28px;">
+                <button type="button" class="otp-btn-cancel" (click)="closeChangeModal()">CANCEL</button>
+                <button
+                  type="button"
+                  class="otp-btn-confirm"
+                  [disabled]="changeOtpValue().length !== 6 || isVerifyingChangeOtp()"
+                  (click)="verifyChangeOtp()"
+                >
+                  {{ isVerifyingChangeOtp() ? 'VERIFYING...' : 'VERIFY & UPDATE' }}
+                </button>
+              </div>
+            </div>
+          </ng-container>
+
+          <ng-container *ngIf="changeOtpLocked()">
+            <div class="otp-step">
+              <div class="otp-icon-circle otp-icon-circle--failed">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6L18 18" stroke="#FAF3EC" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <h2 class="otp-title">Attempt Limit Exceeded</h2>
+              <p class="otp-subtitle" style="margin-bottom: 24px;">
+                For security, your change request has been locked. Please start over.
+              </p>
+              <div class="otp-action-buttons otp-action-buttons--stacked" style="display: flex; flex-direction: column; align-items: center; width: 100%; margin-top: 28px;">
+                <button type="button" class="otp-btn-cancel otp-btn-cancel--full" (click)="closeChangeModal()" style="width: 100%; max-width: 280px;">
+                  CLOSE
+                </button>
+              </div>
+            </div>
+          </ng-container>
         </ng-container>
       </div>
     </div>
   </div>
 
+  <!-- Change Password Modal -->
   <div class="modal-overlay change-password-overlay" *ngIf="showPasswordModal()" (click)="closePasswordModal()">
     <div class="modal-content change-password-modal" (click)="$event.stopPropagation()">
       <div class="change-password-header">
@@ -1433,6 +1495,11 @@
     (confirm)="onConfirmModalConfirm()"
     (cancel)="onConfirmModalCancel()"
   ></app-confirmation-modal>
+
+  <!-- DEV MODE OTP badge for profile updates -->
+  <div class="otp-dev-badge" *ngIf="changeOtpMock() && showChangeContactModal() && isChangeOtpStep()">
+    DEV OTP: {{ changeOtpMock() }}
+  </div>
 </div>
 
 <!-- 🛠 DEV MODE OTP badge trôi nổi ở góc dưới trái xịn sò, không che lấp UI modal -->

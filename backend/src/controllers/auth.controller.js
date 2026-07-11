@@ -506,192 +506,75 @@ async function getProfile(req, res) {
   }
 }
 
-// ══════════════ CẬP NHẬT TRANG CÁ NHÂN (CÓ OTP) ══════════════
-
-// Yêu cầu cập nhật Profile
-async function requestProfileUpdate(req, res) {
+// Cập nhật trang cá nhân (Update Profile)
+async function updateProfile(req, res) {
   try {
     const { ObjectId } = require('mongodb');
-    const { profile_name, email, phone, community_name, avatar_url } = req.body;
+    const { profile_name, email, phone, community_name } = req.body;
 
     if (!profile_name) {
-      return res.status(400).json({ error: 'Họ và tên không được để trống.' });
+      return res.status(400).json({ error: 'Name cannot be empty.' });
     }
 
-    const { userCollection, otpCollection } = await getCollections();
+    const { userCollection } = await getCollections();
     const userId = new ObjectId(req.user.user_id);
-    const user = await userCollection.findOne({ _id: userId });
 
-    if (!user) return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
-
-    const normalizedEmail = email ? email.trim().toLowerCase() : null;
-    const normalizedPhone = phone ? phone.trim() : null;
-    const normalizedCommunity = community_name ? community_name.trim() : null;
-
-    // Check trùng lặp
-    if (normalizedEmail && normalizedEmail !== user.email) {
-      const emailUser = await userCollection.findOne({ email: normalizedEmail, _id: { $ne: userId } });
-      if (emailUser) return res.status(409).json({ error: 'Email đã được sử dụng bởi tài khoản khác.' });
-    }
-
-    if (normalizedPhone && normalizedPhone !== user.phone) {
-      const phoneUser = await userCollection.findOne({ phone: normalizedPhone, _id: { $ne: userId } });
-      if (phoneUser) return res.status(409).json({ error: 'Số điện thoại đã được sử dụng bởi tài khoản khác.' });
-    }
-
-    if (normalizedCommunity && normalizedCommunity !== user.community_name) {
-      const communityUser = await userCollection.findOne({ community_name: normalizedCommunity, _id: { $ne: userId } });
-      if (communityUser) return res.status(409).json({ error: 'Tên cộng đồng đã được sử dụng bởi tài khoản khác.' });
-    }
-
-    const isEmailChanged = normalizedEmail !== (user.email || null);
-    const isPhoneChanged = normalizedPhone !== (user.phone || null);
-
-    // Nếu đổi thông tin nhạy cảm (Email/Phone) -> Yêu cầu OTP
-    if (isEmailChanged || isPhoneChanged) {
-      const update_token = new ObjectId().toString();
-      const otp = generateOTP();
-      
-      await otpCollection.deleteMany({ user_id: userId, type: 'profile_update' });
-
-      await otpCollection.insertOne({
-        user_id: userId,
-        update_token,
-        otp,
-        pending_data: {
-          profile_name: profile_name.trim(),
-          email: normalizedEmail,
-          phone: normalizedPhone,
-          community_name: normalizedCommunity,
-          avatar_url: avatar_url !== undefined ? avatar_url : user.avatar_url
-        },
-        type: 'profile_update',
-        attempts: 0,
-        expiresAt: new Date(Date.now() + OTP_EXPIRE_MS),
-        createdAt: new Date(),
-        updatedAt: new Date()
+    // Kiểm tra trùng email
+    if (email) {
+      const emailUser = await userCollection.findOne({
+        email: email.trim(),
+        _id: { $ne: userId }
       });
-
-      console.log(`[PROFILE UPDATE OTP] User ${userId} -> ${otp}`);
-
-      return res.json({
-        requiresOtp: true,
-        update_token,
-        __mock: process.env.NODE_ENV !== 'production' ? otp : undefined
-      });
+      if (emailUser) {
+        return res.status(409).json({ error: 'This email is already used by another account.' });
+      }
     }
 
-    // Nếu không thay đổi nhạy cảm -> Cập nhật luôn
+    // Kiểm tra trùng số điện thoại
+    if (phone) {
+      const phoneUser = await userCollection.findOne({
+        phone: phone.trim(),
+        _id: { $ne: userId }
+      });
+      if (phoneUser) {
+        return res.status(409).json({ error: 'This phone number is already used by another account.' });
+      }
+    }
+
+    // Kiểm tra trùng community_name
+    if (community_name) {
+      const communityUser = await userCollection.findOne({
+        community_name: community_name.trim(),
+        _id: { $ne: userId }
+      });
+      if (communityUser) {
+        return res.status(409).json({ error: 'This community name is already registered.' });
+      }
+    }
+
     const updateFields = {
       profile_name: profile_name.trim(),
       updatedAt: new Date()
     };
-    if (normalizedCommunity !== undefined) updateFields.community_name = normalizedCommunity;
-    if (avatar_url !== undefined) updateFields.avatar_url = avatar_url;
+    if (email) updateFields.email = email.trim();
+    if (phone) updateFields.phone = phone.trim();
+    if (community_name !== undefined) updateFields.community_name = community_name ? community_name.trim() : null;
+    if (req.body.avatar_url !== undefined) updateFields.avatar_url = req.body.avatar_url;
 
-    await userCollection.updateOne({ _id: userId }, { $set: updateFields });
-    const updatedUser = await userCollection.findOne({ _id: userId }, { projection: { password_hash: 0 } });
+    await userCollection.updateOne(
+      { _id: userId },
+      { $set: updateFields }
+    );
 
-    res.json({ requiresOtp: false, user: updatedUser });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-}
-
-// Xác thực OTP Cập nhật Profile
-async function verifyProfileUpdate(req, res) {
-  try {
-    const { ObjectId } = require('mongodb');
-    const { update_token, otp } = req.body;
-
-    if (!update_token || !otp) {
-      return res.status(400).json({ error: 'Thiếu thông tin xác thực.' });
-    }
-
-    const { userCollection, otpCollection } = await getCollections();
-    const pending = await otpCollection.findOne({ update_token, type: 'profile_update' });
-
-    if (!pending) {
-      return res.status(404).json({ error: 'Yêu cầu không tồn tại hoặc đã hết hạn.', code: 'REGISTRATION_NOT_FOUND' });
-    }
-
-    if (pending.expiresAt < new Date()) {
-      await otpCollection.deleteOne({ _id: pending._id });
-      return res.status(400).json({ error: 'Mã OTP đã hết hạn.', code: 'OTP_EXPIRED' });
-    }
-
-    if ((pending.attempts || 0) >= OTP_MAX_ATTEMPTS) {
-      return res.status(400).json({ error: 'Sai quá số lần cho phép.', code: 'OTP_LOCKED' });
-    }
-
-    if (pending.otp !== String(otp).trim()) {
-      const attempts = (pending.attempts || 0) + 1;
-      const remaining = OTP_MAX_ATTEMPTS - attempts;
-      await otpCollection.updateOne({ _id: pending._id }, { $set: { attempts } });
-
-      if (remaining <= 0) {
-        return res.status(400).json({ error: 'Sai quá số lần cho phép.', code: 'OTP_LOCKED' });
-      }
-      return res.status(400).json({ error: 'Mã OTP không chính xác.', code: 'INVALID_OTP', remainingAttempts: remaining });
-    }
-
-    // OTP đúng -> Cập nhật CSDL
-    const userId = new ObjectId(pending.user_id);
-    const { profile_name, email, phone, community_name, avatar_url } = pending.pending_data;
-
-    const updateFields = {
-      profile_name,
-      email,
-      phone,
-      community_name,
-      updatedAt: new Date()
-    };
-    if (avatar_url !== undefined) updateFields.avatar_url = avatar_url;
-
-    await userCollection.updateOne({ _id: userId }, { $set: updateFields });
-    await otpCollection.deleteOne({ _id: pending._id });
-
-    const updatedUser = await userCollection.findOne({ _id: userId }, { projection: { password_hash: 0 } });
-
-    res.json({ message: 'Success', user: updatedUser });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-}
-
-// Gửi lại OTP Cập nhật Profile
-async function resendProfileUpdateOtp(req, res) {
-  try {
-    const { update_token } = req.body;
-    if (!update_token) return res.status(400).json({ error: 'Thiếu update_token.' });
-
-    const { otpCollection } = await getCollections();
-    const pending = await otpCollection.findOne({ update_token, type: 'profile_update' });
-
-    if (!pending) {
-      return res.status(404).json({ error: 'Yêu cầu không tồn tại hoặc đã hết hạn.', code: 'REGISTRATION_NOT_FOUND' });
-    }
-
-    const otp = generateOTP();
-    await otpCollection.updateOne(
-      { _id: pending._id },
-      {
-        $set: {
-          otp,
-          attempts: 0,
-          expiresAt: new Date(Date.now() + OTP_EXPIRE_MS),
-          updatedAt: new Date()
-        }
-      }
+    const updatedUser = await userCollection.findOne(
+      { _id: userId },
+      { projection: { password_hash: 0 } }
     );
 
     res.json({
-      message: 'Đã gửi lại mã OTP.',
-      __mock: process.env.NODE_ENV !== 'production' ? otp : undefined
+      message: 'Cập nhật thông tin thành công.',
+      user: updatedUser
     });
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1174,6 +1057,183 @@ async function getSavedItems(req, res) {
   }
 }
 
+// Gửi OTP cập nhật Profile (Email / Phone)
+async function sendProfileOtp(req, res) {
+  try {
+    const { type, value } = req.body;
+    if (!type || !value) {
+      return res.status(400).json({ error: 'Missing type or value.' });
+    }
+
+    if (type !== 'email' && type !== 'phone') {
+      return res.status(400).json({ error: "Type must be 'email' or 'phone'." });
+    }
+
+    const { userCollection, otpCollection } = await getCollections();
+    const userId = new ObjectId(req.user.user_id);
+
+    // Chuẩn hóa
+    const normalizedValue = type === 'email' ? value.trim().toLowerCase() : value.trim();
+
+    // Check xem có trùng với thông tin hiện tại của chính user này không
+    const currentUser = await userCollection.findOne({ _id: userId });
+    if (!currentUser) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (type === 'email' && currentUser.email === normalizedValue) {
+      return res.status(400).json({
+        error: 'This is already your current email address.',
+        code: 'SAME_EMAIL'
+      });
+    }
+
+    if (type === 'phone' && currentUser.phone === normalizedValue) {
+      return res.status(400).json({
+        error: 'This is already your current phone number.',
+        code: 'SAME_PHONE'
+      });
+    }
+
+    // Check xem value có trùng với tài khoản khác không
+    const query = type === 'email' ? { email: normalizedValue } : { phone: normalizedValue };
+    const userExists = await userCollection.findOne({
+      ...query,
+      _id: { $ne: userId }
+    });
+
+    if (userExists) {
+      return res.status(409).json({
+        error: type === 'email' ? 'This email is already used by another account.' : 'This phone number is already used by another account.',
+        code: type === 'email' ? 'EMAIL_EXISTS' : 'PHONE_EXISTS'
+      });
+    }
+
+    // Xóa OTP yêu cầu cũ của user này cho cùng type
+    await otpCollection.deleteMany({
+      user_id: userId,
+      type
+    });
+
+    const otp = generateOTP();
+
+    await otpCollection.insertOne({
+      user_id: userId,
+      type,
+      value: normalizedValue,
+      otp,
+      attempts: 0,
+      expiresAt: new Date(Date.now() + OTP_EXPIRE_MS),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    console.log(`[PROFILE OTP] ${type} for user ${userId} (${normalizedValue}) -> ${otp}`);
+
+    const maskedContact = type === 'email' ? maskEmail(normalizedValue) : maskPhone(normalizedValue);
+
+    res.status(200).json({
+      message: 'OTP sent.',
+      maskedContact,
+      channel: type,
+      __mock: process.env.NODE_ENV !== 'production' ? otp : undefined
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// Xác thực OTP và cập nhật Profile
+async function verifyProfileOtp(req, res) {
+  try {
+    const { type, value, otp } = req.body;
+
+    if (!type || !value || !otp) {
+      return res.status(400).json({ error: 'Missing type, value, or OTP.', code: 'MISSING_FIELDS' });
+    }
+
+    const { userCollection, otpCollection } = await getCollections();
+    const userId = new ObjectId(req.user.user_id);
+
+    const normalizedValue = type === 'email' ? value.trim().toLowerCase() : value.trim();
+
+    const pending = await otpCollection.findOne({
+      user_id: userId,
+      type,
+      value: normalizedValue
+    });
+
+    if (!pending) {
+      return res.status(404).json({
+        error: 'Verification request not found.',
+        code: 'OTP_NOT_FOUND'
+      });
+    }
+
+    if (pending.expiresAt < new Date()) {
+      await otpCollection.deleteOne({ _id: pending._id });
+      return res.status(400).json({
+        error: 'OTP has expired.',
+        code: 'OTP_EXPIRED'
+      });
+    }
+
+    if ((pending.attempts || 0) >= OTP_MAX_ATTEMPTS) {
+      return res.status(400).json({
+        error: 'Too many incorrect attempts. Please request a new code.',
+        code: 'OTP_LOCKED'
+      });
+    }
+
+    if (pending.otp !== otp) {
+      const attempts = (pending.attempts || 0) + 1;
+      const remaining = OTP_MAX_ATTEMPTS - attempts;
+
+      await otpCollection.updateOne(
+        { _id: pending._id },
+        { $set: { attempts } }
+      );
+
+      if (remaining <= 0) {
+        return res.status(400).json({
+          error: 'Too many incorrect attempts. Please request a new code.',
+          code: 'OTP_LOCKED'
+        });
+      }
+
+      return res.status(400).json({
+        error: `Incorrect OTP. ${remaining} attempts remaining.`,
+        code: 'INVALID_OTP',
+        remainingAttempts: remaining
+      });
+    }
+
+    // Xác thực thành công -> Cập nhật thông tin user
+    const updateField = type === 'email' ? { email: normalizedValue } : { phone: normalizedValue };
+    
+    await userCollection.updateOne(
+      { _id: userId },
+      { $set: { ...updateField, updatedAt: new Date() } }
+    );
+
+    // Xóa OTP
+    await otpCollection.deleteOne({ _id: pending._id });
+
+    // Lấy user mới cập nhật
+    const updatedUser = await userCollection.findOne(
+      { _id: userId },
+      { projection: { password_hash: 0 } }
+    );
+
+    res.status(200).json({
+      message: 'Verification and update successful.',
+      user: updatedUser
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -1183,9 +1243,9 @@ module.exports = {
   logout,
   refreshToken,
   getProfile,
-  requestProfileUpdate,  
-  verifyProfileUpdate,   
-  resendProfileUpdateOtp,
+  updateProfile,
+  sendProfileOtp,
+  verifyProfileOtp,
   changePassword,
   forgotPassword,  
   resetPassword,

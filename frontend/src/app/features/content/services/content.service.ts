@@ -3,12 +3,36 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Recipe } from '../../../shared/models/recipe.model';
 
+export interface JournalState {
+  articles: any[];
+  currentPage: number;
+  totalPages: number;
+  hasMore: boolean;
+  searchQuery: string;
+  selectedCategory: string;
+  selectedSort: string;
+  scrollY: number;
+}
+
+export interface RecipeState {
+  allRecipes: Recipe[];
+  filteredRecipes: Recipe[];
+  searchQuery: string;
+  selectedBase: string;
+  selectedStyle: string;
+  selectedSort: string;
+  scrollY: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
 export class ContentService {
   private http = inject(HttpClient);
   private apiUrl = '/api/recipes';
+  
+  public journalState?: JournalState;
+  public recipeState?: RecipeState;
 
   /**
    * Fetch all active/published recipes, optionally filtered by difficulty, tag, or source type.
