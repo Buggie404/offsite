@@ -199,6 +199,27 @@ export class AccountComponent implements OnInit, OnDestroy {
   activeTab = signal<string>('profile');
   savedMinHeight = signal<string>('auto');
   showEditModal = signal<boolean>(false);
+  
+  // Change Contact Info Modal state properties
+  showChangeContactModal = signal<boolean>(false);
+  changeContactType = signal<'email' | 'phone'>('email');
+  newContactValue = signal<string>('');
+  isChangeOtpStep = signal<boolean>(false);
+  changeOtpValue = signal<string>('');
+  changeOtpDigits = signal<string[]>(['', '', '', '', '', '']);
+  changeOtpError = signal<string | null>(null);
+  changeOtpLocked = signal<boolean>(false);
+  changeOtpAttemptsLeft = signal<number>(3);
+  isSendingChangeOtp = signal<boolean>(false);
+  isVerifyingChangeOtp = signal<boolean>(false);
+  changeOtpCountdown = signal<number>(0);
+  changeOtpMock = signal<string>('');
+  changeMaskedContact = signal<string>('');
+  private changeOtpTimerHandle: any = null;
+  private readonly CHANGE_OTP_DURATION = 2 * 60;
+
+  @ViewChild('hiddenChangeOtpInput') hiddenChangeOtpInput!: ElementRef<HTMLInputElement>;
+
   showPasswordModal = signal<boolean>(false);
   showOldPassword = signal<boolean>(false);
   showNewPassword = signal<boolean>(false);
@@ -463,7 +484,7 @@ export class AccountComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.clearOtpCountdown(); // Dọn dẹp timer
+    this.clearChangeOtpCountdown();
     if (this.cardValidator) {
       this.cardValidator.detach();
       this.cardValidator = null;
@@ -602,7 +623,25 @@ export class AccountComponent implements OnInit, OnDestroy {
   // 3. Tối ưu hàm lấy lỗi cho Reactive Form
   getFieldError(field: string): string | null {
     const control = this.profileForm.get(field);
-    if (!control || !(control.dirty || control.touched)) {
+    if (!control) {
+      return null;
+    }
+
+    // Check backend errors FIRST (bypasses dirty/touched check)
+    const errorMsg = this.errorMessage();
+    if (errorMsg) {
+      if (field === 'email' && (errorMsg.includes('email') || errorMsg.includes('Email') || errorMsg.includes('thư điện tử'))) {
+        return 'Email already in use';
+      }
+      if (field === 'phone' && (errorMsg.includes('phone') || errorMsg.includes('Phone') || errorMsg.includes('số điện thoại') || errorMsg.includes('Số điện thoại'))) {
+        return 'Phone number already in use';
+      }
+      if (field === 'community_name' && (errorMsg.includes('community') || errorMsg.includes('Community') || errorMsg.includes('cộng đồng') || errorMsg.includes('Cộng đồng'))) {
+        return 'Community name already in use';
+      }
+    }
+
+    if (!(control.dirty || control.touched)) {
       return null;
     }
 
@@ -628,20 +667,6 @@ export class AccountComponent implements OnInit, OnDestroy {
       }
     }
 
-    // Check backend errors
-    const errorMsg = this.errorMessage();
-    if (errorMsg) {
-      if (field === 'email' && (errorMsg.includes('email') || errorMsg.includes('Email') || errorMsg.includes('thư điện tử'))) {
-        return 'Email already in use';
-      }
-      if (field === 'phone' && (errorMsg.includes('phone') || errorMsg.includes('Phone') || errorMsg.includes('số điện thoại') || errorMsg.includes('Số điện thoại'))) {
-        return 'Phone number already in use';
-      }
-      if (field === 'community_name' && (errorMsg.includes('community') || errorMsg.includes('Community') || errorMsg.includes('cộng đồng') || errorMsg.includes('Cộng đồng'))) {
-        return 'Community name already in use';
-      }
-    }
-
     return null;
   }
 
@@ -651,13 +676,16 @@ export class AccountComponent implements OnInit, OnDestroy {
 
   // 4. Update hiển thị tick xanh (Chỉ hiện khi field đó có điền text)
   hasFieldSuccess(field: string): boolean {
+    if (field === 'community_name') {
+      return false;
+    }
     const control = this.profileForm.get(field);
     if (!control || !(control.dirty || control.touched)) {
       return false;
     }
     
     // For optional fields, only show success if they have entered a value
-    if (field === 'community_name' || field === 'email' || field === 'phone') {
+    if (field === 'email' || field === 'phone') {
       if (!control.value || control.value.trim() === '') {
         return false;
       }
@@ -1128,16 +1156,209 @@ export class AccountComponent implements OnInit, OnDestroy {
 
   closeEditModal(): void {
     this.showEditModal.set(false);
-    this.isOtpStep = false;
-    this.clearOtpCountdown();
-    this.otpValue = '';
-    this.otpDigits = ['', '', '', '', '', ''];
     if (this.profileValidator) {
       this.profileValidator.detach();
       this.profileValidator = null;
     }
     this.profileForm.reset();
     this.avatarPreview.set('');
+  }
+
+  trackByFn(index: number): number {
+    return index;
+  }
+
+  openChangeModal(type: 'email' | 'phone'): void {
+    this.changeContactType.set(type);
+    this.newContactValue.set('');
+    this.isChangeOtpStep.set(false);
+    this.changeOtpValue.set('');
+    this.changeOtpDigits.set(['', '', '', '', '', '']);
+    this.changeOtpError.set(null);
+    this.changeOtpLocked.set(false);
+    this.changeOtpAttemptsLeft.set(3);
+    this.isSendingChangeOtp.set(false);
+    this.isVerifyingChangeOtp.set(false);
+    this.changeOtpMock.set('');
+    this.changeMaskedContact.set('');
+    this.clearChangeOtpCountdown();
+    this.showChangeContactModal.set(true);
+  }
+
+  closeChangeModal(): void {
+    this.showChangeContactModal.set(false);
+    this.clearChangeOtpCountdown();
+  }
+
+  focusHiddenChangeInput(): void {
+    if (this.hiddenChangeOtpInput?.nativeElement) {
+      this.hiddenChangeOtpInput.nativeElement.focus();
+    }
+  }
+
+  onHiddenChangeOtpInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    let val = input.value.replace(/\D/g, '');
+    if (val.length > 6) {
+      val = val.substring(0, 6);
+    }
+    this.changeOtpValue.set(val);
+    input.value = val;
+
+    const digits = ['', '', '', '', '', ''];
+    for (let i = 0; i < 6; i++) {
+      digits[i] = val[i] || '';
+    }
+    this.changeOtpDigits.set(digits);
+    this.cdr.detectChanges();
+
+    if (val.length === 6) {
+      this.verifyChangeOtp();
+    }
+  }
+
+  get canResendChangeOtp(): boolean {
+    return this.changeOtpCountdown() <= 0;
+  }
+
+  get changeOtpCountdownLabel(): string {
+    const min = Math.floor(this.changeOtpCountdown() / 60);
+    const sec = this.changeOtpCountdown() % 60;
+    return `${min}:${sec < 10 ? '0' : ''}${sec}`;
+  }
+
+  startChangeOtpCountdown(seconds: number): void {
+    this.clearChangeOtpCountdown();
+    this.changeOtpCountdown.set(seconds);
+    this.changeOtpTimerHandle = setInterval(() => {
+      this.changeOtpCountdown.update(v => v - 1);
+      if (this.changeOtpCountdown() <= 0) {
+        this.changeOtpCountdown.set(0);
+        this.clearChangeOtpCountdown();
+      }
+      this.cdr.detectChanges();
+    }, 1000);
+  }
+
+  clearChangeOtpCountdown(): void {
+    if (this.changeOtpTimerHandle) {
+      clearInterval(this.changeOtpTimerHandle);
+      this.changeOtpTimerHandle = null;
+    }
+  }
+
+  onContactValueChange(value: string): void {
+    this.newContactValue.set(value);
+    const val = value.trim();
+
+    if (!val) {
+      this.changeOtpError.set(this.changeContactType() === 'email' ? 'Email is required.' : 'Phone number is required.');
+      return;
+    }
+
+    if (this.changeContactType() === 'email') {
+      if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val)) {
+        this.changeOtpError.set('Invalid email format.');
+      } else {
+        this.changeOtpError.set(null);
+      }
+    } else {
+      if (!/^[0-9]{10,11}$/.test(val)) {
+        this.changeOtpError.set('Phone number must be 10-11 digits.');
+      } else {
+        this.changeOtpError.set(null);
+      }
+    }
+  }
+
+  sendChangeOtp(): void {
+    this.onContactValueChange(this.newContactValue());
+    if (this.changeOtpError()) {
+      return;
+    }
+    const val = this.newContactValue().trim();
+    this.isSendingChangeOtp.set(true);
+
+    this.http.post<any>('/api/auth/send-profile-otp', {
+      type: this.changeContactType(),
+      value: val
+    }).subscribe({
+      next: (res) => {
+        this.isSendingChangeOtp.set(false);
+        this.changeMaskedContact.set(res.maskedContact || '');
+        this.changeOtpMock.set(res.__mock || '');
+        this.isChangeOtpStep.set(true);
+        this.changeOtpValue.set('');
+        this.changeOtpDigits.set(['', '', '', '', '', '']);
+        this.startChangeOtpCountdown(this.CHANGE_OTP_DURATION);
+        this.cdr.detectChanges();
+        setTimeout(() => this.focusHiddenChangeInput(), 50);
+      },
+      error: (err) => {
+        this.isSendingChangeOtp.set(false);
+        this.changeOtpError.set(err.error?.error || 'Failed to send OTP.');
+      }
+    });
+  }
+
+  resendChangeOtp(): void {
+    if (!this.canResendChangeOtp) return;
+    this.sendChangeOtp();
+  }
+
+  verifyChangeOtp(): void {
+    if (this.isVerifyingChangeOtp() || this.changeOtpLocked()) return;
+    if (this.changeOtpValue().length !== 6) return;
+
+    this.changeOtpError.set(null);
+    this.isVerifyingChangeOtp.set(true);
+
+    this.http.post<any>('/api/auth/verify-profile-otp', {
+      type: this.changeContactType(),
+      value: this.newContactValue().trim(),
+      otp: this.changeOtpValue()
+    }).subscribe({
+      next: (res) => {
+        this.isVerifyingChangeOtp.set(false);
+        this.clearChangeOtpCountdown();
+        
+        // Update user signal and local storage
+        this.user.set(res.user);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user', JSON.stringify(res.user));
+        }
+
+        // Sync values in profileForm
+        this.profileForm.patchValue({
+          email: res.user.email || '',
+          phone: res.user.phone || ''
+        });
+
+        this.toastService.success(`${this.changeContactType() === 'email' ? 'Email' : 'Phone number'} updated successfully!`);
+        this.closeChangeModal();
+      },
+      error: (err) => {
+        this.isVerifyingChangeOtp.set(false);
+        const errMsg = err.error?.error || 'Verification failed.';
+        this.changeOtpError.set(errMsg);
+        
+        // Reset otp fields
+        this.changeOtpValue.set('');
+        this.changeOtpDigits.set(['', '', '', '', '', '']);
+        if (this.hiddenChangeOtpInput?.nativeElement) {
+          this.hiddenChangeOtpInput.nativeElement.value = '';
+        }
+
+        if (err.error?.remainingAttempts !== undefined) {
+          this.changeOtpAttemptsLeft.set(err.error.remainingAttempts);
+          if (err.error.remainingAttempts <= 0) {
+            this.changeOtpLocked.set(true);
+          }
+        } else if (err.error?.code === 'OTP_LOCKED') {
+          this.changeOtpLocked.set(true);
+        }
+      }
+    });
   }
 
   onAvatarSelected(event: any): void {
@@ -1313,218 +1534,76 @@ export class AccountComponent implements OnInit, OnDestroy {
     return '';
   }
 
-  // ══════════════ UPDATE PROFILE & OTP LOGIC ══════════════
-  async onUpdateProfile(): Promise<void> {
+  onUpdateProfile(): void {
     if (this.profileForm.invalid) return;
     if (this.profileValidator && !this.profileValidator.validateAll()) return;
 
-    const formValue = this.profileForm.value;
     this.isSubmitting.set(true);
+    this.errorMessage.set('');
+    this.successMessage.set('');
 
-    try {
-      // Gửi yêu cầu cập nhật (Backend kiểm tra nếu đổi Email/Phone thì trả về requiresOtp = true)
-      const res = await this.http.post<any>('/api/auth/request-profile-update', formValue).toPromise();
+    const formValue = this.profileForm.value;
 
-      if (res.requiresOtp) {
-        this.updateToken = res.update_token;
-        this.mockOtp = res.__mock || '';
-        this.pendingUpdateData = formValue;
+    this.http.put<{ message: string; user: any }>('/api/auth/profile', formValue)
+      .subscribe({
+        next: (response) => {
+          this.zone.run(() => {
+            this.isSubmitting.set(false);
+            this.user.set(response.user);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('user', JSON.stringify(response.user));
+            }
+            this.toastService.success('Profile updated successfully!');
+            this.closeEditModal();
+          });
+        },
+        error: (err) => {
+          this.zone.run(() => {
+            this.isSubmitting.set(false);
+            const errMsg = err.error?.error || 'Failed to update profile.';
+            
+            // Reopen edit modal if it was closed (but now we don't close it until success)
+            this.errorMessage.set(errMsg);
 
-        this.isOtpStep = true;
-        this.otpLocked = false;
-        this.otpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
-        this.otpError = null;
-        this.otpValue = '';
-        this.otpDigits = ['', '', '', '', '', ''];
-        this.startOtpCountdown(this.OTP_DURATION_SECONDS);
-        this.cdr.detectChanges();
-        setTimeout(() => this.focusHiddenInput(), 50);
-      } else {
-        // Nếu không thay đổi gì nhạy cảm thì backend lưu trực tiếp
-        this.user.set(res.user);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('user', JSON.stringify(res.user));
+            // Check if the error message is field-specific (email, phone, community name)
+            const isFieldSpecific = 
+              errMsg.toLowerCase().includes('email') || 
+              errMsg.toLowerCase().includes('phone') || 
+              errMsg.toLowerCase().includes('số điện thoại') || 
+              errMsg.toLowerCase().includes('cộng đồng') || 
+              errMsg.toLowerCase().includes('community');
+
+            // If it is NOT a field-specific duplicate error, show a toast error
+            if (!isFieldSpecific) {
+              this.toastService.error(`Update failed: ${errMsg}`);
+            }
+          });
         }
-        this.toastService.success('Profile updated successfully!');
-        this.closeEditModal();
-      }
-    } catch (err: any) {
-      const errMsg = err.error?.error || 'Failed to update profile.';
-      this.errorMessage.set(errMsg);
-    } finally {
-      this.isSubmitting.set(false);
-      this.cdr.detectChanges();
-    }
+      });
   }
-
-  private startOtpCountdown(seconds: number): void {
-    this.clearOtpCountdown();
-    this.otpCountdown.set(seconds);
-    this.otpTimerHandle = setInterval(() => {
-      this.otpCountdown.update(v => v - 1);
-      if (this.otpCountdown() <= 0) {
-        this.otpCountdown.set(0);
-        this.clearOtpCountdown();
-      }
-    }, 1000);
-  }
-
-  private clearOtpCountdown(): void {
-    if (this.otpTimerHandle) {
-      clearInterval(this.otpTimerHandle);
-      this.otpTimerHandle = null;
-    }
-  }
-
-  get otpCountdownLabel(): string {
-    const m = Math.floor(this.otpCountdown() / 60);
-    const s = this.otpCountdown() % 60;
-    return `${m}:${String(s).padStart(2, '0')}`;
-  }
-
-  get canResendOtp(): boolean {
-    return this.otpCountdown() <= 0;
-  }
-
-  trackByFn(index: number): number {
-    return index;
-  }
-
-  focusHiddenInput(): void {
-    if (this.hiddenOtpInput?.nativeElement) {
-      this.hiddenOtpInput.nativeElement.focus();
-    }
-  }
-
-  onHiddenOtpInput(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    let val = input.value.replace(/\D/g, '');
-
-    if (val.length > 6) {
-      val = val.substring(0, 6);
-    }
-
-    this.otpValue = val;
-    input.value = val;
-
-    for (let i = 0; i < 6; i++) {
-      this.otpDigits[i] = val[i] || '';
-    }
-    this.cdr.detectChanges();
-
-    if (this.otpValue.length === 6) {
-      this.verifyUpdateOtp();
-    }
-  }
-
-  async verifyUpdateOtp(): Promise<void> {
-    if (this.otpLocked || !this.updateToken || this.otpValue.length !== 6) return;
-    this.otpError = null;
-    this.isVerifyingOtp = true;
-    this.cdr.detectChanges();
-
-    try {
-      const res = await this.http.post<any>('/api/auth/verify-profile-update', {
-        update_token: this.updateToken,
-        otp: this.otpValue
-      }).toPromise();
-
-      this.clearOtpCountdown();
-      this.isOtpStep = false;
-      this.user.set(res.user);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('user', JSON.stringify(res.user));
-      }
-      this.toastService.success('Profile updated and verified successfully!');
-      this.closeEditModal();
-    } catch (err: any) {
-      const code = err?.error?.code || err?.code;
-      if (code === 'OTP_LOCKED') {
-        this.otpLocked = true;
-        this.otpAttemptsLeft = 0;
-        this.clearOtpCountdown();
-      } else {
-        this.otpAttemptsLeft = Math.max(0, this.otpAttemptsLeft - 1);
-        this.otpError = err.error?.error || 'Incorrect code. Please try again.';
-        if (this.otpAttemptsLeft <= 0) {
-          this.otpLocked = true;
-          this.clearOtpCountdown();
-        }
-      }
-      this.otpValue = '';
-      this.otpDigits = ['', '', '', '', '', ''];
-      setTimeout(() => this.focusHiddenInput(), 50);
-    } finally {
-      this.isVerifyingOtp = false;
-      this.cdr.detectChanges();
-    }
-  }
-
-  async resendOtp(): Promise<void> {
-    if (!this.updateToken || (!this.canResendOtp && !this.otpLocked)) return;
-    this.isResendingOtp = true;
-    this.cdr.detectChanges();
-
-    try {
-      const res = await this.http.post<any>('/api/auth/resend-profile-update-otp', {
-        update_token: this.updateToken
-      }).toPromise();
-
-      this.mockOtp = res.__mock || '';
-      this.otpLocked = false;
-      this.otpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
-      this.otpError = null;
-      this.otpValue = '';
-      this.otpDigits = ['', '', '', '', '', ''];
-      this.startOtpCountdown(this.OTP_DURATION_SECONDS);
-      setTimeout(() => this.focusHiddenInput(), 50);
-    } catch (err: any) {
-      this.otpError = 'Could not resend code. Please try again.';
-    } finally {
-      this.isResendingOtp = false;
-      this.cdr.detectChanges();
-    }
-  }
-
-  cancelOtp(): void {
-    this.isOtpStep = false;
-    this.clearOtpCountdown();
-    this.otpValue = '';
-    this.otpDigits = ['', '', '', '', '', ''];
-    this.cdr.detectChanges();
-  }
-  // ══════════════ END OTP LOGIC ══════════════
 
   onChangePassword(): void {
     if (this.passwordValidator && !this.passwordValidator.validateAll()) return;
 
     this.errorMessage.set('');
     this.successMessage.set('');
+    this.isSubmitting.set(true);
 
     const { oldPassword, newPassword } = this.passwordForm.value;
-
-    // Instantly close modal and show success toast (optimistic update)
-    this.toastService.success('Password changed successfully!');
-    this.closePasswordModal();
 
     this.http.put<{ message: string }>('/api/auth/change-password', { oldPassword, newPassword })
       .subscribe({
         next: (response) => {
-          // Already closed and notified successfully
+          this.zone.run(() => {
+            this.isSubmitting.set(false);
+            this.toastService.success('Password changed successfully!');
+            this.closePasswordModal();
+          });
         },
         error: (err) => {
           this.zone.run(() => {
+            this.isSubmitting.set(false);
             const errMsg = err.error?.error || 'Failed to change password.';
-            this.toastService.error(`Update failed: ${errMsg}`);
-            
-            // Reopen modal
-            this.openPasswordModal();
-            
-            // Restore field values
-            this.passwordForm.patchValue({
-              oldPassword,
-              newPassword
-            });
 
             // Display the specific error inline
             setTimeout(() => {
