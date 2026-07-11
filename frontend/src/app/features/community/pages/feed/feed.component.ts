@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { Subject, switchMap } from 'rxjs';
@@ -54,10 +54,9 @@ export class FeedComponent implements OnInit {
 
   private fetch$ = new Subject<void>();
 
-  ngOnInit(): void {
-    // Chỉ load feed nếu đã login, tránh gọi API thừa khi user chưa xác thực
-    if (!this.isLoggedIn()) return;
-
+  constructor() {
+    // Subscription lấy feed — set up ngay từ đầu, không phụ thuộc trạng thái
+    // login tại thời điểm khởi tạo, để effect() bên dưới luôn có sẵn nơi để bắn tín hiệu vào.
     this.fetch$.pipe(
       switchMap(() =>
         this.communityService.getFeed(this.page, this.limit, this.activeCategory, this.sort)
@@ -79,8 +78,20 @@ export class FeedComponent implements OnInit {
       }
     });
 
-    this.loadFeed();
+    // Trước đây gate đăng nhập nằm trong ngOnInit — chỉ chạy 1 lần lúc component
+    // khởi tạo. Nếu lúc đó chưa login, cả đoạn load feed bị bỏ qua và không bao
+    // giờ chạy lại, kể cả sau khi user login thành công qua modal (isLoggedIn
+    // là signal, đổi giá trị nhưng Angular không tự re-run ngOnInit) → feed
+    // trống trắng cho tới khi F5 lại trang. effect() ở đây tự chạy lại mỗi khi
+    // isLoggedIn() đổi giá trị, kể cả xảy ra sau khi component đã sống một lúc.
+    effect(() => {
+      if (this.isLoggedIn()) {
+        this.loadFeed();
+      }
+    });
   }
+
+  ngOnInit(): void {}
 
   openLoginModal(): void {
     this.authModalService.open('login');
@@ -114,16 +125,6 @@ export class FeedComponent implements OnInit {
     this.sort = sort;
     this.page = 1;
     this.loadFeed();
-  }
-
-  likePost(postId: string): void {
-    this.communityService.likePost(postId).subscribe(res => {
-      const post = this.posts.find(p => p.post_id === postId);
-      if (post) {
-        post.like_count = res.like_count;
-        this.cdr.detectChanges();
-      }
-    });
   }
 
   goToDetail(postId: string): void {

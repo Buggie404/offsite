@@ -286,7 +286,7 @@
             <div *ngIf="signupConfirmPasswordError" class="error-message">{{ signupConfirmPasswordError }}</div>
           </div>
 
-          <button type="submit" class="submit-btn" [disabled]="isSubmitting">JOIN US</button>
+          <button type="submit" class="submit-btn" [disabled]="isSubmitting || !isFormValid()">JOIN US</button>
         </form>
 
         <div class="auth-switch-mode">

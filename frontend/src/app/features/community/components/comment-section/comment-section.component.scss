@@ -157,19 +157,34 @@ $transition-speed: 0.25s;
   }
 }
 
-// Ô reply nằm ngay dưới comment/reply vừa bấm "Reply"
+// Ô reply nằm ngay dưới comment/reply vừa bấm "Reply" — chỉ còn giữ margin
+// bao ngoài, phần input/nút bên trong dùng chung style .composer-row bên dưới
+// (cùng markup composerRow template với ô comment chính) để 2 nơi đồng bộ giao diện.
 .inline-reply-box {
+  margin-top: 10px;
+}
+
+// ── COMPOSER ROW — dùng chung cho cả ô comment chính (.comment-composer)
+// lẫn ô reply inline (.inline-reply-box), vì cả 2 cùng render từ 1 template
+// composerRow. Để top-level (không lồng trong .comment-composer) thì mới
+// áp dụng được cho cả hai chỗ, tránh trường hợp reply-box bị rớt về style
+// mặc định của trình duyệt như trước.
+.comment-composer,
+.inline-reply-box {
+  margin-top: 8px;
+}
+
+.composer-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 10px;
 
   input {
     flex: 1;
     border: 1px solid $light-grey;
-    border-radius: 18px;
-    padding: 14px 16px;
-    font-size: 0.95rem;
+    border-radius: 20px;
+    padding: 16px 18px;
+    font-size: 1rem;
     font-family: var(--font-body), 'DM Sans', sans-serif;
     outline: none;
     transition: border-color $transition-speed;
@@ -178,106 +193,61 @@ $transition-speed: 0.25s;
       border-color: $forest-green;
     }
   }
+}
 
-  .inline-reply-send {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: none;
-    background: $light-grey;
-    color: $text-muted;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: not-allowed;
-    flex-shrink: 0;
-    transition: background $transition-speed, color $transition-speed, transform $transition-speed;
+.composer-clear-btn {
+  background: none;
+  border: none;
+  color: $text-muted;
+  cursor: pointer;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  padding: 6px;
+  transition: color $transition-speed;
 
-    &:not(:disabled) {
-      background: $forest-green;
-      color: $white;
-      cursor: pointer;
-
-      &:hover {
-        background: #2c4429;
-        transform: scale(1.05);
-      }
-    }
-  }
-
-  .inline-reply-cancel {
-    background: none;
-    border: none;
-    color: $text-muted;
-    cursor: pointer;
-    font-size: 0.9rem;
-    flex-shrink: 0;
+  &:hover {
+    color: #D32F2F;
   }
 }
 
-// ── COMMENT COMPOSER ──
-.comment-composer {
-  margin-top: 8px;
+.composer-cancel-btn {
+  background: none;
+  border: none;
+  color: $text-muted;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  padding: 6px 4px;
+  transition: color $transition-speed;
 
-  .composer-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-
-    input {
-      flex: 1;
-      border: 1px solid $light-grey;
-      border-radius: 20px;
-      padding: 16px 18px;
-      font-size: 1rem;
-      font-family: var(--font-body), 'DM Sans', sans-serif;
-      outline: none;
-      transition: border-color $transition-speed;
-
-      &:focus {
-        border-color: $forest-green;
-      }
-    }
+  &:hover {
+    color: $forest-green;
   }
+}
 
-  .composer-clear-btn {
-    background: none;
-    border: none;
-    color: $text-muted;
+.composer-send-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: $light-grey;
+  color: $text-muted;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: not-allowed;
+  flex-shrink: 0;
+  transition: background $transition-speed, color $transition-speed, transform $transition-speed;
+
+  &:not(:disabled) {
+    background: $forest-green;
+    color: $white;
     cursor: pointer;
-    font-size: 0.95rem;
-    flex-shrink: 0;
-    padding: 6px;
-    transition: color $transition-speed;
 
     &:hover {
-      color: #D32F2F;
-    }
-  }
-
-  .composer-send-btn {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    border: none;
-    background: $light-grey;
-    color: $text-muted;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: not-allowed;
-    flex-shrink: 0;
-    transition: background $transition-speed, color $transition-speed, transform $transition-speed;
-
-    &:not(:disabled) {
-      background: $forest-green;
-      color: $white;
-      cursor: pointer;
-
-      &:hover {
-        background: #2c4429;
-        transform: scale(1.05);
-      }
+      background: #2c4429;
+      transform: scale(1.05);
     }
   }
 }

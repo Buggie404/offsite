@@ -19,7 +19,6 @@
                 <app-post-card
                     *ngFor="let post of posts"
                     [post]="post"
-                    (like)="likePost($event)"
                     (openDetail)="goToDetail($event)">
                 </app-post-card>
             </div>
