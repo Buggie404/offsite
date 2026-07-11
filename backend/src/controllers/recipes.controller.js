@@ -1,4 +1,5 @@
 const Recipe = require('../models/Recipe');
+const Post = require('../models/Post');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 
@@ -126,7 +127,6 @@ async function createRecipe(req, res) {
       return res.status(404).json({ error: 'User profile not found' });
     }
 
-
     const lastRecipe = await Recipe.findOne({}, {}, { sort: { recipe_id: -1 } });
     let nextNum = 1;
     if (lastRecipe && lastRecipe.recipe_id) {
@@ -172,15 +172,55 @@ async function createRecipe(req, res) {
         creatorAvatar: user.avatar_url || null
       },
       saves: 0,
-      published: true,
+      published: false, // 🛑 ẨN KHỎI TRANG RECIPES CHÍNH (Chờ đủ 30 saves/likes)
       createdAt: now,
       updatedAt: now
     });
 
     const savedRecipe = await newRecipe.save();
+
+    // 🚀 TỰ ĐỘNG TẠO POST BÊN COMMUNITY 🚀
+    const lastPost = await Post.findOne({}, {}, { sort: { post_id: -1 } });
+    let nextNumPost = 600001;
+    if (lastPost && lastPost.post_id) {
+      const match = lastPost.post_id.match(/POST(\d+)/);
+      if (match) {
+        nextNumPost = parseInt(match[1], 10) + 1;
+      }
+    }
+    const post_id = `POST${String(nextNumPost).padStart(6, '0')}`;
+    const isCoffee = title.toUpperCase().includes('COFFEE');
+    const baseVal = isCoffee ? 'COFFEE' : 'MATCHA';
+
+    const newPost = new Post({
+      post_id,
+      user_id: user.user_id,
+      author: {
+        username: user.community_name || user.profile_name || 'Anonymous',
+        avatar_url: user.avatar_url || null
+      },
+      post_type: 'recipe',
+      content: description || title.trim(),
+      media: [{
+        url: heroImage.url,
+        public_id: heroImage.public_id,
+        type: 'image'
+      }],
+      recipe_id: recipe_id,
+      base: baseVal,
+      like_count: 0,
+      comment_count: 0,
+      share_count: 0,
+      save_count: 0
+    });
+    
+    await newPost.save();
+
+    // 🚀 TRẢ VỀ THÊM post_id CHO FRONTEND CHUYỂN HƯỚNG 🚀
     res.status(201).json({
-      message: 'Recipe created successfully',
-      data: savedRecipe
+      message: 'Recipe and Community Post created successfully',
+      data: savedRecipe,
+      post_id: newPost.post_id
     });
   } catch (error) {
     console.error('Error creating recipe:', error);
@@ -193,3 +233,4 @@ module.exports = {
   getRecipeBySlugOrId,
   createRecipe
 };
+

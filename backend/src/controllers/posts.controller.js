@@ -1,7 +1,7 @@
 const Post = require('../models/Post');
 const User = require('../models/User');
+const Recipe = require('../models/Recipe');
 const mongoose = require('mongoose');
-
 
 async function getAllPosts(req, res) {
   try {
@@ -16,7 +16,6 @@ async function getAllPosts(req, res) {
     const skipCount = (parseInt(page, 10) - 1) * parseInt(limit, 10);
     const limitCount = parseInt(limit, 10);
 
-    // sort=like_count → nhiều like nhất trước; mặc định mới nhất trước
     const sortOption = sort === 'like_count'
       ? { like_count: -1 }
       : { created_at: -1 };
@@ -56,7 +55,6 @@ async function getAllPosts(req, res) {
   }
 }
 
-// Get post by ID or post_id string
 async function getPostById(req, res) {
   try {
     const { id } = req.params;
@@ -103,19 +101,16 @@ function parseMediaField(rawMedia) {
   return [];
 }
 
-// Create a new post
 async function createPost(req, res) {
   try {
     const { content, media: rawMedia, post_type = 'regular', recipe_id = null, base } = req.body;
     const media = parseMediaField(rawMedia);
 
-    // Find the logged-in user
     const user = await User.findById(req.user.user_id);
     if (!user) {
       return res.status(404).json({ error: 'User profile not found' });
     }
 
-    // Generate sequential post_id starting from POST600001
     const lastPost = await Post.findOne({}, {}, { sort: { post_id: -1 } });
     let nextNum = 600001;
     if (lastPost && lastPost.post_id) {
@@ -155,7 +150,6 @@ async function createPost(req, res) {
   }
 }
 
-// Update an existing post
 async function updatePost(req, res) {
   try {
     const { id } = req.params;
@@ -173,7 +167,6 @@ async function updatePost(req, res) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    // Authorization check
     const user = await User.findById(req.user.user_id);
     if (!user || post.user_id !== user.user_id) {
       return res.status(403).json({ error: 'You are not authorized to update this post' });
@@ -196,7 +189,6 @@ async function updatePost(req, res) {
   }
 }
 
-// Delete a post
 async function deletePost(req, res) {
   try {
     const { id } = req.params;
@@ -213,7 +205,6 @@ async function deletePost(req, res) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    // Authorization check
     const user = await User.findById(req.user.user_id);
     if (!user || post.user_id !== user.user_id) {
       return res.status(403).json({ error: 'You are not authorized to delete this post' });
@@ -221,7 +212,6 @@ async function deletePost(req, res) {
 
     await Post.deleteOne({ _id: post._id });
     
-    // Clean up associated comments
     const Comment = require('../models/Comment');
     await Comment.deleteMany({ post_id: post.post_id });
 
@@ -232,7 +222,6 @@ async function deletePost(req, res) {
   }
 }
 
-// Like / Unlike a post
 async function likePost(req, res) {
   try {
     const { id } = req.params;
@@ -261,29 +250,26 @@ async function likePost(req, res) {
     );
 
     if (alreadyLiked) {
-      // Unlike
       user.liked_posts = user.liked_posts.filter(
         p => p.post_id !== post.post_id
       );
-
-      // FIX: this was previously missing — like_count was never decremented
-      // on unlike, so the number stayed inflated forever and only the
-      // active/filled icon state reflected the unlike.
       post.like_count = Math.max(0, post.like_count - 1);
-
       message = 'Post unliked successfully';
-
     } else {
-
-      // Like
       user.liked_posts.push({
         post_id: post.post_id,
         liked_at: new Date()
       });
-
       post.like_count++;
-
       message = 'Post liked successfully';
+
+      // 🛑 NẾU LƯỢT LIKE ĐẠT 30, BẬT PUBLISHED LÊN TRUE
+      if (post.recipe_id && post.like_count >= 30) {
+        await Recipe.findOneAndUpdate(
+          { recipe_id: post.recipe_id, published: false },
+          { $set: { published: true } }
+        );
+      }
     }
 
     await user.save();
@@ -301,7 +287,6 @@ async function likePost(req, res) {
   }
 }
 
-// Save / Unsave a post
 async function savePost(req, res) {
   try {
     const { id } = req.params;
@@ -330,25 +315,26 @@ async function savePost(req, res) {
     let message = '';
 
     if (alreadySaved) {
-
       user.saved_posts = user.saved_posts.filter(
         p => p.post_id !== post.post_id
       );
-
       post.save_count = Math.max(0, post.save_count - 1);
-
       message = 'Post unsaved successfully';
-
     } else {
-
       user.saved_posts.push({
         post_id: post.post_id,
         saved_at: new Date()
       });
-
       post.save_count++;
-
       message = 'Post saved successfully';
+
+      // 🛑 NẾU LƯỢT SAVE ĐẠT 30, BẬT PUBLISHED LÊN TRUE
+      if (post.recipe_id && post.save_count >= 30) {
+        await Recipe.findOneAndUpdate(
+          { recipe_id: post.recipe_id, published: false },
+          { $set: { published: true } }
+        );
+      }
     }
 
     await user.save();
@@ -366,9 +352,6 @@ async function savePost(req, res) {
   }
 }
 
-// NEW: record a share. Doesn't require auth-specific state (no "unshare"
-// concept) — just increments a counter each time the share modal action
-// that actually completes a share is invoked.
 async function sharePost(req, res) {
   try {
     const { id } = req.params;
@@ -408,3 +391,4 @@ module.exports = {
   savePost,
   sharePost
 };
+

@@ -13,15 +13,31 @@
   <section class="community-section">
       <div class="container">
           <div class="community-grid">
+
+              <ng-container *ngIf="loading && posts.length === 0">
+                  <div class="skeleton-card" *ngFor="let i of [1,2,3,4,5,6]">
+                      <div class="skeleton-image"></div>
+                      <div class="skeleton-content">
+                          <div class="skeleton-avatar-row">
+                              <div class="sk-avatar"></div>
+                              <div class="sk-name"></div>
+                          </div>
+                          <div class="skeleton-line"></div>
+                          <div class="skeleton-line short"></div>
+                      </div>
+                  </div>
+              </ng-container>
+
               <app-post-card
                   *ngFor="let post of posts"
                   [post]="post"
                   (like)="likePost($event)"
                   (openDetail)="goToDetail($event)">
               </app-post-card>
+
           </div>
 
-          <div class="load-more" *ngIf="hasMore">
+          <div class="load-more" *ngIf="hasMore && !loading && posts.length > 0">
               <button class="btn-load" (click)="loadMore()">
                   <span>LOAD NEW POSTS</span>
                   <svg width="12" height="8" viewBox="0 0 12 8" fill="none">

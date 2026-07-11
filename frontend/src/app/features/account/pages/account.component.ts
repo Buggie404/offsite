@@ -461,14 +461,15 @@ export class AccountComponent implements OnInit, OnDestroy {
     }
   }
 
+  // 1. Tùy chỉnh Validators cho Form
   private initForms(): void {
     this.profileForm = this.fb.group({
       profile_name: ['', [Validators.required, Validators.minLength(2)]],
       community_name: ['', [Validators.minLength(2)]],
-      email: ['', [Validators.required, Validators.email]],
-      phone: ['', [Validators.required, Validators.pattern(/^[0-9]{10,11}$/)]],
+      email: ['', [Validators.email]],
+      phone: ['', [Validators.pattern(/^([0-9]{10,11})?$/)]],
       avatar_url: ['']
-    });
+    }, { validators: this.atLeastOneContactValidator });
 
     this.profileForm.valueChanges.subscribe(() => {
       if (this.errorMessage()) {
@@ -483,8 +484,19 @@ export class AccountComponent implements OnInit, OnDestroy {
     }, { validators: this.passwordMatchValidator });
   }
 
+  // Bắt buộc phải điền Email HOẶC Phone (1 trong 2)
+  private atLeastOneContactValidator = (g: FormGroup) => {
+    const email = g.get('email')?.value;
+    const phone = g.get('phone')?.value;
+    if ((!email || email.trim() === '') && (!phone || phone.trim() === '')) {
+      return { atLeastOneContact: true };
+    }
+    return null;
+  }
+
   profileValidator: InlineValidator | null = null;
 
+  // 2. Chỉnh sửa logic hiển thị lỗi của Vanilla JS validator
   setupProfileValidator(): void {
     setTimeout(() => {
       const profileConfigs: FieldConfig[] = [
@@ -512,10 +524,6 @@ export class AccountComponent implements OnInit, OnDestroy {
           rules: [
             {
               sequence: 1,
-              type: 'EMPTY_CHECK'
-            },
-            {
-              sequence: 2,
               type: 'LENGTH_CHECK',
               min_length: 2,
               error_message: 'Community name must be at least 2 characters long.'
@@ -529,14 +537,14 @@ export class AccountComponent implements OnInit, OnDestroy {
             {
               sequence: 1,
               type: 'FORMAT_CHECK',
-              regex_pattern: '^\\s*$',
-              error_message: 'Email is required.'
+              condition: 'value.trim() !== "" && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/.test(value.trim())',
+              error_message: 'Invalid email format.'
             },
             {
               sequence: 2,
               type: 'FORMAT_CHECK',
-              condition: '!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/.test(value.trim())',
-              error_message: 'Invalid email format.'
+              condition: 'value.trim() === "" && (document.getElementById("phone") ? document.getElementById("phone").value.trim() === "" : true)',
+              error_message: 'Either email or phone is required.'
             }
           ]
         },
@@ -547,14 +555,14 @@ export class AccountComponent implements OnInit, OnDestroy {
             {
               sequence: 1,
               type: 'FORMAT_CHECK',
-              regex_pattern: '^\\s*$',
-              error_message: 'Phone number is required.'
+              condition: 'value.trim() !== "" && !/^[0-9]{10,11}$/.test(value.trim())',
+              error_message: 'Phone number must be 10-11 digits.'
             },
             {
               sequence: 2,
               type: 'FORMAT_CHECK',
-              condition: '!/^[0-9]{10,11}$/.test(value.trim())',
-              error_message: 'Phone number must be 10-11 digits.'
+              condition: 'value.trim() === "" && (document.getElementById("email") ? document.getElementById("email").value.trim() === "" : true)',
+              error_message: 'Either email or phone is required.'
             }
           ]
         }
@@ -568,19 +576,16 @@ export class AccountComponent implements OnInit, OnDestroy {
     }, 100);
   }
 
-
-
+  // 3. Tối ưu hàm lấy lỗi cho Reactive Form
   getFieldError(field: string): string | null {
     const control = this.profileForm.get(field);
     if (!control || !(control.dirty || control.touched)) {
       return null;
     }
 
-    if (control.invalid) {
+    if (control.invalid || this.profileForm.errors?.['atLeastOneContact']) {
       if (control.errors?.['required']) {
         if (field === 'profile_name') return 'Name is required';
-        if (field === 'email') return 'Email is required';
-        if (field === 'phone') return 'Phone number is required';
       }
       if (control.errors?.['minlength']) {
         if (field === 'profile_name') return 'Name must be at least 2 characters long';
@@ -592,7 +597,12 @@ export class AccountComponent implements OnInit, OnDestroy {
       if (control.errors?.['pattern']) {
         if (field === 'phone') return 'Phone number must be 10-11 digits';
       }
-      return 'Invalid input';
+      if (this.profileForm.errors?.['atLeastOneContact']) {
+         if (field === 'email' || field === 'phone') return 'Either email or phone is required';
+      }
+      if (control.invalid) {
+         return 'Invalid input';
+      }
     }
 
     // Check backend errors
@@ -616,6 +626,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     return this.getFieldError(field) !== null;
   }
 
+  // 4. Update hiển thị tick xanh (Chỉ hiện khi field đó có điền text)
   hasFieldSuccess(field: string): boolean {
     const control = this.profileForm.get(field);
     if (!control || !(control.dirty || control.touched)) {
@@ -623,7 +634,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     }
     
     // For optional fields, only show success if they have entered a value
-    if (field === 'community_name') {
+    if (field === 'community_name' || field === 'email' || field === 'phone') {
       if (!control.value || control.value.trim() === '') {
         return false;
       }
@@ -650,7 +661,7 @@ export class AccountComponent implements OnInit, OnDestroy {
       }
     }
 
-    return control.valid;
+    return control.valid && !this.profileForm.errors?.['atLeastOneContact'];
   }
 
   private passwordMatchValidator(g: FormGroup) {
@@ -2081,4 +2092,5 @@ export class AccountComponent implements OnInit, OnDestroy {
   }
 
 }
+
 

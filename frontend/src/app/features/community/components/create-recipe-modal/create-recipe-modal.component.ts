@@ -38,7 +38,6 @@ export class CreateRecipeModalComponent {
   private recipeService = inject(RecipeService);
   private router = inject(Router);
 
-  // Khớp feed.component.html: (close)="closeCreateRecipe()"
   @Output() close = new EventEmitter<void>();
 
   readonly serveStyles = SERVE_STYLES;
@@ -78,8 +77,6 @@ export class CreateRecipeModalComponent {
     return { description: '' };
   }
 
-  // ================== Hero image ==================
-
   onHeroFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -97,13 +94,9 @@ export class CreateRecipeModalComponent {
     this.heroPreview = null;
   }
 
-  // ================== Serve style ==================
-
   selectServeStyle(style: ServeStyle): void {
     this.selectedServeStyle = style;
   }
-
-  // ================== Ingredients ==================
 
   addIngredient(): void {
     this.ingredients.push(this.emptyIngredient());
@@ -114,8 +107,6 @@ export class CreateRecipeModalComponent {
     this.ingredients.splice(index, 1);
   }
 
-  // ================== Tools ==================
-
   addTool(): void {
     this.tools.push({ name: '' });
   }
@@ -123,8 +114,6 @@ export class CreateRecipeModalComponent {
   removeTool(index: number): void {
     this.tools.splice(index, 1);
   }
-
-  // ================== Steps ==================
 
   addStep(): void {
     this.steps.push(this.emptyStep());
@@ -134,8 +123,6 @@ export class CreateRecipeModalComponent {
     if (this.steps.length === 1) return;
     this.steps.splice(index, 1);
   }
-
-  // ================== Đóng modal / Discard confirm ==================
 
   get hasUnsavedContent(): boolean {
     return (
@@ -184,8 +171,6 @@ export class CreateRecipeModalComponent {
     this.selectedServeStyle = 'HOT';
     this.errorMessage = '';
   }
-
-  // ================== Submit ==================
 
   submitRecipe(): void {
     if (this.isSubmitting) return;
@@ -263,12 +248,21 @@ export class CreateRecipeModalComponent {
         );
 
         this.recipeService.createRecipe(formData).subscribe({
-          next: res => {
+          next: (res: any) => {
             this.isSubmitting = false;
-            const slug = res.data.slug;
+            
+            // 🚀 Lấy post_id từ Backend
+            const postId = res.post_id;
+            
             this.resetForm();
             this.close.emit();
-            this.router.navigate(['/recipes', slug]);
+            
+            // 🚀 Tự động chuyển hướng tới bài viết Community chi tiết
+            if (postId) {
+              this.router.navigate(['/community/post', postId]);
+            } else {
+              window.location.reload();
+            }
           },
           error: () => {
             this.isSubmitting = false;
@@ -283,3 +277,4 @@ export class CreateRecipeModalComponent {
     });
   }
 }
+

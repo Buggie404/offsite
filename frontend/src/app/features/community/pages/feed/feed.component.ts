@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, ChangeDetectorRef, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { Subject, switchMap } from 'rxjs';
+import { Subject, switchMap, startWith } from 'rxjs';
 
 import { Post } from '../../models/post.model';
 import { CommunityService } from '../../services/community.service';
@@ -56,19 +56,23 @@ export class FeedComponent implements OnInit {
   private fetch$ = new Subject<void>();
 
   constructor() {
-    // Tự động gọi API lấy data thật của User ngay khi đăng nhập thành công
     effect(() => {
       const loggedIn = this.isLoggedIn();
       if (loggedIn) {
         this.page = 1;
-        this.loadFeed();
+        // Chờ effect chạy xong mới gọi loadFeed để tránh xung đột vòng đời Angular
+        setTimeout(() => this.loadFeed(), 0);
       }
     });
   }
 
   ngOnInit(): void {
-    // Không chặn Guest ở đây nữa, gọi API bình thường để có data nền mờ
+    // Bật trạng thái loading để Skeleton hiện ra ngay lập tức
+    this.loading = true;
+
     this.fetch$.pipe(
+      // startWith kích hoạt luồng tự động gọi API 1 lần ngay khi mở Component
+      startWith(undefined), 
       switchMap(() =>
         this.communityService.getFeed(this.page, this.limit, this.activeCategory, this.sort)
       )
@@ -88,8 +92,6 @@ export class FeedComponent implements OnInit {
         this.cdr.detectChanges();
       }
     });
-
-    this.loadFeed();
   }
 
   openLoginModal(): void {
@@ -127,7 +129,6 @@ export class FeedComponent implements OnInit {
   }
 
   likePost(postId: string): void {
-    // Chặn Like nếu chưa đăng nhập (đề phòng click lọt qua lớp mờ)
     if (!this.isLoggedIn()) {
       this.openLoginModal();
       return;
