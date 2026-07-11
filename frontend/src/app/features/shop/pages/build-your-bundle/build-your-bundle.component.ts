@@ -311,8 +311,12 @@ export class BuildYourBundleComponent implements OnInit {
   }
 
   selectBundleCategory(filter: BundleCategoryFilter): void {
+    if (this.bundleCategoryFilter() === filter) return;
     this.bundleCategoryFilter.set(filter);
     this.persistBuilderState();
+    
+    // Scroll the product browser back to the top when filtering categories
+    this.scrollProductBrowserToTop();
   }
 
   selectSlot(slotKey: SlotKey): void {
