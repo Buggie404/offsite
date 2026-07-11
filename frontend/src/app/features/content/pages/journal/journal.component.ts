@@ -73,19 +73,11 @@ export class JournalComponent implements OnInit, OnDestroy, AfterViewInit {
   hasSearchPerformed = false;
 
   get pageLimit(): number {
-    if (this.currentPage === 1) {
-      const hasFeatured = (this.selectedCategory === 'ALL' && !this.searchQuery && this.selectedSort === 'NEWEST');
-      return hasFeatured ? 7 : 6;
-    }
-    return 6;
+    return 1000;
   }
 
   get pageSkip(): number {
-    if (this.currentPage === 1) {
-      return 0;
-    }
-    const hasFeatured = (this.selectedCategory === 'ALL' && !this.searchQuery && this.selectedSort === 'NEWEST');
-    return hasFeatured ? (7 + (this.currentPage - 2) * 6) : ((this.currentPage - 1) * 6);
+    return 0;
   }
 
   featuredArticle: Article | undefined;
@@ -345,10 +337,7 @@ export class JournalComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  loadMore(): void {
-    this.currentPage++;
-    this.loadBlogs();
-  }
+
 
   get showEmptyState(): boolean {
     const hasActiveFilters = !!this.searchQuery;

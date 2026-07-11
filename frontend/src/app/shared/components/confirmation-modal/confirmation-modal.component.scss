@@ -57,62 +57,66 @@
 }
 
 .modal-title {
-  font-family: var(--font-display), 'DM Serif Display', sans-serif;
-  font-size: 1.5rem;
-  color: #2A2A2A;
+  font-family: var(--font-body), sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1A1A1A;
   margin-bottom: 12px;
 }
 
 .modal-message {
-  font-family: var(--font-body), 'DM Sans', sans-serif;
-  font-size: 0.95rem;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
   color: #544A40;
   line-height: 1.5;
   margin-bottom: 12px;
 }
 
 .modal-warning {
-  font-family: var(--font-mono), 'DM Mono', monospace;
-  font-size: 0.8rem;
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
   color: #8c857e;
   margin-bottom: 24px;
 }
 
 .modal-actions {
   display: flex;
-  gap: 12px;
+  gap: 16px;
 
   button {
     flex: 1;
-    padding: 14px;
-    border-radius: 99px;
-    font-family: var(--font-mono), 'DM Mono', monospace;
-    font-size: 1.0rem;
+    padding: 12px 16px;
+    border-radius: 100px;
+    font-family: var(--font-body), sans-serif;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    text-transform: uppercase;
     cursor: pointer;
     transition: all 0.2s ease;
   }
 
   .btn-cancel {
-    background: transparent;
-    border: 1px solid #544A40;
+    background-color: #FFFFFF;
+    border: 1px solid #7C7267;
     color: #544A40;
     
-    &:hover { background: rgba(0,0,0,0.05); }
+    &:hover { background-color: #FAF3EC; }
   }
 
   .btn-confirm {
     border: none;
-    color: white;
+    color: #FFFFFF;
+    background-color: #375534;
+    
+    &:hover {
+      background-color: var(--color-forest-green-hover);
+    }
 
     &.danger {
-      background: #375534;
-      &:hover { background: #2d3f2b; }
-    }
-    &.success, &.info {
-      background: #375534;
-      &:hover { background: #2a4230; }
+      background-color: #C0392B;
+      &:hover { background-color: #A03024; }
     }
   }
 }

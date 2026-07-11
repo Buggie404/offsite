@@ -1208,26 +1208,13 @@ async function verifyProfileOtp(req, res) {
       });
     }
 
-    // Xác thực thành công -> Cập nhật thông tin user
-    const updateField = type === 'email' ? { email: normalizedValue } : { phone: normalizedValue };
-    
-    await userCollection.updateOne(
-      { _id: userId },
-      { $set: { ...updateField, updatedAt: new Date() } }
-    );
-
+    // Xác thực thành công -> Không cập nhật database ngay tại đây
     // Xóa OTP
     await otpCollection.deleteOne({ _id: pending._id });
 
-    // Lấy user mới cập nhật
-    const updatedUser = await userCollection.findOne(
-      { _id: userId },
-      { projection: { password_hash: 0 } }
-    );
-
     res.status(200).json({
-      message: 'Verification and update successful.',
-      user: updatedUser
+      message: 'Verification successful.',
+      success: true
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

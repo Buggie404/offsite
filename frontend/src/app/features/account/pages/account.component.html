@@ -956,11 +956,11 @@
     </main>
   </div>
 
-  <div class="modal-overlay edit-profile-overlay" *ngIf="showEditModal()" (click)="closeEditModal()">
+  <div class="modal-overlay edit-profile-overlay" *ngIf="showEditModal()" (click)="handleCloseEditModal()">
     <div class="modal-content edit-profile-modal" (click)="$event.stopPropagation()">
       <div class="profile-modal-header">
         <h2 class="profile-modal-title">Edit Profile</h2>
-        <button type="button" class="profile-close-btn" (click)="closeEditModal()" aria-label="Close dialog">
+        <button type="button" class="profile-close-btn" (click)="handleCloseEditModal()" aria-label="Close dialog">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="close-icon-svg">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1064,7 +1064,7 @@
         </div>
 
         <div class="profile-modal-footer">
-          <button type="button" class="btn-profile-cancel" (click)="closeEditModal()">CANCEL</button>
+          <button type="button" class="btn-profile-cancel" (click)="handleCloseEditModal()">CANCEL</button>
           <button type="submit" class="btn-profile-save" [disabled]="profileForm.invalid || isSubmitting()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon" style="width: 16px; height: 16px; margin-right: 8px;" *ngIf="isSubmitting()">
               <line x1="12" y1="2" x2="12" y2="6"></line>
@@ -1157,6 +1157,7 @@
                 Enter the 6-digit code sent to your {{ changeContactType() === 'email' ? 'email' : 'phone' }}
               </p>
               <p class="otp-masked-contact">{{ changeMaskedContact() }}</p>
+
               <p class="otp-attempts-hint" [class.attempts-low]="changeOtpAttemptsLeft() <= 1">
                 You have <strong>{{ changeOtpAttemptsLeft() }}</strong> of 3 attempts left
               </p>

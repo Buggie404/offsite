@@ -29,6 +29,6 @@ a {
   text-decoration: none;
 }
 
-button {
-  font-family: inherit;
+button, .btn, .btn-form, .button, input[type="button"], input[type="submit"] {
+  font-family: var(--font-body) !important;
 }

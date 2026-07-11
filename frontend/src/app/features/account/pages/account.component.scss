@@ -3944,17 +3944,19 @@
   bottom: 16px;
   z-index: 9999;
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 700;
   letter-spacing: 0.04em;
   color: #375534;
-  background-color: rgba(55, 85, 52, 0.08);
-  border: 1px dashed rgba(55, 85, 52, 0.3);
+  background-color: #f0fdf4;
+  border: 1.5px solid #22c55e;
   border-radius: 6px;
-  padding: 6px 10px;
-  opacity: 0.6;
+  padding: 8px 12px;
+  opacity: 0.95;
   transition: opacity 0.2s ease;
-  pointer-events: none;
+  pointer-events: auto;
   backdrop-filter: blur(2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 
   &:hover {
     opacity: 1;

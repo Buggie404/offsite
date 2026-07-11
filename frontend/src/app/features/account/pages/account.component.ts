@@ -1156,22 +1156,57 @@ export class AccountComponent implements OnInit, OnDestroy {
     this.isSidebarOpen.set(false);
   }
 
+  originalProfileValues: any = null;
+
   openEditModal(): void {
     this.errorMessage.set('');
     this.successMessage.set('');
     this.isOtpStep = false; // Reset flow state
     if (this.user()) {
-      this.profileForm.patchValue({
+      const userData = {
         profile_name: this.user().profile_name || '',
         community_name: this.user().community_name || '',
         email: this.user().email || '',
         phone: this.user().phone || '',
         avatar_url: this.user().avatar_url || ''
-      });
+      };
+      this.originalProfileValues = { ...userData };
+      this.profileForm.patchValue(userData);
       this.avatarPreview.set(this.user().avatar_url || '');
     }
     this.showEditModal.set(true);
     this.setupProfileValidator();
+  }
+
+  hasUnsavedChanges(): boolean {
+    if (!this.originalProfileValues) return false;
+    const currentValues = this.profileForm.value;
+    const currentAvatar = this.avatarPreview();
+    
+    const nameChanged = (currentValues.profile_name || '') !== (this.originalProfileValues.profile_name || '');
+    const communityNameChanged = (currentValues.community_name || '') !== (this.originalProfileValues.community_name || '');
+    const emailChanged = (currentValues.email || '') !== (this.originalProfileValues.email || '');
+    const phoneChanged = (currentValues.phone || '') !== (this.originalProfileValues.phone || '');
+    const avatarChanged = (currentAvatar || '') !== (this.originalProfileValues.avatar_url || '');
+    
+    return nameChanged || communityNameChanged || emailChanged || phoneChanged || avatarChanged;
+  }
+
+  handleCloseEditModal(): void {
+    if (this.hasUnsavedChanges()) {
+      this.confirmModalTitle = 'Unsaved Changes';
+      this.confirmModalMessage = 'You have unsaved changes. Are you sure you want to discard them?';
+      this.confirmModalWarning = 'Any changes you made will not be saved.';
+      this.confirmModalConfirmText = 'Discard Changes';
+      this.confirmModalCancelText = 'Keep Editing';
+      this.confirmModalType = 'danger';
+      this.confirmModalAction = () => {
+        this.closeEditModal();
+      };
+      this.isConfirmModalOpen = true;
+    } else {
+      this.closeEditModal();
+    }
   }
 
   closeEditModal(): void {
@@ -1182,6 +1217,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     }
     this.profileForm.reset();
     this.avatarPreview.set('');
+    this.originalProfileValues = null;
   }
 
   trackByFn(index: number): number {
@@ -1342,19 +1378,21 @@ export class AccountComponent implements OnInit, OnDestroy {
         this.isVerifyingChangeOtp.set(false);
         this.clearChangeOtpCountdown();
         
-        // Update user signal and local storage
-        this.user.set(res.user);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('user', JSON.stringify(res.user));
+        // Sync values in profileForm and mark dirty/touched
+        const fieldType = this.changeContactType();
+        const newVal = this.newContactValue().trim();
+        
+        this.profileForm.patchValue({
+          [fieldType]: newVal
+        });
+        
+        const ctrl = this.profileForm.get(fieldType);
+        if (ctrl) {
+          ctrl.markAsDirty();
+          ctrl.markAsTouched();
         }
 
-        // Sync values in profileForm
-        this.profileForm.patchValue({
-          email: res.user.email || '',
-          phone: res.user.phone || ''
-        });
-
-        this.toastService.success(`${this.changeContactType() === 'email' ? 'Email' : 'Phone number'} updated successfully!`);
+        this.toastService.success(`${fieldType === 'email' ? 'Email' : 'Phone number'} verified successfully!`);
         this.closeChangeModal();
       },
       error: (err) => {
