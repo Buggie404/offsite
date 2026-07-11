@@ -1,5 +1,24 @@
 <div class="admin-app">
-  <aside class="admin-sidebar">
+  <!-- Mobile sidebar overlay backdrop -->
+  <div
+    class="sidebar-overlay"
+    [class.sidebar-overlay--open]="sidebarOpen"
+    (click)="closeSidebar()"
+    role="presentation"
+    aria-hidden="true"
+  ></div>
+
+  <aside class="admin-sidebar" [class.admin-sidebar--open]="sidebarOpen" aria-label="Admin sidebar navigation">
+    <!-- Close button (mobile only) -->
+    <button
+      type="button"
+      class="sidebar-close-btn"
+      (click)="closeSidebar()"
+      aria-label="Close sidebar menu"
+    >
+      <svg lucideX aria-hidden="true" [size]="20"></svg>
+    </button>
+
     <nav class="sidebar-nav" aria-label="Admin navigation">
       <span class="sidebar-nav__label">Order Management</span>
       <a
@@ -24,6 +43,17 @@
 
   <div class="admin-main">
     <header class="admin-header">
+      <!-- Hamburger toggle (mobile/tablet only) -->
+      <button
+        type="button"
+        class="sidebar-toggle-btn"
+        (click)="openSidebar()"
+        aria-label="Open sidebar menu"
+        aria-expanded="false"
+      >
+        <svg lucideMenu aria-hidden="true" [size]="22"></svg>
+      </button>
+
       <a routerLink="/admin/orders" class="logo-lockup--header" aria-label="Offsite Admin home">
         <img
           src="assets/images/abs_logo_dark.png"
@@ -38,6 +68,7 @@
         </div>
       </a>
 
+      <!-- Search bar — always in middle, grows to fill space -->
       <div class="header-search">
         <svg lucideSearch class="header-search__icon" aria-hidden="true" [size]="18"></svg>
         <input
@@ -50,6 +81,7 @@
         />
       </div>
 
+      <!-- Actions: notification bell (always rightmost) -->
       <div class="header-actions">
         <div class="header-notifications" #notificationsRoot>
           <button
@@ -81,51 +113,115 @@
               } @else if (!notifications.length) {
                 <p class="header-notifications__empty">No new notifications</p>
               } @else {
-                <ul class="header-notifications__list">
-                  @for (item of notifications; track item.id) {
-                    <li>
-                      <button
-                        type="button"
-                        class="header-notifications__item"
-                        (click)="openNotification(item, $event)"
-                      >
-                        <span
-                          class="header-notifications__item-icon"
-                          [class.header-notifications__item-icon--refund]="item.type === 'refund_pending'"
-                          [class.header-notifications__item-icon--ship]="item.type === 'ready_to_ship'"
-                          aria-hidden="true"
-                        >
-                          @if (item.type === 'refund_pending') {
-                            <svg lucideUndo2 [size]="16"></svg>
-                          } @else {
-                            <svg lucideTruck [size]="16"></svg>
-                          }
-                        </span>
-                        <span class="header-notifications__item-body">
-                          <span class="header-notifications__item-title">{{ item.title }}</span>
-                          <span class="header-notifications__item-message">{{ item.message }}</span>
-                          <span class="header-notifications__item-time">{{ formatNotificationTime(item.createdAt) }}</span>
-                        </span>
-                      </button>
-                    </li>
-                  }
-                </ul>
-              }
+                <div class="header-notifications__body">
 
-              @if (notifications.length) {
-                <div class="header-notifications__footer">
+                  <!-- ── Section 1: Refund Requests ─────────────────── -->
                   @if (hasRefundNotifications) {
-                    <button type="button" class="header-notifications__footer-link" (click)="viewAllRefunds($event)">
-                      View refund requests
-                    </button>
+                    <div class="notif-section">
+                      <div class="notif-section__head notif-section__head--refund">
+                        <svg lucideUndo2 aria-hidden="true" [size]="13"></svg>
+                        <span>Refund Requests</span>
+                      </div>
+                      <ul class="header-notifications__list">
+                        @for (item of refundNotifications; track item.id) {
+                          <li>
+                            <button
+                              type="button"
+                              class="header-notifications__item"
+                              (click)="openNotification(item, $event)"
+                            >
+                              <span class="header-notifications__item-icon header-notifications__item-icon--refund" aria-hidden="true">
+                                <svg lucideUndo2 [size]="15"></svg>
+                              </span>
+                              <span class="header-notifications__item-body">
+                                <span class="header-notifications__item-title">{{ item.title }}</span>
+                                <span class="header-notifications__item-message">{{ item.message }}</span>
+                                <span class="header-notifications__item-time">{{ formatNotificationTime(item.createdAt) }}</span>
+                              </span>
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                      <button type="button" class="notif-section__view-btn notif-section__view-btn--refund" (click)="viewAllRefunds($event)">
+                        <svg lucideArrowRight aria-hidden="true" [size]="13"></svg>
+                        View all refund requests
+                      </button>
+                    </div>
                   }
+
+                  <!-- ── Section 2: Orders to Ship ──────────────────── -->
                   @if (hasShipNotifications) {
-                    <button type="button" class="header-notifications__footer-link" (click)="viewAllToShip($event)">
-                      View orders to ship
-                    </button>
+                    <div class="notif-section">
+                      <div class="notif-section__head notif-section__head--ship">
+                        <svg lucideTruck aria-hidden="true" [size]="13"></svg>
+                        <span>Orders to Ship</span>
+                      </div>
+                      <ul class="header-notifications__list">
+                        @for (item of shipNotifications; track item.id) {
+                          <li>
+                            <button
+                              type="button"
+                              class="header-notifications__item"
+                              (click)="openNotification(item, $event)"
+                            >
+                              <span class="header-notifications__item-icon header-notifications__item-icon--ship" aria-hidden="true">
+                                <svg lucideTruck [size]="15"></svg>
+                              </span>
+                              <span class="header-notifications__item-body">
+                                <span class="header-notifications__item-title">{{ item.title }}</span>
+                                <span class="header-notifications__item-message">{{ item.message }}</span>
+                                <span class="header-notifications__item-time">{{ formatNotificationTime(item.createdAt) }}</span>
+                              </span>
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                      <button type="button" class="notif-section__view-btn notif-section__view-btn--ship" (click)="viewAllToShip($event)">
+                        <svg lucideArrowRight aria-hidden="true" [size]="13"></svg>
+                        View orders to ship
+                      </button>
+                    </div>
                   }
+
+                  <!-- ── Section 3: Urgent Processing ───────────────── -->
+                  @if (hasUrgentNotifications) {
+                    <div class="notif-section">
+                      <div class="notif-section__head notif-section__head--urgent">
+                        <svg lucideAlertTriangle aria-hidden="true" [size]="13"></svg>
+                        <span>Urgent Preparation Needed</span>
+                      </div>
+                      <ul class="header-notifications__list">
+                        @for (item of urgentNotifications; track item.id) {
+                          <li>
+                            <button
+                              type="button"
+                              class="header-notifications__item"
+                              (click)="openNotification(item, $event)"
+                            >
+                              <span class="header-notifications__item-icon header-notifications__item-icon--urgent" aria-hidden="true">
+                                <svg lucideAlertTriangle [size]="15"></svg>
+                              </span>
+                              <span class="header-notifications__item-body">
+                                <span class="header-notifications__item-title">{{ item.title }}</span>
+                                <span class="header-notifications__item-message">{{ item.message }}</span>
+                                <span class="header-notifications__item-time">{{ formatNotificationTime(item.createdAt) }}</span>
+                              </span>
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                      <button type="button" class="notif-section__view-btn notif-section__view-btn--urgent" (click)="viewAllUrgent($event)">
+                        <svg lucideArrowRight aria-hidden="true" [size]="13"></svg>
+                        View overdue processing orders
+                      </button>
+                    </div>
+                  }
+
                 </div>
               }
+
+
+
             </div>
           }
         </div>
