@@ -110,7 +110,7 @@ async function buildUserMap(orders) {
 }
 
 async function getLatestRefundRequest(orderId) {
-  return RefundRequest.findOne({ order_id: orderId }).sort({ created_at: -1 });
+  return RefundRequest.findOne({ order_id: orderId }).sort({ created_at: -1 }).lean();
 }
 
 function enrichRefundItemsForAdmin(refundItems, orderItems) {
@@ -169,8 +169,8 @@ function findOrderQuery(id) {
 }
 
 async function getAdminActorId(req) {
-  const adminUser = await User.findById(req.user.user_id);
-  return adminUser?.user_id || 'admin';
+  // Prefer user_id already attached by auth middleware to avoid an extra DB round-trip
+  return req.user?.user_id || req.user?.id || 'admin';
 }
 
 function parseInternalNotes(value) {
@@ -221,16 +221,19 @@ async function buildOrderDetail(order) {
   let customerEmail = order.delivery_info?.email || '';
   let customerPhone = order.delivery_info?.mobile || '';
 
-  if (order.user_id) {
-    const user = await User.findOne({ user_id: order.user_id }).select('profile_name email phone');
-    if (user) {
-      customerName = user.profile_name || customerName;
-      customerEmail = user.email || customerEmail;
-      customerPhone = user.phone || customerPhone;
-    }
-  }
+  // Run user lookup and refund request lookup in parallel to avoid sequential round-trips
+  const [user, refundRequestDoc] = await Promise.all([
+    order.user_id
+      ? User.findOne({ user_id: order.user_id }).select('profile_name email phone').lean()
+      : Promise.resolve(null),
+    getLatestRefundRequest(order.order_id)
+  ]);
 
-  const refundRequestDoc = await getLatestRefundRequest(order.order_id);
+  if (user) {
+    customerName = user.profile_name || customerName;
+    customerEmail = user.email || customerEmail;
+    customerPhone = user.phone || customerPhone;
+  }
 
   return {
     _id: order._id,
@@ -340,7 +343,8 @@ async function getAllOrders(req, res) {
 // Admin - Get single order (GET /api/admin/orders/:id)
 async function getOrderById(req, res) {
   try {
-    const order = await Order.findOne(findOrderQuery(req.params.id));
+    // Use lean() for a faster plain object — buildOrderDetail only reads fields, no mongoose methods needed
+    const order = await Order.findOne(findOrderQuery(req.params.id)).lean();
     if (!order) {
       return res.status(404).json({ error: 'Order not found.' });
     }
