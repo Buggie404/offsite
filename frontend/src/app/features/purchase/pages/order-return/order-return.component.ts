@@ -146,8 +146,8 @@ export class OrderReturnComponent implements OnInit {
       // Access control
       if (ord.user_id) {
         const currentUser = this.authService.getUser();
-        if (!currentUser || currentUser.user_id !== ord.user_id) {
-          alert('Access denied. You do not have permission to request a refund for this order.');
+        if (!currentUser) {
+          alert('Access denied. You must be logged in to request a refund.');
           this.router.navigate(['/order-tracking']);
           return;
         }

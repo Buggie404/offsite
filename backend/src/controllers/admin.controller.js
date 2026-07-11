@@ -406,6 +406,26 @@ async function updateOrderStatus(req, res) {
 
     await order.save();
 
+    // Trigger ORDER_SHIPPING notification if registered customer and status is shipping
+    if (status === 'shipping' && order.user_id) {
+      try {
+        const expectedDate = new Date();
+        expectedDate.setDate(expectedDate.getDate() + 3);
+        const formattedExpectedDate = `${expectedDate.getDate()}/${expectedDate.getMonth() + 1}/${expectedDate.getFullYear()}`;
+
+        const notificationService = require('../services/notification.service');
+        await notificationService.createNotification({
+          recipient_id: order.user_id,
+          sender: null,
+          type: 'ORDER_SHIPPING',
+          post_id: order.order_id,
+          comment_content: formattedExpectedDate
+        });
+      } catch (notifError) {
+        console.error('Error creating shipping notification:', notifError);
+      }
+    }
+
     const data = await buildOrderDetail(order);
     res.json({
       message: 'Order updated successfully',
@@ -453,6 +473,21 @@ async function approveRefundRequest(req, res) {
     order.order_status = 'refund';
     order.payment_status = 'refunded';
     await order.save();
+
+    // Trigger REFUND_APPROVED notification if registered customer
+    if (order.user_id) {
+      try {
+        const notificationService = require('../services/notification.service');
+        await notificationService.createNotification({
+          recipient_id: order.user_id,
+          sender: null,
+          type: 'REFUND_APPROVED',
+          post_id: order.order_id
+        });
+      } catch (notifError) {
+        console.error('Error creating refund approval notification:', notifError);
+      }
+    }
 
     const data = await buildOrderDetail(order);
     res.json({
@@ -507,6 +542,22 @@ async function rejectRefundRequest(req, res) {
     order._changedBy = adminId;
     order._statusChangeNote = `Refund rejected: ${rejectionReason}`;
     await order.save();
+
+    // Trigger REFUND_REJECTED notification if registered customer
+    if (order.user_id) {
+      try {
+        const notificationService = require('../services/notification.service');
+        await notificationService.createNotification({
+          recipient_id: order.user_id,
+          sender: null,
+          type: 'REFUND_REJECTED',
+          post_id: order.order_id,
+          comment_content: rejectionReason
+        });
+      } catch (notifError) {
+        console.error('Error creating refund rejection notification:', notifError);
+      }
+    }
 
     const data = await buildOrderDetail(order);
     res.json({

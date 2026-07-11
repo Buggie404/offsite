@@ -140,6 +140,73 @@
         <span class="cart-badge">{{ cartCount }}</span>
       </button>
 
+      <!-- Notifications Button Wrapper (Only visible when logged in) -->
+      <div *ngIf="isLoggedIn()" class="notification-btn-wrapper" (mouseenter)="openNotificationDropdown()" (mouseleave)="closeNotificationDropdown()">
+        <button class="action-btn notification-btn" (click)="toggleNotificationDropdown($event)" aria-label="Notifications">
+          <svg lucideBell [size]="20"></svg>
+          <span *ngIf="unreadNotificationCount > 0" class="notification-badge">{{ unreadNotificationCount }}</span>
+        </button>
+
+        <!-- Notification Dropdown -->
+        <div class="notification-dropdown" [class.open]="isNotificationDropdownOpen">
+          <div class="notification-header">
+            <span class="header-title">Thông báo</span>
+            <button *ngIf="unreadNotificationCount > 0" class="mark-all-btn" (click)="markAllNotificationsAsRead()">
+              <svg lucideCheckCheck [size]="14"></svg> Đọc tất cả
+            </button>
+          </div>
+
+          <div class="notification-list">
+            <div *ngFor="let item of notifications()" 
+                 class="notification-item" 
+                 [class.unread]="!item.is_read" 
+                 (click)="onNotificationClick(item, $event)">
+              <div class="notification-avatar-wrapper">
+                <img *ngIf="item.sender?.avatar_url; else defaultAvatar" 
+                     [src]="item.sender?.avatar_url || ''" 
+                     [alt]="item.sender?.username || ''" 
+                     class="notification-avatar">
+                <ng-template #defaultAvatar>
+                  <div class="notification-avatar-default">
+                    <svg lucideUser [size]="16"></svg>
+                  </div>
+                </ng-template>
+              </div>
+              <div class="notification-content">
+                <p class="notification-message">
+                  <span *ngIf="item.sender && item.type !== 'POST_CREATED'" class="sender-name">{{ item.sender?.username }} </span>
+                  <span class="action-text">
+                    <ng-container [ngSwitch]="item.type">
+                      <span *ngSwitchCase="'POST_CREATED'">Your post has been successfully created.</span>
+                      <span *ngSwitchCase="'POST_LIKED'">liked your post.</span>
+                      <span *ngSwitchCase="'POST_COMMENTED'">commented on your post: "{{ item.comment_content }}"</span>
+                      <span *ngSwitchCase="'COMMENT_REPLIED'">replied to your comment: "{{ item.comment_content }}"</span>
+                      <span *ngSwitchCase="'COMMENT_LIKED'">liked your comment: "{{ item.comment_content }}"</span>
+                      <span *ngSwitchCase="'ORDER_PLACED'">Your order <strong>{{ item.post_id }}</strong> has been successfully placed.</span>
+                      <span *ngSwitchCase="'ORDER_SHIPPING'">Your order <strong>{{ item.post_id }}</strong> is being shipped (estimated delivery: {{ item.comment_content }}).</span>
+                      <span *ngSwitchCase="'ORDER_CANCELED'">Your order <strong>{{ item.post_id }}</strong> has been canceled (due to payment pending for more than 24h).</span>
+                      <span *ngSwitchCase="'REFUND_REQUESTED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been submitted.</span>
+                      <span *ngSwitchCase="'REFUND_APPROVED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been approved.</span>
+                      <span *ngSwitchCase="'REFUND_REJECTED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been rejected: "{{ item.comment_content }}"</span>
+                    </ng-container>
+                  </span>
+                </p>
+                <span class="notification-time">{{ getNotificationTimeAgo(item.created_at) }}</span>
+              </div>
+              <div *ngIf="!item.is_read" class="unread-dot-wrapper">
+                <span class="unread-dot"></span>
+              </div>
+            </div>
+
+            <!-- Empty State -->
+            <div *ngIf="notifications().length === 0" class="notification-empty">
+              <svg lucideBell [size]="32" class="empty-icon"></svg>
+              <p class="empty-text">Bạn chưa có thông báo nào</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Profile Button Wrapper -->
       <div class="profile-btn-wrapper" (mouseenter)="openProfileDropdown()" (mouseleave)="closeProfileDropdown()">
         <button class="action-btn profile-btn" (click)="toggleProfileDropdown($event)" aria-label="User Profile">

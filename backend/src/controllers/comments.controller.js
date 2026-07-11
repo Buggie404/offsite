@@ -160,6 +160,47 @@ async function createComment(req, res) {
       );
     }
 
+    // Create notification
+    try {
+      const notificationService = require('../services/notification.service');
+      if (!parent_id) {
+        // Case 1: comment on a post
+        if (post.user_id !== user.user_id) {
+          await notificationService.createNotification({
+            recipient_id: post.user_id,
+            sender: {
+              user_id: user.user_id,
+              username: user.community_name || user.profile_name || 'Anonymous',
+              avatar_url: user.avatar_url || null
+            },
+            type: 'POST_COMMENTED',
+            post_id: post.post_id,
+            comment_id: savedComment.comment_id,
+            comment_content: savedComment.content
+          });
+        }
+      } else {
+        // Case 2: reply to another comment
+        const parentComment = await Comment.findOne({ comment_id: parent_id });
+        if (parentComment && parentComment.user_id !== user.user_id) {
+          await notificationService.createNotification({
+            recipient_id: parentComment.user_id,
+            sender: {
+              user_id: user.user_id,
+              username: user.community_name || user.profile_name || 'Anonymous',
+              avatar_url: user.avatar_url || null
+            },
+            type: 'COMMENT_REPLIED',
+            post_id: post.post_id,
+            comment_id: savedComment.comment_id,
+            comment_content: savedComment.content
+          });
+        }
+      }
+    } catch (notifError) {
+      console.error('Error creating comment-related notification:', notifError);
+    }
+
     res.status(201).json({
       message: 'Comment added successfully',
       data: savedComment
@@ -255,6 +296,30 @@ async function likeComment(req, res) {
     }
 
     await comment.save();
+
+    // Create notification if liked
+    if (action !== 'unlike') {
+      try {
+        const user = await User.findById(req.user.user_id);
+        if (user && comment.user_id !== user.user_id) {
+          const notificationService = require('../services/notification.service');
+          await notificationService.createNotification({
+            recipient_id: comment.user_id,
+            sender: {
+              user_id: user.user_id,
+              username: user.community_name || user.profile_name || 'Anonymous',
+              avatar_url: user.avatar_url || null
+            },
+            type: 'COMMENT_LIKED',
+            post_id: comment.post_id,
+            comment_id: comment.comment_id,
+            comment_content: comment.content
+          });
+        }
+      } catch (notifError) {
+        console.error('Error creating comment-like notification:', notifError);
+      }
+    }
 
     res.json({
       message: action === 'unlike' ? 'Comment unliked' : 'Comment liked',

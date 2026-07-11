@@ -556,7 +556,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
   }
 
   isAnyModalOpen(): boolean {
-    return this.showFailedModal() || this.showCompletePaymentModal() || this.showPaymentModal() || this.showReviewModal() || this.showChangePaymentModal() || this.showTrackingModal();
+    return this.showFailedModal() || this.showCompletePaymentModal() || this.showPaymentModal() || this.showReviewModal() || this.showChangePaymentModal() || this.showTrackingModal() || this.isConfirmModalOpen;
   }
 
   onPaymentConfirmed(updatedOrder: any): void {
@@ -750,10 +750,14 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     console.log('OrderDetailComponent.confirmReceipt called');
     const ord = this.order();
     if (!ord) return;
-    if (ord.user_id) {
+    // A viewer is authorized if they hold the order's checkout session (how this
+    // page is normally reached) or are the logged-in owner. Only block clearly
+    // unauthorized viewers, and do so with the auth prompt rather than a native
+    // alert. The backend re-validates on submit.
+    if (ord.user_id && !this.getSessionId(ord)) {
       const currentUser = this.authService.getUser();
-      if (!currentUser || ord.user_id !== currentUser.user_id) {
-        alert('You are not authorized to mark this order as received. Only the user who placed this order can confirm receipt.');
+      if (!currentUser) {
+        this.authPromptModalService.open();
         return;
       }
     }
@@ -794,10 +798,10 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     const ord = this.order();
     if (!ord) return;
 
-    if (ord.user_id) {
+    if (ord.user_id && !this.getSessionId(ord)) {
       const currentUser = this.authService.getUser();
-      if (!currentUser || currentUser.user_id !== ord.user_id) {
-        alert('Access denied. You do not have permission to request a refund for this order.');
+      if (!currentUser) {
+        this.authPromptModalService.open();
         return;
       }
     }

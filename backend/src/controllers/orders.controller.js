@@ -178,6 +178,21 @@ async function createOrder(req, res) {
     const newOrder = new Order(orderData);
     await newOrder.save();
 
+    // Trigger ORDER_PLACED notification if registered customer
+    if (!is_guest && user_id) {
+      try {
+        const notificationService = require('../services/notification.service');
+        await notificationService.createNotification({
+          recipient_id: user_id,
+          sender: null,
+          type: 'ORDER_PLACED',
+          post_id: newOrder.order_id
+        });
+      } catch (notifError) {
+        console.error('Error creating order placement notification:', notifError);
+      }
+    }
+
     res.status(201).json({
       message: 'Order created successfully',
       data: newOrder
@@ -213,6 +228,21 @@ async function getOrderById(req, res) {
       order._changedBy = 'system';
       order._statusChangeNote = 'Order automatically canceled: Payment pending for more than 24 hours';
       await order.save();
+
+      // Trigger ORDER_CANCELED notification if registered customer
+      if (order.user_id) {
+        try {
+          const notificationService = require('../services/notification.service');
+          await notificationService.createNotification({
+            recipient_id: order.user_id,
+            sender: null,
+            type: 'ORDER_CANCELED',
+            post_id: order.order_id
+          });
+        } catch (notifError) {
+          console.error('Error creating order auto-cancel notification:', notifError);
+        }
+      }
     }
 
     // Access control: only admin or the order owner can view the details
@@ -508,6 +538,21 @@ async function getOrderStatus(req, res) {
       order._changedBy = 'system';
       order._statusChangeNote = 'Order automatically canceled: Payment pending for more than 24 hours';
       await order.save();
+
+      // Trigger ORDER_CANCELED notification if registered customer
+      if (order.user_id) {
+        try {
+          const notificationService = require('../services/notification.service');
+          await notificationService.createNotification({
+            recipient_id: order.user_id,
+            sender: null,
+            type: 'ORDER_CANCELED',
+            post_id: order.order_id
+          });
+        } catch (notifError) {
+          console.error('Error creating order auto-cancel notification:', notifError);
+        }
+      }
     }
 
     // Access control
@@ -771,6 +816,21 @@ async function requestRefund(req, res) {
     order._changedBy = userId || sessionId || 'customer';
     order._statusChangeNote = 'Refund request submitted by customer';
     await order.save();
+
+    // Trigger REFUND_REQUESTED notification if registered customer
+    if (order.user_id) {
+      try {
+        const notificationService = require('../services/notification.service');
+        await notificationService.createNotification({
+          recipient_id: order.user_id,
+          sender: null,
+          type: 'REFUND_REQUESTED',
+          post_id: order.order_id
+        });
+      } catch (notifError) {
+        console.error('Error creating refund request notification:', notifError);
+      }
+    }
 
     res.json({
       message: 'Refund request submitted successfully.',

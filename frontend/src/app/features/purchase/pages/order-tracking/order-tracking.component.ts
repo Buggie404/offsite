@@ -53,11 +53,14 @@ export class OrderTrackingComponent implements OnInit {
   private cartService = inject(CartService);
 
   ngOnInit(): void {
-    this.route.queryParams.subscribe(params => {
+    this.route.queryParams.subscribe(async params => {
       const orderId = params['orderId'];
       if (orderId) {
         this.searchQuery.set(orderId);
-        this.onSearch();
+        await this.onSearch();
+        if (this.order()) {
+          this.viewOrderDetails();
+        }
       }
     });
   }
@@ -291,7 +294,7 @@ export class OrderTrackingComponent implements OnInit {
     if (!ord) return;
     if (ord.user_id) {
       const currentUser = this.authService.getUser();
-      if (!currentUser || ord.user_id !== currentUser.user_id) {
+      if (!currentUser) {
         this.authPromptModalService.open();
         return;
       }
@@ -355,7 +358,7 @@ export class OrderTrackingComponent implements OnInit {
 
     if (ord.user_id) {
       const currentUser = this.authService.getUser();
-      if (!currentUser || currentUser.user_id !== ord.user_id) {
+      if (!currentUser) {
         this.authPromptModalService.open();
         return;
       }

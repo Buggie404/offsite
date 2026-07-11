@@ -145,6 +145,24 @@ async function createPost(req, res) {
     });
 
     const savedPost = await newPost.save();
+
+    // Create notification for post created successfully
+    try {
+      const notificationService = require('../services/notification.service');
+      await notificationService.createNotification({
+        recipient_id: user.user_id,
+        sender: {
+          user_id: user.user_id,
+          username: user.community_name || user.profile_name || 'Anonymous',
+          avatar_url: user.avatar_url || null
+        },
+        type: 'POST_CREATED',
+        post_id: savedPost.post_id
+      });
+    } catch (notifError) {
+      console.error('Error creating post-creation notification:', notifError);
+    }
+
     res.status(201).json({
       message: 'Post created successfully',
       data: savedPost
@@ -279,6 +297,24 @@ async function likePost(req, res) {
 
     await user.save();
     await post.save();
+
+    if (!alreadyLiked && post.user_id !== user.user_id) {
+      try {
+        const notificationService = require('../services/notification.service');
+        await notificationService.createNotification({
+          recipient_id: post.user_id,
+          sender: {
+            user_id: user.user_id,
+            username: user.community_name || user.profile_name || 'Anonymous',
+            avatar_url: user.avatar_url || null
+          },
+          type: 'POST_LIKED',
+          post_id: post.post_id
+        });
+      } catch (notifError) {
+        console.error('Error creating post-like notification:', notifError);
+      }
+    }
 
     res.json({
       message,

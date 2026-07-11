@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import { Post } from '../models/post.model';
 import { Comment } from '../models/comment.model';
+import { Notification } from '../models/notification.model';
 
 export interface FeedResponse {
   data: Post[];
@@ -28,6 +29,7 @@ export class CommunityService {
 
   private readonly apiUrl = '/api/posts'; 
   private readonly commentsApiUrl = '/api/comments';
+  private readonly notificationsApiUrl = '/api/notifications';
 
   // ── STATE ĐỂ LƯU CACHE VÀ PHỤC HỒI SCROLL POSITION ──
   feedState = {
@@ -119,5 +121,19 @@ export class CommunityService {
       `${this.commentsApiUrl}/${id}/like`,
       { action }
     );
+  }
+
+  // ── Notifications ──
+
+  getNotifications(): Observable<{ data: Notification[] }> {
+    return this.http.get<{ data: Notification[] }>(this.notificationsApiUrl);
+  }
+
+  markNotificationAsRead(id: string): Observable<{ message: string; data: Notification }> {
+    return this.http.put<{ message: string; data: Notification }>(`${this.notificationsApiUrl}/${id}/read`, {});
+  }
+
+  markAllNotificationsAsRead(): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${this.notificationsApiUrl}/read-all`, {});
   }
 }

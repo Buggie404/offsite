@@ -1,5 +1,5 @@
 // components/navbar/navbar.component.ts
-import { Component, OnInit, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild, signal, effect } from '@angular/core';
 import { SuccessModalComponent, SuccessModalConfig } from '../success-modal/success-modal.components';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
@@ -21,7 +21,9 @@ import {
   LucideBookOpen,
   LucidePackage,
   LucideChefHat,
-  LucideArrowRight
+  LucideArrowRight,
+  LucideBell,
+  LucideCheckCheck
 } from '@lucide/angular';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
@@ -29,6 +31,8 @@ import { CartService, CartItem } from '../../../features/purchase/services/cart.
 import { ProductService } from '../../../features/home/services/product.service';
 import { RecipeService } from '../../../features/home/services/recipe.service';
 import { ContentService } from '../../../features/content/services/content.service';
+import { CommunityService } from '../../../features/community/services/community.service';
+import { Notification } from '../../../features/community/models/notification.model';
 import { Product, getProductDetailSlug } from '../../../features/home/models/product.model';
 import { Recipe } from '../../../features/home/models/recipe.model';
 import { FormsModule } from '@angular/forms';
@@ -73,12 +77,14 @@ import {
     LucidePackage,
     LucideChefHat,
     LucideArrowRight,
+    LucideBell,
+    LucideCheckCheck,
     FormsModule
   ],
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.scss'
 })
-export class NavbarComponent implements OnInit {
+export class NavbarComponent implements OnInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   private authService = inject(AuthService);
   private authModalService = inject(AuthModalService);
@@ -88,6 +94,25 @@ export class NavbarComponent implements OnInit {
   private productService = inject(ProductService);
   private recipeService = inject(RecipeService);
   private contentService = inject(ContentService);
+  private communityService = inject(CommunityService);
+
+  notifications = signal<Notification[]>([]);
+  unreadNotificationCount = 0;
+  isNotificationDropdownOpen = false;
+  private notificationInterval: any;
+
+  constructor() {
+    effect(() => {
+      if (this.isLoggedIn()) {
+        this.loadNotifications();
+        this.startNotificationPolling();
+      } else {
+        this.stopNotificationPolling();
+        this.notifications.set([]);
+        this.unreadNotificationCount = 0;
+      }
+    });
+  }
 
   isPromobarVisible = true;
   isMobileMenuOpen = false;
@@ -320,7 +345,128 @@ export class NavbarComponent implements OnInit {
     if (!this.elementRef.nativeElement.contains(event.target)) {
       this.isProfileDropdownOpen = false;
       this.isProductsMegaOpen = false;
+      this.isNotificationDropdownOpen = false;
     }
+  }
+
+  ngOnDestroy(): void {
+    this.stopNotificationPolling();
+  }
+
+  loadNotifications(): void {
+    this.communityService.getNotifications().subscribe({
+      next: (res) => {
+        this.notifications.set(res.data || []);
+        this.updateUnreadCount();
+      },
+      error: (err) => {
+        console.error('Error fetching notifications:', err);
+      }
+    });
+  }
+
+  updateUnreadCount(): void {
+    this.unreadNotificationCount = this.notifications().filter(n => !n.is_read).length;
+  }
+
+  startNotificationPolling(): void {
+    this.stopNotificationPolling();
+    if (isPlatformBrowser(this.platformId)) {
+      this.notificationInterval = setInterval(() => {
+        this.loadNotifications();
+      }, 30000); // Poll every 30 seconds
+    }
+  }
+
+  stopNotificationPolling(): void {
+    if (this.notificationInterval) {
+      clearInterval(this.notificationInterval);
+      this.notificationInterval = null;
+    }
+  }
+
+  openNotificationDropdown(): void {
+    this.isNotificationDropdownOpen = true;
+    this.isProfileDropdownOpen = false;
+    this.isProductsMegaOpen = false;
+    this.loadNotifications();
+  }
+
+  closeNotificationDropdown(): void {
+    this.isNotificationDropdownOpen = false;
+  }
+
+  toggleNotificationDropdown(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isNotificationDropdownOpen = !this.isNotificationDropdownOpen;
+    if (this.isNotificationDropdownOpen) {
+      this.isProfileDropdownOpen = false;
+      this.isProductsMegaOpen = false;
+      this.loadNotifications();
+    }
+  }
+
+  markAllNotificationsAsRead(): void {
+    this.communityService.markAllNotificationsAsRead().subscribe({
+      next: () => {
+        this.notifications.update(notifs =>
+          notifs.map(n => ({ ...n, is_read: true }))
+        );
+        this.updateUnreadCount();
+      },
+      error: (err) => {
+        console.error('Error marking all notifications as read:', err);
+      }
+    });
+  }
+
+  onNotificationClick(notification: Notification, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Mark as read in backend
+    if (!notification.is_read) {
+      this.communityService.markNotificationAsRead(notification.notification_id).subscribe({
+        next: () => {
+          this.notifications.update(notifs =>
+            notifs.map(n => n.notification_id === notification.notification_id ? { ...n, is_read: true } : n)
+          );
+          this.updateUnreadCount();
+        },
+        error: (err) => {
+          console.error('Error marking notification as read:', err);
+        }
+      });
+    }
+
+    // Close dropdown
+    this.isNotificationDropdownOpen = false;
+
+    // Navigate to post detail or order tracking
+    const isOrderOrRefund = notification.type.startsWith('ORDER_') || notification.type.startsWith('REFUND_');
+    if (isOrderOrRefund) {
+      this.router.navigate(['/order-tracking'], { queryParams: { orderId: notification.post_id } });
+    } else {
+      this.router.navigate(['/community/post', notification.post_id]);
+    }
+  }
+
+  getNotificationTimeAgo(dateStr: string): string {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return 'Vừa xong';
+    if (diffMins < 60) return `${diffMins} phút trước`;
+
+    const diffHrs = Math.floor(diffMins / 60);
+    if (diffHrs < 24) return `${diffHrs} giờ trước`;
+
+    const diffDays = Math.floor(diffHrs / 24);
+    return `${diffDays} ngày trước`;
   }
 
   @HostListener('document:keydown.escape')
