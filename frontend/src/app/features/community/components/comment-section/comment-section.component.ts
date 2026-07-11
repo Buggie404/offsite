@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 
 import { Comment } from '../../models/comment.model';
 import { CommunityService } from '../../services/community.service';
+import { AuthService } from '../../../../core/auth.service';
+import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 interface CommentThread extends Comment {
   replies: Comment[];
@@ -12,7 +14,7 @@ interface CommentThread extends Comment {
 @Component({
   selector: 'app-comment-section',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ConfirmationModalComponent],
   templateUrl: './comment-section.component.html',
   styleUrls: ['./comment-section.component.scss']
 })
@@ -20,21 +22,26 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
 
   private communityService = inject(CommunityService);
   private cdr = inject(ChangeDetectorRef);
+  private authService = inject(AuthService);
 
   @Input() postId!: string;
-
   @Output() commentCountChange = new EventEmitter<number>();
 
   commentThreads: CommentThread[] = [];
   commentsLoading = false;
 
+  // 1. Tách riêng 2 biến text cho 2 ô input khác nhau
   mainCommentText = '';
   replyCommentText = '';
   
   replyingTo: { parentId: string; anchorId: string; username: string } | null = null;
   postingComment = false;
-
   likedCommentIds = new Set<string>();
+
+  // 2. Biến phục vụ chức năng xóa comment
+  showCommentOptionsFor: string | null = null;
+  commentToDelete: string | null = null;
+  isConfirmDeleteModalOpen = false;
 
   private timeTickHandle?: ReturnType<typeof setInterval>;
 
@@ -47,23 +54,24 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
     if (this.timeTickHandle) clearInterval(this.timeTickHandle);
   }
 
-  // Lắng nghe sự kiện click chuột trên toàn màn hình
+  // 3. Lắng nghe click toàn màn hình
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
-    // Nếu không có ô reply nào đang mở thì bỏ qua
-    if (!this.replyingTo) return;
-
     const target = event.target as HTMLElement;
 
-    // Bỏ qua nếu user vừa click vào chính nút "Reply" (để không bị tắt ngay lúc vừa mở)
-    if (target.closest('.comment-reply-btn')) return;
+    // Đóng dropdown 3 chấm nếu click ra ngoài
+    if (!target.closest('.comment-options')) {
+      this.showCommentOptionsFor = null;
+    }
 
-    // Bỏ qua nếu user click vào bên trong khung nhập reply (đang gõ phím, click nút gửi...)
-    if (target.closest('.inline-reply-box')) return;
-
-    // Nếu click ra không gian ngoài VÀ khung text đang trống -> Tự động đóng
-    if (!this.replyCommentText.trim()) {
-      this.cancelReply();
+    // Tự động đóng form Reply nếu click ra ngoài VÀ chưa nhập text
+    if (this.replyingTo) {
+      if (target.closest('.comment-reply-btn')) return; // Bỏ qua nếu đang bấm nút Reply mở form
+      if (target.closest('.inline-reply-box')) return;  // Bỏ qua nếu đang click trong khung input
+      
+      if (!this.replyCommentText.trim()) {
+        this.cancelReply();
+      }
     }
   }
 
@@ -86,7 +94,6 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
   private buildThreads(comments: Comment[]): CommentThread[] {
     const topLevel = comments.filter(c => !c.parent_id);
     const repliesByParent = new Map<string, Comment[]>();
-
     for (const c of comments) {
       if (c.parent_id) {
         const list = repliesByParent.get(c.parent_id) || [];
@@ -94,7 +101,6 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
         repliesByParent.set(c.parent_id, list);
       }
     }
-
     return topLevel.map(c => ({
       ...c,
       replies: repliesByParent.get(c.comment_id) || []
@@ -103,7 +109,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
 
   startReply(parentId: string, anchorId: string, username: string): void {
     this.replyingTo = { parentId, anchorId, username };
-    this.replyCommentText = ''; 
+    this.replyCommentText = ''; // Xóa sạch chữ cũ của ô reply khi bấm mở lại
   }
 
   cancelReply(): void {
@@ -113,17 +119,11 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
 
   submitComment(isReply: boolean): void {
     const text = isReply ? this.replyCommentText : this.mainCommentText;
-    
     if (!this.postId || !text.trim() || this.postingComment) return;
 
     this.postingComment = true;
-    let parentId = null;
-    let replyToUsername = null;
-
-    if (isReply && this.replyingTo) {
-      parentId = this.replyingTo.parentId;
-      replyToUsername = this.replyingTo.username;
-    }
+    const parentId = isReply ? (this.replyingTo?.parentId || null) : null;
+    const replyToUsername = isReply ? (this.replyingTo?.username || null) : null;
 
     this.communityService.createComment(
       this.postId,
@@ -168,11 +168,57 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
     return this.likedCommentIds.has(comment.comment_id);
   }
 
+  // ── Phân quyền và xóa Comment ──
+  get currentUser() {
+    return this.authService.getUser();
+  }
+
+  isCommentAuthor(commentUserId: string): boolean {
+    if (!this.currentUser) return false;
+    return this.currentUser.user_id === commentUserId;
+  }
+
+  toggleCommentOptions(commentId: string, event: Event): void {
+    event.stopPropagation();
+    if (this.showCommentOptionsFor === commentId) {
+      this.showCommentOptionsFor = null;
+    } else {
+      this.showCommentOptionsFor = commentId;
+    }
+  }
+
+  promptDeleteComment(commentId: string): void {
+    this.showCommentOptionsFor = null;
+    this.commentToDelete = commentId;
+    this.isConfirmDeleteModalOpen = true;
+  }
+
+  cancelDeleteComment(): void {
+    this.isConfirmDeleteModalOpen = false;
+    this.commentToDelete = null;
+  }
+
+  confirmDeleteComment(): void {
+    if (!this.commentToDelete) return;
+    this.isConfirmDeleteModalOpen = false;
+    
+    this.communityService.deleteComment(this.commentToDelete).subscribe({
+      next: () => {
+        this.commentToDelete = null;
+        this.loadComments();
+      },
+      error: (err) => {
+        console.error('Failed to delete comment:', err);
+        alert('Failed to delete comment. Please try again.');
+        this.commentToDelete = null;
+      }
+    });
+  }
+
   timeAgo(dateStr: string): string {
     const created = new Date(dateStr).getTime();
     const now = Date.now();
     const diffMs = Math.max(0, now - created);
-
     const minutes = Math.floor(diffMs / 60000);
     const hours = Math.floor(diffMs / 3600000);
     const days = Math.floor(diffMs / 86400000);
@@ -183,5 +229,4 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
     return `${days}D AGO`;
   }
 }
-
 

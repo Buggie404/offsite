@@ -26,8 +26,20 @@ export class CommunityService {
 
   private http = inject(HttpClient);
 
-  private readonly apiUrl = '/api/posts'; // đổi từ 'http://localhost:3000/api/posts'
+  private readonly apiUrl = '/api/posts'; 
   private readonly commentsApiUrl = '/api/comments';
+
+  // ── STATE ĐỂ LƯU CACHE VÀ PHỤC HỒI SCROLL POSITION ──
+  feedState = {
+    posts: [] as Post[],
+    page: 1,
+    hasMore: true,
+    activeCategory: '' as 'MATCHA' | 'COFFEE' | '',
+    sort: 'created_at' as 'created_at' | 'like_count',
+    scrollY: 0
+  };
+  shouldRestoreState = false;
+  // ────────────────────────────────────────────────────────
 
   getFeed(
     page: number = 1,
@@ -35,19 +47,10 @@ export class CommunityService {
     base: 'MATCHA' | 'COFFEE' | '' = '',
     sort: 'created_at' | 'like_count' = 'created_at'
   ): Observable<FeedResponse> {
-
     let url = `${this.apiUrl}?page=${page}&limit=${limit}`;
-
-    if (base) {
-      url += `&base=${base}`;
-    }
-
-    if (sort === 'like_count') {
-      url += '&sort=like_count';
-    }
-
+    if (base) url += `&base=${base}`;
+    if (sort === 'like_count') url += '&sort=like_count';
     return this.http.get<FeedResponse>(url);
-
   }
 
   getPostById(id: string): Observable<Post> {
@@ -57,51 +60,27 @@ export class CommunityService {
   createPost(data: FormData): Observable<any> {
     return this.http.post(this.apiUrl, data);
   }
+  
+  deletePost(id: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/${id}`);
+  }
 
-  likePost(id: string): Observable<{
-    liked: boolean;
-    like_count: number;
-  }> {
-
-    return this.http.post<{
-      liked: boolean;
-      like_count: number;
-    }>(
-      `${this.apiUrl}/${id}/like`,
-      {}
+  likePost(id: string): Observable<{ liked: boolean; like_count: number; }> {
+    return this.http.post<{ liked: boolean; like_count: number; }>(
+      `${this.apiUrl}/${id}/like`, {}
     );
   }
 
-  savePost(id: string): Observable<{
-    saved: boolean;
-    save_count: number;
-  }> {
-
-    return this.http.post<{
-      saved: boolean;
-      save_count: number;
-    }>(
-      `${this.apiUrl}/${id}/save`,
-      {}
+  savePost(id: string): Observable<{ saved: boolean; save_count: number; }> {
+    return this.http.post<{ saved: boolean; save_count: number; }>(
+      `${this.apiUrl}/${id}/save`, {}
     );
-
   }
 
-  // NEW: records a share and returns the updated share_count.
-  // Backed by POST /api/posts/:id/share (posts.controller.js -> sharePost).
-  sharePost(id: string): Observable<{
-    message: string;
-    share_count: number;
-  }> {
-
-    return this.http.post<{
-      message: string;
-      share_count: number;
-    }>(
-      `${this.apiUrl}/${id}/share`,
-      {}
+  sharePost(id: string): Observable<{ message: string; share_count: number; }> {
+    return this.http.post<{ message: string; share_count: number; }>(
+      `${this.apiUrl}/${id}/share`, {}
     );
-
   }
 
   // ── Comments ──
@@ -134,5 +113,4 @@ export class CommunityService {
       { action }
     );
   }
-
 }

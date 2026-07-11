@@ -147,8 +147,6 @@ export class PostCardComponent {
     this.showShareModal = false;
   }
 
-  // Comment cần ô nhập nên không thể "gõ" ngay trên card — bấm sẽ mở post
-  // detail, cuộn thẳng tới khung comment (post-detail đã có #comments-section).
   onComment(): void {
     this.comment.emit(this.post.post_id);
     this.openDetail.emit(this.post.post_id);

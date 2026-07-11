@@ -1,6 +1,5 @@
 <div class="post-detail-page" *ngIf="!loading && post">
 
-  <!-- ── BACK ACTION ── -->
   <div class="back-action">
     <button type="button" class="back-link" (click)="goBack()">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -12,7 +11,6 @@
 
   <div class="post-container">
 
-    <!-- ── AUTHOR HEADER ── -->
     <div class="post-author-row">
       <div class="author-avatar">
         <img *ngIf="post.author.avatar_url" [src]="post.author.avatar_url" [alt]="post.author.username">
@@ -25,9 +23,21 @@
         <p class="post-time">{{ timeAgo(post.created_at) }}</p>
       </div>
       <span class="base-chip" [class.base-chip--matcha]="post.base === 'MATCHA'" [class.base-chip--coffee]="post.base === 'COFFEE'">{{ post.base }}</span>
+      
+      <div class="post-options" *ngIf="isPostAuthor">
+        <button type="button" class="options-trigger" (click)="togglePostOptions($event)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="1"></circle>
+            <circle cx="12" cy="5" r="1"></circle>
+            <circle cx="12" cy="19" r="1"></circle>
+          </svg>
+        </button>
+        <div class="options-dropdown" *ngIf="showPostOptions">
+          <button type="button" class="delete-action" (click)="promptDeletePost()">Delete Post</button>
+        </div>
+      </div>
     </div>
 
-    <!-- ── POST CONTENT TEXT ── -->
     <p class="post-content">
       <ng-container *ngFor="let part of postContentParts">
         <span *ngIf="part.isTag" class="hashtag">{{ part.text }}</span>
@@ -35,16 +45,9 @@
       </ng-container>
     </p>
 
-    <!-- ── MEDIA CAROUSEL (horizontal swipe, Threads-style) ── -->
     <div class="media-carousel-wrapper" *ngIf="mediaList.length > 0">
-
       <div class="media-carousel-inner">
-
-        <button
-          type="button"
-          class="carousel-nav carousel-nav--prev"
-          *ngIf="mediaList.length > 1 && activeMediaIndex > 0"
-          (click)="scrollToMedia(activeMediaIndex - 1)">
+        <button type="button" class="carousel-nav carousel-nav--prev" *ngIf="mediaList.length > 1 && activeMediaIndex > 0" (click)="scrollToMedia(activeMediaIndex - 1)">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -52,55 +55,27 @@
 
         <div class="media-carousel" #carouselEl (scroll)="onCarouselScroll($event)">
           <div class="media-slide" *ngFor="let media of mediaList; let i = index">
-
-            <img
-              *ngIf="media.type === 'image'"
-              [src]="media.url"
-              [alt]="post.content">
-
+            <img *ngIf="media.type === 'image'" [src]="media.url" [alt]="post.content">
             <div class="video-slide" *ngIf="media.type === 'video'" (click)="togglePlayVideo(i, $event)">
-              <video
-                #videoRef
-                [src]="media.url"
-                [controls]="playingVideoIndex === i"
-                [muted]="playingVideoIndex !== i"
-                playsinline
-                preload="metadata">
-              </video>
+              <video #videoRef [src]="media.url" [controls]="playingVideoIndex === i" [muted]="playingVideoIndex !== i" playsinline preload="metadata"></video>
               <div class="play-overlay" *ngIf="playingVideoIndex !== i">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
               </div>
             </div>
-
           </div>
         </div>
 
-        <button
-          type="button"
-          class="carousel-nav carousel-nav--next"
-          *ngIf="mediaList.length > 1 && activeMediaIndex < mediaList.length - 1"
-          (click)="scrollToMedia(activeMediaIndex + 1)">
+        <button type="button" class="carousel-nav carousel-nav--next" *ngIf="mediaList.length > 1 && activeMediaIndex < mediaList.length - 1" (click)="scrollToMedia(activeMediaIndex + 1)">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-
       </div>
-
-      <!-- Position dots, only shown when there's more than 1 media item -->
       <div class="media-dots" *ngIf="mediaList.length > 1">
-        <span
-          *ngFor="let media of mediaList; let i = index"
-          class="dot"
-          [class.dot--active]="i === activeMediaIndex">
-        </span>
+        <span *ngFor="let media of mediaList; let i = index" class="dot" [class.dot--active]="i === activeMediaIndex"></span>
       </div>
-
     </div>
 
-    <!-- ── LIKE / ACTIONS ── -->
     <div class="post-actions">
       <button type="button" class="action-btn" [class.active]="postLiked" (click)="likePost()">
         <svg width="" height="22" viewBox="0 0 24 24" [attr.fill]="postLiked ? 'currentColor' : 'none'">
@@ -108,51 +83,45 @@
         </svg>
         <span>{{ post.like_count }}</span>
       </button>
-
       <button type="button" class="action-btn action-btn--neutral" (click)="scrollToComments()">
         <svg width="21" height="22" viewBox="0 0 24 24" fill="none">
           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span>{{ post.comment_count }}</span>
       </button>
-
       <button type="button" class="action-btn action-btn--neutral" (click)="sharePost()">
         <svg width="21" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span>{{ post.share_count }}</span>
       </button>
-
       <button type="button" class="action-btn" [class.active]="postSaved" (click)="savePost()">
-        <svg width="21" height="22" viewBox="0 0 24 24" [attr.fill]="postSaved ? 'currentColor' : 'none'"> <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/> 
-        </svg>
+        <svg width="21" height="22" viewBox="0 0 24 24" [attr.fill]="postSaved ? 'currentColor' : 'none'"> <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/> </svg>
         <span>{{ post.save_count }}</span>
       </button>
     </div>
 
     <hr class="divider">
 
-    <!-- ── COMMENT SECTION (tự chủ, chỉ cần truyền postId) ──
-         commentCountChange: nhận số comment thật từ server ngay khi user
-         post/reply comment, để badge trên post cập nhật realtime. -->
-    <app-comment-section
-      [postId]="post.post_id"
-      (commentCountChange)="onCommentCountChange($event)">
-    </app-comment-section>
-
+    <app-comment-section [postId]="post.post_id" (commentCountChange)="onCommentCountChange($event)"></app-comment-section>
   </div>
-
 </div>
 
-<!-- ── SHARE MODAL ── -->
-<app-share-modal
-  *ngIf="showShareModal"
-  [shareUrl]="shareUrl"
-  (close)="closeShareModal()">
-</app-share-modal>
+<app-share-modal *ngIf="showShareModal" [shareUrl]="shareUrl" (close)="closeShareModal()"></app-share-modal>
 
-<!-- ── LOADING / ERROR STATES ── -->
+<app-confirmation-modal
+  *ngIf="isConfirmModalOpen"
+  [isOpen]="isConfirmModalOpen"
+  title="Delete Post?"
+  message="Are you sure you want to delete this post?"
+  warningMessage="This action cannot be undone and will delete all comments."
+  confirmText="Delete"
+  cancelText="Cancel"
+  type="danger"
+  (confirm)="confirmDeletePost()"
+  (cancel)="cancelDeletePost()">
+</app-confirmation-modal>
+
 <div class="loading-state" *ngIf="loading">
   <div class="spinner"></div>
   <p>Loading post...</p>
@@ -162,3 +131,4 @@
   <p>{{ error }}</p>
   <button type="button" class="back-btn" (click)="goBack()">Back to Community</button>
 </div>
+

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -7,11 +7,13 @@ import { Post } from '../../models/post.model';
 import { CommunityService } from '../../services/community.service';
 import { CommentSectionComponent } from '../../components/comment-section/comment-section.component';
 import { ShareModalComponent } from '../../components/share-modal/share-modal.component';
+import { AuthService } from '../../../../core/auth.service';
+import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 @Component({
   selector: 'app-post-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, CommentSectionComponent, ShareModalComponent],
+  imports: [CommonModule, FormsModule, RouterModule, CommentSectionComponent, ShareModalComponent, ConfirmationModalComponent],
   templateUrl: './post-detail.component.html',
   styleUrls: ['./post-detail.component.scss']
 })
@@ -21,6 +23,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private communityService = inject(CommunityService);
   private cdr = inject(ChangeDetectorRef);
+  private authService = inject(AuthService);
 
   @ViewChild('carouselEl') carouselEl?: ElementRef<HTMLDivElement>;
 
@@ -31,17 +34,14 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   postSaved = false;
   showShareModal = false;
 
-  // Content của post sau khi tách hashtag (#tag) ra khỏi text thường, để highlight riêng
   postContentParts: { text: string; isTag: boolean }[] = [];
-
-  // Carousel state
   activeMediaIndex = 0;
   playingVideoIndex: number | null = null;
-
-  // Force re-render các label thời gian tương đối (post + comment) định kỳ,
-  // vì Angular chỉ re-evaluate template expression khi có change detection,
-  // không tự "tick" theo đồng hồ thật.
   private timeTickHandle?: ReturnType<typeof setInterval>;
+
+  // Variables for Deleting Post
+  showPostOptions = false;
+  isConfirmModalOpen = false;
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -82,15 +82,57 @@ export class PostDetailComponent implements OnInit, OnDestroy {
     });
   }
 
+  // ── Phân quyền và xóa bài ──
+  get isPostAuthor(): boolean {
+    const currentUser = this.authService.getUser();
+    if (!currentUser || !this.post) return false;
+    return currentUser.user_id === this.post.user_id;
+  }
+
+  togglePostOptions(event: Event): void {
+    event.stopPropagation();
+    this.showPostOptions = !this.showPostOptions;
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.post-options')) {
+      this.showPostOptions = false;
+    }
+  }
+
+  promptDeletePost(): void {
+    this.showPostOptions = false;
+    this.isConfirmModalOpen = true;
+  }
+
+  cancelDeletePost(): void {
+    this.isConfirmModalOpen = false;
+  }
+
+  confirmDeletePost(): void {
+    if (!this.post) return;
+    this.isConfirmModalOpen = false;
+    this.loading = true;
+
+    this.communityService.deletePost(this.post.post_id).subscribe({
+      next: () => {
+        this.router.navigate(['/community']);
+      },
+      error: (err) => {
+        console.error('Failed to delete post:', err);
+        this.loading = false;
+        alert('Failed to delete this post. Please try again.');
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
   // ── Media carousel ──
+  get mediaList() { return this.post?.media || []; }
 
-  get mediaList() {
-    return this.post?.media || [];
-  }
-
-  setActiveMedia(index: number): void {
-    this.activeMediaIndex = index;
-  }
+  setActiveMedia(index: number): void { this.activeMediaIndex = index; }
 
   onCarouselScroll(event: Event): void {
     const el = event.target as HTMLElement;
@@ -120,7 +162,6 @@ export class PostDetailComponent implements OnInit, OnDestroy {
     }
   }
 
-  // Click left/right arrow buttons để chuyển media (ngoài touch swipe)
   scrollToMedia(index: number): void {
     const el = this.carouselEl?.nativeElement;
     if (!el) return;
@@ -129,8 +170,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
     this.playingVideoIndex = null;
   }
 
-  // ── Like post ──
-
+  // ── Like / Save post ──
   likePost(): void {
     if (!this.post) return;
     this.communityService.likePost(this.post.post_id).subscribe(res => {
@@ -144,7 +184,6 @@ export class PostDetailComponent implements OnInit, OnDestroy {
 
   savePost(): void {
     if (!this.post) return;
-
     this.communityService.savePost(this.post.post_id).subscribe({
       next: (res) => {
         if (this.post) {
@@ -154,9 +193,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
           this.cdr.detectChanges();
         }
       },
-      error: (err) => {
-        console.error('Failed to save post:', err);
-      }
+      error: (err) => console.error('Failed to save post:', err)
     });
   }
 
@@ -166,10 +203,6 @@ export class PostDetailComponent implements OnInit, OnDestroy {
 
   sharePost(): void {
     this.showShareModal = true;
-
-    // NOTE: this assumes CommunityService gets a `sharePost(postId)` method
-    // hitting the new POST /posts/:id/share endpoint (see posts.controller.js).
-    // Wire that method up in community.service.ts if it doesn't exist yet.
     if (!this.post) return;
     this.communityService.sharePost(this.post.post_id).subscribe({
       next: (res) => {
@@ -178,23 +211,13 @@ export class PostDetailComponent implements OnInit, OnDestroy {
           this.cdr.detectChanges();
         }
       },
-      error: (err) => {
-        console.error('Failed to record share:', err);
-      }
+      error: (err) => console.error('Failed to record share:', err)
     });
   }
 
-  closeShareModal(): void {
-    this.showShareModal = false;
-  }
+  closeShareModal(): void { this.showShareModal = false; }
+  get shareUrl(): string { return window.location.href; }
 
-  get shareUrl(): string {
-    return window.location.href;
-  }
-
-  // Called from (commentCountChange) on <app-comment-section> — keeps the
-  // comment count badge in sync the moment a comment/reply is posted,
-  // instead of only updating on the next full page load.
   onCommentCountChange(total: number): void {
     if (this.post) {
       this.post.comment_count = total;
@@ -210,13 +233,10 @@ export class PostDetailComponent implements OnInit, OnDestroy {
       .map(part => ({ text: part, isTag: part.startsWith('#') }));
   }
 
-  // ── Relative time, dùng cho author row của post ──
-
   timeAgo(dateStr: string): string {
     const created = new Date(dateStr).getTime();
     const now = Date.now();
     const diffMs = Math.max(0, now - created);
-
     const minutes = Math.floor(diffMs / 60000);
     const hours = Math.floor(diffMs / 3600000);
     const days = Math.floor(diffMs / 86400000);
@@ -231,3 +251,4 @@ export class PostDetailComponent implements OnInit, OnDestroy {
     this.router.navigate(['/community']);
   }
 }
+

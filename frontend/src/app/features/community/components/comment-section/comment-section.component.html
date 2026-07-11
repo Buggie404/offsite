@@ -15,22 +15,18 @@
       </ng-container>
     </div>
   </div>
-
 </div>
 
 <div class="comment-composer">
   <div class="composer-row">
-    <input
-      type="text"
-      placeholder="Add a comment..."
-      [(ngModel)]="mainCommentText"
+    <input 
+      type="text" 
+      placeholder="Add a comment..." 
+      [(ngModel)]="mainCommentText" 
       (keydown.enter)="submitComment(false)">
     <button type="button" class="composer-clear-btn" *ngIf="mainCommentText.trim()" (click)="mainCommentText = ''">✕</button>
-    <button
-      type="button"
-      class="composer-send-btn"
-      [disabled]="!mainCommentText.trim() || postingComment"
-      (click)="submitComment(false)">
+    
+    <button type="button" class="composer-send-btn" [disabled]="!mainCommentText.trim() || postingComment" (click)="submitComment(false)">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
         <path d="M12 16V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -54,6 +50,19 @@
         <span class="comment-username">{{ comment.author.username }}</span>
         <span class="author-badge" *ngIf="comment.author.is_post_author">AUTHOR</span>
         <span class="comment-time">{{ timeAgo(comment.created_at) }}</span>
+        
+        <div class="comment-options" *ngIf="isCommentAuthor(comment.user_id)">
+           <button type="button" class="options-trigger" (click)="toggleCommentOptions(comment.comment_id, $event)">
+             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               <circle cx="12" cy="12" r="1"></circle>
+               <circle cx="12" cy="5" r="1"></circle>
+               <circle cx="12" cy="19" r="1"></circle>
+             </svg>
+           </button>
+           <div class="options-dropdown" *ngIf="showCommentOptionsFor === comment.comment_id">
+             <button type="button" class="delete-action" (click)="promptDeleteComment(comment.comment_id)">Delete Comment</button>
+           </div>
+        </div>
       </div>
 
       <p class="comment-text">
@@ -68,24 +77,19 @@
           </svg>
           <span>{{ comment.like_count }}</span>
         </button>
-        <button type="button" class="comment-reply-btn" (click)="startReply(parentId, comment.comment_id, comment.author.username)">
-          Reply
-        </button>
+        <button type="button" class="comment-reply-btn" (click)="startReply(parentId, comment.comment_id, comment.author.username)">Reply</button>
       </div>
 
       <div class="inline-reply-box" *ngIf="replyingTo?.anchorId === comment.comment_id">
         <div class="composer-row">
-          <input
-            type="text"
-            [placeholder]="'Reply to @' + replyingTo!.username + '...'"
-            [(ngModel)]="replyCommentText"
+          <input 
+            type="text" 
+            [placeholder]="'Reply to @' + replyingTo!.username + '...'" 
+            [(ngModel)]="replyCommentText" 
             (keydown.enter)="submitComment(true)">
           <button type="button" class="composer-clear-btn" *ngIf="replyCommentText.trim()" (click)="replyCommentText = ''">✕</button>
-          <button
-            type="button"
-            class="composer-send-btn"
-            [disabled]="!replyCommentText.trim() || postingComment"
-            (click)="submitComment(true)">
+          
+          <button type="button" class="composer-send-btn" [disabled]="!replyCommentText.trim() || postingComment" (click)="submitComment(true)">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
               <path d="M12 16V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -94,9 +98,21 @@
           </button>
         </div>
       </div>
-      
+
     </div>
   </div>
 </ng-template>
 
+<app-confirmation-modal
+  *ngIf="isConfirmDeleteModalOpen"
+  [isOpen]="isConfirmDeleteModalOpen"
+  title="Delete Comment?"
+  message="Are you sure you want to delete this comment?"
+  warningMessage="This action cannot be undone."
+  confirmText="Delete"
+  cancelText="Cancel"
+  type="danger"
+  (confirm)="confirmDeleteComment()"
+  (cancel)="cancelDeleteComment()">
+</app-confirmation-modal>
 

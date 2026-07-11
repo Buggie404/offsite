@@ -245,3 +245,54 @@ $transition-speed: 0.25s;
 }
 
 
+.comment-options {
+  position: relative;
+  margin-left: auto; 
+  
+  .options-trigger {
+    background: none;
+    border: none;
+    color: #8c857e;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s;
+    
+    &:hover { 
+      background: rgba(0,0,0,0.05); 
+      color: #2A2A2A;
+    }
+  }
+
+  .options-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow: hidden;
+    min-width: 140px;
+    z-index: 100;
+    
+    .delete-action {
+      width: 100%;
+      text-align: left;
+      padding: 10px 14px;
+      background: none;
+      border: none;
+      color: #D32F2F;
+      font-weight: 500;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+      
+      &:hover { background: #fdf0f0; }
+    }
+  }
+}
+
+
