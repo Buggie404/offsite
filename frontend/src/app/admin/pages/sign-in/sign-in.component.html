@@ -66,6 +66,8 @@
               autocomplete="email"
               required
               [(ngModel)]="email"
+              (ngModelChange)="onEmailInput()"
+              (blur)="onEmailBlur()"
             />
           </div>
           @if (emailError) {
@@ -87,6 +89,8 @@
               autocomplete="current-password"
               required
               [(ngModel)]="password"
+              (ngModelChange)="onPasswordInput()"
+              (blur)="onPasswordBlur()"
             />
             <button
               type="button"

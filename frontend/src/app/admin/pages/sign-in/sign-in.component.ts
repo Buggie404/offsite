@@ -59,6 +59,63 @@ export class AdminSignInComponent implements OnInit {
     this.showPassword = !this.showPassword;
   }
 
+  // ── Realtime validation ───────────────────────────────────────
+
+  private readonly EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  /** Called on each keystroke via ngModelChange */
+  onEmailInput(): void {
+    this.validateEmail(false);
+  }
+
+  /** Always validate when leaving the email field */
+  onEmailBlur(): void {
+    this.validateEmail(true);
+  }
+
+  /** Called on each keystroke via ngModelChange */
+  onPasswordInput(): void {
+    this.validatePassword(false);
+  }
+
+  /** Always validate when leaving the password field */
+  onPasswordBlur(): void {
+    this.validatePassword(true);
+  }
+
+  private validateEmail(showRequiredIfEmpty: boolean): void {
+    this.formError = null;
+
+    const trimmed = this.email.trim();
+    if (!trimmed) {
+      this.emailError = showRequiredIfEmpty ? 'Email is required' : null;
+      return;
+    }
+
+    if (!this.EMAIL_REGEX.test(trimmed)) {
+      this.emailError = 'Please enter a valid email address';
+      return;
+    }
+
+    this.emailError = null;
+  }
+
+  private validatePassword(showRequiredIfEmpty: boolean): void {
+    this.formError = null;
+
+    if (!this.password) {
+      this.passwordError = showRequiredIfEmpty ? 'Password is required' : null;
+      return;
+    }
+
+    if (this.password.length < 6) {
+      this.passwordError = 'Password must be at least 6 characters';
+      return;
+    }
+
+    this.passwordError = null;
+  }
+
   private extractServerMessage(body: unknown): string | null {
     if (!body) return null;
     if (typeof body === 'string') {
@@ -74,33 +131,17 @@ export class AdminSignInComponent implements OnInit {
 
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
-    this.emailError = null;
-    this.passwordError = null;
     this.formError = null;
 
-    const trimmedEmail = this.email.trim();
-    let hasError = false;
+    // Force-validate both fields (in case user never touched them)
+    this.validateEmail(true);
+    this.validatePassword(true);
 
-    if (!trimmedEmail) {
-      this.emailError = 'Email is required';
-      hasError = true;
-    } else {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(trimmedEmail)) {
-        this.emailError = 'Invalid admin account';
-        hasError = true;
-      }
-    }
-
-    if (!this.password) {
-      this.passwordError = 'Password is required';
-      hasError = true;
-    }
-
-    if (hasError) {
+    if (this.emailError || this.passwordError) {
       return;
     }
 
+    const trimmedEmail = this.email.trim();
     this.isSubmitting = true;
     this.cdr.detectChanges();
 
