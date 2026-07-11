@@ -44,13 +44,25 @@ const routes: Routes = [
 
       { path: 'orders', component: OrdersListingComponent },
 
-      { path: 'orders/:id', component: OrderDetailComponent }
+      { path: 'orders/:id', component: OrderDetailComponent },
+
+      {
+
+        path: '404',
+
+        loadComponent: () =>
+
+          import('./pages/not-found/not-found.component').then((m) => m.AdminNotFoundComponent)
+
+      },
+
+      { path: '**', redirectTo: '404' }
 
     ]
 
   },
 
-  { path: '**', redirectTo: 'orders' }
+  { path: '**', redirectTo: '404' }
 
 ];
 

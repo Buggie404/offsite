@@ -283,7 +283,7 @@ export class OrderDetailComponent implements OnInit {
       error: (err) => {
         if (!silent) {
           if (err?.status === 404) {
-            void this.router.navigateByUrl('/404', { skipLocationChange: true });
+            void this.router.navigateByUrl('/admin/404', { skipLocationChange: true });
           } else {
             this.error = 'Failed to load order details. Please try again.';
           }

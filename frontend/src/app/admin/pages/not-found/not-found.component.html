@@ -1,0 +1,63 @@
+<section class="admin-not-found">
+  <!-- Glowing background blobs -->
+  <div class="ambient-glow bg-sage" aria-hidden="true"></div>
+  <div class="ambient-glow bg-forest" aria-hidden="true"></div>
+
+  <div class="admin-not-found__container">
+    <div class="info-column">
+      <div class="badge-icon-wrap">
+        <svg lucideAlertCircle [size]="20" class="error-badge-icon" aria-hidden="true"></svg>
+        <span class="font-mono">HTTP Status 404</span>
+      </div>
+
+      <h1 class="glow-code font-display">404</h1>
+      <h2 class="title font-display">Lost in the Coffee Lab?</h2>
+      
+      <p class="description font-body">
+        The route you are trying to access does not exist, has been archived, or you may lack necessary system permissions to view it.
+      </p>
+
+      <!-- Quick Search Frosted Box -->
+      <div class="quick-search">
+        <label for="admin-404-search" class="search-label font-mono">Orders Database</label>
+        <div class="search-box">
+          <svg lucideSearch [size]="16" class="search-icon" aria-hidden="true"></svg>
+          <input 
+            id="admin-404-search"
+            type="text" 
+            #searchInput
+            placeholder="Order ID, customer name..." 
+            (keydown.enter)="onSearch(searchInput.value)" 
+          />
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="actions">
+        <a routerLink="/admin/orders" class="btn btn-primary font-body">
+          <svg lucideArrowLeft [size]="16" aria-hidden="true"></svg>
+          <span>Back to Orders</span>
+        </a>
+        <button type="button" class="btn btn-secondary font-body" (click)="goBack()">
+          <svg lucideRotateCcw [size]="16" aria-hidden="true"></svg>
+          <span>Go Back</span>
+        </button>
+      </div>
+
+      <!-- Shortcuts -->
+      <div class="shortcuts-section">
+        <span class="shortcuts-title font-mono">Useful Shortcuts</span>
+        <div class="shortcuts-grid">
+          <a routerLink="/admin/orders" [queryParams]="{ status: 'pending_refund' }" class="shortcut-item">
+            <svg lucideUndo2 [size]="14" aria-hidden="true"></svg>
+            <span>Refund Requests</span>
+          </a>
+          <a routerLink="/admin/orders" [queryParams]="{ status: 'processing' }" class="shortcut-item">
+            <svg lucideTruck [size]="14" aria-hidden="true"></svg>
+            <span>Orders to Ship</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
