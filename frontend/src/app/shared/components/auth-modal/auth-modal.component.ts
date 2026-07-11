@@ -633,6 +633,11 @@ export class AuthModalComponent implements OnDestroy {
       this.cdr.detectChanges();
       return;
     }
+    if (this.canResendOtp) {
+      this.forgotOtpError = 'This code has expired. Please resend a new one.';
+      this.cdr.detectChanges();
+      return;
+    }
     if (this.forgotNewPasswordError || this.forgotConfirmPasswordError) return;
 
     this.forgotOtpError = null;
@@ -642,15 +647,22 @@ export class AuthModalComponent implements OnDestroy {
     try {
       await this.authService.resetPassword(this.forgotIdentifier.trim(), this.forgotOtpValue, this.forgotNewPassword);
       this.clearOtpCountdown();
-      this.closeAuthModal();
 
-      this.successModalConfig = {
-        title: 'Password Reset',
-        subtitle: 'Your password has been changed. Please log in with your new password.',
-        primaryBtn: 'LOG IN',
-      };
-      this.showSuccessModal = true;
+      const identifier = this.forgotIdentifier.trim();
+      const isEmail = identifier.includes('@');
+
       this.resetForgotState();
+      this.authModalService.setMode('login');
+
+      if (isEmail) {
+        this.loginTab = 'email';
+        this.loginEmail = identifier;
+      } else {
+        this.loginTab = 'phone';
+        this.loginPhone = identifier;
+      }
+      this.loginPassword = '';
+
       this.cdr.detectChanges();
     } catch (err: any) {
       this.forgotOtpError = err?.error || 'Incorrect or expired code. Please try again.';
