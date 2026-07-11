@@ -15,4 +15,5 @@ export class CategoryHeroComponent {
   @Input() imageSrc: string = '';
   @Input() textColor: string = '';
   @Input() descColor: string = '';
+  @Input() variant: string = '';
 }

@@ -1,4 +1,15 @@
-<section class="category-hero" [ngStyle]="{'background-color': bgColor}">
+<section class="category-hero" [ngClass]="variant ? 'category-hero--' + variant : ''" [ngStyle]="{'background-color': bgColor}">
+  <span class="category-hero__decor category-hero__decor--sage" aria-hidden="true"></span>
+  <span class="category-hero__decor category-hero__decor--ring" aria-hidden="true"></span>
+  <span class="category-hero__decor category-hero__decor--plus" aria-hidden="true"></span>
+  <span class="category-hero__decor category-hero__decor--plus-sm" aria-hidden="true"></span>
+  <span class="category-hero__decor category-hero__decor--diamond" aria-hidden="true"></span>
+  <span class="category-hero__decor category-hero__decor--diamond-sm" aria-hidden="true"></span>
+  <span class="category-hero__decor category-hero__decor--bar" aria-hidden="true"></span>
+  <span class="category-hero__decor category-hero__decor--pixel-trail" aria-hidden="true"></span>
+  <span class="category-hero__decor category-hero__decor--geo-burst" aria-hidden="true"></span>
+  <span class="category-hero__decor category-hero__decor--solid-square" aria-hidden="true"></span>
+  <span class="category-hero__decor category-hero__decor--solid-triangle" aria-hidden="true"></span>
   <div class="category-hero__container" [class.no-image]="!imageSrc">
     <div class="category-hero__content">
       <h1 class="category-hero__title" [ngStyle]="textColor ? {'color': textColor} : {}">{{ title }}</h1>

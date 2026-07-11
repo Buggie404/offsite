@@ -52,14 +52,14 @@ export class CategoryComponent implements OnInit {
       description: '',
       bgColor: '#375534',
       textColor: '#FFFFFF',
-      imageSrc: ''
+      imageSrc: 'assets/images/best_seller.png'
     },
     'new-arrival': {
       title: 'NEW ARRIVALS',
       description: '',
       bgColor: '#375534',
       textColor: '#FFFFFF',
-      imageSrc: ''
+      imageSrc: 'assets/images/new_arrival.png'
     }
   };
 

@@ -222,12 +222,21 @@
 
   @if (shouldShowBrewingMethods() && (isBrewingMethodsLoading() || brewingMethods().length)) {
   <section class="brewing-methods-section" aria-labelledby="brewing-methods-title">
-    <div class="brewing-methods-header">
+    <div class="brewing-methods__decor brewing-methods__decor--blob" aria-hidden="true"></div>
+    <div class="brewing-methods__decor brewing-methods__decor--ring" aria-hidden="true"></div>
+    <div class="brewing-methods__decor brewing-methods__decor--diamond" aria-hidden="true"></div>
+    <div class="brewing-methods__decor brewing-methods__decor--diamond-sm" aria-hidden="true"></div>
+    <div class="brewing-methods__decor brewing-methods__decor--dot" aria-hidden="true"></div>
+    <div class="brewing-methods__decor brewing-methods__decor--dot-sm" aria-hidden="true"></div>
+    <div class="brewing-methods__decor brewing-methods__decor--square" aria-hidden="true"></div>
+    <div class="brewing-methods__decor brewing-methods__decor--triangle" aria-hidden="true"></div>
+    <div class="brewing-methods__decor brewing-methods__decor--line" aria-hidden="true"></div>
+    <div class="brewing-methods-header reveal-fade-in" appAnimateInView>
       <h2 id="brewing-methods-title">BREWING METHODS</h2>
       <span aria-hidden="true"></span>
     </div>
 
-    <div class="brewing-methods-grid">
+    <div class="brewing-methods-grid reveal-fade-in" appAnimateInView>
       @if (isBrewingMethodsLoading()) {
       @for (item of [1, 2, 3]; track item) {
       <article class="brewing-card brewing-card--loading" aria-hidden="true">

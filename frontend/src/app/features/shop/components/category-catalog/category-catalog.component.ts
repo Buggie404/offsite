@@ -734,6 +734,7 @@ export class CategoryCatalogComponent implements OnInit, OnChanges, OnDestroy {
       .replace(/\bcolumbia\b/g, 'colombia')
       .replace(/\brawanda\b/g, 'rwanda');
     const aliases: Record<string, string> = {
+      wahse: 'washed',
       wahsed: 'washed',
       columbia: 'colombia',
       rawanda: 'rwanda',
