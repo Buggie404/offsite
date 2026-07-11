@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
@@ -42,7 +42,7 @@ import { BackToTopComponent } from '../../../../shared/components/back-to-top/ba
   templateUrl: './recipes.component.html',
   styleUrl: './recipes.component.scss'
 })
-export class RecipesComponent implements OnInit {
+export class RecipesComponent implements OnInit, OnDestroy, AfterViewInit {
   private contentService = inject(ContentService);
   private platformId = inject(PLATFORM_ID);
   private cdr = inject(ChangeDetectorRef);
@@ -78,8 +78,50 @@ export class RecipesComponent implements OnInit {
         if (params['style']) {
           this.selectedStyle = params['style'].toUpperCase();
         }
-        this.fetchRecipes();
+        
+        const state = this.contentService.recipeState;
+        if (state && state.selectedBase === this.selectedBase && state.selectedStyle === this.selectedStyle) {
+          this.allRecipes = state.allRecipes;
+          this.filteredRecipes = state.filteredRecipes;
+          this.searchQuery = state.searchQuery;
+          this.selectedSort = state.selectedSort;
+          this.cdr.detectChanges();
+        } else {
+          this.fetchRecipes();
+        }
       });
+    }
+  }
+
+  ngAfterViewInit(): void {
+    if (isPlatformBrowser(this.platformId)) {
+      const state = this.contentService.recipeState;
+      if (state && state.selectedBase === this.selectedBase && state.selectedStyle === this.selectedStyle && state.scrollY > 0) {
+        window.scrollTo(0, state.scrollY);
+        setTimeout(() => {
+          window.scrollTo(0, state.scrollY);
+        }, 50);
+        setTimeout(() => {
+          window.scrollTo(0, state.scrollY);
+        }, 150);
+        setTimeout(() => {
+          window.scrollTo(0, state.scrollY);
+        }, 300);
+      }
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (isPlatformBrowser(this.platformId)) {
+      this.contentService.recipeState = {
+        allRecipes: this.allRecipes,
+        filteredRecipes: this.filteredRecipes,
+        searchQuery: this.searchQuery,
+        selectedBase: this.selectedBase,
+        selectedStyle: this.selectedStyle,
+        selectedSort: this.selectedSort,
+        scrollY: window.scrollY
+      };
     }
   }
 

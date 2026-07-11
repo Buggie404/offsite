@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, signal, computed, NgZone, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, signal, computed, NgZone, ChangeDetectorRef, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -435,10 +435,25 @@ export class AccountComponent implements OnInit, OnDestroy {
             if (lastScrollY) {
               const y = parseInt(lastScrollY, 10);
               this.savedMinHeight.set((y + window.innerHeight) + 'px');
+              
+              // Restore scroll position multiple times to prevent layout shifts/resets
               window.scrollTo(0, y);
+              setTimeout(() => {
+                window.scrollTo(0, y);
+              }, 50);
+              setTimeout(() => {
+                window.scrollTo(0, y);
+              }, 150);
+              setTimeout(() => {
+                window.scrollTo(0, y);
+              }, 300);
             }
           }
           this.fetchSavedItems();
+        } else {
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('lastScrollY');
+          }
         }
       } else {
         if (this.activeTab() === 'saved') {
@@ -502,6 +517,11 @@ export class AccountComponent implements OnInit, OnDestroy {
       delete (window as any).validateAccountCardNumberFormat;
       delete (window as any).isAccountCardExpiredCheck;
       delete (window as any).isValidAccountBank;
+
+      // Save scroll position when leaving Saved items tab
+      if (this.activeTab() === 'saved') {
+        sessionStorage.setItem('lastScrollY', window.scrollY.toString());
+      }
     }
   }
 
@@ -2323,6 +2343,16 @@ export class AccountComponent implements OnInit, OnDestroy {
     }).catch(err => {
       console.error(err);
     });
+  }
+
+  @HostListener('window:scroll')
+  onWindowScroll(): void {
+    if (typeof window !== 'undefined' && this.activeTab() === 'saved') {
+      const scrollY = window.scrollY;
+      if (scrollY > 0) {
+        sessionStorage.setItem('lastScrollY', scrollY.toString());
+      }
+    }
   }
 
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -45,7 +45,7 @@ interface Article {
   templateUrl: './journal.component.html',
   styleUrl: './journal.component.scss'
 })
-export class JournalComponent implements OnInit, OnDestroy {
+export class JournalComponent implements OnInit, OnDestroy, AfterViewInit {
   private contentService = inject(ContentService);
   private platformId = inject(PLATFORM_ID);
   private router = inject(Router);
@@ -129,13 +129,57 @@ export class JournalComponent implements OnInit, OnDestroy {
 
     if (isPlatformBrowser(this.platformId)) {
       this.fetchSavedBlogs();
-      this.loadBlogs();
+      
+      const state = this.contentService.journalState;
+      if (state && state.selectedCategory === this.selectedCategory) {
+        this.articles = state.articles;
+        this.currentPage = state.currentPage;
+        this.totalPages = state.totalPages;
+        this.hasMore = state.hasMore;
+        this.searchQuery = state.searchQuery;
+        this.selectedSort = state.selectedSort;
+        this.updateArticlesLayout();
+      } else {
+        this.loadBlogs();
+      }
+    }
+  }
+
+  ngAfterViewInit(): void {
+    if (isPlatformBrowser(this.platformId)) {
+      const state = this.contentService.journalState;
+      if (state && state.selectedCategory === this.selectedCategory && state.scrollY > 0) {
+        // Restore scroll position multiple times to ensure layout rendering & images do not reset scroll
+        window.scrollTo(0, state.scrollY);
+        setTimeout(() => {
+          window.scrollTo(0, state.scrollY);
+        }, 50);
+        setTimeout(() => {
+          window.scrollTo(0, state.scrollY);
+        }, 150);
+        setTimeout(() => {
+          window.scrollTo(0, state.scrollY);
+        }, 300);
+      }
     }
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+
+    if (isPlatformBrowser(this.platformId)) {
+      this.contentService.journalState = {
+        articles: this.articles,
+        currentPage: this.currentPage,
+        totalPages: this.totalPages,
+        hasMore: this.hasMore,
+        searchQuery: this.searchQuery,
+        selectedCategory: this.selectedCategory,
+        selectedSort: this.selectedSort,
+        scrollY: window.scrollY
+      };
+    }
   }
 
   updateArticlesLayout(): void {
