@@ -237,6 +237,12 @@ export class CartService {
     const variant = product.variants.find(v => v.sku === variantSku);
     if (!variant || variant.stock <= 0) return;
 
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('checkout_delivery_info');
+      localStorage.removeItem('checkout_card_info');
+      localStorage.removeItem('checkout_bank_info');
+    }
+
     this.saveCheckoutSummary([{
       product,
       variantSku,
@@ -487,6 +493,12 @@ export class CartService {
     const remaining = currentCart.filter(item => !item.selected || (item.product.variants.find(v => v.sku === item.variantSku)?.stock ?? 0) <= 0);
 
     if (selected.length === 0) return;
+
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('checkout_delivery_info');
+      localStorage.removeItem('checkout_card_info');
+      localStorage.removeItem('checkout_bank_info');
+    }
 
     const currentSummary = [...this.checkoutSummaryItems()];
     for (const selItem of selected) {
