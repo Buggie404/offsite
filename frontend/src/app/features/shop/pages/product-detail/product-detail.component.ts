@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit, PLATFORM_ID, inject, signal } from '@angular/core';
 import { CommonModule, Location, isPlatformBrowser } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationStart, Router, RouterLink } from '@angular/router';
 import {
   LucideArrowRight,
   LucideChevronDown,
@@ -144,8 +144,11 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   productCatalog = signal<Product[]>([]);
 
   private carouselTimer?: ReturnType<typeof setInterval>;
+  private scrollRestoreTimers: Array<ReturnType<typeof setTimeout>> = [];
   private readonly recentlyViewedKey = 'recently_viewed_products';
   private routeSubscription?: Subscription;
+  private routerEventsSubscription?: Subscription;
+  private pendingScrollY: number | null = null;
   readonly contentDetailEntryState = { contentEntrySource: 'product-detail' };
 
   readonly ratingStars = [1, 2, 3, 4, 5];
@@ -161,6 +164,14 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   ];
 
   ngOnInit(): void {
+    if (isPlatformBrowser(this.platformId)) {
+      this.routerEventsSubscription = this.router.events.subscribe(event => {
+        if (event instanceof NavigationStart) {
+          this.saveProductDetailScrollPosition();
+        }
+      });
+    }
+
     this.routeSubscription = this.route.paramMap.subscribe(params => {
       const productId = params.get('id');
       this.loadProduct(productId);
@@ -169,7 +180,9 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopCarousel();
+    this.clearScrollRestoreTimers();
     this.routeSubscription?.unsubscribe();
+    this.routerEventsSubscription?.unsubscribe();
   }
 
   private loadProduct(productId: string | null): void {
@@ -178,6 +191,9 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
       void this.router.navigateByUrl('/404', { skipLocationChange: true });
       return;
     }
+
+    this.pendingScrollY = this.getSavedProductDetailScrollPosition();
+    this.clearScrollRestoreTimers();
 
     this.stopCarousel();
     this.isLoading.set(true);
@@ -206,6 +222,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
         this.loadRecentlyViewedProducts(prod);
         this.rememberRecentlyViewedProduct(prod);
         this.startCarousel();
+        this.restoreProductDetailScrollPosition();
       },
       error: (err) => {
         console.error('Failed to load product details:', err);
@@ -700,6 +717,43 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     if (!slug || currentId === slug) return;
 
     this.location.replaceState(`/products/${slug}`, '', window.history.state);
+  }
+
+  private saveProductDetailScrollPosition(): void {
+    if (!this.product()) return;
+
+    window.history.replaceState(
+      { ...window.history.state, productDetailScrollY: window.scrollY },
+      '',
+      window.location.href
+    );
+  }
+
+  private getSavedProductDetailScrollPosition(): number | null {
+    if (!isPlatformBrowser(this.platformId)) return null;
+
+    const scrollY = window.history.state?.productDetailScrollY;
+    return typeof scrollY === 'number' && Number.isFinite(scrollY)
+      ? Math.max(0, scrollY)
+      : null;
+  }
+
+  private restoreProductDetailScrollPosition(): void {
+    const scrollY = this.pendingScrollY;
+    if (scrollY === null || !isPlatformBrowser(this.platformId)) return;
+
+    const restore = (): void => window.scrollTo({ top: scrollY, behavior: 'auto' });
+    requestAnimationFrame(() => {
+      restore();
+      [100, 300, 700].forEach(delay => {
+        this.scrollRestoreTimers.push(setTimeout(restore, delay));
+      });
+    });
+  }
+
+  private clearScrollRestoreTimers(): void {
+    this.scrollRestoreTimers.forEach(timer => clearTimeout(timer));
+    this.scrollRestoreTimers = [];
   }
 
   private getProductRouteId(product: Record<string, any>, name: string): string {

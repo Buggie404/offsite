@@ -20,7 +20,11 @@ export class AnimateInViewDirective implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
 
-    if (!('IntersectionObserver' in window)) {
+    if (
+      !('IntersectionObserver' in window)
+      || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      || this.isRestoringSavedPagePosition()
+    ) {
       this.element.nativeElement.classList.add('is-in-view');
       return;
     }
@@ -29,8 +33,7 @@ export class AnimateInViewDirective implements AfterViewInit, OnDestroy {
       ([entry]) => {
         if (entry.isIntersecting) {
           entry.target.classList.add('is-in-view');
-        } else {
-          entry.target.classList.remove('is-in-view');
+          this.observer?.unobserve(entry.target);
         }
       },
       { threshold: 0.15 }
@@ -41,5 +44,15 @@ export class AnimateInViewDirective implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.observer?.disconnect();
+  }
+
+  private isRestoringSavedPagePosition(): boolean {
+    const state = window.history.state;
+    return this.isSavedScrollPosition(state?.homeScrollY)
+      || this.isSavedScrollPosition(state?.productDetailScrollY);
+  }
+
+  private isSavedScrollPosition(value: unknown): boolean {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0;
   }
 }
