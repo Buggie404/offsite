@@ -66,9 +66,30 @@ async function markAllAsRead(recipient_id) {
   }
 }
 
+async function deleteNotification(notification_id, recipient_id) {
+  try {
+    return await Notification.findOneAndDelete({ notification_id, recipient_id });
+  } catch (error) {
+    console.error('Error in deleteNotification service:', error);
+    throw error;
+  }
+}
+
+async function deleteAllNotificationsForUser(recipient_id) {
+  try {
+    return await Notification.deleteMany({ recipient_id });
+  } catch (error) {
+    console.error('Error in deleteAllNotificationsForUser service:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   createNotification,
   getNotificationsForUser,
   markAsRead,
-  markAllAsRead
+  markAllAsRead,
+  deleteNotification,
+  deleteAllNotificationsForUser
 };
+

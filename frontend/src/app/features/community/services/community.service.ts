@@ -136,4 +136,13 @@ export class CommunityService {
   markAllNotificationsAsRead(): Observable<{ message: string }> {
     return this.http.put<{ message: string }>(`${this.notificationsApiUrl}/read-all`, {});
   }
+
+  deleteNotification(id: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.notificationsApiUrl}/${id}`);
+  }
+
+  deleteAllNotifications(): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.notificationsApiUrl}/delete-all`);
+  }
 }
+
