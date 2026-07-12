@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { CommonModule, isPlatformBrowser, Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { LucideArrowLeft, LucideBookmark, LucideClock, LucideCalendar, LucideAlertCircle, LucideLink, LucideArrowRight, LucideCheck } from '@lucide/angular';
@@ -248,8 +248,20 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
     });
   }
 
+  private location = inject(Location);
+
   goBack(): void {
-    void this.router.navigate(['/journal']);
+    if (isPlatformBrowser(this.platformId)) {
+      if (window.history.length > 1) {
+        this.location.back();
+      } else {
+        const navigationExtras: any = {};
+        if (this.categoryFilter) {
+          navigationExtras.queryParams = { category: this.categoryFilter };
+        }
+        void this.router.navigate(['/journal'], navigationExtras);
+      }
+    }
   }
 
   navigateToArticle(slug: string): void {
@@ -361,25 +373,84 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
   private scrollToPendingFragment(): void {
     if (!this.pendingFragment || !this.article || !isPlatformBrowser(this.platformId)) return;
 
-    [
-      { delay: 80, behavior: 'smooth' as ScrollBehavior, threshold: 0 },
-      { delay: 900, behavior: 'smooth' as ScrollBehavior, threshold: 96 }
-    ].forEach(({ delay, behavior, threshold }) => {
-      window.setTimeout(() => {
-        const target = document.getElementById(this.pendingFragment ?? '');
+    const fragment = this.pendingFragment;
+    const isGuideNavigation = /^guide-step-\d+$/.test(fragment);
+
+    // A Step-by-Step Guide click intentionally starts at the article header,
+    // then makes one smooth pass to the requested step. This shows users what
+    // the CTA does without the old competing scroll animations.
+    if (isGuideNavigation) {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const target = this.getFragmentTarget(fragment);
         if (!target) return;
 
-        const topOffset = 28;
-        const distanceFromTarget = target.getBoundingClientRect().top - topOffset;
-        if (Math.abs(distanceFromTarget) <= threshold) return;
-
+        const topOffset = this.getStickyHeaderOffset();
         const top = target.getBoundingClientRect().top + window.scrollY - topOffset;
         window.scrollTo({
           top: Math.max(0, top),
-          behavior
+          behavior: isGuideNavigation ? 'smooth' : 'auto'
         });
-      }, delay);
+      });
     });
+  }
+
+  private getFragmentTarget(fragment: string): HTMLElement | null {
+    const directTarget = document.getElementById(fragment);
+    if (directTarget) return directTarget;
+
+    const guideStepMatch = /^guide-step-(\d+)$/.exec(fragment);
+    if (!guideStepMatch || !this.article) return null;
+
+    const requestedStep = Number(guideStepMatch[1]);
+    let guideStepNumber = 0;
+
+    for (let index = 0; index < this.article.content.length; index++) {
+      const block = this.article.content[index];
+      if (block?.type !== 'heading' || !this.isGuideStepHeading(block?.text)) continue;
+
+      guideStepNumber++;
+      if (guideStepNumber === requestedStep) {
+        const sectionHeading = requestedStep === 1
+          ? this.getGuideSectionHeading(index)
+          : null;
+
+        if (sectionHeading) return sectionHeading;
+        return document.getElementById(this.buildJournalStepAnchor(block.text, index));
+      }
+    }
+
+    return null;
+  }
+
+  private getGuideSectionHeading(firstStepIndex: number): HTMLElement | null {
+    if (!this.article) return null;
+
+    for (let index = firstStepIndex - 1; index >= 0; index--) {
+      const block = this.article.content[index];
+      if (block?.type !== 'heading') continue;
+      if (this.isGuideStepHeading(block?.text)) break;
+
+      const heading = String(block?.text ?? '').trim();
+      if (/\bstep\s*by\s*step\b|\binstructions?\b|\bmethod\b/i.test(heading)) {
+        return document.getElementById(this.buildJournalStepAnchor(block.text, index));
+      }
+    }
+
+    return null;
+  }
+
+  private getStickyHeaderOffset(): number {
+    const navbar = document.querySelector('app-navbar') as HTMLElement | null;
+    const navbarHeight = navbar?.getBoundingClientRect().height ?? 0;
+    return Math.ceil(navbarHeight) + 28;
+  }
+
+  private isGuideStepHeading(value: unknown): boolean {
+    return /^(?:(?:step|method)\s*)?\d+[\).\s:-]+/i.test(String(value ?? '').trim());
   }
 
   private buildJournalStepAnchor(value: unknown, index: number): string {
@@ -395,7 +466,7 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
 
   private normalizeStepHeading(value: unknown): string {
     return String(value ?? '')
-      .replace(/^\s*(?:step\s*)?\d+[\).\s:-]+/i, '')
+      .replace(/^\s*(?:(?:step|method)\s*)?\d+[\).\s:-]+/i, '')
       .replace(/\s+/g, ' ')
       .trim();
   }

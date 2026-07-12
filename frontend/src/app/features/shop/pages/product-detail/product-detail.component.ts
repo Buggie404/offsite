@@ -1080,8 +1080,8 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     const headingSteps: string[] = Array.isArray(blog.content)
       ? blog.content
           .filter((block: any) => block?.type === 'heading')
-          .filter((block: any) => this.isBrewingStepHeading(block?.text))
-          .map((block: any) => this.normalizeBrewingStepHeading(block?.text))
+          .filter((block: any) => this.isBrewingGuideHeading(block?.text))
+          .map((block: any) => this.normalizeBrewingGuideHeading(block?.text))
           .filter((step: string) => step.length >= 3 && step.length <= 42)
       : [];
 
@@ -1092,40 +1092,31 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return [...uniqueSteps, ...fallbackSteps].slice(0, 3);
   }
 
-  private isBrewingStepHeading(value: unknown): boolean {
-    return /^(?:step\s*)?\d+[\).\s:-]+/i.test(String(value ?? '').trim());
+  private isBrewingGuideHeading(value: unknown): boolean {
+    return /^(?:(?:step|method)\s*)?\d+[\).\s:-]+/i.test(String(value ?? '').trim());
   }
 
-  private normalizeBrewingStepHeading(value: unknown): string {
+  private normalizeBrewingGuideHeading(value: unknown): string {
     return String(value ?? '')
-      .replace(/^\s*(?:step\s*)?\d+[\).\s:-]+/i, '')
+      .replace(/^\s*(?:(?:step|method)\s*)?\d+[\).\s:-]+/i, '')
       .replace(/\s+/g, ' ')
       .trim();
   }
 
   private getBrewingStepAnchor(blog: any): string {
     const content = Array.isArray(blog.content) ? blog.content : [];
-    const stepIndex = content.findIndex((block: any) => {
-      const step = this.normalizeBrewingStepHeading(block?.text);
+    const hasGuideStep = content.some((block: any) => {
+      const step = this.normalizeBrewingGuideHeading(block?.text);
       return block?.type === 'heading'
-        && this.isBrewingStepHeading(block?.text)
+        && this.isBrewingGuideHeading(block?.text)
         && step.length >= 3
         && step.length <= 42;
     });
 
-    if (stepIndex < 0) return '';
-    return this.buildJournalStepAnchor(content[stepIndex]?.text, stepIndex);
-  }
-
-  private buildJournalStepAnchor(value: unknown, index: number): string {
-    const slug = this.normalizeBrewingStepHeading(value)
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-
-    return `journal-step-${index}-${slug || 'guide'}`;
+    // The list and detail API responses can have different content indexes.
+    // Pass a semantic guide-step anchor and let Blog Detail resolve it from
+    // the rendered article, rather than coupling navigation to an index.
+    return hasGuideStep ? 'guide-step-1' : '';
   }
 
   private mapReview(review: ProductReviewDto): ProductReviewView {

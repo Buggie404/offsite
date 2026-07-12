@@ -1,20 +1,36 @@
-import { Directive, ElementRef, HostBinding, HostListener, inject } from '@angular/core';
+import { Directive, ElementRef, HostBinding, HostListener, OnDestroy, inject } from '@angular/core';
 
 @Directive({
   selector: '[appDragScroll]',
   standalone: true,
 })
-export class DragScrollDirective {
+export class DragScrollDirective implements OnDestroy {
   @HostBinding('class.drag-scroll') readonly dragScrollClass = true;
   @HostBinding('class.is-dragging') isDragging = false;
 
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  private readonly suppressClickAfterDrag = (event: MouseEvent) => {
+    if (!this.wasDragging) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    this.wasDragging = false;
+  };
   private startX = 0;
   private startScrollLeft = 0;
   private isPointerDown = false;
   private activePointerId: number | null = null;
   private readonly dragThreshold = 5;
   private wasDragging = false;
+
+  constructor() {
+    this.element.addEventListener('click', this.suppressClickAfterDrag, true);
+  }
+
+  ngOnDestroy(): void {
+    this.element.removeEventListener('click', this.suppressClickAfterDrag, true);
+  }
 
   @HostListener('pointerdown', ['$event'])
   onPointerDown(event: PointerEvent): void {
@@ -29,7 +45,7 @@ export class DragScrollDirective {
     this.startScrollLeft = this.element.scrollLeft;
   }
 
-  @HostListener('pointermove', ['$event'])
+  @HostListener('document:pointermove', ['$event'])
   onPointerMove(event: PointerEvent): void {
     if (!this.isPointerDown || event.pointerId !== this.activePointerId) return;
 
@@ -45,8 +61,8 @@ export class DragScrollDirective {
     this.element.scrollLeft = this.startScrollLeft - distance;
   }
 
-  @HostListener('pointerup', ['$event'])
-  @HostListener('pointercancel', ['$event'])
+  @HostListener('document:pointerup', ['$event'])
+  @HostListener('document:pointercancel', ['$event'])
   onPointerEnd(event: PointerEvent): void {
     if (event.pointerId !== this.activePointerId) return;
 
@@ -73,12 +89,31 @@ export class DragScrollDirective {
     this.activePointerId = null;
   }
 
-  @HostListener('click', ['$event'])
-  onClick(event: MouseEvent): void {
-    if (this.wasDragging) {
-      event.preventDefault();
-      event.stopPropagation();
-      this.wasDragging = false;
+  @HostListener('keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    if (this.element.scrollWidth <= this.element.clientWidth) return;
+
+    const step = Math.max(80, Math.round(this.element.clientWidth * 0.65));
+    let left: number | null = null;
+
+    switch (event.key) {
+      case 'ArrowLeft':
+        left = this.element.scrollLeft - step;
+        break;
+      case 'ArrowRight':
+        left = this.element.scrollLeft + step;
+        break;
+      case 'Home':
+        left = 0;
+        break;
+      case 'End':
+        left = this.element.scrollWidth;
+        break;
     }
+
+    if (left === null) return;
+
+    event.preventDefault();
+    this.element.scrollTo({ left, behavior: 'smooth' });
   }
 }

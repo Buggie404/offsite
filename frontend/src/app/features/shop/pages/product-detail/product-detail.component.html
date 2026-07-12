@@ -138,7 +138,7 @@
           <fieldset class="variant-selector">
             <legend>{{ product()?.variant_type === 'none' ? 'SELECT OPTION' : 'SELECT ' + (product()?.variant_type |
               uppercase) }}</legend>
-            <div appDragScroll class="variant-options">
+            <div appDragScroll class="variant-options" tabindex="0" aria-label="Product options. Drag or use left and right arrow keys to see more.">
               @for (variant of product()?.variants; track variant.sku) {
               <button type="button" class="variant-option" [class.is-selected]="selectedVariant()?.sku === variant.sku"
                 [disabled]="(variant.stock ?? 0) <= 0" (click)="selectVariant(variant)">
