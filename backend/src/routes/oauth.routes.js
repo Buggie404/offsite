@@ -11,7 +11,10 @@ router.get('/google',
 
 // Google callback
 router.get('/google/callback',
-  passport.authenticate('google', { failureRedirect: 'http://localhost:4200/login' }),
+  (req, res, next) => {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    passport.authenticate('google', { failureRedirect: `${clientUrl}/login` })(req, res, next);
+  },
   (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
@@ -25,8 +28,8 @@ router.get('/google/callback',
     );
 
     // Redirect to frontend with token
-    // Frontend sẽ lưu token vào localStorage
-    res.redirect(`http://localhost:4200/oauth-success?token=${token}`);
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    res.redirect(`${clientUrl}/oauth-success?token=${token}`);
   }
 );
 
@@ -38,7 +41,10 @@ router.get('/facebook',
 
 // Facebook callback
 router.get('/facebook/callback',
-  passport.authenticate('facebook', { failureRedirect: 'http://localhost:4200/login' }),
+  (req, res, next) => {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    passport.authenticate('facebook', { failureRedirect: `${clientUrl}/login` })(req, res, next);
+  },
   (req, res) => {
     const token = jwt.sign(
       {
@@ -50,7 +56,8 @@ router.get('/facebook/callback',
       { expiresIn: '8h' }
     );
 
-    res.redirect(`http://localhost:4200/oauth-success?token=${token}`);
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    res.redirect(`${clientUrl}/oauth-success?token=${token}`);
   }
 );
 

@@ -2,6 +2,7 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
+import { environment } from '../../../../environments/environment';
 import { Observable } from 'rxjs';
 import { Product } from '../models/product.model';
 
@@ -40,7 +41,7 @@ export interface ProductReviewsResponse {
 })
 export class ProductService {
 
-  private api = 'http://localhost:5000/api/products';
+  private api = `${environment.apiUrl}/products`;
 
   constructor(private http: HttpClient) {}
 
@@ -69,6 +70,6 @@ export class ProductService {
       .set('limit', limit.toString())
       .set('sort', sort);
 
-    return this.http.get<ProductReviewsResponse>(`http://localhost:5000/api/reviews/product/${productId}`, { params });
+    return this.http.get<ProductReviewsResponse>(`${environment.apiUrl}/reviews/product/${productId}`, { params });
   }
 }

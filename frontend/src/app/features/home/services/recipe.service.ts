@@ -7,11 +7,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Recipe } from '../models/recipe.model';
+import { environment } from '../../../../environments/environment';
 
-// ── Adjust this to match your environment config ──────────────
-// Recommended: import { environment } from 'src/environments/environment';
-// const BASE_URL = environment.apiUrl;
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = environment.apiUrl;
 
 @Injectable({
   providedIn: 'root',

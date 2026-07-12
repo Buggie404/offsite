@@ -51,7 +51,8 @@ app.get('/auth/callback/google',
       process.env.JWT_SECRET || 'fallback-secret-key',
       { expiresIn: '8h' }
     );
-    res.redirect(`http://localhost:4200/oauth-success?token=${token}`);
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    res.redirect(`${clientUrl}/oauth-success?token=${token}`);
   }
 );
 
@@ -67,7 +68,8 @@ app.get('/auth/callback/facebook',
       process.env.JWT_SECRET || 'fallback-secret-key',
       { expiresIn: '8h' }
     );
-    res.redirect(`http://localhost:4200/oauth-success?token=${token}`);
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    res.redirect(`${clientUrl}/oauth-success?token=${token}`);
   }
 );
 

@@ -6,6 +6,7 @@ import { AuthModalService } from '../../../core/auth-modal.service';
 import { AuthService } from '../../../core/auth.service';
 import { SuccessModalComponent, SuccessModalConfig } from '../success-modal/success-modal.components';
 import { Router, RouterModule } from '@angular/router';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-auth-modal',
@@ -847,11 +848,11 @@ export class AuthModalComponent implements OnDestroy {
   }
 
   loginWithGoogle(): void {
-    window.location.href = 'http://localhost:5000/api/auth/oauth/google';
+    window.location.href = `${environment.apiUrl}/auth/oauth/google`;
   }
 
   loginWithFacebook(): void {
-    window.location.href = 'http://localhost:5000/api/auth/oauth/facebook';
+    window.location.href = `${environment.apiUrl}/auth/oauth/facebook`;
   }
 
   onSuccessPrimary(): void {

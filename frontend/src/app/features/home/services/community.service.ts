@@ -7,8 +7,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Post, PostsResponse } from '../models/post.model';
+import { environment } from '../../../../environments/environment';
 
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = environment.apiUrl;
 
 @Injectable({
   providedIn: 'root'
