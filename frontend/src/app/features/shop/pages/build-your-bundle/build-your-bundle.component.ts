@@ -411,10 +411,24 @@ export class BuildYourBundleComponent implements OnInit {
   }
 
   private addBundleProductInstance(product: Product): void {
-    if (!this.isBundleMode() || !this.canAddMoreBundleProducts()) return;
+    if (!this.isBundleMode()) return;
 
     const variant = this.getDefaultInStockVariant(product);
     if (!variant) return;
+
+    const activeKey = this.activeSlotKey();
+    if (activeKey && this.requiredSlotKeys().includes(activeKey)) {
+      this.setSlotSelections((selections) => ({
+        ...selections,
+        [activeKey]: {
+          product,
+          variantSku: variant.sku
+        }
+      }));
+      return;
+    }
+
+    if (!this.canAddMoreBundleProducts()) return;
 
     const emptySlot = this.requiredSlotKeys().find((key) => !this.slotSelections()[key]);
     if (!emptySlot) return;
