@@ -1,155 +1,162 @@
 <div class="feed-wrapper" [class.blurred]="!isLoggedIn()" [class.scroll-fallback-active]="!isScrollTimelineSupported">
   <app-hero-banner></app-hero-banner>
 
-  <app-feed-toolbar
-      [activeCategory]="activeCategory"
-      [sort]="sort"
-      (createPost)="openCreatePost()"
-      (createRecipe)="openCreateRecipe()"
-      (categoryChange)="onCategoryChange($event)"
-      (sortChange)="onSortChange($event)">
+  <app-feed-toolbar [activeCategory]="activeCategory" [sort]="sort" (createPost)="openCreatePost()"
+    (createRecipe)="openCreateRecipe()" (categoryChange)="onCategoryChange($event)" (sortChange)="onSortChange($event)">
   </app-feed-toolbar>
 
   <section class="community-section">
-      <div class="community-bg-decor" aria-hidden="true">
-          <!-- Soft color blobs, biased toward the outer cream margins -->
-          <div class="decor-blob decor-blob--1 decor-blob--sage"></div>
-          <div class="decor-blob decor-blob--2 decor-blob--latte"></div>
-          <div class="decor-blob decor-blob--3 decor-blob--blush"></div>
-          <div class="decor-blob decor-blob--4 decor-blob--wheat"></div>
-          <div class="decor-blob decor-blob--5 decor-blob--sage"></div>
-          <div class="decor-blob decor-blob--6 decor-blob--blush"></div>
+    <div class="community-bg-decor" aria-hidden="true">
+      <!-- Soft color blobs, biased toward the outer cream margins -->
+      <div class="decor-blob decor-blob--1 decor-blob--sage"></div>
+      <div class="decor-blob decor-blob--2 decor-blob--latte"></div>
+      <div class="decor-blob decor-blob--3 decor-blob--blush"></div>
+      <div class="decor-blob decor-blob--4 decor-blob--wheat"></div>
+      <div class="decor-blob decor-blob--5 decor-blob--sage"></div>
+      <div class="decor-blob decor-blob--6 decor-blob--blush"></div>
 
-          <svg lucideLeaf class="decor-icon decor-icon--1 decor-icon--forest" [size]="52"></svg>
-          <svg lucideCoffee class="decor-icon decor-icon--2 decor-icon--latte" [size]="40"></svg>
-          <svg lucideSparkles class="decor-icon decor-icon--3 decor-icon--blush-deep" [size]="28"></svg>
-          <svg lucideDroplet class="decor-icon decor-icon--4 decor-icon--sage-deep" [size]="36"></svg>
-          <svg lucideLeaf class="decor-icon decor-icon--5 decor-icon--blush-pink" [size]="30"></svg>
-          <svg lucideCoffee class="decor-icon decor-icon--6 decor-icon--brown" [size]="46"></svg>
-          <svg lucideDessert class="decor-icon decor-icon--7 decor-icon--sage-deep" [size]="34"></svg>
-          <svg lucideStar class="decor-icon decor-icon--8 decor-icon--latte" [size]="22"></svg>
-          <svg lucideSparkles class="decor-icon decor-icon--9 decor-icon--forest" [size]="20"></svg>
-          <svg lucideDroplet class="decor-icon decor-icon--10 decor-icon--blush-deep" [size]="26"></svg>
-          <svg lucideLeaf class="decor-icon decor-icon--11 decor-icon--sage-deep" [size]="38"></svg>
-          <svg lucideHeart class="decor-icon decor-icon--12 decor-icon--blush-pink" [size]="24"></svg>
-          <svg lucideCoffee class="decor-icon decor-icon--13 decor-icon--brown" [size]="32"></svg>
-          <svg lucideStar class="decor-icon decor-icon--14 decor-icon--forest" [size]="18"></svg>
+      <svg lucideLeaf class="decor-icon decor-icon--1 decor-icon--forest" [size]="52"></svg>
+      <svg lucideCoffee class="decor-icon decor-icon--2 decor-icon--latte" [size]="40"></svg>
+      <svg lucideSparkles class="decor-icon decor-icon--3 decor-icon--blush-deep" [size]="28"></svg>
+      <svg lucideDroplet class="decor-icon decor-icon--4 decor-icon--sage-deep" [size]="36"></svg>
+      <svg lucideLeaf class="decor-icon decor-icon--5 decor-icon--blush-pink" [size]="30"></svg>
+      <svg lucideCoffee class="decor-icon decor-icon--6 decor-icon--brown" [size]="46"></svg>
+      <svg lucideDessert class="decor-icon decor-icon--7 decor-icon--sage-deep" [size]="34"></svg>
+      <svg lucideStar class="decor-icon decor-icon--8 decor-icon--latte" [size]="22"></svg>
+      <svg lucideSparkles class="decor-icon decor-icon--9 decor-icon--forest" [size]="20"></svg>
+      <svg lucideDroplet class="decor-icon decor-icon--10 decor-icon--blush-deep" [size]="26"></svg>
+      <svg lucideLeaf class="decor-icon decor-icon--11 decor-icon--sage-deep" [size]="38"></svg>
+      <svg lucideHeart class="decor-icon decor-icon--12 decor-icon--blush-pink" [size]="24"></svg>
+      <svg lucideCoffee class="decor-icon decor-icon--13 decor-icon--brown" [size]="32"></svg>
+      <svg lucideStar class="decor-icon decor-icon--14 decor-icon--forest" [size]="18"></svg>
 
-          <!-- Extra icons biased toward the far left/right cream margins -->
-          <svg lucideLeaf class="decor-icon decor-icon--15 decor-icon--sage-deep" [size]="26"></svg>
-          <svg lucideSparkles class="decor-icon decor-icon--16 decor-icon--latte" [size]="20"></svg>
-          <svg lucideDroplet class="decor-icon decor-icon--17 decor-icon--forest" [size]="30"></svg>
-          <svg lucideStar class="decor-icon decor-icon--18 decor-icon--blush-deep" [size]="20"></svg>
-          <svg lucideCoffee class="decor-icon decor-icon--19 decor-icon--sage-deep" [size]="28"></svg>
-          <svg lucideHeart class="decor-icon decor-icon--20 decor-icon--brown" [size]="22"></svg>
-          <svg lucideDessert class="decor-icon decor-icon--21 decor-icon--blush-pink" [size]="30"></svg>
-          <svg lucideLeaf class="decor-icon decor-icon--22 decor-icon--latte" [size]="44"></svg>
+      <!-- Extra icons biased toward the far left/right cream margins -->
+      <svg lucideLeaf class="decor-icon decor-icon--15 decor-icon--sage-deep" [size]="26"></svg>
+      <svg lucideSparkles class="decor-icon decor-icon--16 decor-icon--latte" [size]="20"></svg>
+      <svg lucideDroplet class="decor-icon decor-icon--17 decor-icon--forest" [size]="30"></svg>
+      <svg lucideStar class="decor-icon decor-icon--18 decor-icon--blush-deep" [size]="20"></svg>
+      <svg lucideCoffee class="decor-icon decor-icon--19 decor-icon--sage-deep" [size]="28"></svg>
+      <svg lucideHeart class="decor-icon decor-icon--20 decor-icon--brown" [size]="22"></svg>
+      <svg lucideDessert class="decor-icon decor-icon--21 decor-icon--blush-pink" [size]="30"></svg>
+      <svg lucideLeaf class="decor-icon decor-icon--22 decor-icon--latte" [size]="44"></svg>
 
-          <!-- Custom organic SVGs (Coffee beans, Tea leaves, Steam waves) -->
-          <!-- Coffee Beans -->
-          <svg class="decor-custom decor-custom--bean-1 decor-icon--brown" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 6C15.5 3.5 10 3 6 7c-4 4-4.5 9.5-2 12 2.5 2.5 8 3 12-1 4-4 4.5-9.5 2-12Z"/>
-            <path d="M12 2c0 5-5 5-5 10s5 5 5 10"/>
-          </svg>
-          <svg class="decor-custom decor-custom--bean-2 decor-icon--latte" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 6C15.5 3.5 10 3 6 7c-4 4-4.5 9.5-2 12 2.5 2.5 8 3 12-1 4-4 4.5-9.5 2-12Z"/>
-            <path d="M12 2c0 5-5 5-5 10s5 5 5 10"/>
-          </svg>
-          <svg class="decor-custom decor-custom--bean-3 decor-icon--forest" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 6C15.5 3.5 10 3 6 7c-4 4-4.5 9.5-2 12 2.5 2.5 8 3 12-1 4-4 4.5-9.5 2-12Z"/>
-            <path d="M12 2c0 5-5 5-5 10s5 5 5 10"/>
-          </svg>
+      <!-- Custom organic SVGs (Coffee beans, Tea leaves, Steam waves) -->
+      <!-- Coffee Beans -->
+      <svg class="decor-custom decor-custom--bean-1 decor-icon--brown" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 6C15.5 3.5 10 3 6 7c-4 4-4.5 9.5-2 12 2.5 2.5 8 3 12-1 4-4 4.5-9.5 2-12Z" />
+        <path d="M12 2c0 5-5 5-5 10s5 5 5 10" />
+      </svg>
+      <svg class="decor-custom decor-custom--bean-2 decor-icon--latte" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 6C15.5 3.5 10 3 6 7c-4 4-4.5 9.5-2 12 2.5 2.5 8 3 12-1 4-4 4.5-9.5 2-12Z" />
+        <path d="M12 2c0 5-5 5-5 10s5 5 5 10" />
+      </svg>
+      <svg class="decor-custom decor-custom--bean-3 decor-icon--forest" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 6C15.5 3.5 10 3 6 7c-4 4-4.5 9.5-2 12 2.5 2.5 8 3 12-1 4-4 4.5-9.5 2-12Z" />
+        <path d="M12 2c0 5-5 5-5 10s5 5 5 10" />
+      </svg>
 
-          <!-- Organic Tea/Matcha Leaves -->
-          <svg class="decor-custom decor-custom--leaf-1 decor-icon--sage-deep" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2 22c5-3 17-10 19-19-9 2-16 14-19 19Z"/>
-            <path d="M9 14c2.5-1.5 5.5-2.5 8-3"/>
-            <path d="M6 17c1.5-1 3-2 4.5-3"/>
-            <path d="M12 11c1-1 2.5-2 4-2.5"/>
-          </svg>
-          <svg class="decor-custom decor-custom--leaf-2 decor-icon--forest" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2 22c5-3 17-10 19-19-9 2-16 14-19 19Z"/>
-            <path d="M9 14c2.5-1.5 5.5-2.5 8-3"/>
-            <path d="M6 17c1.5-1 3-2 4.5-3"/>
-            <path d="M12 11c1-1 2.5-2 4-2.5"/>
-          </svg>
-          <svg class="decor-custom decor-custom--leaf-3 decor-icon--sage-deep" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2 22c5-3 17-10 19-19-9 2-16 14-19 19Z"/>
-            <path d="M9 14c2.5-1.5 5.5-2.5 8-3"/>
-            <path d="M6 17c1.5-1 3-2 4.5-3"/>
-            <path d="M12 11c1-1 2.5-2 4-2.5"/>
-          </svg>
+      <!-- Organic Tea/Matcha Leaves -->
+      <svg class="decor-custom decor-custom--leaf-1 decor-icon--sage-deep" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 22c5-3 17-10 19-19-9 2-16 14-19 19Z" />
+        <path d="M9 14c2.5-1.5 5.5-2.5 8-3" />
+        <path d="M6 17c1.5-1 3-2 4.5-3" />
+        <path d="M12 11c1-1 2.5-2 4-2.5" />
+      </svg>
+      <svg class="decor-custom decor-custom--leaf-2 decor-icon--forest" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 22c5-3 17-10 19-19-9 2-16 14-19 19Z" />
+        <path d="M9 14c2.5-1.5 5.5-2.5 8-3" />
+        <path d="M6 17c1.5-1 3-2 4.5-3" />
+        <path d="M12 11c1-1 2.5-2 4-2.5" />
+      </svg>
+      <svg class="decor-custom decor-custom--leaf-3 decor-icon--sage-deep" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 22c5-3 17-10 19-19-9 2-16 14-19 19Z" />
+        <path d="M9 14c2.5-1.5 5.5-2.5 8-3" />
+        <path d="M6 17c1.5-1 3-2 4.5-3" />
+        <path d="M12 11c1-1 2.5-2 4-2.5" />
+      </svg>
 
-          <!-- Steam / Aroma Swirls -->
-          <svg class="decor-custom decor-custom--steam-1 decor-icon--blush-pink" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22c0-4 3-6 3-10s-3-6-3-10"/>
-            <path d="M8 20c0-3 2-4.5 2-7.5s-2-4.5-2-7.5"/>
-            <path d="M16 20c0-3 2-4.5 2-7.5s-2-4.5-2-7.5"/>
-          </svg>
-          <svg class="decor-custom decor-custom--steam-2 decor-icon--latte" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22c0-4 3-6 3-10s-3-6-3-10"/>
-            <path d="M8 20c0-3 2-4.5 2-7.5s-2-4.5-2-7.5"/>
-            <path d="M16 20c0-3 2-4.5 2-7.5s-2-4.5-2-7.5"/>
-          </svg>
-      </div>
-      <div class="container">
+      <!-- Steam / Aroma Swirls -->
+      <svg class="decor-custom decor-custom--steam-1 decor-icon--blush-pink" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22c0-4 3-6 3-10s-3-6-3-10" />
+        <path d="M8 20c0-3 2-4.5 2-7.5s-2-4.5-2-7.5" />
+        <path d="M16 20c0-3 2-4.5 2-7.5s-2-4.5-2-7.5" />
+      </svg>
+      <svg class="decor-custom decor-custom--steam-2 decor-icon--latte" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22c0-4 3-6 3-10s-3-6-3-10" />
+        <path d="M8 20c0-3 2-4.5 2-7.5s-2-4.5-2-7.5" />
+        <path d="M16 20c0-3 2-4.5 2-7.5s-2-4.5-2-7.5" />
+      </svg>
+    </div>
+    <div class="container">
 
-          <div class="community-grid">
+      <div class="community-grid">
 
-              <ng-container *ngIf="loading && posts.length === 0">
-                  <div class="skeleton-card" *ngFor="let i of [1,2,3,4,5,6]">
-                      <div class="skeleton-image"></div>
-                      <div class="skeleton-content">
-                          <div class="skeleton-avatar-row">
-                              <div class="sk-avatar"></div>
-                              <div class="sk-name"></div>
-                          </div>
-                          <div class="skeleton-line"></div>
-                          <div class="skeleton-line short"></div>
-                      </div>
-                  </div>
-              </ng-container>
-
-              <app-post-card
-                  *ngFor="let post of posts"
-                  [post]="post"
-                  (like)="likePost($event)"
-                  (save)="savePost($event)"
-                  (share)="sharePost($event)"
-                  (openDetail)="goToDetail($event)">
-              </app-post-card>
-
-          </div>
-
-
-
-          <!-- Loading Spinner for Infinite Scroll -->
-          <div class="loading-more-spinner" *ngIf="loading && posts.length > 0">
-              <div class="spinner"></div>
-          </div>
-
-          <!-- Motivation Banner at the bottom when no more posts -->
-          <div class="motivation-banner" *ngIf="isLoggedIn() && posts.length > 0 && !hasMore && !loading">
-              <div class="motivation-banner__inner">
-                  <div class="motivation-banner__content">
-                      <h2 class="motivation-banner__title">You've reached the end of the feed!</h2>
-                      <p class="motivation-banner__text">
-                          You're all caught up! Inspired by these stories? Share your own unique coffee recipes, daily matcha rituals, or aesthetic sips to enrich our community!
-                      </p>
-                  </div>
-                  <div class="motivation-banner__actions">
-                      <button class="btn-motivation btn-motivation--primary" (click)="openCreateRecipe()">
-                          <svg lucideCoffee class="btn-icon" [size]="18"></svg>
-                          <span>SHARE RECIPE</span>
-                      </button>
-                      <button class="btn-motivation btn-motivation--secondary" (click)="openCreatePost()">
-                          <svg lucideLeaf class="btn-icon" [size]="18"></svg>
-                          <span>CREATE POST</span>
-                      </button>
-                  </div>
+        <ng-container *ngIf="loading && posts.length === 0">
+          <div class="skeleton-card" *ngFor="let i of [1,2,3,4,5,6,7,8,9]">
+            <div class="skeleton-image"></div>
+            <div class="skeleton-content">
+              <div class="skeleton-avatar-row">
+                <div class="sk-avatar"></div>
+                <div class="sk-name"></div>
               </div>
+              <div class="skeleton-line"></div>
+              <div class="skeleton-line short"></div>
+            </div>
           </div>
+        </ng-container>
+
+        <app-post-card *ngFor="let post of posts" [post]="post" (like)="likePost($event)" (save)="savePost($event)"
+          (share)="sharePost($event)" (openDetail)="goToDetail($event)">
+        </app-post-card>
+
+        <!-- Skeleton Cards for Infinite Scroll (loads a row of 3 cards in the grid) -->
+        <ng-container *ngIf="loading && posts.length > 0">
+          <div class="skeleton-card" *ngFor="let i of [1,2,3]">
+            <div class="skeleton-image"></div>
+            <div class="skeleton-content">
+              <div class="skeleton-avatar-row">
+                <div class="sk-avatar"></div>
+                <div class="sk-name"></div>
+              </div>
+              <div class="skeleton-line"></div>
+              <div class="skeleton-line short"></div>
+            </div>
+          </div>
+        </ng-container>
+
       </div>
+
+      <!-- Motivation Banner at the bottom when no more posts -->
+      <div class="motivation-banner" *ngIf="isLoggedIn() && posts.length > 0 && !hasMore && !loading">
+        <div class="motivation-banner__inner">
+          <div class="motivation-banner__content">
+            <h2 class="motivation-banner__title">You've reached the end of the feed!</h2>
+            <p class="motivation-banner__text">
+              You're all caught up! Inspired by these stories? Share your own unique coffee recipes, daily matcha
+              rituals, or aesthetic sips to enrich our community!
+            </p>
+          </div>
+          <div class="motivation-banner__actions">
+            <button class="btn-motivation btn-motivation--primary" (click)="openCreateRecipe()">
+              <svg lucideCoffee class="btn-icon" [size]="18"></svg>
+              <span>SHARE RECIPE</span>
+            </button>
+            <button class="btn-motivation btn-motivation--secondary" (click)="openCreatePost()">
+              <svg lucideLeaf class="btn-icon" [size]="18"></svg>
+              <span>CREATE POST</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 </div>
 
@@ -177,4 +184,3 @@
 <app-share-modal *ngIf="showShareModal" [shareUrl]="shareUrl" (close)="closeShareModal()"></app-share-modal>
 
 <app-back-to-top></app-back-to-top>
-

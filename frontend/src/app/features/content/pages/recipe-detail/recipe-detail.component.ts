@@ -17,7 +17,7 @@ import {
 import { ContentService } from '../../services/content.service';
 import { ProductService } from '../../../home/services/product.service';
 import { Recipe, RecipeStep } from '../../../../shared/models/recipe.model';
-import { Product, getDefaultPrice } from '../../../home/models/product.model';
+import { Product, getDefaultPrice, isProductOutOfStock } from '../../../home/models/product.model';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { AuthService } from '../../../../core/auth.service';
 import { Subject } from 'rxjs';
@@ -225,7 +225,7 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
         const categoryRepresentatives: { product: Product, score: number }[] = [];
 
         for (const cat of targetCategories) {
-          const catProducts = allProducts.filter(p => p.category === cat);
+          const catProducts = allProducts.filter(p => p.category === cat && !isProductOutOfStock(p));
           if (catProducts.length === 0) continue;
 
           // Score each product in this category

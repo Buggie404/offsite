@@ -421,7 +421,40 @@ export class NavbarComponent implements OnInit, OnDestroy {
     });
   }
 
+  deleteNotification(id: string, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    this.communityService.deleteNotification(id).subscribe({
+      next: () => {
+        this.notifications.update(notifs =>
+          notifs.filter(n => n.notification_id !== id)
+        );
+        this.updateUnreadCount();
+      },
+      error: (err) => {
+        console.error('Error deleting notification:', err);
+      }
+    });
+  }
+
+  deleteAllNotifications(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    this.communityService.deleteAllNotifications().subscribe({
+      next: () => {
+        this.notifications.set([]);
+        this.updateUnreadCount();
+      },
+      error: (err) => {
+        console.error('Error deleting all notifications:', err);
+      }
+    });
+  }
+
   onNotificationClick(notification: Notification, event: Event): void {
+
     event.preventDefault();
     event.stopPropagation();
 

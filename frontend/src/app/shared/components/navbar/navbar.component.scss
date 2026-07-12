@@ -739,12 +739,6 @@
     .notification-btn-wrapper {
       position: relative;
 
-      &:hover .notification-dropdown {
-        opacity: 1;
-        pointer-events: auto;
-        transform: scale(1) translateY(0);
-      }
-
       .notification-btn {
         position: relative;
 
@@ -829,24 +823,38 @@
             letter-spacing: 0.02em;
           }
 
-          .mark-all-btn {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            color: var(--color-warm-brown);
-            font-family: var(--font-body);
-            font-size: 12px;
-            font-weight: 600;
+          .header-actions {
             display: flex;
             align-items: center;
-            gap: 4px;
-            transition: color 0.25s ease;
-            padding: 4px 8px;
-            border-radius: var(--radius-sm);
+            gap: 8px;
 
-            &:hover {
-              color: var(--color-forest-green);
-              background-color: rgba(84, 74, 64, 0.05);
+            .mark-all-btn,
+            .delete-all-btn {
+              background: transparent;
+              border: none;
+              cursor: pointer;
+              color: var(--color-warm-brown);
+              font-family: var(--font-body);
+              font-size: 12px;
+              font-weight: 600;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+              transition: color 0.25s ease, background-color 0.25s ease;
+              padding: 4px 8px;
+              border-radius: var(--radius-sm);
+
+              &:hover {
+                color: var(--color-forest-green);
+                background-color: rgba(84, 74, 64, 0.05);
+              }
+            }
+
+            .delete-all-btn {
+              &:hover {
+                color: #b91c1c; // soft red for delete actions
+                background-color: rgba(185, 28, 28, 0.05);
+              }
             }
           }
         }
@@ -884,6 +892,16 @@
 
           &:hover {
             background-color: rgba(84, 74, 64, 0.05);
+
+            .item-actions .delete-btn {
+              opacity: 0.6;
+              pointer-events: auto;
+              transform: scale(1);
+
+              &:hover {
+                opacity: 1;
+              }
+            }
           }
 
           &.unread {
@@ -949,20 +967,51 @@
             }
           }
 
-          .unread-dot-wrapper {
+          .item-actions {
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 8px;
             padding-left: 4px;
+            flex-shrink: 0;
 
-            .unread-dot {
+            .delete-btn {
+              background: transparent;
+              border: none;
+              cursor: pointer;
+              color: var(--color-warm-brown);
+              opacity: 0;
+              pointer-events: none;
+              transform: scale(0.9);
+              transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+              padding: 4px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+
+              &:hover {
+                color: #b91c1c; // soft red for delete actions
+                background-color: rgba(185, 28, 28, 0.08);
+              }
+            }
+
+            .unread-dot-wrapper {
+              display: flex;
+              align-items: center;
+              justify-content: center;
               width: 8px;
               height: 8px;
-              border-radius: 50%;
-              background-color: var(--color-forest-green);
+
+              .unread-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background-color: var(--color-forest-green);
+              }
             }
           }
         }
+
 
         .notification-empty {
           display: flex;

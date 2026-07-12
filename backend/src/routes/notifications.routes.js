@@ -15,4 +15,11 @@ router.put('/read-all', notificationsController.markAllNotificationsAsRead);
 // Mark a single notification as read
 router.put('/:id/read', notificationsController.markNotificationAsRead);
 
+// Delete all notifications (MUST be before /:id to prevent ID collision)
+router.delete('/delete-all', notificationsController.deleteAllNotifications);
+
+// Delete a single notification
+router.delete('/:id', notificationsController.deleteNotification);
+
 module.exports = router;
+

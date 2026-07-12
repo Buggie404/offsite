@@ -1089,13 +1089,24 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         });
         this.savedCards.set(cards);
 
-        // Auto select default address and card only if BOTH exist
-        if (addresses.length > 0 && cards.length > 0) {
+        // Auto select default address if exist
+        if (addresses.length > 0) {
           const defAddr = addresses.find((a: UserAddress) => a.is_default) || addresses[0];
           if (defAddr && defAddr._id) {
             this.selectAddress(defAddr);
           }
+        } else {
+          this.selectedAddressId.set(null);
+          this.delivery.name = '';
+          this.delivery.mobile = '';
+          this.delivery.email = '';
+          this.delivery.city = '';
+          this.delivery.address = '';
+          this.delivery.note = '';
+        }
 
+        // Auto select default card if exist
+        if (cards.length > 0) {
           const defCard = cards.find((c: UserPaymentMethod) => c.is_default) || cards[0];
           if (defCard && defCard._id) {
             this.selectedCardId.set(defCard._id);
@@ -1103,14 +1114,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           }
         } else {
           this.paymentMethod.set('cod');
-          this.selectedAddressId.set(null);
           this.selectedCardId.set(null);
-          this.delivery.name = '';
-          this.delivery.mobile = '';
-          this.delivery.email = '';
-          this.delivery.city = '';
-          this.delivery.address = '';
-          this.delivery.note = '';
         }
       } catch (err) {
         console.error('Failed to load user profile:', err);

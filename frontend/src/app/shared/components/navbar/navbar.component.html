@@ -141,7 +141,7 @@
       </button>
 
       <!-- Notifications Button Wrapper (Only visible when logged in) -->
-      <div *ngIf="isLoggedIn()" class="notification-btn-wrapper" (mouseenter)="openNotificationDropdown()" (mouseleave)="closeNotificationDropdown()">
+      <div *ngIf="isLoggedIn()" class="notification-btn-wrapper">
         <button class="action-btn notification-btn" (click)="toggleNotificationDropdown($event)" aria-label="Notifications">
           <svg lucideBell [size]="20"></svg>
           <span *ngIf="unreadNotificationCount > 0" class="notification-badge">{{ unreadNotificationCount }}</span>
@@ -150,10 +150,15 @@
         <!-- Notification Dropdown -->
         <div class="notification-dropdown" [class.open]="isNotificationDropdownOpen">
           <div class="notification-header">
-            <span class="header-title">Thông báo</span>
-            <button *ngIf="unreadNotificationCount > 0" class="mark-all-btn" (click)="markAllNotificationsAsRead()">
-              <svg lucideCheckCheck [size]="14"></svg> Đọc tất cả
-            </button>
+            <span class="header-title">Notifications</span>
+            <div class="header-actions">
+              <button *ngIf="unreadNotificationCount > 0" class="mark-all-btn" (click)="markAllNotificationsAsRead()">
+                <svg lucideCheckCheck [size]="14"></svg> Read All
+              </button>
+              <button *ngIf="notifications().length > 0" class="delete-all-btn" (click)="deleteAllNotifications($event)">
+                <svg lucideTrash2 [size]="14"></svg> Delete All
+              </button>
+            </div>
           </div>
 
           <div class="notification-list">
@@ -193,19 +198,25 @@
                 </p>
                 <span class="notification-time">{{ getNotificationTimeAgo(item.created_at) }}</span>
               </div>
-              <div *ngIf="!item.is_read" class="unread-dot-wrapper">
-                <span class="unread-dot"></span>
+              <div class="item-actions">
+                <button class="delete-btn" (click)="deleteNotification(item.notification_id, $event)" aria-label="Delete Notification">
+                  <svg lucideTrash2 [size]="14"></svg>
+                </button>
+                <div *ngIf="!item.is_read" class="unread-dot-wrapper">
+                  <span class="unread-dot"></span>
+                </div>
               </div>
             </div>
 
             <!-- Empty State -->
             <div *ngIf="notifications().length === 0" class="notification-empty">
               <svg lucideBell [size]="32" class="empty-icon"></svg>
-              <p class="empty-text">Bạn chưa có thông báo nào</p>
+              <p class="empty-text">All caught up! Time to touch grass 🌱</p>
             </div>
           </div>
         </div>
       </div>
+
 
       <!-- Profile Button Wrapper -->
       <div class="profile-btn-wrapper" (mouseenter)="openProfileDropdown()" (mouseleave)="closeProfileDropdown()">

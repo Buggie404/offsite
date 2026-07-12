@@ -51,8 +51,46 @@ async function markAllNotificationsAsRead(req, res) {
   }
 }
 
+async function deleteNotification(req, res) {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(req.user.user_id);
+    if (!user) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+
+    const deleted = await notificationService.deleteNotification(id, user.user_id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    res.json({ message: 'Notification deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    res.status(500).json({ error: 'Failed to delete notification' });
+  }
+}
+
+async function deleteAllNotifications(req, res) {
+  try {
+    const user = await User.findById(req.user.user_id);
+    if (!user) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+
+    await notificationService.deleteAllNotificationsForUser(user.user_id);
+    res.json({ message: 'All notifications deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting all notifications:', error);
+    res.status(500).json({ error: 'Failed to delete all notifications' });
+  }
+}
+
 module.exports = {
   getUserNotifications,
   markNotificationAsRead,
-  markAllNotificationsAsRead
+  markAllNotificationsAsRead,
+  deleteNotification,
+  deleteAllNotifications
 };
+

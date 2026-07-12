@@ -98,7 +98,7 @@
       </div>
     </div>
 
-    <p class="post-content" *ngIf="post.post_type !== 'recipe'">
+    <p class="post-content" *ngIf="post.post_type !== 'recipe' || !post.recipe">
       <ng-container *ngFor="let part of postContentParts">
         <span *ngIf="part.isTag" class="hashtag">{{ part.text }}</span>
         <ng-container *ngIf="!part.isTag">{{ part.text }}</ng-container>
