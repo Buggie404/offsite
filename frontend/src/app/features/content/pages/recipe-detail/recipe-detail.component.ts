@@ -634,11 +634,28 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
 
   goBack(): void {
     if (isPlatformBrowser(this.platformId)) {
+      if (this.shouldBackToRecipesIndex()) {
+        void this.router.navigate(['/recipes']);
+        return;
+      }
+
       if (window.history.length > 1) {
         this.location.back();
       } else {
         void this.router.navigate(['/recipes']);
       }
     }
+  }
+
+  private shouldBackToRecipesIndex(): boolean {
+    const navigationState = this.router.getCurrentNavigation()?.extras.state;
+    const currentState = window.history.state;
+
+    return this.isRecipesIndexEntrySource(navigationState?.['contentEntrySource'])
+      || this.isRecipesIndexEntrySource(currentState?.['contentEntrySource']);
+  }
+
+  private isRecipesIndexEntrySource(source: unknown): boolean {
+    return source === 'product-detail' || source === 'homepage';
   }
 }

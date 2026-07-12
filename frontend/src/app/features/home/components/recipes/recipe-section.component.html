@@ -42,6 +42,7 @@
         class="recipe-card"
         *ngFor="let recipe of recipes; let i = index"
         [routerLink]="['/recipes', recipe.slug]"
+        [state]="detailLinkState"
         role="link"
         tabindex="0"
       >
@@ -98,7 +99,7 @@
           <p class="recipe-card__desc">{{ recipe.description }}</p>
 
           <!-- CTA -->
-          <a [routerLink]="['/recipes', recipe.slug]" class="recipe-card__cta" (click)="$event.stopPropagation()">
+          <a [routerLink]="['/recipes', recipe.slug]" [state]="detailLinkState" class="recipe-card__cta" (click)="$event.stopPropagation()">
             <span>View Recipe</span>
             <span class="recipe-card__cta-arrow" aria-hidden="true">→</span>
           </a>

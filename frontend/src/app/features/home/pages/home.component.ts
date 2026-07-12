@@ -27,4 +27,6 @@ import { BackToTopComponent } from '../../../shared/components/back-to-top/back-
   templateUrl: './home.component.html',   // ← đổi từ template sang templateUrl
   styleUrls: ['./home.component.scss']
 })
-export class HomeComponent {}
+export class HomeComponent {
+  readonly recipeDetailEntryState = { contentEntrySource: 'homepage' };
+}

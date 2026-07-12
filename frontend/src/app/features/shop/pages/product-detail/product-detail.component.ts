@@ -146,6 +146,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   private carouselTimer?: ReturnType<typeof setInterval>;
   private readonly recentlyViewedKey = 'recently_viewed_products';
   private routeSubscription?: Subscription;
+  readonly contentDetailEntryState = { contentEntrySource: 'product-detail' };
 
   readonly ratingStars = [1, 2, 3, 4, 5];
   readonly ratingFilters = ['All', '5', '4', '3', '2', '1'];
@@ -698,7 +699,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     const slug = getProductDetailSlug(product);
     if (!slug || currentId === slug) return;
 
-    this.location.replaceState(`/products/${slug}`);
+    this.location.replaceState(`/products/${slug}`, '', window.history.state);
   }
 
   private getProductRouteId(product: Record<string, any>, name: string): string {

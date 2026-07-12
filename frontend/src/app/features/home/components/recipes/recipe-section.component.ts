@@ -38,6 +38,7 @@ export class RecipeSectionComponent implements OnInit, OnChanges {
   @Input() compact = false;
   @Input() baseFilter: 'matcha' | 'coffee' | null = null;
   @Input() showViewAll = true;
+  @Input() detailLinkState?: Record<string, unknown>;
 
   // ── State ────────────────────────────────────────────────────
   recipes: Recipe[]    = [];

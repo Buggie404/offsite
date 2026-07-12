@@ -250,7 +250,7 @@
       }
       } @else {
       @for (method of brewingMethods(); track method.slug; let index = $index) {
-      <article class="brewing-card" [routerLink]="['/journal', method.slug]" role="link" tabindex="0"
+      <article class="brewing-card" [routerLink]="['/journal', method.slug]" [state]="contentDetailEntryState" role="link" tabindex="0"
         [attr.aria-label]="'Read journal guide for ' + method.title">
         <div class="brewing-card__top">
           <span class="brewing-card__badge">{{ method.methodLabel }}</span>
@@ -276,7 +276,7 @@
           }
         </ol>
 
-        <a class="brewing-card__button" [routerLink]="['/journal', method.slug]"
+        <a class="brewing-card__button" [routerLink]="['/journal', method.slug]" [state]="contentDetailEntryState"
           [fragment]="method.stepAnchor || undefined" (click)="$event.stopPropagation()">
           Step-by-Step Guide
         </a>
@@ -289,7 +289,7 @@
 
   @if (shouldShowRecipes()) {
   <app-recipe-section sectionHeading="POPULAR RECIPES" [compact]="true" [baseFilter]="getRecipeBaseFilter()"
-    [showViewAll]="false"></app-recipe-section>
+    [detailLinkState]="contentDetailEntryState" [showViewAll]="false"></app-recipe-section>
   }
 
   @if (youMayAlsoLikeProducts().length) {

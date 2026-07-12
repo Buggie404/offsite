@@ -252,6 +252,15 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
 
   goBack(): void {
     if (isPlatformBrowser(this.platformId)) {
+      if (this.isProductDetailEntry()) {
+        const navigationExtras: any = {};
+        if (this.categoryFilter) {
+          navigationExtras.queryParams = { category: this.categoryFilter };
+        }
+        void this.router.navigate(['/journal'], navigationExtras);
+        return;
+      }
+
       if (window.history.length > 1) {
         this.location.back();
       } else {
@@ -262,6 +271,14 @@ export class BlogDetailComponent implements OnInit, OnDestroy {
         void this.router.navigate(['/journal'], navigationExtras);
       }
     }
+  }
+
+  private isProductDetailEntry(): boolean {
+    const navigationState = this.router.getCurrentNavigation()?.extras.state;
+    const currentState = window.history.state;
+
+    return navigationState?.['contentEntrySource'] === 'product-detail'
+      || currentState?.['contentEntrySource'] === 'product-detail';
   }
 
   navigateToArticle(slug: string): void {
