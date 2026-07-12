@@ -62,12 +62,12 @@ export class FeedComponent implements OnInit, OnDestroy {
 
   showCreatePost = false;
   showCreateRecipe = false;
-  
+
   showShareModal = false;
   shareUrl = '';
 
   private fetch$ = new Subject<void>();
-  private isFirstLoginEffect = true; 
+  private isFirstLoginEffect = true;
 
   isScrollTimelineSupported = true;
   private scrollFrameId: number | null = null;
@@ -93,36 +93,44 @@ export class FeedComponent implements OnInit, OnDestroy {
         typeof CSS !== 'undefined' &&
         CSS.supports &&
         (CSS.supports('animation-timeline: scroll()') || CSS.supports('animation-timeline', 'scroll()'));
-      
+
       this.updateScrollParallax();
     }
 
+    this.updateFooterVisibility();
+
     this.fetch$.pipe(
-      startWith(undefined), 
+      startWith(undefined),
       switchMap(() => {
         const userId = this.activeCategory === 'MY_POST' ? this.authService.getUser()?.user_id : undefined;
         return this.communityService.getFeed(this.page, this.limit, this.activeCategory, this.sort, userId);
       })
     ).subscribe({
       next: (res) => {
-        if (this.page === 1) {
-          this.posts = res.data;
-        } else {
-          this.posts.push(...res.data);
-        }
-        this.hasMore = res.data.length === this.limit;
-        this.loading = false;
-        this.cdr.detectChanges();
-
-        // Check if we need to load more (e.g. if the initial content doesn't fill the screen yet)
+        // Enforce a minimum 1-second loading delay to show the loading state nicely
         setTimeout(() => {
-          this.checkScroll();
-          this.updateScrollParallax();
-        }, 150);
+          if (this.page === 1) {
+            this.posts = res.data;
+          } else {
+            this.posts.push(...res.data);
+          }
+          this.hasMore = res.data.length === this.limit;
+          this.cdr.detectChanges();
+
+          // Allow scroll to trigger next page only after layout has settled
+          setTimeout(() => {
+            this.loading = false;
+            this.cdr.detectChanges();
+            this.updateFooterVisibility();
+            this.checkScroll();
+            this.updateScrollParallax();
+          }, 200);
+        }, 1000);
       },
       error: () => {
         this.loading = false;
         this.cdr.detectChanges();
+        this.updateFooterVisibility();
       }
     });
 
@@ -133,15 +141,16 @@ export class FeedComponent implements OnInit, OnDestroy {
       this.hasMore = state.hasMore;
       this.activeCategory = state.activeCategory;
       this.sort = state.sort;
-      
+
       this.communityService.shouldRestoreState = false;
 
       this.cdr.detectChanges();
+      this.updateFooterVisibility();
       setTimeout(() => {
         window.scrollTo({ top: state.scrollY, behavior: 'instant' });
         this.updateScrollParallax();
       }, 50);
-      
+
     } else {
       this.loading = true;
       this.fetch$.next();
@@ -159,6 +168,7 @@ export class FeedComponent implements OnInit, OnDestroy {
   loadFeed(): void {
     this.loading = true;
     this.cdr.detectChanges();
+    this.updateFooterVisibility();
     this.fetch$.next();
   }
 
@@ -211,7 +221,7 @@ export class FeedComponent implements OnInit, OnDestroy {
       if (postIndex > -1) {
         // Chỉ ghi đè lại đúng số save và trạng thái saved, giữ nguyên liked
         this.posts[postIndex].save_count = res.save_count;
-        this.posts[postIndex].saved = res.saved; 
+        this.posts[postIndex].saved = res.saved;
         this.cdr.detectChanges();
       }
     });
@@ -300,9 +310,23 @@ export class FeedComponent implements OnInit, OnDestroy {
     });
   }
 
+  updateFooterVisibility(): void {
+    if (typeof document !== 'undefined') {
+      const hide = this.hasMore || this.loading;
+      if (hide) {
+        document.body.classList.add('hide-global-footer');
+      } else {
+        document.body.classList.remove('hide-global-footer');
+      }
+    }
+  }
+
   ngOnDestroy(): void {
     if (this.scrollFrameId) {
       cancelAnimationFrame(this.scrollFrameId);
+    }
+    if (typeof document !== 'undefined') {
+      document.body.classList.remove('hide-global-footer');
     }
   }
 }

@@ -13,3 +13,7 @@
 app-footer {
   flex-shrink: 0;
 }
+
+body.hide-global-footer app-footer {
+  display: none !important;
+}

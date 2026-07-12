@@ -150,9 +150,9 @@
         <!-- Notification Dropdown -->
         <div class="notification-dropdown" [class.open]="isNotificationDropdownOpen">
           <div class="notification-header">
-            <span class="header-title">Thông báo</span>
+            <span class="header-title">Notifications</span>
             <button *ngIf="unreadNotificationCount > 0" class="mark-all-btn" (click)="markAllNotificationsAsRead()">
-              <svg lucideCheckCheck [size]="14"></svg> Đọc tất cả
+              <svg lucideCheckCheck [size]="14"></svg> Read All
             </button>
           </div>
 
@@ -201,7 +201,7 @@
             <!-- Empty State -->
             <div *ngIf="notifications().length === 0" class="notification-empty">
               <svg lucideBell [size]="32" class="empty-icon"></svg>
-              <p class="empty-text">Bạn chưa có thông báo nào</p>
+              <p class="empty-text">All caught up! Time to touch grass 🌱</p>
             </div>
           </div>
         </div>
