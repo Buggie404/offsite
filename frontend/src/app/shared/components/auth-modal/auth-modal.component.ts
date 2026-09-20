@@ -27,6 +27,7 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
   @ViewChild('loginPasswordInput') loginPasswordInput!: ElementRef<HTMLInputElement>;
   @ViewChild('loginPhonePasswordInput') loginPhonePasswordInput!: ElementRef<HTMLInputElement>;
   
+  @ViewChild('signupNameInput') signupNameInput!: ElementRef<HTMLInputElement>;
   @ViewChild('signupEmailInput') signupEmailInput!: ElementRef<HTMLInputElement>;
   @ViewChild('signupPhoneInput') signupPhoneInput!: ElementRef<HTMLInputElement>;
   @ViewChild('signupPasswordInput') signupPasswordInput!: ElementRef<HTMLInputElement>;
@@ -387,20 +388,10 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
 
   isFormValid(): boolean {
     if (this.mode() === 'signup') {
-      const nameValid = !!this.signupName && !!this.signupName.trim();
-
-      const emailVal = this.signupEmail ? this.signupEmail.trim() : '';
-      const phoneVal = this.signupPhone ? this.signupPhone.trim() : '';
-
-      const hasAtLeastOneContact = !!emailVal || !!phoneVal;
-      const emailValid = !emailVal || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal);
-      const normalizedPhone = phoneVal.replace(/\s+/g, '');
-      const phoneValid = !phoneVal || (/^\d+$/.test(normalizedPhone) && normalizedPhone.length >= 10 && normalizedPhone.length <= 11);
-
-      const passwordValid = !!this.signupPassword && this.signupPassword.length >= 8 && this.signupPassword.length <= 15 && !/\s/.test(this.signupPassword);
-      const confirmValid = !!this.signupConfirmPassword && this.signupPassword === this.signupConfirmPassword;
-
-      return nameValid && hasAtLeastOneContact && emailValid && phoneValid && passwordValid && confirmValid;
+      if (!this.signupValidator) {
+        this.setupSignupValidator();
+      }
+      return this.signupValidator ? this.signupValidator.checkAllValid() : false;
     }
     if (this.loginTab === 'email') {
       const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.loginEmail);
@@ -448,7 +439,7 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
           {
             sequence: 1,
             type: 'FORMAT_CHECK',
-            condition: '!value.trim() && !(document.getElementById("signup-phone") as HTMLInputElement)?.value?.trim()',
+            condition: '!value.trim() && !document.getElementById("signup-phone")?.value?.trim()',
             error_message: 'Either email or phone number is required'
           },
           {
@@ -466,7 +457,7 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
           {
             sequence: 1,
             type: 'FORMAT_CHECK',
-            condition: '!value.trim() && !(document.getElementById("signup-email") as HTMLInputElement)?.value?.trim()',
+            condition: '!value.trim() && !document.getElementById("signup-email")?.value?.trim()',
             error_message: 'Either email or phone number is required'
           },
           {
@@ -520,7 +511,7 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
           {
             sequence: 2,
             type: 'FORMAT_CHECK',
-            condition: 'value !== (document.getElementById("signup-password") as HTMLInputElement)?.value',
+            condition: 'value !== document.getElementById("signup-password")?.value',
             error_message: 'Passwords do not match'
           }
         ]
@@ -543,29 +534,36 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  onSignupFieldInput(field: string): void {
+  onSignupFieldInput(field: string, event?: Event): void {
+    const val = event?.target ? (event.target as HTMLInputElement).value : undefined;
+
     if (field === 'email') {
+      if (val !== undefined) this.signupEmail = val;
       this.serverEmailError = null;
       if (this.signupValidator) {
         this.signupValidator.validateField('signup-email');
         this.signupValidator.validateField('signup-phone');
       }
     } else if (field === 'phone') {
+      if (val !== undefined) this.signupPhone = val;
       this.serverPhoneError = null;
       if (this.signupValidator) {
         this.signupValidator.validateField('signup-phone');
         this.signupValidator.validateField('signup-email');
       }
     } else if (field === 'password') {
+      if (val !== undefined) this.signupPassword = val;
       if (this.signupValidator) {
         this.signupValidator.validateField('signup-password');
         this.signupValidator.validateField('signup-confirm-password');
       }
     } else if (field === 'confirmPassword') {
+      if (val !== undefined) this.signupConfirmPassword = val;
       if (this.signupValidator) {
         this.signupValidator.validateField('signup-confirm-password');
       }
     } else if (field === 'name') {
+      if (val !== undefined) this.signupName = val;
       if (this.signupValidator) {
         this.signupValidator.validateField('signup-name');
       }
@@ -576,6 +574,7 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
     if (event) event.preventDefault();
 
     if (this.mode() === 'signup') {
+      if (this.signupNameInput?.nativeElement) this.signupName = this.signupNameInput.nativeElement.value;
       if (this.signupEmailInput?.nativeElement) this.signupEmail = this.signupEmailInput.nativeElement.value;
       if (this.signupPhoneInput?.nativeElement) this.signupPhone = this.signupPhoneInput.nativeElement.value;
       if (this.signupPasswordInput?.nativeElement) this.signupPassword = this.signupPasswordInput.nativeElement.value;
@@ -593,7 +592,16 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
       }
 
       const isFormValid = this.signupValidator ? this.signupValidator.validateAll() : true;
-      if (!isFormValid) return;
+      if (!isFormValid) {
+        setTimeout(() => {
+          const firstInvalidInput = document.querySelector('.auth-modal-card .auth-input.input-error, .auth-modal-card .auth-input.invalid') as HTMLInputElement | null;
+          if (firstInvalidInput) {
+            firstInvalidInput.focus();
+            firstInvalidInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 50);
+        return;
+      }
 
       this.serverEmailError = null;
       this.serverPhoneError = null;
@@ -628,12 +636,34 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
 
       } catch (err: any) {
         const errorCode = err?.code;
+        const errorMessage = err?.error || err?.message;
+
         if (errorCode === 'EMAIL_EXISTS') {
-          this.serverEmailError = 'This email is already registered.';
+          const msg = 'This email is already registered.';
+          this.serverEmailError = msg;
+          this.signupValidator?.setErrorField('signup-email', msg);
+          setTimeout(() => {
+            const emailEl = document.getElementById('signup-email') as HTMLInputElement | null;
+            if (emailEl) {
+              emailEl.focus();
+              emailEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 50);
         } else if (errorCode === 'PHONE_EXISTS') {
-          this.serverPhoneError = 'This phone number is already registered.';
+          const msg = 'This phone number is already registered.';
+          this.serverPhoneError = msg;
+          this.signupValidator?.setErrorField('signup-phone', msg);
+          setTimeout(() => {
+            const phoneEl = document.getElementById('signup-phone') as HTMLInputElement | null;
+            if (phoneEl) {
+              phoneEl.focus();
+              phoneEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 50);
         } else {
-          this.serverEmailError = 'An error occurred during registration. Please try again.';
+          const msg = errorMessage || 'An error occurred during registration. Please try again.';
+          this.serverEmailError = msg;
+          this.signupValidator?.setErrorField('signup-email', msg);
         }
         this.cdr.detectChanges();
       } finally {

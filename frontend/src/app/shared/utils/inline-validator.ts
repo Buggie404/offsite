@@ -93,6 +93,75 @@ export class InlineValidator {
   }
 
   /**
+   * Checks if all registered fields pass validation rules WITHOUT mutating DOM or updating error styles.
+   * Serves as a single source of truth for form validity checks (e.g. enabling submit buttons).
+   */
+  checkAllValid(): boolean {
+    for (const config of this.configs) {
+      const inputEl = document.getElementById(config.field_id) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (!this.checkConfigValid(config, inputEl)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Evaluates rules for a given field config and input element without altering DOM text/classes.
+   */
+  private checkConfigValid(config: FieldConfig, inputEl: HTMLInputElement | HTMLTextAreaElement | null): boolean {
+    const currentValue = inputEl ? inputEl.value : '';
+    const sortedRules = [...config.rules].sort((a, b) => a.sequence - b.sequence);
+
+    for (const rule of sortedRules) {
+      if (rule.type === 'EMPTY_CHECK') {
+        let isEmpty = currentValue === '';
+        if (rule.condition) {
+          try {
+            const evalFn = new Function('value', `return ${rule.condition}`);
+            isEmpty = evalFn(currentValue);
+          } catch (err) {
+            isEmpty = currentValue === '';
+          }
+        }
+        if (isEmpty) {
+          return true;
+        }
+      } else if (rule.type === 'FORMAT_CHECK') {
+        let isInvalid = false;
+        if (rule.regex_pattern) {
+          try {
+            const regex = new RegExp(rule.regex_pattern);
+            isInvalid = regex.test(currentValue);
+          } catch (err) {
+            console.error(`InlineValidator: Invalid regex pattern "${rule.regex_pattern}"`, err);
+          }
+        } else if (rule.condition) {
+          try {
+            const evalFn = new Function('value', `return ${rule.condition}`);
+            isInvalid = !!evalFn(currentValue);
+          } catch (err) {
+            console.error(`InlineValidator: Error evaluating condition "${rule.condition}"`, err);
+          }
+        }
+
+        if (isInvalid) {
+          return false;
+        }
+      } else if (rule.type === 'LENGTH_CHECK') {
+        const len = currentValue.length;
+        const min = rule.min_length !== undefined ? Number(rule.min_length) : undefined;
+        const max = rule.max_length !== undefined ? Number(rule.max_length) : undefined;
+
+        if ((min !== undefined && len < min) || (max !== undefined && len > max)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
    * Clears errors on all registered fields.
    */
   clearAll(): void {
@@ -172,13 +241,26 @@ export class InlineValidator {
     return true;
   }
 
+  /**
+   * Sets an explicit error message and invalid styling on a specific registered field (e.g. for backend server errors).
+   */
+  setErrorField(fieldId: string, message: string): void {
+    const config = this.configs.find((c) => c.field_id === fieldId);
+    if (!config) return;
+
+    const inputEl = document.getElementById(config.field_id);
+    const errorEl = document.getElementById(config.error_element_id);
+    this.setError(inputEl, errorEl, message);
+  }
+
   private clearError(inputEl: HTMLElement | null, errorEl: HTMLElement | null): void {
     if (inputEl) {
       inputEl.classList.remove('invalid');
       inputEl.classList.remove('input-error');
     }
-    if (errorEl) {
+    if (errorEl && errorEl.getAttribute('data-validator-error') === 'true') {
       errorEl.textContent = '';
+      errorEl.removeAttribute('data-validator-error');
     }
   }
 
@@ -189,6 +271,7 @@ export class InlineValidator {
     }
     if (errorEl) {
       errorEl.textContent = message;
+      errorEl.setAttribute('data-validator-error', 'true');
     }
   }
 }

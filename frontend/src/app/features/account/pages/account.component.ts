@@ -2388,7 +2388,18 @@ export class AccountComponent implements OnInit, OnDestroy {
     }
   }
 
+  isSignOutModalOpen = false;
+
   signOut(): void {
+    this.isSignOutModalOpen = true;
+  }
+
+  cancelSignOut(): void {
+    this.isSignOutModalOpen = false;
+  }
+
+  confirmSignOut(): void {
+    this.isSignOutModalOpen = false;
     this.authService.logout();
     this.router.navigate(['/']);
   }

@@ -168,11 +168,12 @@
             <label class="auth-input-label">FULL NAME</label>
             <input 
               id="signup-name"
+              #signupNameInput
               type="text" 
               class="auth-input" 
               [(ngModel)]="signupName"
               name="signupName"
-              (input)="onSignupFieldInput('name')"
+              (input)="onSignupFieldInput('name', $event)"
               placeholder="Your name">
             <div id="signup-name-error" class="error-message"></div>
           </div>
@@ -187,7 +188,7 @@
               [class.input-error]="serverEmailError"
               [(ngModel)]="signupEmail"
               name="signupEmail"
-              (input)="onSignupFieldInput('email')"
+              (input)="onSignupFieldInput('email', $event)"
               placeholder="ritual@offsite.com">
             <div id="signup-email-error" class="error-message">{{ serverEmailError }}</div>
           </div>
@@ -202,7 +203,7 @@
               [class.input-error]="serverPhoneError"
               [(ngModel)]="signupPhone"
               name="signupPhone"
-              (input)="onSignupFieldInput('phone')"
+              (input)="onSignupFieldInput('phone', $event)"
               placeholder="0901234567">
             <div id="signup-phone-error" class="error-message">{{ serverPhoneError }}</div>
           </div>
@@ -217,7 +218,7 @@
                 class="auth-input password-input" 
                 [(ngModel)]="signupPassword"
                 name="signupPassword"
-                (input)="onSignupFieldInput('password')"
+                (input)="onSignupFieldInput('password', $event)"
                 placeholder="8-15 chars, no spaces">
               <button 
                 type="button" 
@@ -257,7 +258,7 @@
                 class="auth-input password-input" 
                 [(ngModel)]="signupConfirmPassword"
                 name="signupConfirmPassword"
-                (input)="onSignupFieldInput('confirmPassword')"
+                (input)="onSignupFieldInput('confirmPassword', $event)"
                 placeholder="Must match new password">
               <button 
                 type="button" 
