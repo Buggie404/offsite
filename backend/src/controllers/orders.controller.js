@@ -73,6 +73,29 @@ function formatRefundRequestForClient(doc) {
   };
 }
 
+async function cleanupSession(session) {
+  if (!session) return;
+  try {
+    if (typeof session.inTransaction === 'function' && session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    session.endSession();
+  } catch (e) {
+    // Ignore error if session is already ended/aborted
+  }
+}
+
+function isTransactionNotSupportedError(err) {
+  if (!err) return false;
+  const msg = (err.message || '').toLowerCase();
+  return (
+    err.code === 20 ||
+    msg.includes('transaction numbers are only allowed') ||
+    msg.includes('replica set') ||
+    msg.includes('standalone')
+  );
+}
+
 // Create Order (POST /api/orders)
 async function createOrder(req, res) {
   let session = null;
@@ -82,7 +105,7 @@ async function createOrder(req, res) {
   try {
     session = await mongoose.startSession();
     session.startTransaction();
-    useTransaction = true;
+    useTransaction = typeof session.inTransaction === 'function' ? session.inTransaction() : true;
   } catch (sessErr) {
     session = null;
     useTransaction = false;
@@ -92,10 +115,9 @@ async function createOrder(req, res) {
     const { items, delivery_info, shipping, payment, pricing, coupon, session_id } = req.body;
 
     if (!items || !items.length || !delivery_info || !shipping || !payment || !pricing) {
-      if (session && useTransaction) {
-        await session.abortTransaction();
-        session.endSession();
-      }
+      await cleanupSession(session);
+      session = null;
+      useTransaction = false;
       return res.status(400).json({ error: 'Missing required order fields: items, delivery_info, shipping, payment, pricing.' });
     }
 
@@ -114,10 +136,9 @@ async function createOrder(req, res) {
 
     // Validation for guests
     if (is_guest && !session_id) {
-      if (session && useTransaction) {
-        await session.abortTransaction();
-        session.endSession();
-      }
+      await cleanupSession(session);
+      session = null;
+      useTransaction = false;
       return res.status(400).json({ error: 'session_id is required for guest checkout.' });
     }
 
@@ -141,7 +162,18 @@ async function createOrder(req, res) {
           is_default: userDoc.addresses.length === 0
         };
         userDoc.addresses.push(newAddress);
-        await userDoc.save(useTransaction ? { session } : undefined);
+        try {
+          await userDoc.save(useTransaction ? { session } : undefined);
+        } catch (saveErr) {
+          if (useTransaction && isTransactionNotSupportedError(saveErr)) {
+            await cleanupSession(session);
+            session = null;
+            useTransaction = false;
+            await userDoc.save();
+          } else {
+            throw saveErr;
+          }
+        }
       }
 
       // 2. Verify Payment Method (only for card and bank transfer payments)
@@ -150,10 +182,9 @@ async function createOrder(req, res) {
         const last4 = payment.card_info && payment.card_info.last4;
         
         if (!brand || !last4) {
-          if (session && useTransaction) {
-            await session.abortTransaction();
-            session.endSession();
-          }
+          await cleanupSession(session);
+          session = null;
+          useTransaction = false;
           return res.status(400).json({ error: 'Card brand and last4 digits are required for card payments.' });
         }
 
@@ -173,12 +204,22 @@ async function createOrder(req, res) {
           if (payment.full_card_info) {
             // Add the new card to user's payment methods
             userDoc.payment_methods.push(payment.full_card_info);
-            await userDoc.save(useTransaction ? { session } : undefined);
-          } else {
-            if (session && useTransaction) {
-              await session.abortTransaction();
-              session.endSession();
+            try {
+              await userDoc.save(useTransaction ? { session } : undefined);
+            } catch (saveErr) {
+              if (useTransaction && isTransactionNotSupportedError(saveErr)) {
+                await cleanupSession(session);
+                session = null;
+                useTransaction = false;
+                await userDoc.save();
+              } else {
+                throw saveErr;
+              }
             }
+          } else {
+            await cleanupSession(session);
+            session = null;
+            useTransaction = false;
             return res.status(400).json({ error: 'Payment card must match one of your saved payment methods.' });
           }
         }
@@ -206,25 +247,38 @@ async function createOrder(req, res) {
       });
 
       if (!vResult.isValid) {
-        if (session && useTransaction) {
-          await session.abortTransaction();
-          session.endSession();
-        }
+        await cleanupSession(session);
+        session = null;
+        useTransaction = false;
         return res.status(400).json({ error: vResult.error });
       }
 
       calculatedDiscount = vResult.discountAmount;
 
-      const incrementSuccess = await voucherService.incrementVoucherUsage(
-        vResult.voucher._id,
-        useTransaction ? session : null
-      );
+      let incrementSuccess = false;
+      try {
+        incrementSuccess = await voucherService.incrementVoucherUsage(
+          vResult.voucher._id,
+          useTransaction ? session : null
+        );
+      } catch (incErr) {
+        if (useTransaction && isTransactionNotSupportedError(incErr)) {
+          await cleanupSession(session);
+          session = null;
+          useTransaction = false;
+          incrementSuccess = await voucherService.incrementVoucherUsage(
+            vResult.voucher._id,
+            null
+          );
+        } else {
+          throw incErr;
+        }
+      }
 
       if (!incrementSuccess) {
-        if (session && useTransaction) {
-          await session.abortTransaction();
-          session.endSession();
-        }
+        await cleanupSession(session);
+        session = null;
+        useTransaction = false;
         return res.status(400).json({ 
           error: `Mã giảm giá "${vResult.voucher.code}" vừa hết lượt sử dụng. Vui lòng kiểm tra lại.` 
         });
@@ -270,9 +324,23 @@ async function createOrder(req, res) {
     // Instantiate and save Order (pre-save hook generates order_id & updates order_status)
     const newOrder = new Order(orderData);
     if (useTransaction && session) {
-      await newOrder.save({ session });
-      await session.commitTransaction();
-      session.endSession();
+      try {
+        await newOrder.save({ session });
+        await session.commitTransaction();
+      } catch (saveCommitErr) {
+        if (isTransactionNotSupportedError(saveCommitErr)) {
+          await cleanupSession(session);
+          session = null;
+          useTransaction = false;
+          await newOrder.save();
+        } else {
+          throw saveCommitErr;
+        }
+      } finally {
+        await cleanupSession(session);
+        session = null;
+        useTransaction = false;
+      }
     } else {
       await newOrder.save();
     }
@@ -300,13 +368,10 @@ async function createOrder(req, res) {
       data: newOrder
     });
   } catch (error) {
-    if (session && useTransaction) {
-      try {
-        await session.abortTransaction();
-        session.endSession();
-      } catch (abortErr) {
-        console.error('Error aborting transaction:', abortErr);
-      }
+    if (session) {
+      await cleanupSession(session);
+      session = null;
+      useTransaction = false;
     } else if (appliedVoucherId) {
       try {
         await Voucher.updateOne({ _id: appliedVoucherId }, { $inc: { used_count: -1 } });
