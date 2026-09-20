@@ -4,6 +4,7 @@ const Voucher = require('../models/Voucher');
 const RefundRequest = require('../models/RefundRequest');
 const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
+const voucherService = require('../services/voucher.service');
 
 const REFUND_REASONS = ['Damaged item', 'Wrong item', 'Size/color mismatch', 'Other'];
 
@@ -74,11 +75,27 @@ function formatRefundRequestForClient(doc) {
 
 // Create Order (POST /api/orders)
 async function createOrder(req, res) {
+  let session = null;
+  let useTransaction = false;
   let appliedVoucherId = null;
+
+  try {
+    session = await mongoose.startSession();
+    session.startTransaction();
+    useTransaction = true;
+  } catch (sessErr) {
+    session = null;
+    useTransaction = false;
+  }
+
   try {
     const { items, delivery_info, shipping, payment, pricing, coupon, session_id } = req.body;
 
     if (!items || !items.length || !delivery_info || !shipping || !payment || !pricing) {
+      if (session && useTransaction) {
+        await session.abortTransaction();
+        session.endSession();
+      }
       return res.status(400).json({ error: 'Missing required order fields: items, delivery_info, shipping, payment, pricing.' });
     }
 
@@ -97,6 +114,10 @@ async function createOrder(req, res) {
 
     // Validation for guests
     if (is_guest && !session_id) {
+      if (session && useTransaction) {
+        await session.abortTransaction();
+        session.endSession();
+      }
       return res.status(400).json({ error: 'session_id is required for guest checkout.' });
     }
 
@@ -120,7 +141,7 @@ async function createOrder(req, res) {
           is_default: userDoc.addresses.length === 0
         };
         userDoc.addresses.push(newAddress);
-        await userDoc.save();
+        await userDoc.save(useTransaction ? { session } : undefined);
       }
 
       // 2. Verify Payment Method (only for card and bank transfer payments)
@@ -129,6 +150,10 @@ async function createOrder(req, res) {
         const last4 = payment.card_info && payment.card_info.last4;
         
         if (!brand || !last4) {
+          if (session && useTransaction) {
+            await session.abortTransaction();
+            session.endSession();
+          }
           return res.status(400).json({ error: 'Card brand and last4 digits are required for card payments.' });
         }
 
@@ -148,8 +173,12 @@ async function createOrder(req, res) {
           if (payment.full_card_info) {
             // Add the new card to user's payment methods
             userDoc.payment_methods.push(payment.full_card_info);
-            await userDoc.save();
+            await userDoc.save(useTransaction ? { session } : undefined);
           } else {
+            if (session && useTransaction) {
+              await session.abortTransaction();
+              session.endSession();
+            }
             return res.status(400).json({ error: 'Payment card must match one of your saved payment methods.' });
           }
         }
@@ -161,7 +190,7 @@ async function createOrder(req, res) {
       }
     }
 
-    // 3. Verify Voucher (if applied) and Recalculate Pricing on Server
+    // 3. Verify Voucher (if applied) and Recalculate Pricing on Server via voucher.service
     let verifiedPricing = { ...pricing };
     let verifiedCoupon = null;
 
@@ -170,74 +199,43 @@ async function createOrder(req, res) {
     let calculatedDiscount = 0;
 
     if (coupon && coupon.code && typeof coupon.code === 'string' && coupon.code.trim()) {
-      const codeUpper = coupon.code.trim().toUpperCase();
-      const voucher = await Voucher.findOne({ code: codeUpper, is_active: true });
+      const vResult = await voucherService.validateAndCalculateVoucher({
+        code: coupon.code,
+        subtotal: serverSubtotal,
+        shippingMethod: shipping.method
+      });
 
-      if (!voucher) {
-        return res.status(400).json({ error: `Mã giảm giá "${codeUpper}" không tồn tại hoặc đã bị ngưng áp dụng.` });
+      if (!vResult.isValid) {
+        if (session && useTransaction) {
+          await session.abortTransaction();
+          session.endSession();
+        }
+        return res.status(400).json({ error: vResult.error });
       }
 
-      const now = new Date().toISOString();
-      if (voucher.valid_from && now < voucher.valid_from) {
-        return res.status(400).json({ error: `Mã giảm giá "${codeUpper}" chưa đến thời gian áp dụng.` });
-      }
-      if (voucher.valid_to && now > voucher.valid_to) {
-        return res.status(400).json({ error: `Mã giảm giá "${codeUpper}" đã hết hạn.` });
-      }
-      if (voucher.usage_limit != null && voucher.used_count >= voucher.usage_limit) {
-        return res.status(400).json({ error: `Mã giảm giá "${codeUpper}" đã hết lượt sử dụng.` });
-      }
-      if (voucher.min_order_amount && serverSubtotal < voucher.min_order_amount) {
+      calculatedDiscount = vResult.discountAmount;
+
+      const incrementSuccess = await voucherService.incrementVoucherUsage(
+        vResult.voucher._id,
+        useTransaction ? session : null
+      );
+
+      if (!incrementSuccess) {
+        if (session && useTransaction) {
+          await session.abortTransaction();
+          session.endSession();
+        }
         return res.status(400).json({ 
-          error: `Đơn hàng chưa đạt giá trị tối thiểu ($${voucher.min_order_amount}) để áp dụng mã "${codeUpper}".` 
+          error: `Mã giảm giá "${vResult.voucher.code}" vừa hết lượt sử dụng. Vui lòng kiểm tra lại.` 
         });
       }
 
-      if (voucher.voucher_type === 'discount') {
-        if (voucher.discount_type === 'percentage') {
-          calculatedDiscount = serverSubtotal * (voucher.discount_value / 100);
-        } else if (voucher.discount_type === 'fixed') {
-          calculatedDiscount = voucher.discount_value;
-        }
-      } else if (voucher.voucher_type === 'shipping') {
-        if (shipping.method !== 'express') {
-          return res.status(400).json({ error: `Mã giảm giá vận chuyển "${codeUpper}" chỉ áp dụng cho phương thức Giao hàng Hỏa tốc.` });
-        }
-        if (voucher.discount_type === 'percentage') {
-          calculatedDiscount = serverShippingCost * (voucher.discount_value / 100);
-        } else if (voucher.discount_type === 'fixed') {
-          calculatedDiscount = Math.min(voucher.discount_value, serverShippingCost);
-        }
-      }
-
-      if (voucher.max_discount_value != null && calculatedDiscount > voucher.max_discount_value) {
-        calculatedDiscount = voucher.max_discount_value;
-      }
-      calculatedDiscount = Math.round(calculatedDiscount * 100) / 100;
-
-      // Atomic update used_count
-      const updateResult = await Voucher.updateOne(
-        {
-          _id: voucher._id,
-          is_active: true,
-          $or: [
-            { usage_limit: null },
-            { $expr: { $lt: ['$used_count', '$usage_limit'] } }
-          ]
-        },
-        { $inc: { used_count: 1 } }
-      );
-
-      if (updateResult.modifiedCount === 0) {
-        return res.status(400).json({ error: `Mã giảm giá "${codeUpper}" vừa hết lượt sử dụng. Vui lòng kiểm tra lại.` });
-      }
-
-      appliedVoucherId = voucher._id;
+      appliedVoucherId = vResult.voucher._id;
 
       verifiedCoupon = {
-        code: voucher.code,
-        discount_type: voucher.discount_type,
-        discount_value: voucher.discount_value,
+        code: vResult.voucher.code,
+        discount_type: vResult.voucher.discount_type,
+        discount_value: vResult.voucher.discount_value,
         discount_amount: calculatedDiscount
       };
     }
@@ -271,7 +269,13 @@ async function createOrder(req, res) {
 
     // Instantiate and save Order (pre-save hook generates order_id & updates order_status)
     const newOrder = new Order(orderData);
-    await newOrder.save();
+    if (useTransaction && session) {
+      await newOrder.save({ session });
+      await session.commitTransaction();
+      session.endSession();
+    } else {
+      await newOrder.save();
+    }
 
     // Trigger ORDER_PLACED notification if registered customer
     if (!is_guest && user_id) {
@@ -296,7 +300,14 @@ async function createOrder(req, res) {
       data: newOrder
     });
   } catch (error) {
-    if (appliedVoucherId) {
+    if (session && useTransaction) {
+      try {
+        await session.abortTransaction();
+        session.endSession();
+      } catch (abortErr) {
+        console.error('Error aborting transaction:', abortErr);
+      }
+    } else if (appliedVoucherId) {
       try {
         await Voucher.updateOne({ _id: appliedVoucherId }, { $inc: { used_count: -1 } });
       } catch (rollbackErr) {

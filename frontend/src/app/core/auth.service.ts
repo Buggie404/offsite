@@ -3,6 +3,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { HttpService } from './http.service';
 import { CartService } from '../features/purchase/services/cart.service';
 import { Router } from '@angular/router';
+import { OrderSocketService } from './services/order-socket.service';
 
 @Injectable({
   providedIn: 'root'
@@ -12,6 +13,7 @@ export class AuthService {
   private http = inject(HttpService);
   private cartService = inject(CartService);
   private router = inject(Router);
+  private orderSocketService = inject(OrderSocketService);
 
   private isAuthenticatedSignal = signal<boolean>(false);
   readonly isAuthenticated = this.isAuthenticatedSignal.asReadonly();
@@ -122,6 +124,7 @@ export class AuthService {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      this.orderSocketService.refreshTokenAuth();
     }
 
     // Restore the guest cart captured at login; the user cart stays in the DB.
@@ -154,6 +157,7 @@ export class AuthService {
         };
 
         localStorage.setItem('user', JSON.stringify(user));
+        this.orderSocketService.refreshTokenAuth();
       } catch (e) {
         console.error('Failed to parse OAuth token:', e);
       }
@@ -193,6 +197,7 @@ export class AuthService {
       if (response.refreshToken) {
         localStorage.setItem('refreshToken', response.refreshToken);
       }
+      this.orderSocketService.refreshTokenAuth();
     }
     this.isAuthenticatedSignal.set(true);
   }

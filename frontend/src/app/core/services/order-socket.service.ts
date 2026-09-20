@@ -34,7 +34,6 @@ export class OrderSocketService {
     }
 
     try {
-      // Determine backend URL (defaults to current host at port 5000 if localhost or same origin)
       let backendUrl = 'http://localhost:5000';
       if (typeof window !== 'undefined') {
         const port = window.location.port;
@@ -45,8 +44,11 @@ export class OrderSocketService {
         }
       }
 
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
       this.socket = io(backendUrl, {
         transports: ['websocket', 'polling'],
+        auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelay: 1000
@@ -66,11 +68,26 @@ export class OrderSocketService {
         this.orderUpdatedSubject.next(data);
       });
 
+      this.socket.on('error', (err: any) => {
+        console.warn('[OrderSocketService] Server returned error:', err);
+      });
+
       this.socket.on('disconnect', (reason) => {
         console.log('[OrderSocketService] Socket disconnected:', reason);
       });
     } catch (err) {
       console.error('[OrderSocketService] Failed to initialize socket:', err);
+    }
+  }
+
+  refreshTokenAuth(): void {
+    if (!isPlatformBrowser(this.platformId) || !this.socket) return;
+    const token = localStorage.getItem('token');
+    this.socket.auth = { token };
+    if (this.socket.connected) {
+      this.socket.disconnect().connect();
+    } else {
+      this.socket.connect();
     }
   }
 
@@ -95,13 +112,14 @@ export class OrderSocketService {
     }
   }
 
-  joinOrderRoom(orderId: string): void {
+  joinOrderRoom(orderId: string, sessionId?: string | null): void {
     if (!orderId) return;
+    const payload = { order_id: orderId, session_id: sessionId || null };
     if (this.socket && this.socket.connected) {
-      this.socket.emit('join_order', { order_id: orderId });
+      this.socket.emit('join_order', payload);
     } else if (this.socket) {
       this.socket.once('connect', () => {
-        this.socket?.emit('join_order', { order_id: orderId });
+        this.socket?.emit('join_order', payload);
       });
     }
   }

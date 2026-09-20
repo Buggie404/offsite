@@ -1,4 +1,5 @@
 const Voucher = require('../models/Voucher');
+const voucherService = require('../services/voucher.service');
 
 async function getAllVouchers(req, res) {
   try {
@@ -17,28 +18,21 @@ async function getVoucherByCode(req, res) {
       return res.status(400).json({ error: 'Voucher code is required' });
     }
 
-    const voucher = await Voucher.findOne({ 
-      code: code.toUpperCase(),
-      is_active: true 
+    const subtotal = Number(req.query.subtotal) || 0;
+    const shippingMethod = req.query.shipping_method || 'standard';
+
+    const result = await voucherService.validateAndCalculateVoucher({
+      code,
+      subtotal,
+      shippingMethod
     });
 
-    if (!voucher) {
-      return res.status(404).json({ error: 'Voucher not found or inactive' });
+    if (!result.isValid) {
+      const statusCode = result.voucher ? 400 : 404;
+      return res.status(statusCode).json({ error: result.error });
     }
 
-    // Optional check: validity dates
-    const now = new Date().toISOString();
-    if (voucher.valid_from && now < voucher.valid_from) {
-      return res.status(400).json({ error: 'Voucher is not active yet' });
-    }
-    if (voucher.valid_to && now > voucher.valid_to) {
-      return res.status(400).json({ error: 'Voucher has expired' });
-    }
-    if (voucher.usage_limit && voucher.used_count >= voucher.usage_limit) {
-      return res.status(400).json({ error: 'Voucher usage limit reached' });
-    }
-
-    res.json(voucher);
+    res.json(result.voucher);
   } catch (error) {
     console.error('Error fetching voucher by code:', error);
     res.status(500).json({ error: 'Failed to retrieve voucher' });

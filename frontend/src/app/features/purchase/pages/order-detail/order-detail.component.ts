@@ -281,7 +281,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
     if (state && state.order) {
       this.order.set(state.order);
-      this.orderSocketService.joinOrderRoom(state.order.order_id);
+      this.orderSocketService.joinOrderRoom(state.order.order_id, this.getSessionId(state.order));
       localStorage.setItem('last_order_info', JSON.stringify({
         orderId: state.order.order_id,
         sessionId: state.order.session_id || ''
@@ -307,7 +307,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
           if (info && info.orderId) {
             const fetchedOrder = await this.checkoutService.getOrderStatus(info.orderId, info.sessionId);
             this.order.set(fetchedOrder);
-            this.orderSocketService.joinOrderRoom(fetchedOrder.order_id);
+            this.orderSocketService.joinOrderRoom(fetchedOrder.order_id, this.getSessionId(fetchedOrder));
 
             const isPending = fetchedOrder.order_status === 'pending' || fetchedOrder.status === 'pending';
             if (isPending && fetchedOrder.payment_status === 'failed') {
