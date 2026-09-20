@@ -649,7 +649,8 @@ async function forgotPassword(req, res) {
     await otpCollection.insertOne({
       user_id  : user._id,
       otp,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      attempts : 0,
+      expiresAt: new Date(Date.now() + OTP_EXPIRE_MS),
       createdAt: new Date()
     });
 
@@ -684,16 +685,33 @@ async function resetPassword(req, res) {
 
     const otpRecord = await otpCollection.findOne({ user_id: user._id });
     if (!otpRecord) {
-      return res.status(400).json({ error: 'Không tìm thấy yêu cầu đặt lại mật khẩu.' });    
+      return res.status(404).json({ error: 'Không tìm thấy yêu cầu đặt lại mật khẩu.', code: 'REQUEST_NOT_FOUND' });    
     }
 
-    if (new Date() > new Date(otpRecord.expiresAt)) {
+    if (otpRecord.expiresAt < new Date()) {
       await otpCollection.deleteOne({ _id: otpRecord._id });
-      return res.status(400).json({ error: 'Mã OTP đã hết hạn.' });
+      return res.status(400).json({ error: 'Mã OTP đã hết hạn.', code: 'OTP_EXPIRED' });
+    }
+
+    if ((otpRecord.attempts || 0) >= OTP_MAX_ATTEMPTS) {
+      return res.status(400).json({ error: 'Sai quá số lần cho phép. Vui lòng gửi lại mã.', code: 'OTP_LOCKED' });
     }
 
     if (otpRecord.otp !== String(otp).trim()) {
-      return res.status(400).json({ error: 'Mã OTP không chính xác.' });
+      const attempts = (otpRecord.attempts || 0) + 1;
+      const remaining = OTP_MAX_ATTEMPTS - attempts;
+
+      await otpCollection.updateOne({ _id: otpRecord._id }, { $set: { attempts } });
+
+      if (remaining <= 0) {
+        return res.status(400).json({ error: 'Sai quá số lần cho phép. Vui lòng gửi lại mã.', code: 'OTP_LOCKED' });
+      }
+
+      return res.status(400).json({
+        error: `Mã OTP không chính xác. Còn ${remaining} lần thử.`,
+        code: 'INVALID_OTP',
+        remainingAttempts: remaining
+      });
     }
 
     const password_hash = await bcrypt.hash(newPassword, 10);

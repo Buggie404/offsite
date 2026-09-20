@@ -1,4 +1,4 @@
-import { Component, inject, HostListener, ChangeDetectorRef, ElementRef, ViewChild, OnDestroy, signal } from '@angular/core';
+import { Component, inject, HostListener, ChangeDetectorRef, ElementRef, ViewChild, OnDestroy, AfterViewInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideX, LucideEye, LucideEyeOff } from '@lucide/angular';
@@ -7,6 +7,7 @@ import { AuthService } from '../../../core/auth.service';
 import { SuccessModalComponent, SuccessModalConfig } from '../success-modal/success-modal.components';
 import { Router, RouterModule } from '@angular/router';
 import { environment } from '../../../../environments/environment';
+import { InlineValidator, FieldConfig } from '../../utils/inline-validator';
 
 @Component({
   selector: 'app-auth-modal',
@@ -15,7 +16,7 @@ import { environment } from '../../../../environments/environment';
   templateUrl: './auth-modal.component.html',
   styleUrl: './auth-modal.component.scss'
 })
-export class AuthModalComponent implements OnDestroy {
+export class AuthModalComponent implements AfterViewInit, OnDestroy {
   private authModalService = inject(AuthModalService);
   private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
@@ -26,7 +27,8 @@ export class AuthModalComponent implements OnDestroy {
   @ViewChild('loginPasswordInput') loginPasswordInput!: ElementRef<HTMLInputElement>;
   @ViewChild('loginPhonePasswordInput') loginPhonePasswordInput!: ElementRef<HTMLInputElement>;
   
-  @ViewChild('signupIdentifierInput') signupIdentifierInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('signupEmailInput') signupEmailInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('signupPhoneInput') signupPhoneInput!: ElementRef<HTMLInputElement>;
   @ViewChild('signupPasswordInput') signupPasswordInput!: ElementRef<HTMLInputElement>;
   @ViewChild('signupConfirmPasswordInput') signupConfirmPasswordInput!: ElementRef<HTMLInputElement>;
   
@@ -39,6 +41,8 @@ export class AuthModalComponent implements OnDestroy {
 
   isOpen = this.authModalService.isOpen;
   mode = this.authModalService.mode;
+
+  signupValidator: InlineValidator | null = null;
 
   loginTab: 'email' | 'phone' = 'email';
   showPassword = false;
@@ -71,7 +75,8 @@ export class AuthModalComponent implements OnDestroy {
   loginPassword = '';
 
   signupName = '';
-  signupIdentifier = '';
+  signupEmail = '';
+  signupPhone = '';
   signupPassword = '';
   signupConfirmPassword = '';
 
@@ -81,7 +86,8 @@ export class AuthModalComponent implements OnDestroy {
   passwordTouched = false;
 
   signupNameTouched = false;
-  signupIdentifierTouched = false;
+  signupEmailTouched = false;
+  signupPhoneTouched = false;
   signupPasswordTouched = false;
   signupConfirmPasswordTouched = false;
 
@@ -89,7 +95,6 @@ export class AuthModalComponent implements OnDestroy {
   serverEmailError: string | null = null;
   serverPhoneError: string | null = null;
   serverPasswordError: string | null = null;
-  serverIdentifierError: string | null = null;
   isSubmitting = false;
 
   showSuccessModal = false;
@@ -110,6 +115,8 @@ export class AuthModalComponent implements OnDestroy {
   forgotOtpValue = '';
   forgotOtpDigits: string[] = ['', '', '', '', '', ''];
   forgotOtpError: string | null = null;
+  forgotOtpLocked = false;
+  forgotOtpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
 
   forgotNewPassword = '';
   forgotConfirmPassword = '';
@@ -129,6 +136,11 @@ export class AuthModalComponent implements OnDestroy {
     this.showPassword = false;
     this.showConfirmPassword = false;
     this.resetForm();
+    if (mode === 'signup') {
+      setTimeout(() => this.setupSignupValidator(), 50);
+    } else {
+      this.cleanupSignupValidator();
+    }
   }
 
   closeAuthModal(): void {
@@ -155,19 +167,24 @@ export class AuthModalComponent implements OnDestroy {
     this.passwordTouched = false;
 
     this.signupName = '';
-    this.signupIdentifier = '';
+    this.signupEmail = '';
+    this.signupPhone = '';
     this.signupPassword = '';
     this.signupConfirmPassword = '';
     this.signupNameTouched = false;
-    this.signupIdentifierTouched = false;
+    this.signupEmailTouched = false;
+    this.signupPhoneTouched = false;
     this.signupPasswordTouched = false;
     this.signupConfirmPasswordTouched = false;
 
     this.serverEmailError = null;
     this.serverPhoneError = null;
     this.serverPasswordError = null;
-    this.serverIdentifierError = null;
     this.isSubmitting = false;
+
+    if (this.signupValidator) {
+      this.signupValidator.clearAll();
+    }
 
     this.clearOtpCountdown();
     this.isOtpStep = false;
@@ -197,6 +214,8 @@ export class AuthModalComponent implements OnDestroy {
     this.forgotOtpValue = '';
     this.forgotOtpDigits = ['', '', '', '', '', ''];
     this.forgotOtpError = null;
+    this.forgotOtpLocked = false;
+    this.forgotOtpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
 
     this.forgotNewPassword = '';
     this.forgotConfirmPassword = '';
@@ -238,18 +257,36 @@ export class AuthModalComponent implements OnDestroy {
     return null;
   }
 
-  get signupIdentifierError(): string | null {
-    if (!this.signupIdentifier) return this.signupIdentifierTouched ? 'Email or phone is required' : null;
-    const val = this.signupIdentifier.trim();
-    const isEmail = val.includes('@');
-    if (isEmail) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(val)) return 'Invalid email format';
-    } else {
-      const normalizedPhone = val.replace(/\s+/g, '');
-      if (!/^\d+$/.test(normalizedPhone)) return 'Phone number must contain digits only';
-      if (normalizedPhone.length < 10 || normalizedPhone.length > 11) return 'Phone number must be 10 to 11 digits';
+  get signupEmailError(): string | null {
+    const emailVal = this.signupEmail ? this.signupEmail.trim() : '';
+    const phoneVal = this.signupPhone ? this.signupPhone.trim() : '';
+
+    if (!emailVal) {
+      if (!phoneVal && (this.signupEmailTouched || this.signupPhoneTouched)) {
+        return 'Either email or phone number is required';
+      }
+      return null;
     }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailVal)) return 'Invalid email format';
+    return null;
+  }
+
+  get signupPhoneError(): string | null {
+    const emailVal = this.signupEmail ? this.signupEmail.trim() : '';
+    const phoneVal = this.signupPhone ? this.signupPhone.trim() : '';
+
+    if (!phoneVal) {
+      if (!emailVal && (this.signupEmailTouched || this.signupPhoneTouched)) {
+        return 'Either email or phone number is required';
+      }
+      return null;
+    }
+
+    const normalizedPhone = phoneVal.replace(/\s+/g, '');
+    if (!/^\d+$/.test(normalizedPhone)) return 'Phone number must contain digits only';
+    if (normalizedPhone.length < 10 || normalizedPhone.length > 11) return 'Phone number must be 10 to 11 digits';
     return null;
   }
 
@@ -350,20 +387,29 @@ export class AuthModalComponent implements OnDestroy {
 
   isFormValid(): boolean {
     if (this.mode() === 'signup') {
-      const nameValid = !!this.signupName;
-      const identifierValid = this.signupIdentifierError === null && this.signupIdentifier.trim() !== '';
-      const passwordValid = this.signupPassword.length >= 8 && this.signupPassword.length <= 15 && !/\s/.test(this.signupPassword);
-      const confirmValid = this.signupPassword === this.signupConfirmPassword;
-      return nameValid && identifierValid && passwordValid && confirmValid;
+      const nameValid = !!this.signupName && !!this.signupName.trim();
+
+      const emailVal = this.signupEmail ? this.signupEmail.trim() : '';
+      const phoneVal = this.signupPhone ? this.signupPhone.trim() : '';
+
+      const hasAtLeastOneContact = !!emailVal || !!phoneVal;
+      const emailValid = !emailVal || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal);
+      const normalizedPhone = phoneVal.replace(/\s+/g, '');
+      const phoneValid = !phoneVal || (/^\d+$/.test(normalizedPhone) && normalizedPhone.length >= 10 && normalizedPhone.length <= 11);
+
+      const passwordValid = !!this.signupPassword && this.signupPassword.length >= 8 && this.signupPassword.length <= 15 && !/\s/.test(this.signupPassword);
+      const confirmValid = !!this.signupConfirmPassword && this.signupPassword === this.signupConfirmPassword;
+
+      return nameValid && hasAtLeastOneContact && emailValid && phoneValid && passwordValid && confirmValid;
     }
     if (this.loginTab === 'email') {
       const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.loginEmail);
-      const passwordValid = this.loginPassword.length >= 8 && this.loginPassword.length <= 15 && !/\s/.test(this.loginPassword);
+      const passwordValid = !!this.loginPassword && this.loginPassword.length >= 8 && this.loginPassword.length <= 15 && !/\s/.test(this.loginPassword);
       return emailValid && passwordValid;
     } else {
       const normalizedPhone = this.loginPhone.replace(/\s+/g, '');
       const phoneValid = /^\d{10,11}$/.test(normalizedPhone);
-      const passwordValid = this.loginPassword.length >= 8 && this.loginPassword.length <= 15 && !/\s/.test(this.loginPassword);
+      const passwordValid = !!this.loginPassword && this.loginPassword.length >= 8 && this.loginPassword.length <= 15 && !/\s/.test(this.loginPassword);
       return phoneValid && passwordValid;
     }
   }
@@ -371,30 +417,191 @@ export class AuthModalComponent implements OnDestroy {
   togglePasswordVisibility(): void { this.showPassword = !this.showPassword; }
   toggleConfirmPasswordVisibility(): void { this.showConfirmPassword = !this.showConfirmPassword; }
 
+  ngAfterViewInit(): void {
+    if (this.isOpen() && this.mode() === 'signup') {
+      setTimeout(() => this.setupSignupValidator(), 50);
+    }
+  }
+
+  setupSignupValidator(): void {
+    if (typeof window === 'undefined') return;
+
+    this.cleanupSignupValidator();
+
+    const signupConfigs: FieldConfig[] = [
+      {
+        field_id: 'signup-name',
+        error_element_id: 'signup-name-error',
+        rules: [
+          {
+            sequence: 1,
+            type: 'FORMAT_CHECK',
+            regex_pattern: '^\\s*$',
+            error_message: 'Full name is required'
+          }
+        ]
+      },
+      {
+        field_id: 'signup-email',
+        error_element_id: 'signup-email-error',
+        rules: [
+          {
+            sequence: 1,
+            type: 'FORMAT_CHECK',
+            condition: '!value.trim() && !(document.getElementById("signup-phone") as HTMLInputElement)?.value?.trim()',
+            error_message: 'Either email or phone number is required'
+          },
+          {
+            sequence: 2,
+            type: 'FORMAT_CHECK',
+            condition: 'value.trim() !== "" && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value.trim())',
+            error_message: 'Invalid email format'
+          }
+        ]
+      },
+      {
+        field_id: 'signup-phone',
+        error_element_id: 'signup-phone-error',
+        rules: [
+          {
+            sequence: 1,
+            type: 'FORMAT_CHECK',
+            condition: '!value.trim() && !(document.getElementById("signup-email") as HTMLInputElement)?.value?.trim()',
+            error_message: 'Either email or phone number is required'
+          },
+          {
+            sequence: 2,
+            type: 'FORMAT_CHECK',
+            condition: 'value.trim() !== "" && /[^0-9 ]/.test(value.trim())',
+            error_message: 'Phone number must contain digits only'
+          },
+          {
+            sequence: 3,
+            type: 'FORMAT_CHECK',
+            condition: 'value.trim() !== "" && (/^[0-9 ]+$/.test(value.trim()) && (value.replace(/\\s+/g, "").length < 10 || value.replace(/\\s+/g, "").length > 11))',
+            error_message: 'Phone number must be 10 to 11 digits'
+          }
+        ]
+      },
+      {
+        field_id: 'signup-password',
+        error_element_id: 'signup-password-error',
+        rules: [
+          {
+            sequence: 1,
+            type: 'FORMAT_CHECK',
+            regex_pattern: '^\\s*$',
+            error_message: 'Password is required'
+          },
+          {
+            sequence: 2,
+            type: 'FORMAT_CHECK',
+            condition: 'value.length < 8 || value.length > 15',
+            error_message: 'Password must be 8-15 characters'
+          },
+          {
+            sequence: 3,
+            type: 'FORMAT_CHECK',
+            condition: '/\\s/.test(value)',
+            error_message: 'Password cannot contain spaces'
+          }
+        ]
+      },
+      {
+        field_id: 'signup-confirm-password',
+        error_element_id: 'signup-confirm-password-error',
+        rules: [
+          {
+            sequence: 1,
+            type: 'FORMAT_CHECK',
+            regex_pattern: '^\\s*$',
+            error_message: 'Confirm password is required'
+          },
+          {
+            sequence: 2,
+            type: 'FORMAT_CHECK',
+            condition: 'value !== (document.getElementById("signup-password") as HTMLInputElement)?.value',
+            error_message: 'Passwords do not match'
+          }
+        ]
+      }
+    ];
+
+    this.signupValidator = new InlineValidator(signupConfigs);
+    const container = document.querySelector('.auth-modal-card');
+    if (container) {
+      this.signupValidator.attach(container as HTMLElement);
+    } else {
+      this.signupValidator.attach();
+    }
+  }
+
+  cleanupSignupValidator(): void {
+    if (this.signupValidator) {
+      this.signupValidator.detach();
+      this.signupValidator = null;
+    }
+  }
+
+  onSignupFieldInput(field: string): void {
+    if (field === 'email') {
+      this.serverEmailError = null;
+      if (this.signupValidator) {
+        this.signupValidator.validateField('signup-email');
+        this.signupValidator.validateField('signup-phone');
+      }
+    } else if (field === 'phone') {
+      this.serverPhoneError = null;
+      if (this.signupValidator) {
+        this.signupValidator.validateField('signup-phone');
+        this.signupValidator.validateField('signup-email');
+      }
+    } else if (field === 'password') {
+      if (this.signupValidator) {
+        this.signupValidator.validateField('signup-password');
+        this.signupValidator.validateField('signup-confirm-password');
+      }
+    } else if (field === 'confirmPassword') {
+      if (this.signupValidator) {
+        this.signupValidator.validateField('signup-confirm-password');
+      }
+    } else if (field === 'name') {
+      if (this.signupValidator) {
+        this.signupValidator.validateField('signup-name');
+      }
+    }
+  }
+
   async onSubmitAuth(event: Event): Promise<void> {
     if (event) event.preventDefault();
 
     if (this.mode() === 'signup') {
-      if (this.signupIdentifierInput?.nativeElement) this.signupIdentifier = this.signupIdentifierInput.nativeElement.value;
+      if (this.signupEmailInput?.nativeElement) this.signupEmail = this.signupEmailInput.nativeElement.value;
+      if (this.signupPhoneInput?.nativeElement) this.signupPhone = this.signupPhoneInput.nativeElement.value;
       if (this.signupPasswordInput?.nativeElement) this.signupPassword = this.signupPasswordInput.nativeElement.value;
       if (this.signupConfirmPasswordInput?.nativeElement) this.signupConfirmPassword = this.signupConfirmPasswordInput.nativeElement.value;
 
       this.signupNameTouched = true;
-      this.signupIdentifierTouched = true;
+      this.signupEmailTouched = true;
+      this.signupPhoneTouched = true;
       this.signupPasswordTouched = true;
       this.signupConfirmPasswordTouched = true;
       this.cdr.detectChanges();
 
-      if (!this.isFormValid()) return;
+      if (!this.signupValidator) {
+        this.setupSignupValidator();
+      }
 
-      this.serverIdentifierError = null;
+      const isFormValid = this.signupValidator ? this.signupValidator.validateAll() : true;
+      if (!isFormValid) return;
+
+      this.serverEmailError = null;
+      this.serverPhoneError = null;
       this.isSubmitting = true;
 
       try {
-        const val = this.signupIdentifier.trim();
-        const isEmail = val.includes('@');
-        const submitEmail = isEmail ? val : '';
-        const submitPhone = isEmail ? '' : val.replace(/\s+/g, '');
+        const submitEmail = this.signupEmail ? this.signupEmail.trim() : '';
+        const submitPhone = this.signupPhone ? this.signupPhone.trim().replace(/\s+/g, '') : '';
 
         const response = await this.authService.register({
           name: this.signupName,
@@ -421,10 +628,12 @@ export class AuthModalComponent implements OnDestroy {
 
       } catch (err: any) {
         const errorCode = err?.code;
-        if (errorCode === 'EMAIL_EXISTS' || errorCode === 'PHONE_EXISTS') {
-          this.serverIdentifierError = 'This email or phone is already registered.';
+        if (errorCode === 'EMAIL_EXISTS') {
+          this.serverEmailError = 'This email is already registered.';
+        } else if (errorCode === 'PHONE_EXISTS') {
+          this.serverPhoneError = 'This phone number is already registered.';
         } else {
-          this.serverIdentifierError = 'An error occurred during registration. Please try again.';
+          this.serverEmailError = 'An error occurred during registration. Please try again.';
         }
         this.cdr.detectChanges();
       } finally {
@@ -535,6 +744,8 @@ export class AuthModalComponent implements OnDestroy {
     this.forgotOtpValue = '';
     this.forgotOtpDigits = ['', '', '', '', '', ''];
     this.forgotOtpError = null;
+    this.forgotOtpLocked = false;
+    this.forgotOtpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
     this.mockForgotOtp = '';
     this.forgotNewPassword = '';
     this.forgotConfirmPassword = '';
@@ -563,6 +774,8 @@ export class AuthModalComponent implements OnDestroy {
       this.forgotOtpValue = '';
       this.forgotOtpDigits = ['', '', '', '', '', ''];
       this.forgotOtpError = null;
+      this.forgotOtpLocked = false;
+      this.forgotOtpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
       this.forgotStep = 'reset';
       this.startOtpCountdown(this.OTP_DURATION_SECONDS);
       this.cdr.detectChanges();
@@ -577,7 +790,7 @@ export class AuthModalComponent implements OnDestroy {
   }
 
   async resendForgotOtp(): Promise<void> {
-    if (this.isSendingForgotOtp || !this.canResendOtp) return;
+    if (this.isSendingForgotOtp || (!this.canResendOtp && !this.forgotOtpLocked)) return;
 
     this.isSendingForgotOtp = true;
     this.cdr.detectChanges();
@@ -588,6 +801,8 @@ export class AuthModalComponent implements OnDestroy {
       this.forgotOtpValue = '';
       this.forgotOtpDigits = ['', '', '', '', '', ''];
       this.forgotOtpError = null;
+      this.forgotOtpLocked = false;
+      this.forgotOtpAttemptsLeft = this.OTP_MAX_ATTEMPTS;
       this.startOtpCountdown(this.OTP_DURATION_SECONDS);
       setTimeout(() => this.focusHiddenForgotInput(), 50);
     } catch (err: any) {
@@ -629,6 +844,7 @@ export class AuthModalComponent implements OnDestroy {
     this.forgotConfirmPasswordTouched = true;
     this.cdr.detectChanges();
 
+    if (this.forgotOtpLocked) return;
     if (this.forgotOtpValue.length !== 6) {
       this.forgotOtpError = 'Please enter the 6-digit code.';
       this.cdr.detectChanges();
@@ -666,7 +882,27 @@ export class AuthModalComponent implements OnDestroy {
 
       this.cdr.detectChanges();
     } catch (err: any) {
-      this.forgotOtpError = err?.error || 'Incorrect or expired code. Please try again.';
+      const code = err?.code;
+      if (code === 'OTP_LOCKED') {
+        this.forgotOtpLocked = true;
+        this.forgotOtpAttemptsLeft = 0;
+        this.clearOtpCountdown();
+      } else if (code === 'OTP_EXPIRED') {
+        this.forgotOtpError = 'This code has expired. Please resend a new code.';
+        this.clearOtpCountdown();
+      } else {
+        this.forgotOtpAttemptsLeft = typeof err?.remainingAttempts === 'number'
+          ? err.remainingAttempts
+          : Math.max(0, this.forgotOtpAttemptsLeft - 1);
+
+        this.forgotOtpError = 'Incorrect code. Please try again.';
+
+        if (this.forgotOtpAttemptsLeft <= 0) {
+          this.forgotOtpLocked = true;
+          this.clearOtpCountdown();
+        }
+      }
+
       this.forgotOtpValue = '';
       this.forgotOtpDigits = ['', '', '', '', '', ''];
       setTimeout(() => this.focusHiddenForgotInput(), 50);
@@ -845,6 +1081,7 @@ export class AuthModalComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.clearOtpCountdown();
+    this.cleanupSignupValidator();
   }
 
   loginWithGoogle(): void {

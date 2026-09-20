@@ -175,6 +175,7 @@ export class InlineValidator {
   private clearError(inputEl: HTMLElement | null, errorEl: HTMLElement | null): void {
     if (inputEl) {
       inputEl.classList.remove('invalid');
+      inputEl.classList.remove('input-error');
     }
     if (errorEl) {
       errorEl.textContent = '';
@@ -184,6 +185,7 @@ export class InlineValidator {
   private setError(inputEl: HTMLElement | null, errorEl: HTMLElement | null, message: string): void {
     if (inputEl) {
       inputEl.classList.add('invalid');
+      inputEl.classList.add('input-error');
     }
     if (errorEl) {
       errorEl.textContent = message;
