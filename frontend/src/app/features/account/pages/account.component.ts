@@ -3,7 +3,9 @@ import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink, ActivatedRoute } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/auth.service';
+import { OrderSocketService } from '../../../core/services/order-socket.service';
 import { UserAddress, UserPaymentMethod } from '../../../shared/models/user.model';
 import { CheckoutService } from '../../purchase/services/checkout.service';
 import { CartService } from '../../purchase/services/cart.service';
@@ -121,6 +123,8 @@ export class AccountComponent implements OnInit, OnDestroy {
   private zone = inject(NgZone);
   private cdr = inject(ChangeDetectorRef);
   private toastService = inject(ToastService);
+  private orderSocketService = inject(OrderSocketService);
+  private socketSub: Subscription | null = null;
 
   // Confirmation Modal state properties
   isConfirmModalOpen = false;
@@ -426,6 +430,28 @@ export class AccountComponent implements OnInit, OnDestroy {
     this.initForms();
     this.fetchProfile();
     this.fetchOrders();
+
+    this.socketSub = this.orderSocketService.orderUpdated$.subscribe((event) => {
+      if (!event || !event.order_id) return;
+      const currentList = this.orders();
+      const idx = currentList.findIndex(o => (o.order_id || o._id) === event.order_id);
+      if (idx !== -1) {
+        const updatedList = [...currentList];
+        if (event.order) {
+          updatedList[idx] = { ...updatedList[idx], ...event.order };
+        } else if (event.order_status) {
+          updatedList[idx] = { ...updatedList[idx], order_status: event.order_status };
+        }
+        this.orders.set(updatedList);
+        this.cdr.markForCheck();
+      } else {
+        const user = this.user();
+        if (event.order && user && (event.order.user_id === user.user_id)) {
+          this.orders.set([event.order, ...currentList]);
+          this.cdr.markForCheck();
+        }
+      }
+    });
     this.route.queryParams.subscribe(params => {
       if (params['tab']) {
         this.activeTab.set(params['tab']);
@@ -499,6 +525,10 @@ export class AccountComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.socketSub) {
+      this.socketSub.unsubscribe();
+      this.socketSub = null;
+    }
     this.clearChangeOtpCountdown();
     if (this.cardValidator) {
       this.cardValidator.detach();
@@ -748,6 +778,9 @@ export class AccountComponent implements OnInit, OnDestroy {
       this.http.get<{ user: any }>('/api/auth/me').subscribe({
         next: (response) => {
           this.user.set(response.user);
+          if (response.user?.user_id) {
+            this.orderSocketService.joinUserRoom(response.user.user_id);
+          }
           // Sync localStorage
           localStorage.setItem('user', JSON.stringify(response.user));
           

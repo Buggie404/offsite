@@ -6,6 +6,7 @@ import { LucideDownload, LucideEye, LucideChevronDown, LucideCalendar } from '@l
 import { Subject, catchError, distinctUntilChanged, interval, map, of, switchMap } from 'rxjs';
 import { AdminOrderService } from '../../services/admin-order.service';
 import { AdminRefreshService } from '../../services/admin-refresh.service';
+import { OrderSocketService } from '../../../core/services/order-socket.service';
 import {
   AdminDateRange,
   AdminOrderListItem,
@@ -29,6 +30,7 @@ interface StatusFilterOption {
 export class OrdersListingComponent implements OnInit {
   private adminOrderService = inject(AdminOrderService);
   private adminRefresh = inject(AdminRefreshService);
+  private orderSocketService = inject(OrderSocketService);
   private route = inject(ActivatedRoute);
   private destroyRef = inject(DestroyRef);
   private cdr = inject(ChangeDetectorRef);
@@ -131,6 +133,11 @@ export class OrdersListingComponent implements OnInit {
       });
 
     this.adminRefresh.onOrdersListRefresh$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.loadTrigger$.next({ silent: true }));
+
+    this.orderSocketService.joinAdminRoom();
+    this.orderSocketService.orderUpdated$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.loadTrigger$.next({ silent: true }));
 

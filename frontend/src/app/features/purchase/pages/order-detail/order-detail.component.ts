@@ -28,6 +28,8 @@ import { PaymentMethod } from '../../services/checkout.service';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { OrderSocketService } from '../../../../core/services/order-socket.service';
+import { Subscription } from 'rxjs';
 
 interface StatusConfig {
   bannerStyle: 'canceled' | 'pending' | 'processing' | 'shipping' | 'delivered' | 'refund';
@@ -80,6 +82,8 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
   private cartService = inject(CartService);
   private authService = inject(AuthService);
   private authPromptModalService = inject(AuthPromptModalService);
+  private orderSocketService = inject(OrderSocketService);
+  private socketSub: Subscription | null = null;
 
   order = signal<any>(null);
   copiedOrderNum = signal<boolean>(false);
@@ -277,6 +281,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
     if (state && state.order) {
       this.order.set(state.order);
+      this.orderSocketService.joinOrderRoom(state.order.order_id);
       localStorage.setItem('last_order_info', JSON.stringify({
         orderId: state.order.order_id,
         sessionId: state.order.session_id || ''
@@ -302,6 +307,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
           if (info && info.orderId) {
             const fetchedOrder = await this.checkoutService.getOrderStatus(info.orderId, info.sessionId);
             this.order.set(fetchedOrder);
+            this.orderSocketService.joinOrderRoom(fetchedOrder.order_id);
 
             const isPending = fetchedOrder.order_status === 'pending' || fetchedOrder.status === 'pending';
             if (isPending && fetchedOrder.payment_status === 'failed') {
@@ -321,9 +327,20 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       console.warn('Access denied. No order state or cached order found. Redirecting to home...');
       this.router.navigate(['/']);
     }
+
+    this.socketSub = this.orderSocketService.orderUpdated$.subscribe(async (event) => {
+      const currentOrder = this.order();
+      if (currentOrder && event && event.order_id === currentOrder.order_id) {
+        await this.refreshOrderIfNeeded();
+      }
+    });
   }
 
   ngOnDestroy(): void {
+    if (this.socketSub) {
+      this.socketSub.unsubscribe();
+      this.socketSub = null;
+    }
     this.stopCountdown();
     this.stopPolling();
   }

@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const User = require('../models/User');
 const RefundRequest = require('../models/RefundRequest');
 const mongoose = require('mongoose');
+const socketService = require('../services/socket.service');
 
 function getDateFromRange(dateRange) {
   const now = new Date();
@@ -405,6 +406,7 @@ async function updateOrderStatus(req, res) {
     }
 
     await order.save();
+    socketService.emitOrderUpdated(order, 'status_change');
 
     // Trigger ORDER_SHIPPING notification if registered customer and status is shipping
     if (status === 'shipping' && order.user_id) {
@@ -473,6 +475,7 @@ async function approveRefundRequest(req, res) {
     order.order_status = 'refund';
     order.payment_status = 'refunded';
     await order.save();
+    socketService.emitOrderUpdated(order, 'refund_approved');
 
     // Trigger REFUND_APPROVED notification if registered customer
     if (order.user_id) {
@@ -542,6 +545,7 @@ async function rejectRefundRequest(req, res) {
     order._changedBy = adminId;
     order._statusChangeNote = `Refund rejected: ${rejectionReason}`;
     await order.save();
+    socketService.emitOrderUpdated(order, 'refund_rejected');
 
     // Trigger REFUND_REJECTED notification if registered customer
     if (order.user_id) {

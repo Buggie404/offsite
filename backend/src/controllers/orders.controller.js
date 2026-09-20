@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const User = require('../models/User');
 const RefundRequest = require('../models/RefundRequest');
 const mongoose = require('mongoose');
+const socketService = require('../services/socket.service');
 
 const REFUND_REASONS = ['Damaged item', 'Wrong item', 'Size/color mismatch', 'Other'];
 
@@ -193,6 +194,9 @@ async function createOrder(req, res) {
       }
     }
 
+    // Emit real-time new order event
+    socketService.emitNewOrder(newOrder);
+
     res.status(201).json({
       message: 'Order created successfully',
       data: newOrder
@@ -326,6 +330,7 @@ async function confirmOrder(req, res) {
     order._changedBy = order.is_guest ? 'guest' : order.user_id;
     order._statusChangeNote = 'Order confirmed by user via COD verification modal';
     await order.save();
+    socketService.emitOrderUpdated(order, 'status_change');
 
     // Save address if registered customer and it doesn't exist yet
     if (!order.is_guest && userDoc) {
@@ -403,6 +408,7 @@ async function cancelPendingOrder(req, res) {
     order._changedBy = order.is_guest ? 'guest' : order.user_id;
     order._statusChangeNote = 'Order canceled by customer';
     await order.save();
+    socketService.emitOrderUpdated(order, 'status_change');
 
     res.json({
       message: 'Order canceled successfully',
@@ -452,6 +458,7 @@ async function failPayment(req, res) {
     order._changedBy = order.is_guest ? 'guest' : order.user_id;
     order._statusChangeNote = 'Payment failed: QR code expired and exceeded maximum reloads';
     await order.save();
+    socketService.emitOrderUpdated(order, 'status_change');
 
     res.json({
       message: 'Order payment status updated to failed',
@@ -501,6 +508,7 @@ async function confirmPayment(req, res) {
     order._changedBy = order.is_guest ? 'guest' : order.user_id;
     order._statusChangeNote = 'Payment confirmed by user via mobile QR scan';
     await order.save();
+    socketService.emitOrderUpdated(order, 'status_change');
 
     res.json({
       message: 'Payment confirmed successfully',
@@ -642,6 +650,7 @@ async function receiveOrder(req, res) {
     order._changedBy = 'user';
     order._statusChangeNote = 'Order received by user';
     await order.save();
+    socketService.emitOrderUpdated(order, 'status_change');
 
     const refundRequest = await getLatestRefundRequest(order.order_id);
 
@@ -816,6 +825,7 @@ async function requestRefund(req, res) {
     order._changedBy = userId || sessionId || 'customer';
     order._statusChangeNote = 'Refund request submitted by customer';
     await order.save();
+    socketService.emitOrderUpdated(order, 'refund_request');
 
     // Trigger REFUND_REQUESTED notification if registered customer
     if (order.user_id) {

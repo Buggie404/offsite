@@ -15,6 +15,7 @@ import {
 } from '@lucide/angular';
 import { AdminOrderService } from '../../services/admin-order.service';
 import { AdminRefreshService } from '../../services/admin-refresh.service';
+import { OrderSocketService } from '../../../core/services/order-socket.service';
 import {
   AdminInternalNote,
   AdminOrderDetail,
@@ -59,6 +60,7 @@ export class OrderDetailComponent implements OnInit {
   private router = inject(Router);
   private adminOrderService = inject(AdminOrderService);
   private adminRefresh = inject(AdminRefreshService);
+  private orderSocketService = inject(OrderSocketService);
   private destroyRef = inject(DestroyRef);
   private cdr = inject(ChangeDetectorRef);
   private readonly pollIntervalMs = 20_000;
@@ -106,6 +108,16 @@ export class OrderDetailComponent implements OnInit {
         const orderId = this.orderId;
         if (orderId) {
           this.loadOrder(orderId, true);
+        }
+      });
+
+    this.orderSocketService.joinAdminRoom();
+    this.orderSocketService.orderUpdated$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((event) => {
+        const currentId = this.orderId;
+        if (currentId && event && event.order_id === currentId) {
+          this.loadOrder(currentId, true);
         }
       });
 
