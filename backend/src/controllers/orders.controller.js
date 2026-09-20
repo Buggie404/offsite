@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const User = require('../models/User');
+const Voucher = require('../models/Voucher');
 const RefundRequest = require('../models/RefundRequest');
 const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
@@ -73,6 +74,7 @@ function formatRefundRequestForClient(doc) {
 
 // Create Order (POST /api/orders)
 async function createOrder(req, res) {
+  let appliedVoucherId = null;
   try {
     const { items, delivery_info, shipping, payment, pricing, coupon, session_id } = req.body;
 
@@ -159,6 +161,98 @@ async function createOrder(req, res) {
       }
     }
 
+    // 3. Verify Voucher (if applied) and Recalculate Pricing on Server
+    let verifiedPricing = { ...pricing };
+    let verifiedCoupon = null;
+
+    const serverSubtotal = items.reduce((sum, item) => sum + (Number(item.unit_price) || 0) * (Number(item.quantity) || 0), 0);
+    const serverShippingCost = shipping.method === 'express' ? 15 : 0;
+    let calculatedDiscount = 0;
+
+    if (coupon && coupon.code && typeof coupon.code === 'string' && coupon.code.trim()) {
+      const codeUpper = coupon.code.trim().toUpperCase();
+      const voucher = await Voucher.findOne({ code: codeUpper, is_active: true });
+
+      if (!voucher) {
+        return res.status(400).json({ error: `Mã giảm giá "${codeUpper}" không tồn tại hoặc đã bị ngưng áp dụng.` });
+      }
+
+      const now = new Date().toISOString();
+      if (voucher.valid_from && now < voucher.valid_from) {
+        return res.status(400).json({ error: `Mã giảm giá "${codeUpper}" chưa đến thời gian áp dụng.` });
+      }
+      if (voucher.valid_to && now > voucher.valid_to) {
+        return res.status(400).json({ error: `Mã giảm giá "${codeUpper}" đã hết hạn.` });
+      }
+      if (voucher.usage_limit != null && voucher.used_count >= voucher.usage_limit) {
+        return res.status(400).json({ error: `Mã giảm giá "${codeUpper}" đã hết lượt sử dụng.` });
+      }
+      if (voucher.min_order_amount && serverSubtotal < voucher.min_order_amount) {
+        return res.status(400).json({ 
+          error: `Đơn hàng chưa đạt giá trị tối thiểu ($${voucher.min_order_amount}) để áp dụng mã "${codeUpper}".` 
+        });
+      }
+
+      if (voucher.voucher_type === 'discount') {
+        if (voucher.discount_type === 'percentage') {
+          calculatedDiscount = serverSubtotal * (voucher.discount_value / 100);
+        } else if (voucher.discount_type === 'fixed') {
+          calculatedDiscount = voucher.discount_value;
+        }
+      } else if (voucher.voucher_type === 'shipping') {
+        if (shipping.method !== 'express') {
+          return res.status(400).json({ error: `Mã giảm giá vận chuyển "${codeUpper}" chỉ áp dụng cho phương thức Giao hàng Hỏa tốc.` });
+        }
+        if (voucher.discount_type === 'percentage') {
+          calculatedDiscount = serverShippingCost * (voucher.discount_value / 100);
+        } else if (voucher.discount_type === 'fixed') {
+          calculatedDiscount = Math.min(voucher.discount_value, serverShippingCost);
+        }
+      }
+
+      if (voucher.max_discount_value != null && calculatedDiscount > voucher.max_discount_value) {
+        calculatedDiscount = voucher.max_discount_value;
+      }
+      calculatedDiscount = Math.round(calculatedDiscount * 100) / 100;
+
+      // Atomic update used_count
+      const updateResult = await Voucher.updateOne(
+        {
+          _id: voucher._id,
+          is_active: true,
+          $or: [
+            { usage_limit: null },
+            { $expr: { $lt: ['$used_count', '$usage_limit'] } }
+          ]
+        },
+        { $inc: { used_count: 1 } }
+      );
+
+      if (updateResult.modifiedCount === 0) {
+        return res.status(400).json({ error: `Mã giảm giá "${codeUpper}" vừa hết lượt sử dụng. Vui lòng kiểm tra lại.` });
+      }
+
+      appliedVoucherId = voucher._id;
+
+      verifiedCoupon = {
+        code: voucher.code,
+        discount_type: voucher.discount_type,
+        discount_value: voucher.discount_value,
+        discount_amount: calculatedDiscount
+      };
+    }
+
+    const roundedSubtotal = Math.round(serverSubtotal * 100) / 100;
+    const finalTotal = Math.max(0, Math.round((roundedSubtotal + serverShippingCost - calculatedDiscount) * 100) / 100);
+
+    verifiedPricing = {
+      subtotal: roundedSubtotal,
+      shipping_cost: serverShippingCost,
+      discount_amount: calculatedDiscount,
+      total: finalTotal,
+      currency: pricing.currency || 'USD'
+    };
+
     // Build order fields
     const orderData = {
       order_id: null,
@@ -169,8 +263,8 @@ async function createOrder(req, res) {
       delivery_info,
       shipping,
       payment,
-      pricing,
-      coupon,
+      pricing: verifiedPricing,
+      coupon: verifiedCoupon,
       order_status: 'pending', // defaults to pending initially for verification
       payment_status: 'pending' // defaults to pending initially
     };
@@ -202,6 +296,13 @@ async function createOrder(req, res) {
       data: newOrder
     });
   } catch (error) {
+    if (appliedVoucherId) {
+      try {
+        await Voucher.updateOne({ _id: appliedVoucherId }, { $inc: { used_count: -1 } });
+      } catch (rollbackErr) {
+        console.error('Error rolling back voucher used_count:', rollbackErr);
+      }
+    }
     console.error('Error creating order:', error);
     res.status(500).json({ error: error.message || 'Failed to create order' });
   }

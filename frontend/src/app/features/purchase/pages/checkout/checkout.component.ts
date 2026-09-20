@@ -2148,7 +2148,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       }
     } catch (err: any) {
       console.error('Failed to submit order:', err);
-      alert(err.error?.error || 'Failed to place order. Please try again.');
+      const errMsg = err.error?.error || 'Failed to place order. Please try again.';
+      alert(errMsg);
+      if (typeof errMsg === 'string' && (errMsg.toLowerCase().includes('mã giảm giá') || errMsg.toLowerCase().includes('voucher') || errMsg.toLowerCase().includes('coupon'))) {
+        this.voucherError.set(errMsg);
+        this.appliedVoucher.set(null);
+      }
     } finally {
       this.loading.set(false);
     }
