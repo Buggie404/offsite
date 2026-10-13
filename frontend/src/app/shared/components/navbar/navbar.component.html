@@ -157,33 +157,50 @@
         <!-- Notification Dropdown -->
         <div class="notification-dropdown" [class.open]="isNotificationDropdownOpen">
           <div class="notification-header">
-            <span class="header-title">Notifications</span>
+            <span class="header-title">NOTIFICATIONS</span>
             <div class="header-actions">
               <button *ngIf="unreadNotificationCount > 0" class="mark-all-btn" (click)="markAllNotificationsAsRead()">
-                <svg lucideCheckCheck [size]="14"></svg> Read All
+                <svg lucideCheckCheck [size]="14"></svg> Read all
               </button>
               <button *ngIf="notifications().length > 0" class="delete-all-btn" (click)="deleteAllNotifications($event)">
-                <svg lucideTrash2 [size]="14"></svg> Delete All
+                <svg lucideTrash2 [size]="14"></svg> Delete all
               </button>
             </div>
           </div>
 
+          <!-- Filter tabs -->
+          <div class="notification-tabs">
+            <button class="notif-tab" [class.active]="activeNotificationTab() === 'ALL'" (click)="setNotificationTab('ALL')">ALL</button>
+            <button class="notif-tab" [class.active]="activeNotificationTab() === 'ORDERS'" (click)="setNotificationTab('ORDERS')">ORDERS</button>
+            <button class="notif-tab" [class.active]="activeNotificationTab() === 'COMMUNITY'" (click)="setNotificationTab('COMMUNITY')">COMMUNITY</button>
+            <button class="notif-tab" [class.active]="activeNotificationTab() === 'RITUAL_BOX'" (click)="setNotificationTab('RITUAL_BOX')">RITUAL BOX</button>
+            <button class="notif-tab" [class.active]="activeNotificationTab() === 'PANTRY'" (click)="setNotificationTab('PANTRY')">PANTRY</button>
+          </div>
+
           <div class="notification-list">
-            <div *ngFor="let item of notifications()" 
-                 class="notification-item" 
-                 [class.unread]="!item.is_read" 
+            <div *ngFor="let item of getFilteredNotifications()"
+                 class="notification-item"
+                 [class.unread]="!item.is_read"
                  (click)="onNotificationClick(item, $event)">
-              <div class="notification-avatar-wrapper">
-                <img *ngIf="item.sender?.avatar_url; else defaultAvatar" 
-                     [src]="item.sender?.avatar_url || ''" 
-                     [alt]="item.sender?.username || ''" 
-                     class="notification-avatar">
-                <ng-template #defaultAvatar>
-                  <div class="notification-avatar-default">
-                    <svg lucideUser [size]="16"></svg>
-                  </div>
-                </ng-template>
+
+              <!-- Category icon (replaces sender avatar) -->
+              <div class="notif-icon-circle" [ngClass]="getNotificationIconBgClass(item.type)">
+                <ng-container [ngSwitch]="item.type">
+                  <svg *ngSwitchCase="'ORDER_PLACED'"    lucidePackage       [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_SHIPPING'"  lucideTruck         [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_CANCELED'"  lucideX             [size]="15"></svg>
+                  <svg *ngSwitchCase="'REFUND_REQUESTED'" lucideRefreshCw    [size]="15"></svg>
+                  <svg *ngSwitchCase="'REFUND_APPROVED'" lucideCheckCheck    [size]="15"></svg>
+                  <svg *ngSwitchCase="'REFUND_REJECTED'" lucideX             [size]="15"></svg>
+                  <svg *ngSwitchCase="'POST_CREATED'"    lucideArrowRight    [size]="15"></svg>
+                  <svg *ngSwitchCase="'POST_LIKED'"      lucideHeart         [size]="15"></svg>
+                  <svg *ngSwitchCase="'POST_COMMENTED'"  lucideMessageSquare [size]="15"></svg>
+                  <svg *ngSwitchCase="'COMMENT_REPLIED'" lucideMessageSquare [size]="15"></svg>
+                  <svg *ngSwitchCase="'COMMENT_LIKED'"   lucideHeart         [size]="15"></svg>
+                  <svg *ngSwitchDefault                  lucideBell          [size]="15"></svg>
+                </ng-container>
               </div>
+
               <div class="notification-content">
                 <p class="notification-message">
                   <span *ngIf="item.sender && item.type !== 'POST_CREATED'" class="sender-name">{{ item.sender?.username }} </span>
@@ -216,7 +233,7 @@
             </div>
 
             <!-- Empty State -->
-            <div *ngIf="notifications().length === 0" class="notification-empty">
+            <div *ngIf="getFilteredNotifications().length === 0" class="notification-empty">
               <svg lucideBell [size]="32" class="empty-icon"></svg>
               <p class="empty-text">All caught up! Time to touch grass 🌱</p>
             </div>
@@ -227,35 +244,79 @@
 
       <!-- Profile Button Wrapper -->
       <div class="profile-btn-wrapper" (mouseenter)="openProfileDropdown()" (mouseleave)="closeProfileDropdown()">
-        <button class="action-btn profile-btn" (click)="toggleProfileDropdown($event)" aria-label="User Profile">
-          <svg lucideUser [size]="20"></svg>
+        <button
+          class="action-btn profile-btn"
+          [class.profile-btn--authed]="isLoggedIn()"
+          (click)="toggleProfileDropdown($event)"
+          aria-label="User Profile">
+          <ng-container *ngIf="isLoggedIn(); else profileIconTpl">
+            <img *ngIf="getUserAvatarUrl()" [src]="getUserAvatarUrl()" class="profile-btn-avatar" [alt]="getUserProfileName()">
+            <span *ngIf="!getUserAvatarUrl()" class="profile-btn-initials">{{ getUserInitials() }}</span>
+          </ng-container>
+          <ng-template #profileIconTpl>
+            <svg lucideUser [size]="20"></svg>
+          </ng-template>
         </button>
 
-        <!-- Interactive Dropdown -->
-        <div class="profile-dropdown" [class.open]="isProfileDropdownOpen">
+        <!-- Interactive Dropdown - redesigned for logged-in users -->
+        <div class="profile-dropdown" [class.open]="isProfileDropdownOpen" [class.user-logged-in]="isLoggedIn()">
+
+          <!-- ── User header (logged in only) ── -->
+          <div class="dropdown-user-header" *ngIf="isLoggedIn()">
+            <!-- Avatar: image if available, else initials -->
+            <div class="dropdown-avatar">
+              <img *ngIf="getUserAvatarUrl()" [src]="getUserAvatarUrl()" [alt]="getUserProfileName()" class="dropdown-avatar-img">
+              <span *ngIf="!getUserAvatarUrl()" class="dropdown-avatar-initials">{{ getUserInitials() }}</span>
+            </div>
+            <!-- Name + community + tier -->
+            <div class="dropdown-user-info">
+              <span class="dropdown-user-name">{{ getUserProfileName() }}</span>
+              <div class="dropdown-user-meta">
+                <span *ngIf="getUserCommunityName()" class="dropdown-community-name">@{{ getUserCommunityName() }}</span>
+                <span class="dropdown-tier-badge" [ngClass]="getTierClass()">{{ getUserTier().toUpperCase() }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Menu items ── -->
           <ul class="dropdown-menu-list">
+            <!-- NOT logged in -->
             <li *ngIf="!isLoggedIn()">
               <button class="dropdown-item" (click)="login()">
                 <span class="item-text">LOG IN / SIGN UP</span>
                 <svg lucideLogIn [size]="16" class="item-icon"></svg>
               </button>
             </li>
+
+            <!-- Logged in: Account -->
             <li *ngIf="isLoggedIn()">
-              <button class="dropdown-item" routerLink="/account" (click)="closeProfileDropdown()">
-                <span class="item-text">MY ACCOUNT</span>
-                <svg lucideUser [size]="16" class="item-icon"></svg>
+              <button class="dropdown-item dropdown-item--icon-left" routerLink="/account" (click)="closeProfileDropdown()">
+                <svg lucideUser [size]="16" class="item-icon-left"></svg>
+                <span class="item-text">Account</span>
               </button>
             </li>
+
+            <!-- Logged in: My Community Profile -->
             <li *ngIf="isLoggedIn()">
-              <button class="dropdown-item" (click)="logout()">
-                <span class="item-text">SIGN OUT</span>
-                <svg lucideLogOut [size]="16" class="item-icon"></svg>
+              <button class="dropdown-item dropdown-item--icon-left" routerLink="/community" (click)="closeProfileDropdown()">
+                <svg lucideLayoutGrid [size]="16" class="item-icon-left"></svg>
+                <span class="item-text">My Community Profile</span>
               </button>
             </li>
+
+            <!-- Order tracking (always visible) -->
             <li>
-              <button class="dropdown-item" routerLink="/order-tracking" (click)="closeProfileDropdown()">
-                <span class="item-text">ORDER TRACKING</span>
-                <svg lucideClipboardClock [size]="16" class="item-icon"></svg>
+              <button class="dropdown-item dropdown-item--icon-left" [class.dropdown-item--plain]="!isLoggedIn()" routerLink="/order-tracking" (click)="closeProfileDropdown()">
+                <svg lucidePackage [size]="16" class="item-icon-left"></svg>
+                <span class="item-text">Order tracking</span>
+              </button>
+            </li>
+
+            <!-- Sign out -->
+            <li *ngIf="isLoggedIn()">
+              <button class="dropdown-item dropdown-item--icon-left dropdown-item--signout" (click)="logout()">
+                <svg lucideLogOut [size]="16" class="item-icon-left"></svg>
+                <span class="item-text">Sign out</span>
               </button>
             </li>
           </ul>

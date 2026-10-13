@@ -24,7 +24,12 @@ import {
   LucideArrowRight,
   LucideBell,
   LucideCheckCheck,
-  LucideSparkle
+  LucideSparkle,
+  LucideLayoutGrid,
+  LucideTruck,
+  LucideHeart,
+  LucideMessageSquare,
+  LucideRefreshCw
 } from '@lucide/angular';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
@@ -81,6 +86,11 @@ import {
     LucideBell,
     LucideCheckCheck,
     LucideSparkle,
+    LucideLayoutGrid,
+    LucideTruck,
+    LucideHeart,
+    LucideMessageSquare,
+    LucideRefreshCw,
     FormsModule
   ],
   templateUrl: './navbar.component.html',
@@ -101,6 +111,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   notifications = signal<Notification[]>([]);
   unreadNotificationCount = 0;
   isNotificationDropdownOpen = false;
+  activeNotificationTab = signal<string>('ALL');
   private notificationInterval: any;
 
   constructor() {
@@ -913,5 +924,91 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   private getProductIdentifier(item: CartItem): string | number {
     return item.product._id || item.product.product_id;
+  }
+
+  // ── Notification tab helpers ─────────────────────────────────────────────
+
+  setNotificationTab(tab: string): void {
+    this.activeNotificationTab.set(tab);
+  }
+
+  getFilteredNotifications(): Notification[] {
+    const tab = this.activeNotificationTab();
+    const all = this.notifications();
+    if (tab === 'ALL') return all;
+    if (tab === 'ORDERS') return all.filter(n =>
+      n.type.startsWith('ORDER_') || n.type.startsWith('REFUND_')
+    );
+    if (tab === 'COMMUNITY') return all.filter(n =>
+      n.type.startsWith('POST_') || n.type.startsWith('COMMENT_')
+    );
+    return []; // RITUAL BOX / PANTRY — future feature
+  }
+
+  /**
+   * Returns a CSS modifier class for the notification icon background.
+   * Colors match the tier/palette system.
+   */
+  getNotificationIconBgClass(type: string): string {
+    switch (type) {
+      case 'ORDER_PLACED':     return 'notif-icon--blue';
+      case 'ORDER_SHIPPING':   return 'notif-icon--blue';
+      case 'ORDER_CANCELED':   return 'notif-icon--red';
+      case 'REFUND_REQUESTED': return 'notif-icon--orange';
+      case 'REFUND_APPROVED':  return 'notif-icon--green';
+      case 'REFUND_REJECTED':  return 'notif-icon--red';
+      case 'POST_CREATED':     return 'notif-icon--green';
+      case 'POST_LIKED':       return 'notif-icon--pink';
+      case 'POST_COMMENTED':   return 'notif-icon--sage';
+      case 'COMMENT_REPLIED':  return 'notif-icon--sage';
+      case 'COMMENT_LIKED':    return 'notif-icon--pink';
+      default:                 return 'notif-icon--gray';
+    }
+  }
+
+  // ── User profile helpers for dropdown ──────────────────────────────────
+
+  /** Two-letter initials from profile_name */
+  getUserInitials(): string {
+    const user = this.authService.getUser();
+    const name: string = (user?.profile_name || user?.name || '').trim();
+    if (!name) return '?';
+    const parts = name.split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
+
+  /** Full display name */
+  getUserProfileName(): string {
+    const user = this.authService.getUser();
+    return user?.profile_name || user?.name || '';
+  }
+
+  /** Community handle without leading @ */
+  getUserCommunityName(): string {
+    const user = this.authService.getUser();
+    return user?.community_name || '';
+  }
+
+  /** Avatar URL, or empty string if none */
+  getUserAvatarUrl(): string {
+    const user = this.authService.getUser();
+    return user?.avatar_url || '';
+  }
+
+  /**
+   * Membership tier. Falls back to 'Seed'.
+   * Values: 'Seed' | 'Leaf' | 'Bloom' | 'Zen'
+   */
+  getUserTier(): string {
+    const user = this.authService.getUser();
+    return user?.membership_tier || 'Seed';
+  }
+
+  /** CSS modifier class for the tier badge */
+  getTierClass(): string {
+    return 'tier-' + this.getUserTier().toLowerCase();
   }
 }
