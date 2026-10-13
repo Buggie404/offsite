@@ -23,7 +23,8 @@ import {
   LucideChefHat,
   LucideArrowRight,
   LucideBell,
-  LucideCheckCheck
+  LucideCheckCheck,
+  LucideSparkle
 } from '@lucide/angular';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
@@ -79,6 +80,7 @@ import {
     LucideArrowRight,
     LucideBell,
     LucideCheckCheck,
+    LucideSparkle,
     FormsModule
   ],
   templateUrl: './navbar.component.html',
@@ -399,6 +401,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
   toggleNotificationDropdown(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
+    if (!this.isLoggedIn()) {
+      this.login();
+      return;
+    }
     this.isNotificationDropdownOpen = !this.isNotificationDropdownOpen;
     if (this.isNotificationDropdownOpen) {
       this.isProfileDropdownOpen = false;

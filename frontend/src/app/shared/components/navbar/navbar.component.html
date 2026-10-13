@@ -28,11 +28,12 @@
       <li class="nav-item-mega" [class.has-mega-open]="isProductsMegaOpen">
         <button
           type="button"
-          class="nav-link nav-link-button"
+          class="nav-link nav-link-button mega-trigger-btn"
           (click)="toggleProductsMega($event)"
           aria-haspopup="true"
           [attr.aria-expanded]="isProductsMegaOpen">
-          PRODUCTS
+          <span>PRODUCTS</span>
+          <svg lucideChevronDown [size]="14" class="nav-chevron-icon" [class.rotated]="isProductsMegaOpen"></svg>
         </button>
         <div class="mega-menu">
           <div class="mega-decor mega-decor--diamond" aria-hidden="true"></div>
@@ -131,6 +132,12 @@
 
     <!-- Actions & Mobile Menu Toggle -->
     <div class="nav-actions">
+      <!-- Find Your Ritual DNA Button -->
+      <a routerLink="/shop/build-your-bundle" class="ritual-dna-pill-btn">
+        <svg lucideSparkle [size]="14" class="sparkle-icon"></svg>
+        <span>FIND YOUR RITUAL DNA</span>
+      </a>
+
       <button class="action-btn search-btn" (click)="openSearch($event)" aria-label="Search">
         <svg lucideSearch [size]="20"></svg>
       </button>
@@ -140,8 +147,8 @@
         <span class="cart-badge">{{ cartCount }}</span>
       </button>
 
-      <!-- Notifications Button Wrapper (Only visible when logged in) -->
-      <div *ngIf="isLoggedIn()" class="notification-btn-wrapper">
+      <!-- Notifications Button Wrapper -->
+      <div class="notification-btn-wrapper">
         <button class="action-btn notification-btn" (click)="toggleNotificationDropdown($event)" aria-label="Notifications">
           <svg lucideBell [size]="20"></svg>
           <span *ngIf="unreadNotificationCount > 0" class="notification-badge">{{ unreadNotificationCount }}</span>
@@ -234,6 +241,12 @@
               </button>
             </li>
             <li *ngIf="isLoggedIn()">
+              <button class="dropdown-item" routerLink="/account" (click)="closeProfileDropdown()">
+                <span class="item-text">MY ACCOUNT</span>
+                <svg lucideUser [size]="16" class="item-icon"></svg>
+              </button>
+            </li>
+            <li *ngIf="isLoggedIn()">
               <button class="dropdown-item" (click)="logout()">
                 <span class="item-text">SIGN OUT</span>
                 <svg lucideLogOut [size]="16" class="item-icon"></svg>
@@ -304,6 +317,11 @@
             <li><a routerLink="/policies" class="mobile-submenu-link" (click)="closeMobileMenu()">Policies</a></li>
           </ul>
         </div>
+      <li class="mobile-nav-item">
+        <a routerLink="/shop/build-your-bundle" class="mobile-nav-link ritual-dna-mobile-link" (click)="closeMobileMenu()">
+          <svg lucideSparkle [size]="16" class="sparkle-icon"></svg>
+          <span>FIND YOUR RITUAL DNA</span>
+        </a>
       </li>
     </ul>
   </div>

@@ -184,6 +184,21 @@
       background: transparent;
       border: 0;
       cursor: pointer;
+
+      &.mega-trigger-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+
+        .nav-chevron-icon {
+          transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+          color: inherit;
+
+          &.rotated {
+            transform: rotate(-90deg);
+          }
+        }
+      }
     }
 
     /* Desktop Hoverable Submenu */
@@ -664,6 +679,10 @@
           pointer-events: auto;
           transform: translateY(0);
         }
+
+        .nav-chevron-icon {
+          transform: rotate(-90deg);
+        }
       }
 
       &.has-mega-open {
@@ -672,6 +691,10 @@
           pointer-events: auto;
           transform: translateY(0);
         }
+
+        .nav-chevron-icon {
+          transform: rotate(-90deg);
+        }
       }
     }
   }
@@ -679,7 +702,51 @@
   .nav-actions {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 14px;
+
+    /* Pill Button: FIND YOUR RITUAL DNA */
+    .ritual-dna-pill-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 18px;
+      border: 1.5px solid var(--color-near-black);
+      border-radius: var(--radius-pill, 9999px);
+      font-family: var(--font-body);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: var(--color-near-black);
+      background-color: transparent;
+      white-space: nowrap;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      margin-right: 4px;
+
+      .sparkle-icon {
+        flex-shrink: 0;
+        width: 13px;
+        height: 13px;
+        fill: currentColor;
+        transition: transform 0.3s ease;
+      }
+
+      &:hover {
+        background-color: var(--color-near-black);
+        color: var(--color-cream);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(26, 26, 26, 0.12);
+
+        .sparkle-icon {
+          transform: rotate(45deg) scale(1.1);
+        }
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+    }
 
     .action-btn {
       background: transparent;
@@ -712,22 +779,23 @@
 
       .cart-badge {
         position: absolute;
-        top: 2px;
-        right: 2px;
-        background-color: var(--color-forest-green);
-        color: var(--color-cream);
-        font-family: var(--font-mono);
+        top: -1px;
+        right: -1px;
+        background-color: var(--color-blush-deep, #D487A6);
+        color: #FFFFFF;
+        font-family: var(--font-body), sans-serif;
         font-size: 10px;
         font-weight: 700;
-        width: 16px;
-        height: 16px;
+        min-width: 17px;
+        height: 17px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         border: 1.5px solid var(--color-cream);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
         transition: transform 0.25s ease;
+        padding: 0 2px;
       }
 
       &:hover .cart-badge {
@@ -746,19 +814,19 @@
           position: absolute;
           top: -2px;
           right: -2px;
-          background-color: var(--state-error);
-          color: var(--color-cream);
-          font-family: var(--font-mono);
-          font-size: 9px;
+          background-color: var(--color-blush-deep, #D487A6);
+          color: #FFFFFF;
+          font-family: var(--font-body), sans-serif;
+          font-size: 10px;
           font-weight: 700;
-          min-width: 15px;
-          height: 15px;
+          min-width: 17px;
+          height: 17px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
           border: 1.5px solid var(--color-cream);
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
           transition: transform 0.25s ease;
           padding: 0 2px;
         }
@@ -1481,6 +1549,10 @@
     .nav-actions {
       gap: 8px;
 
+      .ritual-dna-pill-btn {
+        display: none;
+      }
+
       .mobile-menu-toggle {
         display: flex;
       }
@@ -1492,6 +1564,24 @@
 
     .mobile-nav-links {
       padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+
+      .ritual-dna-mobile-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background-color: rgba(55, 85, 52, 0.06);
+        border-radius: var(--radius-pill, 9999px);
+        padding: 10px 18px !important;
+        color: var(--color-forest-green) !important;
+        margin-top: 8px;
+        border: 1px solid rgba(55, 85, 52, 0.2);
+        font-weight: 700;
+
+        .sparkle-icon {
+          fill: currentColor;
+          flex-shrink: 0;
+        }
+      }
     }
   }
 

@@ -72,7 +72,7 @@ export class OrderSocketService {
         console.warn('[OrderSocketService] Server returned error:', err);
       });
 
-      this.socket.on('disconnect', (reason) => {
+      this.socket.on('disconnect', (reason: any) => {
         console.log('[OrderSocketService] Socket disconnected:', reason);
       });
     } catch (err) {
