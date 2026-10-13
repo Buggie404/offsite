@@ -126,6 +126,81 @@ export class AccountComponent implements OnInit, OnDestroy {
   private orderSocketService = inject(OrderSocketService);
   private socketSub: Subscription | null = null;
 
+  // ══════════════ SIDEBAR TAB CONFIG ══════════════
+  // Cấu hình tabs dạng data-driven — nhóm khác có thể thêm tab mới vào đây
+  // badge: { type: 'warn'|'info'|'count', label?: string } để hiện badge cảnh báo
+  readonly sidebarGroups: {
+    groupKey: string;
+    groupLabel: string;
+    tabs: {
+      key: string;
+      label: string;
+      icon: string; // lucide icon name (lowercase-hyphen)
+      badge?: { type: 'warn' | 'info' | 'count'; label?: string } | null;
+      comingSoon?: boolean;
+    }[];
+  }[] = [
+    {
+      groupKey: 'shopping',
+      groupLabel: 'SHOPPING',
+      tabs: [
+        { key: 'orders',  label: 'My orders',      icon: 'shopping-bag' },
+        { key: 'ritual-box', label: 'Ritual Box',  icon: 'refresh-cw',  comingSoon: true },
+        { key: 'pantry',  label: 'My Pantry',       icon: 'archive',     badge: null, comingSoon: true },
+        { key: 'saved',   label: 'Saved items',     icon: 'bookmark' },
+        { key: 'address', label: 'My address',      icon: 'map-pin' },
+        { key: 'payment', label: 'Payment cards',   icon: 'credit-card' },
+      ]
+    },
+    {
+      groupKey: 'me',
+      groupLabel: 'ME',
+      tabs: [
+        { key: 'profile', label: 'Profile information', icon: 'user' },
+        { key: 'rewards', label: 'Rewards',              icon: 'award',    comingSoon: true },
+        { key: 'dna',     label: 'My Ritual DNA',        icon: 'activity', comingSoon: true },
+      ]
+    }
+  ];
+
+  /** Trả về badge của tab key hiện tại (có thể override từ runtime) */
+  getTabBadge(key: string): { type: 'warn' | 'info' | 'count'; label?: string } | null {
+    for (const group of this.sidebarGroups) {
+      const tab = group.tabs.find(t => t.key === key);
+      if (tab) return tab.badge ?? null;
+    }
+    return null;
+  }
+
+  /** Trả về label hiển thị của tab đang active */
+  getActiveTabLabel(): string {
+    for (const group of this.sidebarGroups) {
+      const tab = group.tabs.find(t => t.key === this.activeTab());
+      if (tab) return tab.label;
+    }
+    return this.activeTab();
+  }
+
+  /** User initials for avatar fallback (e.g. "MA" from "Mai Anh") */
+  getUserInitialsFromProfile(): string {
+    const name: string = this.user()?.profile_name || '';
+    return name.trim().split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
+  }
+
+  /** Tier label from user data */
+  getUserTierLabel(): string {
+    const tier = (this.user()?.tier || this.user()?.membership_tier || '').toLowerCase();
+    if (tier === 'gold') return 'Gold member';
+    if (tier === 'silver') return 'Silver member';
+    if (tier === 'platinum') return 'Platinum member';
+    return 'Active member';
+  }
+
+  /** Points display */
+  getUserPoints(): number {
+    return this.user()?.points || this.user()?.loyalty_points || 0;
+  }
+
   // Confirmation Modal state properties
   isConfirmModalOpen = false;
   confirmModalTitle = '';
@@ -203,7 +278,7 @@ export class AccountComponent implements OnInit, OnDestroy {
   activeTab = signal<string>('profile');
   savedMinHeight = signal<string>('auto');
   showEditModal = signal<boolean>(false);
-  
+
   // Change Contact Info Modal state properties
   showChangeContactModal = signal<boolean>(false);
   changeContactType = signal<'email' | 'phone'>('email');
@@ -257,7 +332,7 @@ export class AccountComponent implements OnInit, OnDestroy {
   isAddingCard = signal<boolean>(false);
   showDeleteCardModal = signal<boolean>(false);
   selectedCardForDelete = signal<string | null>(null);
-  
+
   sortedPaymentMethods = computed(() => {
     const list = this.user()?.payment_methods || [];
     return [...list].sort((a, b) => {
@@ -377,7 +452,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     // 2. Filter by search query (order_id or product names)
     const query = this.orderSearchQuery().trim().toLowerCase();
     if (query) {
-      list = list.filter(o => 
+      list = list.filter(o =>
         (o.order_id || '').toLowerCase().includes(query) ||
         o.items?.some((it: any) => (it.product_name || '').toLowerCase().includes(query))
       );
@@ -461,7 +536,7 @@ export class AccountComponent implements OnInit, OnDestroy {
             if (lastScrollY) {
               const y = parseInt(lastScrollY, 10);
               this.savedMinHeight.set((y + window.innerHeight) + 'px');
-              
+
               // Restore scroll position multiple times to prevent layout shifts/resets
               window.scrollTo(0, y);
               setTimeout(() => {
@@ -710,10 +785,10 @@ export class AccountComponent implements OnInit, OnDestroy {
         if (field === 'phone') return 'Phone number must be 10-11 digits';
       }
       if (this.profileForm.errors?.['atLeastOneContact']) {
-         if (field === 'email' || field === 'phone') return 'Either email or phone is required';
+        if (field === 'email' || field === 'phone') return 'Either email or phone is required';
       }
       if (control.invalid) {
-         return 'Invalid input';
+        return 'Invalid input';
       }
     }
 
@@ -733,7 +808,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (!control || !(control.dirty || control.touched)) {
       return false;
     }
-    
+
     // For optional fields, only show success if they have entered a value
     if (field === 'email' || field === 'phone') {
       if (!control.value || control.value.trim() === '') {
@@ -783,7 +858,7 @@ export class AccountComponent implements OnInit, OnDestroy {
           }
           // Sync localStorage
           localStorage.setItem('user', JSON.stringify(response.user));
-          
+
           this.profileForm.patchValue({
             profile_name: response.user.profile_name || '',
             community_name: response.user.community_name || '',
@@ -810,7 +885,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     this.activeTab.set(tab);
     this.closeSidebar();
     this.scrollToContent();
-    
+
     // Sync tab to query parameters so back button restores it
     this.router.navigate([], {
       relativeTo: this.route,
@@ -866,7 +941,7 @@ export class AccountComponent implements OnInit, OnDestroy {
 
         // Restore scroll position to the exact previous coordinates instantly
         const hasAnyItems = this.savedProducts().length > 0 || this.savedRecipes().length > 0 ||
-                           this.savedPosts().length > 0 || this.savedBlogs().length > 0;
+          this.savedPosts().length > 0 || this.savedBlogs().length > 0;
         setTimeout(() => {
           if (typeof window !== 'undefined') {
             if (!hasAnyItems) {
@@ -1180,9 +1255,9 @@ export class AccountComponent implements OnInit, OnDestroy {
 
   hasAnySavedItems(): boolean {
     return this.savedProducts().length > 0 ||
-           this.savedRecipes().length > 0 ||
-           this.savedPosts().length > 0 ||
-           this.savedBlogs().length > 0;
+      this.savedRecipes().length > 0 ||
+      this.savedPosts().length > 0 ||
+      this.savedBlogs().length > 0;
   }
 
   onImgError(event: Event): void {
@@ -1238,13 +1313,13 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (!this.originalProfileValues) return false;
     const currentValues = this.profileForm.value;
     const currentAvatar = this.avatarPreview();
-    
+
     const nameChanged = (currentValues.profile_name || '') !== (this.originalProfileValues.profile_name || '');
     const communityNameChanged = (currentValues.community_name || '') !== (this.originalProfileValues.community_name || '');
     const emailChanged = (currentValues.email || '') !== (this.originalProfileValues.email || '');
     const phoneChanged = (currentValues.phone || '') !== (this.originalProfileValues.phone || '');
     const avatarChanged = (currentAvatar || '') !== (this.originalProfileValues.avatar_url || '');
-    
+
     return nameChanged || communityNameChanged || emailChanged || phoneChanged || avatarChanged;
   }
 
@@ -1433,15 +1508,15 @@ export class AccountComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.isVerifyingChangeOtp.set(false);
         this.clearChangeOtpCountdown();
-        
+
         // Sync values in profileForm and mark dirty/touched
         const fieldType = this.changeContactType();
         const newVal = this.newContactValue().trim();
-        
+
         this.profileForm.patchValue({
           [fieldType]: newVal
         });
-        
+
         const ctrl = this.profileForm.get(fieldType);
         if (ctrl) {
           ctrl.markAsDirty();
@@ -1455,7 +1530,7 @@ export class AccountComponent implements OnInit, OnDestroy {
         this.isVerifyingChangeOtp.set(false);
         const errMsg = err.error?.error || 'Verification failed.';
         this.changeOtpError.set(errMsg);
-        
+
         // Reset otp fields
         this.changeOtpValue.set('');
         this.changeOtpDigits.set(['', '', '', '', '', '']);
@@ -1479,7 +1554,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     const files = event.target.files;
     if (files && files.length > 0) {
       const file = files[0];
-      
+
       const reader = new FileReader();
       reader.onload = () => {
         const img = new Image();
@@ -1488,12 +1563,12 @@ export class AccountComponent implements OnInit, OnDestroy {
           const canvas = document.createElement('canvas');
           canvas.width = targetSize;
           canvas.height = targetSize;
-          
+
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0, targetSize, targetSize);
             const base64String = canvas.toDataURL('image/jpeg', 0.7);
-            
+
             this.zone.run(() => {
               this.profileForm.patchValue({
                 avatar_url: base64String
@@ -1675,16 +1750,16 @@ export class AccountComponent implements OnInit, OnDestroy {
           this.zone.run(() => {
             this.isSubmitting.set(false);
             const errMsg = err.error?.error || 'Failed to update profile.';
-            
+
             // Reopen edit modal if it was closed (but now we don't close it until success)
             this.errorMessage.set(errMsg);
 
             // Check if the error message is field-specific (email, phone, community name)
-            const isFieldSpecific = 
-              errMsg.toLowerCase().includes('email') || 
-              errMsg.toLowerCase().includes('phone') || 
-              errMsg.toLowerCase().includes('số điện thoại') || 
-              errMsg.toLowerCase().includes('cộng đồng') || 
+            const isFieldSpecific =
+              errMsg.toLowerCase().includes('email') ||
+              errMsg.toLowerCase().includes('phone') ||
+              errMsg.toLowerCase().includes('số điện thoại') ||
+              errMsg.toLowerCase().includes('cộng đồng') ||
               errMsg.toLowerCase().includes('community');
 
             // If it is NOT a field-specific duplicate error, show a toast error
@@ -1898,7 +1973,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (!ord) return;
 
     const method = ord.payment?.method;
-    
+
     // Clear old payment session/actions to ensure a fresh attempt
     localStorage.removeItem(`payment_qr_${ord.order_id}`);
     localStorage.removeItem(`payment_scan_action_${ord.order_id}`);
@@ -1965,7 +2040,7 @@ export class AccountComponent implements OnInit, OnDestroy {
           return info.sessionId || null;
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     return null;
   }
 
@@ -2016,7 +2091,7 @@ export class AccountComponent implements OnInit, OnDestroy {
 
       this.cartService.checkoutSummaryItems.set(checkoutItems);
       localStorage.setItem('checkout_summary_items', JSON.stringify(checkoutItems));
-      
+
       const deliveryInfo = {
         name: ord.delivery_info?.recipient_name || '',
         mobile: ord.delivery_info?.mobile || '',
@@ -2425,7 +2500,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
-    
+
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 

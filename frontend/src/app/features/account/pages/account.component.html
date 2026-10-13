@@ -14,48 +14,69 @@
       <button class="sidebar-close-btn" (click)="closeSidebar()" aria-label="Close sidebar">
         <svg lucideX [size]="20"></svg>
       </button>
-      <div class="sidebar-header">
-        <div class="avatar-circle">
-          <img *ngIf="user()?.avatar_url; else defaultAvatarSidebar" [src]="user().avatar_url" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
-          <ng-template #defaultAvatarSidebar>
-            <svg lucideUser [size]="48" class="avatar-icon"></svg>
-          </ng-template>
+
+      <!-- Sidebar Header: avatar initials + name + tier + points -->
+      <div class="sidebar-header-row">
+        <div class="sidebar-avatar-initials" *ngIf="!user()?.avatar_url">
+          {{ getUserInitialsFromProfile() }}
         </div>
-        <h2 class="username">{{ user().profile_name }}</h2>
-        <span class="user-status-text">Active Member</span>
-        <button class="btn-outline-small" (click)="openEditModal()">EDIT PROFILE</button>
+        <img *ngIf="user()?.avatar_url" [src]="user().avatar_url" alt="Avatar" class="sidebar-avatar-img">
+        <div class="sidebar-user-info">
+          <span class="sidebar-user-name">{{ user().profile_name }}</span>
+          <span class="sidebar-user-meta">
+            {{ getUserTierLabel() }}
+            <ng-container *ngIf="getUserPoints() > 0"> · {{ getUserPoints() | number }} pts</ng-container>
+          </span>
+        </div>
       </div>
 
+      <!-- Grouped Navigation Menu -->
       <nav class="sidebar-menu">
-        <button class="menu-item" [class.active]="activeTab() === 'profile'" (click)="switchTab('profile')">
-          <svg lucideUser [size]="18" class="menu-icon"></svg>
-          <span>Profile</span>
-        </button>
-        <button class="menu-item" [class.active]="activeTab() === 'orders'" (click)="switchTab('orders')">
-          <svg lucideShoppingBag [size]="18" class="menu-icon"></svg>
-          <span>Orders</span>
-        </button>
-        <button class="menu-item" [class.active]="activeTab() === 'saved'" (click)="switchTab('saved')">
-          <svg lucideHeart [size]="18" class="menu-icon"></svg>
-          <span>Saved</span>
-        </button>
-        <button class="menu-item" [class.active]="activeTab() === 'address'" (click)="switchTab('address')">
-          <svg lucideMapPin [size]="18" class="menu-icon"></svg>
-          <span>Address</span>
-        </button>
-        <button class="menu-item" [class.active]="activeTab() === 'payment'" (click)="switchTab('payment')">
-          <svg lucideCreditCard [size]="18" class="menu-icon"></svg>
-          <span>Payment</span>
-        </button>
+        <ng-container *ngFor="let group of sidebarGroups">
+          <span class="sidebar-group-label">{{ group.groupLabel }}</span>
+          <button
+            *ngFor="let tab of group.tabs"
+            class="menu-item"
+            [class.active]="activeTab() === tab.key"
+            [class.coming-soon]="tab.comingSoon && activeTab() !== tab.key"
+            (click)="tab.comingSoon ? null : switchTab(tab.key)"
+            [attr.title]="tab.comingSoon ? 'Coming soon' : null"
+          >
+            <!-- Icon mapping via inline SVG using lucide directives -->
+            <ng-container [ngSwitch]="tab.icon">
+              <svg *ngSwitchCase="'shopping-bag'" lucideShoppingBag [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchCase="'refresh-cw'"   lucideRefreshCw   [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchCase="'archive'"      lucideShoppingBag [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchCase="'bookmark'"     lucideHeart       [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchCase="'map-pin'"      lucideMapPin      [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchCase="'credit-card'"  lucideCreditCard  [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchCase="'user'"         lucideUser        [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchCase="'award'"        lucideCheck       [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchCase="'activity'"     lucideArrowRight  [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchDefault               lucideUser        [size]="18" class="menu-icon"></svg>
+            </ng-container>
+
+            <span class="menu-label">{{ tab.label }}</span>
+
+            <!-- Badge: warn (!) -->
+            <span *ngIf="tab.badge?.type === 'warn'" class="menu-badge menu-badge--warn">!</span>
+            <!-- Badge: info / count with label -->
+            <span *ngIf="tab.badge?.type === 'info' || tab.badge?.type === 'count'" class="menu-badge menu-badge--info">
+              {{ tab.badge?.label }}
+            </span>
+          </button>
+        </ng-container>
       </nav>
 
+      <!-- Sign Out -->
       <div class="sidebar-footer">
         <button class="menu-item logout-btn" (click)="signOut()">
           <svg lucideLogOut [size]="18" class="menu-icon"></svg>
-          <span>Sign Out</span>
+          <span class="menu-label">Sign Out</span>
         </button>
       </div>
     </aside>
+
 
     <!-- Right Content Area -->
     <main class="content-panel">
@@ -65,7 +86,7 @@
           <button class="sidebar-toggle-btn" (click)="toggleSidebar()" aria-label="Open sidebar menu">
             <svg lucideMenu [size]="24"></svg>
           </button>
-          <h1 class="page-title">{{ activeTab() === 'profile' ? 'Profile Information' : (activeTab() === 'saved' ? 'Saved Items' : (activeTab() === 'address' ? 'My Address' : (activeTab() === 'orders' ? 'My Orders' : (activeTab() === 'payment' ? 'Payment Cards' : (activeTab() | titlecase))))) }}</h1>
+          <h1 class="page-title">{{ getActiveTabLabel() }}</h1>
         </div>
 
         <div class="header-action-wrapper" *ngIf="activeTab() === 'saved' && hasAnySavedItems()">
