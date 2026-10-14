@@ -1,5 +1,4 @@
-// components/navbar/navbar.component.ts
-import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild, signal, effect } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild, signal, effect, ChangeDetectorRef } from '@angular/core';
 import { SuccessModalComponent, SuccessModalConfig } from '../success-modal/success-modal.components';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
@@ -107,16 +106,18 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private recipeService = inject(RecipeService);
   private contentService = inject(ContentService);
   private communityService = inject(CommunityService);
+  private cdr = inject(ChangeDetectorRef);
 
   notifications = signal<Notification[]>([]);
   unreadNotificationCount = 0;
-  isNotificationDropdownOpen = false;
+  isNotificationDropdownOpen = signal<boolean>(false);
   activeNotificationTab = signal<string>('ALL');
   private notificationInterval: any;
 
   constructor() {
     effect(() => {
       if (this.isLoggedIn()) {
+        this.authService.fetchUserProfile();
         this.loadNotifications();
         this.startNotificationPolling();
       } else {
@@ -129,7 +130,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   isPromobarVisible = true;
   isMobileMenuOpen = false;
-  isProfileDropdownOpen = false;
+  isProfileDropdownOpen = signal<boolean>(false);
+  private profileDropdownTimeout: any = null;
+  private notificationDropdownTimeout: any = null;
   isMobileProductsOpen = false;
   isMobileAboutOpen = false;
   isSearchOpen = false;
@@ -259,7 +262,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
     ).subscribe(() => {
-      this.isProfileDropdownOpen = false;
+      this.isProfileDropdownOpen.set(false);
+      this.isNotificationDropdownOpen.set(false);
       this.isMobileMenuOpen = false;
       this.isMobileProductsOpen = false;
       this.isMobileAboutOpen = false;
@@ -308,16 +312,57 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   openProfileDropdown(): void {
-    this.isProfileDropdownOpen = true;
+    this.closeNotificationDropdown(0);
+    this.isProductsMegaOpen = false;
+    if (this.profileDropdownTimeout) {
+      clearTimeout(this.profileDropdownTimeout);
+      this.profileDropdownTimeout = null;
+    }
+    this.isProfileDropdownOpen.set(true);
+    this.cdr.markForCheck();
+  }
+
+  closeProfileDropdown(delay: number = 80): void {
+    if (this.profileDropdownTimeout) {
+      clearTimeout(this.profileDropdownTimeout);
+      this.profileDropdownTimeout = null;
+    }
+    if (delay === 0) {
+      this.isProfileDropdownOpen.set(false);
+      this.cdr.markForCheck();
+      return;
+    }
+    this.profileDropdownTimeout = setTimeout(() => {
+      this.isProfileDropdownOpen.set(false);
+      this.profileDropdownTimeout = null;
+      this.cdr.markForCheck();
+    }, delay);
+  }
+
+  toggleProfileDropdown(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isLoggedIn()) {
+      this.closeNotificationDropdown(0);
+      this.isProductsMegaOpen = false;
+      if (this.profileDropdownTimeout) {
+        clearTimeout(this.profileDropdownTimeout);
+        this.profileDropdownTimeout = null;
+      }
+      this.isProfileDropdownOpen.update(v => !v);
+      this.cdr.markForCheck();
+    } else {
+      this.login();
+    }
   }
 
   login(): void {
     this.authModalService.open('login');
-    this.isProfileDropdownOpen = false;
+    this.closeProfileDropdown(0);
   }
   logout(): void {    
     this.isSignOutModalOpen = true;    
-    this.isProfileDropdownOpen = false;
+    this.closeProfileDropdown(0);
   }
 
   confirmSignOut(): void {
@@ -356,13 +401,21 @@ export class NavbarComponent implements OnInit, OnDestroy {
   onDocumentClick(event: MouseEvent): void {
     // If the click occurred outside the component, close the dropdown
     if (!this.elementRef.nativeElement.contains(event.target)) {
-      this.isProfileDropdownOpen = false;
+      this.closeProfileDropdown(0);
+      this.closeNotificationDropdown(0);
       this.isProductsMegaOpen = false;
-      this.isNotificationDropdownOpen = false;
     }
   }
 
   ngOnDestroy(): void {
+    if (this.profileDropdownTimeout) {
+      clearTimeout(this.profileDropdownTimeout);
+      this.profileDropdownTimeout = null;
+    }
+    if (this.notificationDropdownTimeout) {
+      clearTimeout(this.notificationDropdownTimeout);
+      this.notificationDropdownTimeout = null;
+    }
     this.stopNotificationPolling();
   }
 
@@ -399,14 +452,33 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   openNotificationDropdown(): void {
-    this.isNotificationDropdownOpen = true;
-    this.isProfileDropdownOpen = false;
+    if (!this.isLoggedIn()) return;
+    this.closeProfileDropdown(0);
     this.isProductsMegaOpen = false;
+    if (this.notificationDropdownTimeout) {
+      clearTimeout(this.notificationDropdownTimeout);
+      this.notificationDropdownTimeout = null;
+    }
+    this.isNotificationDropdownOpen.set(true);
     this.loadNotifications();
+    this.cdr.markForCheck();
   }
 
-  closeNotificationDropdown(): void {
-    this.isNotificationDropdownOpen = false;
+  closeNotificationDropdown(delay: number = 80): void {
+    if (this.notificationDropdownTimeout) {
+      clearTimeout(this.notificationDropdownTimeout);
+      this.notificationDropdownTimeout = null;
+    }
+    if (delay === 0) {
+      this.isNotificationDropdownOpen.set(false);
+      this.cdr.markForCheck();
+      return;
+    }
+    this.notificationDropdownTimeout = setTimeout(() => {
+      this.isNotificationDropdownOpen.set(false);
+      this.notificationDropdownTimeout = null;
+      this.cdr.markForCheck();
+    }, delay);
   }
 
   toggleNotificationDropdown(event: Event): void {
@@ -416,12 +488,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
       this.login();
       return;
     }
-    this.isNotificationDropdownOpen = !this.isNotificationDropdownOpen;
-    if (this.isNotificationDropdownOpen) {
-      this.isProfileDropdownOpen = false;
-      this.isProductsMegaOpen = false;
+    this.closeProfileDropdown(0);
+    this.isProductsMegaOpen = false;
+    if (this.notificationDropdownTimeout) {
+      clearTimeout(this.notificationDropdownTimeout);
+      this.notificationDropdownTimeout = null;
+    }
+    this.isNotificationDropdownOpen.update(v => !v);
+    if (this.isNotificationDropdownOpen()) {
       this.loadNotifications();
     }
+    this.cdr.markForCheck();
   }
 
   markAllNotificationsAsRead(): void {
@@ -491,7 +568,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
 
     // Close dropdown
-    this.isNotificationDropdownOpen = false;
+    this.isNotificationDropdownOpen.set(false);
+    this.cdr.markForCheck();
 
     // Navigate to post detail or order tracking
     const isOrderOrRefund = notification.type.startsWith('ORDER_') || notification.type.startsWith('REFUND_');
@@ -529,26 +607,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
   }
 
-  closeProfileDropdown(): void {
-    this.isProfileDropdownOpen = false;
-  }
-
-  toggleProfileDropdown(event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (this.isLoggedIn()) {
-      this.router.navigate(['/account']);
-      this.isProfileDropdownOpen = false;
-    } else {
-      this.login();
-    }
-  }
-
   goToProfile(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
     this.router.navigate(['/account']);
-    this.isProfileDropdownOpen = false;
+    this.closeProfileDropdown(0);
   }
 
   openSearch(event?: Event): void {
@@ -970,8 +1033,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   /** Two-letter initials from profile_name */
   getUserInitials(): string {
-    const user = this.authService.getUser();
-    const name: string = (user?.profile_name || user?.name || '').trim();
+    const user = this.authService.currentUser() || this.authService.getUser();
+    const name: string = (user?.profile_name || user?.name || user?.email || '').trim();
     if (!name) return '?';
     const parts = name.split(/\s+/);
     if (parts.length >= 2) {
@@ -982,19 +1045,19 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   /** Full display name */
   getUserProfileName(): string {
-    const user = this.authService.getUser();
-    return user?.profile_name || user?.name || '';
+    const user = this.authService.currentUser() || this.authService.getUser();
+    return user?.profile_name || user?.name || user?.email || '';
   }
 
   /** Community handle without leading @ */
   getUserCommunityName(): string {
-    const user = this.authService.getUser();
+    const user = this.authService.currentUser() || this.authService.getUser();
     return user?.community_name || '';
   }
 
   /** Avatar URL, or empty string if none */
   getUserAvatarUrl(): string {
-    const user = this.authService.getUser();
+    const user = this.authService.currentUser() || this.authService.getUser();
     return user?.avatar_url || '';
   }
 
@@ -1003,7 +1066,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
    * Values: 'Seed' | 'Leaf' | 'Bloom' | 'Zen'
    */
   getUserTier(): string {
-    const user = this.authService.getUser();
+    const user = this.authService.currentUser() || this.authService.getUser();
     return user?.membership_tier || 'Seed';
   }
 

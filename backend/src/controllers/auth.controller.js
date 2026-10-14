@@ -274,7 +274,10 @@ async function verifyRegistrationOtp(req, res) {
         user_id: newUser.user_id,
         email: newUser.email || '',
         phone: newUser.phone || '',
-        profile_name: newUser.profile_name,
+        profile_name: newUser.profile_name || '',
+        community_name: newUser.community_name || '',
+        avatar_url: newUser.avatar_url || null,
+        membership_tier: newUser.membership_tier || 'Seed',
         role: newUser.role
       }
     });
@@ -379,7 +382,10 @@ async function login(req, res) {
         user_id: user.user_id,
         email: user.email || '',
         phone: user.phone || '',
-        profile_name: user.profile_name,
+        profile_name: user.profile_name || user.name || '',
+        community_name: user.community_name || '',
+        avatar_url: user.avatar_url || null,
+        membership_tier: user.membership_tier || 'Seed',
         role: user.role
       }
     });

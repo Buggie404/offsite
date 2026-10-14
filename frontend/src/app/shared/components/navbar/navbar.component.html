@@ -147,15 +147,19 @@
         <span class="cart-badge">{{ cartCount }}</span>
       </button>
 
-      <!-- Notifications Button Wrapper -->
-      <div class="notification-btn-wrapper">
+      <!-- Notifications Button Wrapper (Logged in users only) -->
+      <div class="notification-btn-wrapper"
+           *ngIf="isLoggedIn()"
+           (mouseenter)="openNotificationDropdown()"
+           (mouseleave)="closeNotificationDropdown()">
         <button class="action-btn notification-btn" (click)="toggleNotificationDropdown($event)" aria-label="Notifications">
           <svg lucideBell [size]="20"></svg>
           <span *ngIf="unreadNotificationCount > 0" class="notification-badge">{{ unreadNotificationCount }}</span>
         </button>
 
         <!-- Notification Dropdown -->
-        <div class="notification-dropdown" [class.open]="isNotificationDropdownOpen">
+        <div class="notification-dropdown"
+             [class.open]="isNotificationDropdownOpen()">
           <div class="notification-header">
             <span class="header-title">NOTIFICATIONS</span>
             <div class="header-actions">
@@ -259,10 +263,12 @@
         </button>
 
         <!-- Interactive Dropdown - redesigned for logged-in users -->
-        <div class="profile-dropdown" [class.open]="isProfileDropdownOpen" [class.user-logged-in]="isLoggedIn()">
+        <div class="profile-dropdown"
+             [class.open]="isProfileDropdownOpen()"
+             [class.user-logged-in]="isLoggedIn()">
 
           <!-- ── User header (logged in only) ── -->
-          <div class="dropdown-user-header" *ngIf="isLoggedIn()">
+          <div class="dropdown-user-header" *ngIf="isLoggedIn()" routerLink="/account" (click)="closeProfileDropdown(0)">
             <!-- Avatar: image if available, else initials -->
             <div class="dropdown-avatar">
               <img *ngIf="getUserAvatarUrl()" [src]="getUserAvatarUrl()" [alt]="getUserProfileName()" class="dropdown-avatar-img">
@@ -290,7 +296,7 @@
 
             <!-- Logged in: Account -->
             <li *ngIf="isLoggedIn()">
-              <button class="dropdown-item dropdown-item--icon-left" routerLink="/account" (click)="closeProfileDropdown()">
+              <button class="dropdown-item dropdown-item--icon-left" routerLink="/account" (click)="closeProfileDropdown(0)">
                 <svg lucideUser [size]="16" class="item-icon-left"></svg>
                 <span class="item-text">Account</span>
               </button>
@@ -298,7 +304,7 @@
 
             <!-- Logged in: My Community Profile -->
             <li *ngIf="isLoggedIn()">
-              <button class="dropdown-item dropdown-item--icon-left" routerLink="/community" (click)="closeProfileDropdown()">
+              <button class="dropdown-item dropdown-item--icon-left" routerLink="/community" (click)="closeProfileDropdown(0)">
                 <svg lucideLayoutGrid [size]="16" class="item-icon-left"></svg>
                 <span class="item-text">My Community Profile</span>
               </button>
@@ -306,7 +312,7 @@
 
             <!-- Order tracking (always visible) -->
             <li>
-              <button class="dropdown-item dropdown-item--icon-left" [class.dropdown-item--plain]="!isLoggedIn()" routerLink="/order-tracking" (click)="closeProfileDropdown()">
+              <button class="dropdown-item dropdown-item--icon-left" [class.dropdown-item--plain]="!isLoggedIn()" routerLink="/order-tracking" (click)="closeProfileDropdown(0)">
                 <svg lucidePackage [size]="16" class="item-icon-left"></svg>
                 <span class="item-text">Order tracking</span>
               </button>

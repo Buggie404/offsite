@@ -18,6 +18,9 @@ export class AuthService {
   private isAuthenticatedSignal = signal<boolean>(false);
   readonly isAuthenticated = this.isAuthenticatedSignal.asReadonly();
 
+  private currentUserSignal = signal<any>(null);
+  readonly currentUser = this.currentUserSignal.asReadonly();
+
   constructor() {
     this.initAuthState();
   }
@@ -26,6 +29,11 @@ export class AuthService {
     if (isPlatformBrowser(this.platformId)) {
       const token = localStorage.getItem('token');
       this.isAuthenticatedSignal.set(!!token);
+      const user = this.getUser();
+      this.currentUserSignal.set(user);
+      if (token) {
+        this.fetchUserProfile();
+      }
     }
   }
 
@@ -42,6 +50,7 @@ export class AuthService {
     });
 
     this.setAuthState(response);
+    await this.fetchUserProfile();
 
     // Overwrite the local cart with the authoritative user cart from the DB.
     if (response?.cart?.items) {
@@ -117,6 +126,7 @@ export class AuthService {
 
   logout(): void {
     this.isAuthenticatedSignal.set(false);
+    this.currentUserSignal.set(null);
 
     const currentUrl = this.router.url;
 
@@ -145,23 +155,9 @@ export class AuthService {
 
     if (isPlatformBrowser(this.platformId)) {
       localStorage.setItem('token', token);
-
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-
-        const user = {
-          _id: payload.user_id,
-          user_id: payload.user_id,
-          email: payload.email,
-          role: payload.role
-        };
-
-        localStorage.setItem('user', JSON.stringify(user));
-        this.orderSocketService.refreshTokenAuth();
-      } catch (e) {
-        console.error('Failed to parse OAuth token:', e);
-      }
+      this.orderSocketService.refreshTokenAuth();
     }
+    this.fetchUserProfile();
   }
 
   // Merge the guest cart after an OAuth login. The redirect callback can't
@@ -185,6 +181,26 @@ export class AuthService {
 
   // PRIVATE
 
+  setUser(user: any): void {
+    if (isPlatformBrowser(this.platformId)) {
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+    this.currentUserSignal.set(user);
+  }
+
+  async fetchUserProfile(): Promise<any> {
+    try {
+      const res: any = await this.getMe();
+      if (res?.user) {
+        this.setUser(res.user);
+        return res.user;
+      }
+    } catch (e) {
+      console.warn('Could not fetch user profile:', e);
+    }
+    return null;
+  }
+
   private setAuthState(response: any) {
     if (isPlatformBrowser(this.platformId)) {
       localStorage.removeItem('token');
@@ -192,7 +208,10 @@ export class AuthService {
       localStorage.removeItem('user');
 
       localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      if (response.user) {
+        localStorage.setItem('user', JSON.stringify(response.user));
+        this.currentUserSignal.set(response.user);
+      }
 
       if (response.refreshToken) {
         localStorage.setItem('refreshToken', response.refreshToken);
@@ -200,6 +219,7 @@ export class AuthService {
       this.orderSocketService.refreshTokenAuth();
     }
     this.isAuthenticatedSignal.set(true);
+    this.fetchUserProfile();
   }
 
   getUser(): any {
