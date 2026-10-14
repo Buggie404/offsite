@@ -36,7 +36,8 @@ import {
   LucideClipboardList,
   LucideActivity,
   LucideChevronDown,
-  LucideStar
+  LucideStar,
+  LucideListChecks
 } from '@lucide/angular';
 import { AdminAuthService } from '../../services/admin-auth.service';
 import { AdminRefreshService } from '../../services/admin-refresh.service';
@@ -77,7 +78,8 @@ import { ADMIN_ROLE_LABELS } from '../../../shared/models/admin-role.model';
     LucideClipboardList,
     LucideActivity,
     LucideChevronDown,
-    LucideStar
+    LucideStar,
+    LucideListChecks
   ],
   templateUrl: './admin-layout.component.html',
   styleUrl: './admin-layout.component.scss'
@@ -153,6 +155,10 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   get canViewOrderNotifications(): boolean {
     const role = this.adminAuth.getAdminRole();
     return role === 'admin_cc' || role === 'cskh' || role === 'qlsp';
+  }
+
+  get processingOrderCount(): number {
+    return this.adminNotifications.processingOrderCount;
   }
 
   @HostListener('document:keydown.escape')
@@ -311,6 +317,7 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
 
   toggleNotifications(event: MouseEvent): void {
     event.stopPropagation();
+    this.showAdminUserMenu = false;
 
     if (this.showNotifications) {
       this.closeNotifications();
@@ -337,7 +344,9 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
 
   toggleAdminUserMenu(event: MouseEvent): void {
     event.stopPropagation();
+    if (!this.showAdminUserMenu) this.closeNotifications();
     this.showAdminUserMenu = !this.showAdminUserMenu;
+    this.cdr.markForCheck();
   }
 
   openNotification(item: AdminNotification, event: MouseEvent): void {

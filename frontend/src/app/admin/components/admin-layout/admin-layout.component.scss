@@ -112,8 +112,8 @@
   border-radius: var(--radius-card);
   font-family: var(--font-mono);
   font-size: var(--text-label-size);
-  letter-spacing: var(--text-label-tracking);
-  text-transform: uppercase;
+  font-weight: 400;
+  letter-spacing: 0;
   color: var(--color-warm-brown);
   text-decoration: none;
   transition: background 0.15s ease, color 0.15s ease;
@@ -137,6 +137,23 @@
   box-shadow: var(--admin-shadow-sm);
 }
 
+.sidebar-link__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: auto;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-near-black);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
 .sidebar-sign-out {
   display: flex;
   align-items: center;
@@ -147,10 +164,11 @@
   border-radius: var(--radius-card);
   border: 1px solid var(--admin-divider);
   background: rgba(255, 253, 249, 0.7);
-  font-family: var(--font-mono);
+  font-family: var(--font-mono) !important;
   font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--color-warm-brown);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -419,7 +437,7 @@
   font-family: var(--font-mono);
   font-size: 9px;
   line-height: 1.2;
-  text-transform: uppercase;
+  text-transform: none;
   white-space: nowrap;
 }
 

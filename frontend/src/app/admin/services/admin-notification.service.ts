@@ -26,6 +26,7 @@ const URGENT_PROCESSING_DAYS = 3;
 export class AdminNotificationService {
   private readonly adminOrderService = inject(AdminOrderService);
   private readonly readStorageKey = 'admin_notifications_read';
+  processingOrderCount = 0;
 
   /**
    * Key → value: ISO date string (YYYY-MM-DD) of when the urgent notification
@@ -47,9 +48,16 @@ export class AdminNotificationService {
         .pipe(
           map((response) => response.data),
           catchError(() => of([] as AdminOrderListItem[]))
+        ),
+      processingCount: this.adminOrderService
+        .getOrders({ date_range: '30', limit: 1 })
+        .pipe(
+          map((response) => response.stats.processing),
+          catchError(() => of(0))
         )
     }).pipe(
-      map(({ refunds, processing }) => {
+      map(({ refunds, processing, processingCount }) => {
+        this.processingOrderCount = processingCount;
         const refundItems = refunds.map((order) =>
           this.toNotification(order, 'refund_pending')
         );
