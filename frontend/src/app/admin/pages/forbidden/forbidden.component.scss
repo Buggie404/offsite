@@ -1,0 +1,107 @@
+:host {
+  display: block;
+  min-height: 100%;
+}
+
+.admin-forbidden {
+  min-height: calc(100vh - var(--admin-header-h));
+  display: grid;
+  place-items: center;
+  padding: var(--space-5) var(--space-4);
+  background: var(--color-cream);
+  text-align: center;
+}
+
+.admin-forbidden__content {
+  width: min(100%, 560px);
+}
+
+.admin-forbidden__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 7px 12px;
+  border: 1px solid rgba(55, 85, 52, 0.24);
+  border-radius: var(--radius-pill);
+  background: rgba(207, 225, 185, 0.42);
+  color: var(--color-forest-green);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.admin-forbidden h1 {
+  margin: 0;
+  color: var(--color-forest-green);
+  font-family: var(--font-display);
+  font-size: 112px;
+  font-weight: 400;
+  line-height: 0.95;
+}
+
+.admin-forbidden h2 {
+  margin: 18px 0 10px;
+  color: var(--color-near-black);
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.admin-forbidden p {
+  margin: 0 auto;
+  max-width: 440px;
+  color: var(--color-warm-brown);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.admin-forbidden__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.admin-forbidden__actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--admin-divider);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font: 500 13px var(--font-body);
+}
+
+.admin-forbidden__back {
+  background: var(--color-forest-green);
+  color: var(--color-white);
+}
+
+.admin-forbidden__back:hover {
+  background: var(--color-forest-green-hover);
+}
+
+.admin-forbidden__sign-out {
+  background: var(--admin-surface-card);
+  color: var(--color-near-black);
+}
+
+.admin-forbidden__sign-out:hover {
+  background: var(--color-sage);
+}
+
+@media (max-width: 480px) {
+  .admin-forbidden h1 {
+    font-size: 88px;
+  }
+
+  .admin-forbidden h2 {
+    font-size: 20px;
+  }
+}

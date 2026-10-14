@@ -20,16 +20,42 @@
     </button>
 
     <nav class="sidebar-nav" aria-label="Admin navigation">
-      <span class="sidebar-nav__label">Order Management</span>
-      <a
-        routerLink="/admin/orders"
-        class="sidebar-link"
-        [class.sidebar-link--active]="ordersLinkActive"
-        (click)="onOrdersLinkClick($event)"
-      >
-        <svg lucidePackage aria-hidden="true" [size]="18"></svg>
-        Orders
-      </a>
+      @for (group of visibleNavigationGroups; track group.label) {
+        <section class="sidebar-nav__group">
+          @if (group.label) {
+            <span class="sidebar-nav__label">{{ group.label }}</span>
+          }
+          @for (item of group.items; track item.path) {
+            <a
+              [routerLink]="item.path"
+              class="sidebar-link"
+              routerLinkActive="sidebar-link--active"
+              (click)="onNavigationClick($event, item)"
+            >
+              @switch (item.icon) {
+                @case ('dashboard') { <svg lucideLayoutDashboard aria-hidden="true" [size]="16"></svg> }
+                @case ('orders') { <svg lucidePackage aria-hidden="true" [size]="16"></svg> }
+                @case ('products') { <svg lucideTag aria-hidden="true" [size]="16"></svg> }
+                @case ('customers') { <svg lucideUsers aria-hidden="true" [size]="16"></svg> }
+                @case ('vouchers') { <svg lucideTicket aria-hidden="true" [size]="16"></svg> }
+                @case ('subscriptions') { <svg lucideRepeat aria-hidden="true" [size]="16"></svg> }
+                @case ('support') { <svg lucideMessageCircle aria-hidden="true" [size]="16"></svg> }
+                @case ('reports') { <svg lucideFlag aria-hidden="true" [size]="16"></svg> }
+                @case ('reviews') { <svg lucideStar aria-hidden="true" [size]="16"></svg> }
+                @case ('recipes') { <svg lucideChefHat aria-hidden="true" [size]="16"></svg> }
+                @case ('staff') { <svg lucideShield aria-hidden="true" [size]="16"></svg> }
+                @case ('activity-log') { <svg lucideClipboardList aria-hidden="true" [size]="16"></svg> }
+                @case ('membership') { <svg lucideUsers aria-hidden="true" [size]="16"></svg> }
+                @case ('ai-prompts') { <svg lucideClipboardList aria-hidden="true" [size]="16"></svg> }
+                @case ('ai-knowledge') { <svg lucideClipboardList aria-hidden="true" [size]="16"></svg> }
+                @case ('starter-quiz') { <svg lucideClipboardList aria-hidden="true" [size]="16"></svg> }
+                @case ('ritual-dna') { <svg lucideActivity aria-hidden="true" [size]="16"></svg> }
+              }
+              <span>{{ item.label }}</span>
+            </a>
+          }
+        </section>
+      }
     </nav>
 
     <div class="sidebar-footer">
@@ -54,7 +80,7 @@
         <svg lucideMenu aria-hidden="true" [size]="22"></svg>
       </button>
 
-      <a routerLink="/admin/orders" class="logo-lockup--header" aria-label="Offsite Admin home">
+      <a [routerLink]="adminHomeRoute" class="logo-lockup--header" aria-label="Offsite Admin home">
         <img
           src="assets/images/abs_logo_dark.png"
           alt=""
@@ -74,8 +100,8 @@
         <input
           type="search"
           class="header-search__input"
-          placeholder="Search by order ID, customer name, or email…"
-          aria-label="Search orders by order ID or customer"
+          [placeholder]="searchPlaceholder"
+          [attr.aria-label]="searchAriaLabel"
           [value]="searchQuery"
           (input)="onSearchInput($any($event.target).value)"
         />
@@ -83,7 +109,7 @@
 
       <!-- Actions: notification bell (always rightmost) -->
       <div class="header-actions">
-        <div class="header-notifications" #notificationsRoot>
+        <div class="header-notifications" #notificationsRoot *ngIf="canViewOrderNotifications">
           <button
             type="button"
             class="btn btn-ghost header-notifications__trigger"
@@ -222,6 +248,31 @@
 
 
 
+            </div>
+          }
+        </div>
+        <div class="header-admin-user" aria-label="Signed-in admin" #adminUserRoot>
+          <button
+            type="button"
+            class="header-admin-user__trigger"
+            aria-label="Admin account menu"
+            [attr.aria-expanded]="showAdminUserMenu"
+            (click)="toggleAdminUserMenu($event)"
+          >
+            <span class="header-admin-user__avatar" aria-hidden="true">{{ adminInitials }}</span>
+            <span class="header-admin-user__details">
+              <span class="header-admin-user__name">{{ adminDisplayName }}</span>
+              <span class="header-admin-user__role">{{ adminRoleLabel }}</span>
+            </span>
+            <svg lucideChevronDown class="header-admin-user__chevron" aria-hidden="true" [size]="14"></svg>
+          </button>
+          @if (showAdminUserMenu) {
+            <div class="header-admin-user__menu" role="menu">
+              <span class="header-admin-user__menu-label">{{ adminRoleLabel }}</span>
+              <button type="button" role="menuitem" (click)="openSignOutModal()">
+                <svg lucideLogOut aria-hidden="true" [size]="15"></svg>
+                Sign out
+              </button>
             </div>
           }
         </div>

@@ -27,6 +27,9 @@
             {{ getUserTierLabel() }}
             <ng-container *ngIf="getUserPoints() > 0"> · {{ getUserPoints() | number }} pts</ng-container>
           </span>
+          <span class="sidebar-customer-tier-badge" [ngClass]="getCustomerTierClass()">
+            {{ getCustomerTier() }}
+          </span>
         </div>
       </div>
 
@@ -51,8 +54,8 @@
               <svg *ngSwitchCase="'map-pin'"      lucideMapPin      [size]="18" class="menu-icon"></svg>
               <svg *ngSwitchCase="'credit-card'"  lucideCreditCard  [size]="18" class="menu-icon"></svg>
               <svg *ngSwitchCase="'user'"         lucideUser        [size]="18" class="menu-icon"></svg>
-              <svg *ngSwitchCase="'award'"        lucideCheck       [size]="18" class="menu-icon"></svg>
-              <svg *ngSwitchCase="'activity'"     lucideArrowRight  [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchCase="'trophy'"       lucideTrophy      [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchCase="'activity'"     lucideActivity    [size]="18" class="menu-icon"></svg>
               <svg *ngSwitchDefault               lucideUser        [size]="18" class="menu-icon"></svg>
             </ng-container>
 

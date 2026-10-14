@@ -301,25 +301,29 @@
             }
           </div>
         }
-        <div class="field">
-          <label class="field-label" for="note">Add note</label>
-          <textarea
-            id="note"
-            class="field-textarea"
-            placeholder="Enter internal note…"
-            [value]="noteText"
-            (input)="noteText = $any($event.target).value"
-          ></textarea>
-        </div>
-        <button
-          type="button"
-          class="btn btn-secondary btn-secondary--cta btn-block"
-          (click)="saveNote()"
-          [disabled]="noteSaving"
-        >
-          <svg lucideStickyNote aria-hidden="true" [size]="16"></svg>
-          Save note
-        </button>
+        @if (canManageOrders) {
+          <div class="field">
+            <label class="field-label" for="note">Add note</label>
+            <textarea
+              id="note"
+              class="field-textarea"
+              placeholder="Enter internal note…"
+              [value]="noteText"
+              (input)="noteText = $any($event.target).value"
+            ></textarea>
+          </div>
+          <button
+            type="button"
+            class="btn btn-secondary btn-secondary--cta btn-block"
+            (click)="saveNote()"
+            [disabled]="noteSaving"
+          >
+            <svg lucideStickyNote aria-hidden="true" [size]="16"></svg>
+            Save note
+          </button>
+        } @else {
+          <p class="field-hint">Read-only access for your role.</p>
+        }
         @if (noteMessage) {
           <p class="action-feedback action-feedback--success">{{ noteMessage }}</p>
         }

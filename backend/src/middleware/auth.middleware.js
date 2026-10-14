@@ -1,5 +1,11 @@
 const jwt = require('jsonwebtoken');
 
+const ADMIN_ROLES = new Set(['admin_cc', 'cskh', 'qlsp']);
+const ADMIN_ORDER_VIEW_ROLES = ['admin_cc', 'cskh', 'qlsp'];
+const ADMIN_ORDER_MANAGE_ROLES = ['admin_cc', 'qlsp'];
+const ADMIN_ORDER_UNSCOPED_ROLES = ['admin_cc', 'qlsp'];
+const ADMIN_CROSS_USER_ROLES = ['admin_cc'];
+
 function authMiddleware(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // "Bearer [token]"
@@ -34,14 +40,36 @@ function optionalAuthMiddleware(req, res, next) {
   next();
 }
 
-// Role-based access (for admin routes)
-function requireRole(role) {
+function isAdminRole(role) {
+  return ADMIN_ROLES.has(role);
+}
+
+function requireRole(...roles) {
   return (req, res, next) => {
-    if (!req.user || req.user.role !== role) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Access denied', code: 'ROLE_FORBIDDEN' });
     }
     next();
   };
 }
 
-module.exports = { authMiddleware, optionalAuthMiddleware, requireRole };
+function hasAdminRole(user, allowedRoles) {
+  return isAdminRole(user?.role) && allowedRoles.includes(user.role);
+}
+
+function requireAdminRole(...allowedRoles) {
+  return requireRole(...allowedRoles);
+}
+
+module.exports = {
+  authMiddleware,
+  optionalAuthMiddleware,
+  requireRole,
+  requireAdminRole,
+  hasAdminRole,
+  isAdminRole,
+  ADMIN_ORDER_VIEW_ROLES,
+  ADMIN_ORDER_MANAGE_ROLES,
+  ADMIN_ORDER_UNSCOPED_ROLES,
+  ADMIN_CROSS_USER_ROLES
+};

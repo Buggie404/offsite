@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { getCollections } = require('../config/db');
 const ACCESS_SECRET   = process.env.JWT_SECRET         || 'fallback-secret-key';
+const ADMIN_ROLES = new Set(['admin_cc', 'cskh', 'qlsp']);
 const REFRESH_SECRET  = process.env.JWT_REFRESH_SECRET  || 'refresh_secret_dev';
 const { ObjectId } = require('mongodb');
 const { mergeGuestCartIntoUser } = require('../services/cart-merge.service');
@@ -350,7 +351,7 @@ async function login(req, res) {
       return res.status(400).json({ error: 'Tài khoản này được đăng ký thông qua mạng xã hội.', code: 'OAUTH_ACCOUNT' });
     }
 
-    if (user.role === 'admin') {
+    if (user.role === 'admin' || ADMIN_ROLES.has(user.role)) {
       return res.status(403).json({ error: 'Tài khoản admin không được phép đăng nhập tại đây.', code: 'ADMIN_NOT_ALLOWED' });
     }
 
@@ -412,7 +413,9 @@ async function adminLogin(req, res) {
       return res.status(404).json({ error: 'Tài khoản không tồn tại trong hệ thống.', code: 'ACCOUNT_NOT_FOUND' });
     }
 
-    if (user.role !== 'admin') {
+    const adminRole = user.role === 'admin' ? 'admin_cc' : user.role;
+
+    if (!ADMIN_ROLES.has(adminRole)) {
       return res.status(403).json({ error: 'Tài khoản này không có quyền truy cập admin.', code: 'NOT_ADMIN' });
     }
 
@@ -425,8 +428,23 @@ async function adminLogin(req, res) {
       return res.status(401).json({ error: 'Mật khẩu không chính xác.', code: 'INCORRECT_PASSWORD' });
     }
 
+    if (user.role !== adminRole || user.admin_role) {
+      await userCollection.updateOne(
+        { _id: user._id },
+        { $set: { role: adminRole }, $unset: { admin_role: '' } }
+      );
+      user.role = adminRole;
+      delete user.admin_role;
+    }
     const token = jwt.sign(
-      { user_id: String(user._id), email: user.email || '', role: user.role },
+      {
+        user_id: String(user._id),
+        email: user.email || '',
+        role: adminRole,
+        ...(adminRole === 'cskh'
+          ? { assigned_chat_customer_ids: user.assigned_chat_customer_ids || [] }
+          : {})
+      },
       ACCESS_SECRET,
       { expiresIn: '8h' }
     );
@@ -439,7 +457,7 @@ async function adminLogin(req, res) {
         user_id: user.user_id,
         email: user.email || '',
         profile_name: user.profile_name,
-        role: user.role
+        role: adminRole
       }
     });
   } catch (error) {

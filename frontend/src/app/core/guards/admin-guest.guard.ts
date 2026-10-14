@@ -13,7 +13,7 @@ export const adminGuestGuard: CanActivateFn = () => {
   }
 
   if (adminAuth.isAdmin() && adminAuth.isRememberMeEnabled()) {
-    return router.createUrlTree(['/admin/orders']);
+    return router.parseUrl(adminAuth.getDefaultRoute());
   }
 
   return true;

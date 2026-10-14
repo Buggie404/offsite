@@ -271,8 +271,8 @@ async function buildOrderDetail(order) {
   };
 }
 
-async function computeStats(createdAtFilter) {
-  const baseFilter = { created_at: createdAtFilter };
+async function computeStats(createdAtFilter, orderScope = {}) {
+  const baseFilter = { ...orderScope, created_at: createdAtFilter };
 
   const [total, processing, shipped, needsAttention] = await Promise.all([
     Order.countDocuments(baseFilter),
@@ -302,7 +302,11 @@ async function getAllOrders(req, res) {
     } = req.query;
 
     const createdAtFilter = buildCreatedAtFilter(date_range, date_from, date_to);
+    const orderScope = req.user.role === 'cskh'
+      ? { user_id: { $in: req.user.assigned_chat_customer_ids || [] } }
+      : {};
     const filter = {
+      ...orderScope,
       created_at: createdAtFilter
     };
 
@@ -317,7 +321,7 @@ async function getAllOrders(req, res) {
 
     const [orders, stats] = await Promise.all([
       Order.find(filter).sort({ created_at: -1 }).select('order_id user_id delivery_info created_at order_status pricing is_guest').lean(),
-      computeStats(createdAtFilter)
+      computeStats(createdAtFilter, orderScope)
     ]);
 
     const userMap = await buildUserMap(orders);
@@ -348,6 +352,13 @@ async function getOrderById(req, res) {
     const order = await Order.findOne(findOrderQuery(req.params.id)).lean();
     if (!order) {
       return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    if (
+      req.user.role === 'cskh' &&
+      !(req.user.assigned_chat_customer_ids || []).includes(order.user_id)
+    ) {
+      return res.status(403).json({ error: 'Access denied', code: 'ROLE_FORBIDDEN' });
     }
 
     const data = await buildOrderDetail(order);

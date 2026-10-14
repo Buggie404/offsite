@@ -5,6 +5,7 @@ const RefundRequest = require('../models/RefundRequest');
 const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
 const voucherService = require('../services/voucher.service');
+const { hasAdminRole, isAdminRole, ADMIN_ORDER_VIEW_ROLES } = require('../middleware/auth.middleware');
 
 const REFUND_REASONS = ['Damaged item', 'Wrong item', 'Size/color mismatch', 'Other'];
 
@@ -387,6 +388,10 @@ async function createOrder(req, res) {
 // Get Order Details (GET /api/orders/:id)
 async function getOrderById(req, res) {
   try {
+    if (isAdminRole(req.user.role) && !hasAdminRole(req.user, ADMIN_ORDER_VIEW_ROLES)) {
+      return res.status(403).json({ error: 'Access denied', code: 'ADMIN_ROLE_FORBIDDEN' });
+    }
+
     const { id } = req.params;
 
     let query = {};
@@ -399,6 +404,13 @@ async function getOrderById(req, res) {
     const order = await Order.findOne(query);
     if (!order) {
       return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    if (
+      req.user.role === 'cskh' &&
+      !(req.user.assigned_chat_customer_ids || []).includes(order.user_id)
+    ) {
+      return res.status(403).json({ error: 'Access denied', code: 'ROLE_FORBIDDEN' });
     }
 
     // Auto cancel pending payment order after 24h
@@ -427,7 +439,7 @@ async function getOrderById(req, res) {
     }
 
     // Access control: only admin or the order owner can view the details
-    if (req.user.role !== 'admin') {
+    if (!isAdminRole(req.user.role)) {
       const userDoc = await User.findById(req.user.user_id);
       if (!userDoc || order.user_id !== userDoc.user_id) {
         return res.status(403).json({ error: 'Access denied. You do not have permission to view this order.' });

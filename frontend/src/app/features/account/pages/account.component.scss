@@ -76,7 +76,8 @@
 
 /* Sidebar panel (with responsive slide drawer on mobile) */
 .sidebar-panel {
-  background-color: #ffffff;
+  background-color: var(--color-white);
+  color: var(--color-near-black);
   border-radius: 16px;
   padding: 24px 20px 20px;
   display: flex;
@@ -114,7 +115,7 @@
     right: 16px;
     background: transparent;
     border: none;
-    color: #888;
+    color: var(--color-near-black);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -124,7 +125,7 @@
     transition: background-color 0.2s ease;
 
     &:hover {
-      background-color: rgba(0, 0, 0, 0.06);
+      background-color: rgba(26, 26, 26, 0.06);
     }
 
     @media (min-width: 768px) {
@@ -146,8 +147,8 @@
     width: 42px;
     height: 42px;
     border-radius: 50%;
-    background-color: #d1e2c4;
-    color: #375534;
+    background-color: var(--color-sage);
+    color: var(--color-forest-green);
     font-size: 15px;
     font-weight: 700;
     display: flex;
@@ -175,7 +176,7 @@
   .sidebar-user-name {
     font-size: 15px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--color-near-black);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -183,8 +184,42 @@
 
   .sidebar-user-meta {
     font-size: 12px;
-    color: #888;
+    color: var(--color-near-black);
+    opacity: 0.7;
     font-weight: 400;
+  }
+
+  .sidebar-customer-tier-badge {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-badge);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+
+    &.tier-seed {
+      background-color: var(--color-wheat);
+      color: var(--color-warm-brown);
+    }
+
+    &.tier-leaf {
+      background-color: var(--color-sage);
+      color: var(--color-forest-green);
+    }
+
+    &.tier-bloom {
+      background-color: var(--color-blush-pink);
+      color: var(--color-near-black);
+    }
+
+    &.tier-zen {
+      background-color: var(--color-forest-green);
+      color: var(--color-cream);
+    }
   }
 
   // ── Grouped Navigation ───────────────────────────────
@@ -199,7 +234,8 @@
     display: block;
     font-size: 11px;
     font-weight: 600;
-    color: #aaa;
+    color: var(--color-near-black);
+    opacity: 0.6;
     letter-spacing: 0.08em;
     padding: 14px 12px 6px;
     text-transform: uppercase;
@@ -217,7 +253,7 @@
     border: none;
     padding: 10px 12px;
     border-radius: 10px;
-    color: #444;
+    color: var(--color-near-black);
     font-size: 14px;
     font-weight: 500;
     text-align: left;
@@ -226,7 +262,7 @@
     width: 100%;
 
     .menu-icon {
-      opacity: 0.7;
+      opacity: 1;
       flex-shrink: 0;
       transition: opacity 0.15s ease;
     }
@@ -239,8 +275,8 @@
     }
 
     &:hover:not(.coming-soon):not(.logout-btn) {
-      background-color: rgba(55, 85, 52, 0.06);
-      color: #375534;
+      background-color: rgba(26, 26, 26, 0.06);
+      color: var(--color-near-black);
 
       .menu-icon {
         opacity: 1;
@@ -248,8 +284,8 @@
     }
 
     &.active {
-      background-color: #e8f0e5;
-      color: #375534;
+      background-color: var(--color-sage);
+      color: var(--color-near-black);
       font-weight: 600;
 
       .menu-icon {
@@ -258,7 +294,6 @@
     }
 
     &.coming-soon {
-      opacity: 0.5;
       cursor: default;
     }
   }
@@ -301,11 +336,11 @@
   }
 
   .logout-btn {
-    color: #888;
+    color: var(--color-near-black);
 
     &:hover {
-      background-color: rgba(192, 57, 43, 0.07);
-      color: #c0392b;
+      background-color: rgba(26, 26, 26, 0.06);
+      color: var(--color-near-black);
     }
   }
 }

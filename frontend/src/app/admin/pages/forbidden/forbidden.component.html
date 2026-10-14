@@ -1,0 +1,25 @@
+<section class="admin-forbidden" aria-labelledby="forbidden-title">
+  <div class="admin-forbidden__content">
+    <div class="admin-forbidden__badge">
+      <svg lucideShieldAlert [size]="18" aria-hidden="true"></svg>
+      <span>HTTP Status 403</span>
+    </div>
+
+    <h1>403</h1>
+    <h2 id="forbidden-title">This area is outside your role.</h2>
+    <p>
+      Your current role is <strong>{{ roleLabel }}</strong>. Contact Admin CC if you need access.
+    </p>
+
+    <div class="admin-forbidden__actions">
+      <button type="button" class="admin-forbidden__back" (click)="goBack()">
+        <svg lucideArrowLeft [size]="16" aria-hidden="true"></svg>
+        Go back
+      </button>
+      <button type="button" class="admin-forbidden__sign-out" (click)="signOut()">
+        <svg lucideLogOut [size]="16" aria-hidden="true"></svg>
+        Sign out
+      </button>
+    </div>
+  </div>
+</section>

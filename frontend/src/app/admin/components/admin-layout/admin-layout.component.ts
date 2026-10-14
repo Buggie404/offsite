@@ -10,7 +10,7 @@ import {
   inject
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, interval, startWith, switchMap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -23,7 +23,20 @@ import {
   LucideUndo2,
   LucideMenu,
   LucideAlertTriangle,
-  LucideArrowRight
+  LucideArrowRight,
+  LucideLayoutDashboard,
+  LucideTag,
+  LucideUsers,
+  LucideTicket,
+  LucideRepeat,
+  LucideMessageCircle,
+  LucideFlag,
+  LucideChefHat,
+  LucideShield,
+  LucideClipboardList,
+  LucideActivity,
+  LucideChevronDown,
+  LucideStar
 } from '@lucide/angular';
 import { AdminAuthService } from '../../services/admin-auth.service';
 import { AdminRefreshService } from '../../services/admin-refresh.service';
@@ -31,6 +44,8 @@ import {
   AdminNotification,
   AdminNotificationService
 } from '../../services/admin-notification.service';
+import { ADMIN_NAV_GROUPS, AdminNavGroup, AdminNavItem } from '../../admin-navigation.config';
+import { ADMIN_ROLE_LABELS } from '../../../shared/models/admin-role.model';
 
 @Component({
   selector: 'app-admin-layout',
@@ -39,6 +54,7 @@ import {
     CommonModule,
     RouterOutlet,
     RouterLink,
+    RouterLinkActive,
     LucidePackage,
     LucideLogOut,
     LucideSearch,
@@ -48,7 +64,20 @@ import {
     LucideUndo2,
     LucideMenu,
     LucideAlertTriangle,
-    LucideArrowRight
+    LucideArrowRight,
+    LucideLayoutDashboard,
+    LucideTag,
+    LucideUsers,
+    LucideTicket,
+    LucideRepeat,
+    LucideMessageCircle,
+    LucideFlag,
+    LucideChefHat,
+    LucideShield,
+    LucideClipboardList,
+    LucideActivity,
+    LucideChevronDown,
+    LucideStar
   ],
   templateUrl: './admin-layout.component.html',
   styleUrl: './admin-layout.component.scss'
@@ -63,11 +92,12 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   private cdr = inject(ChangeDetectorRef);
 
   @ViewChild('notificationsRoot') notificationsRoot?: ElementRef<HTMLElement>;
+  @ViewChild('adminUserRoot') adminUserRoot?: ElementRef<HTMLElement>;
 
   searchQuery = '';
-  ordersLinkActive = false;
   showSignOutModal = false;
   showNotifications = false;
+  showAdminUserMenu = false;
   notificationsLoading = false;
   notifications: AdminNotification[] = [];
   unreadCount = 0;
@@ -76,6 +106,54 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   sidebarOpen = false;
 
   private readonly pollIntervalMs = 30_000;
+
+  get visibleNavigationGroups(): AdminNavGroup[] {
+    const role = this.adminAuth.getAdminRole();
+    if (!role) return [];
+
+    return ADMIN_NAV_GROUPS.map((group) => ({
+      ...group,
+      items: group.items.filter((item) => (item.visibleRoles || item.roles).includes(role))
+    })).filter((group) => group.items.length > 0);
+  }
+
+  get adminDisplayName(): string {
+    const user = this.adminAuth.getUser();
+    return user?.profile_name?.trim() || user?.email || 'Admin';
+  }
+
+  get adminInitials(): string {
+    const parts = this.adminDisplayName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length > 1) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return this.adminDisplayName.slice(0, 2).toUpperCase();
+  }
+
+  get adminRoleLabel(): string {
+    const role = this.adminAuth.getAdminRole();
+    return role ? ADMIN_ROLE_LABELS[role] : 'Unassigned role';
+  }
+
+  get adminHomeRoute(): string {
+    return this.adminAuth.getDefaultRoute();
+  }
+
+  get searchPlaceholder(): string {
+    const path = this.router.url.split('?')[0];
+    if (path.startsWith('/admin/chat')) return 'Search conversations...';
+    if (path.startsWith('/admin/customers')) return 'Search customers...';
+    if (path.startsWith('/admin/subscriptions')) return 'Search subscriptions...';
+    if (path.startsWith('/admin/products')) return 'Search name or SKU...';
+    return 'Search by order ID, customer name, or email...';
+  }
+
+  get searchAriaLabel(): string {
+    return this.searchPlaceholder.replace(/\.\.\.$/, '');
+  }
+
+  get canViewOrderNotifications(): boolean {
+    const role = this.adminAuth.getAdminRole();
+    return role === 'admin_cc' || role === 'cskh' || role === 'qlsp';
+  }
 
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
@@ -89,6 +167,12 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
       return;
     }
 
+    if (this.showAdminUserMenu) {
+      this.showAdminUserMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
     if (this.showSignOutModal) {
       this.closeSignOutModal();
     }
@@ -96,24 +180,26 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
-    if (!this.showNotifications) return;
-
-    const root = this.notificationsRoot?.nativeElement;
-    if (root && !root.contains(event.target as Node)) {
+    const target = event.target as Node;
+    const notificationsRoot = this.notificationsRoot?.nativeElement;
+    if (this.showNotifications && notificationsRoot && !notificationsRoot.contains(target)) {
       this.closeNotifications();
+    }
+
+    const adminUserRoot = this.adminUserRoot?.nativeElement;
+    if (this.showAdminUserMenu && adminUserRoot && !adminUserRoot.contains(target)) {
+      this.showAdminUserMenu = false;
+      this.cdr.markForCheck();
     }
   }
 
   ngOnInit(): void {
-    this.updateOrdersLinkActive();
-
     this.router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe(() => {
-        this.updateOrdersLinkActive();
         this.closeNotifications();
         this.closeSidebar();
       });
@@ -122,27 +208,29 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
       this.searchQuery = params['search'] || '';
     });
 
-    interval(this.pollIntervalMs)
-      .pipe(
-        startWith(0),
-        switchMap(() => this.adminNotifications.loadNotifications()),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((items) => this.applyNotifications(items, false));
+    if (this.canViewOrderNotifications) {
+      interval(this.pollIntervalMs)
+        .pipe(
+          startWith(0),
+          switchMap(() => this.adminNotifications.loadNotifications()),
+          takeUntilDestroyed(this.destroyRef)
+        )
+        .subscribe((items) => this.applyNotifications(items, false));
 
-    this.adminRefresh.onNotificationsRefresh$
-      .pipe(
-        switchMap(() => this.adminNotifications.loadNotifications()),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((items) => this.applyNotifications(items, false));
+      this.adminRefresh.onNotificationsRefresh$
+        .pipe(
+          switchMap(() => this.adminNotifications.loadNotifications()),
+          takeUntilDestroyed(this.destroyRef)
+        )
+        .subscribe((items) => this.applyNotifications(items, false));
 
-    this.adminRefresh.onOrdersListRefresh$
-      .pipe(
-        switchMap(() => this.adminNotifications.loadNotifications()),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((items) => this.applyNotifications(items, false));
+      this.adminRefresh.onOrdersListRefresh$
+        .pipe(
+          switchMap(() => this.adminNotifications.loadNotifications()),
+          takeUntilDestroyed(this.destroyRef)
+        )
+        .subscribe((items) => this.applyNotifications(items, false));
+    }
   }
 
   ngAfterViewInit(): void {
@@ -151,16 +239,7 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
 
   private ensureChildRoute(): void {
     if (this.route.firstChild) return;
-
-    const url = this.router.url.split('?')[0];
-    const adminPath = url.replace(/^\/admin\/?/, '') || 'orders';
-
-    void this.router.navigate([adminPath], { relativeTo: this.route, replaceUrl: true });
-  }
-
-  private updateOrdersLinkActive(): void {
-    const url = this.router.url.split('?')[0];
-    this.ordersLinkActive = url === '/admin/orders' || url.startsWith('/admin/orders/');
+    void this.router.navigateByUrl(this.adminAuth.getDefaultRoute(), { replaceUrl: true });
   }
 
   private applyNotifications(items: AdminNotification[], markRead: boolean): void {
@@ -200,15 +279,16 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
 
   onSearchInput(value: string): void {
     this.searchQuery = value;
-    this.router.navigate(['/admin/orders'], {
+    const currentPath = this.router.url.split('?')[0];
+    this.router.navigate([currentPath], {
       queryParams: { search: value || null },
       queryParamsHandling: 'merge'
     });
   }
 
-  onOrdersLinkClick(event: MouseEvent): void {
+  onNavigationClick(event: MouseEvent, item: AdminNavItem): void {
     const path = this.router.url.split('?')[0];
-    if (path === '/admin/orders') {
+    if (item.path === '/admin/orders' && path === '/admin/orders') {
       event.preventDefault();
       this.adminRefresh.refreshOrdersList();
     }
@@ -255,6 +335,11 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     this.cdr.markForCheck();
   }
 
+  toggleAdminUserMenu(event: MouseEvent): void {
+    event.stopPropagation();
+    this.showAdminUserMenu = !this.showAdminUserMenu;
+  }
+
   openNotification(item: AdminNotification, event: MouseEvent): void {
     event.stopPropagation();
     this.adminNotifications.markAsRead(item.id);
@@ -297,6 +382,7 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
 
   openSignOutModal(): void {
     this.closeNotifications();
+    this.showAdminUserMenu = false;
     this.showSignOutModal = true;
   }
 

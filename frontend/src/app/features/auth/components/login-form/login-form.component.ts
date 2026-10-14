@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../../core/auth.service';
+import { isAdminRole } from '../../../../shared/models/admin-role.model';
 
 @Component({
   selector: 'app-login-form',
@@ -44,7 +45,7 @@ export class LoginFormComponent {
 
       const role = res?.user?.role;
 
-      if (role === 'admin') {
+      if (isAdminRole(role)) {
         this.router.navigate(['/admin']);
       } else {
         this.router.navigate(['/']);

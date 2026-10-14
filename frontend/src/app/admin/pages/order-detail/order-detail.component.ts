@@ -14,6 +14,7 @@ import {
   LucideUndo2
 } from '@lucide/angular';
 import { AdminOrderService } from '../../services/admin-order.service';
+import { AdminAuthService } from '../../services/admin-auth.service';
 import { AdminRefreshService } from '../../services/admin-refresh.service';
 import { OrderSocketService } from '../../../core/services/order-socket.service';
 import {
@@ -59,6 +60,7 @@ export class OrderDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private adminOrderService = inject(AdminOrderService);
+  private adminAuth = inject(AdminAuthService);
   private adminRefresh = inject(AdminRefreshService);
   private orderSocketService = inject(OrderSocketService);
   private destroyRef = inject(DestroyRef);
@@ -148,11 +150,17 @@ export class OrderDetailComponent implements OnInit {
     return [];
   }
 
+  get canManageOrders(): boolean {
+    const role = this.adminAuth.getAdminRole();
+    return role === 'admin_cc' || role === 'qlsp';
+  }
+
   get canUpdateStatus(): boolean {
-    return this.statusOptions.length > 0;
+    return this.canManageOrders && this.statusOptions.length > 0;
   }
 
   get statusUpdateDisabledReason(): string | null {
+    if (!this.canManageOrders) return 'Your role has read-only access to orders.';
     if (!this.order || this.canUpdateStatus) return null;
 
     const status = this.order.order_status;
@@ -308,7 +316,7 @@ export class OrderDetailComponent implements OnInit {
   }
 
   saveStatus(): void {
-    if (!this.order || this.statusSaving || !this.canUpdateStatus) return;
+    if (!this.canManageOrders || !this.order || this.statusSaving || !this.canUpdateStatus) return;
 
     this.statusSaving = true;
     this.actionError = null;
@@ -341,7 +349,7 @@ export class OrderDetailComponent implements OnInit {
   }
 
   get isRefundModalReadonly(): boolean {
-    return this.hasResolvedRefundRequest && !this.hasPendingRefundRequest;
+    return !this.canManageOrders || (this.hasResolvedRefundRequest && !this.hasPendingRefundRequest);
   }
 
   get refundRecordStatusLabel(): string {
@@ -374,7 +382,7 @@ export class OrderDetailComponent implements OnInit {
   }
 
   openApproveConfirmModal(): void {
-    if (!this.order || this.refundSaving || this.isRefundModalReadonly) {
+    if (!this.canManageOrders || !this.order || this.refundSaving || this.isRefundModalReadonly) {
       return;
     }
 
@@ -392,7 +400,7 @@ export class OrderDetailComponent implements OnInit {
   }
 
   approveRefundRequest(): void {
-    if (!this.order || this.refundSaving) return;
+    if (!this.canManageOrders || !this.order || this.refundSaving) return;
 
     this.refundSaving = true;
     this.actionError = null;
@@ -417,6 +425,7 @@ export class OrderDetailComponent implements OnInit {
   }
 
   openRejectModal(): void {
+    if (!this.canManageOrders) return;
     this.closeApproveConfirmModal();
     this.rejectReason = '';
     this.rejectModalError = null;
@@ -438,7 +447,7 @@ export class OrderDetailComponent implements OnInit {
   }
 
   submitRejectRefund(): void {
-    if (!this.order || this.refundSaving) return;
+    if (!this.canManageOrders || !this.order || this.refundSaving) return;
 
     const trimmed = this.rejectReason.trim();
     if (!trimmed) {
@@ -470,7 +479,7 @@ export class OrderDetailComponent implements OnInit {
   }
 
   saveNote(): void {
-    if (!this.order || this.noteSaving) return;
+    if (!this.canManageOrders || !this.order || this.noteSaving) return;
 
     const trimmed = this.noteText.trim();
     if (!trimmed) {

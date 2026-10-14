@@ -3,6 +3,11 @@ const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const Order = require('../models/Order');
+const {
+  hasAdminRole,
+  ADMIN_ORDER_UNSCOPED_ROLES,
+  ADMIN_CROSS_USER_ROLES
+} = require('../middleware/auth.middleware');
 
 let io = null;
 
@@ -42,9 +47,9 @@ function initSocket(server) {
   });
 
   io.on('connection', (socket) => {
-    // 1. Join Admin Room - Strictly requires role === 'admin'
+    // 1. The global order room is only for roles with unscoped order access.
     socket.on('join_admin', () => {
-      if (!socket.user || socket.user.role !== 'admin') {
+      if (!hasAdminRole(socket.user, ADMIN_ORDER_UNSCOPED_ROLES)) {
         console.warn(`[Socket.IO Security Alert] Unauthorized join_admin attempt from socket ${socket.id}, user: ${socket.user?.user_id || 'unauthenticated'}`);
         socket.emit('error', { message: 'Unauthorized: Admin privileges required.' });
         return;
@@ -62,7 +67,13 @@ function initSocket(server) {
         return;
       }
 
-      if (socket.user.user_id !== data.user_id && socket.user.role !== 'admin') {
+      const isAssignedChatCustomer = socket.user.role === 'cskh' &&
+        (socket.user.assigned_chat_customer_ids || []).includes(data.user_id);
+      if (
+        socket.user.user_id !== data.user_id &&
+        !hasAdminRole(socket.user, ADMIN_CROSS_USER_ROLES) &&
+        !isAssignedChatCustomer
+      ) {
         console.warn(`[Socket.IO Security Alert] User ${socket.user.user_id} attempted unauthorized join_user for ${data.user_id}`);
         socket.emit('error', { message: 'Unauthorized: Cannot join room of another user.' });
         return;
@@ -93,8 +104,14 @@ function initSocket(server) {
 
         let isAuthorized = false;
 
-        // Admin can join any order room
-        if (socket.user && socket.user.role === 'admin') {
+        // Admin CC and QLSP can join any order room; CSKH is limited to assigned customers.
+        if (hasAdminRole(socket.user, ADMIN_ORDER_UNSCOPED_ROLES)) {
+          isAuthorized = true;
+        }
+        else if (
+          socket.user?.role === 'cskh' &&
+          (socket.user.assigned_chat_customer_ids || []).includes(order.user_id)
+        ) {
           isAuthorized = true;
         }
         // Registered user owns the order

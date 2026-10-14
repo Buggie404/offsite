@@ -2,13 +2,15 @@ import { Injectable, signal, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, timeout } from 'rxjs';
+import { AdminRole, isAdminRole } from '../../shared/models/admin-role.model';
+import { ADMIN_DEFAULT_ROUTES } from '../admin-navigation.config';
 
 export interface AdminUser {
   _id: string;
   user_id: string;
   email: string;
   profile_name?: string;
-  role: string;
+  role: AdminRole;
 }
 
 @Injectable({
@@ -59,11 +61,11 @@ export class AdminAuthService {
     const token = this.getToken();
     const user = this.getUser();
 
-    if (!token || user?.role !== 'admin') {
+    if (!token || !isAdminRole(user?.role)) {
       return false;
     }
 
-    if (!this.isTokenValid(token)) {
+    if (!this.isTokenValid(token, user.role)) {
       this.logout();
       return false;
     }
@@ -71,10 +73,10 @@ export class AdminAuthService {
     return true;
   }
 
-  private isTokenValid(token: string): boolean {
+  private isTokenValid(token: string, role: AdminRole): boolean {
     try {
       const payload = JSON.parse(atob(token.split('.')[1])) as { exp?: number; role?: string };
-      if (payload.role && payload.role !== 'admin') {
+      if (payload.role !== role) {
         return false;
       }
       if (!payload.exp) {
@@ -84,6 +86,16 @@ export class AdminAuthService {
     } catch {
       return false;
     }
+  }
+
+  getAdminRole(): AdminRole | null {
+    const role = this.getUser()?.role;
+    return isAdminRole(role) ? role : null;
+  }
+
+  getDefaultRoute(): string {
+    const role = this.getAdminRole();
+    return role ? ADMIN_DEFAULT_ROUTES[role] : '/admin/403';
   }
 
   private getActiveStorage(): Storage | null {

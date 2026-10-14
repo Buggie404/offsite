@@ -147,7 +147,7 @@ export class AdminSignInComponent implements OnInit {
 
     try {
       await this.adminAuth.login(trimmedEmail, this.password, this.rememberMe);
-      await this.router.navigateByUrl('/admin/orders', { replaceUrl: true });
+      await this.router.navigateByUrl(this.adminAuth.getDefaultRoute(), { replaceUrl: true });
     } catch (err: any) {
       const status = err?.status as number | undefined;
       const body = err?.error;

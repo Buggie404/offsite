@@ -55,7 +55,9 @@ import {
   LucideEye,
   LucideEyeOff,
   LucideDessert,
-  LucideBadgeCheck
+  LucideBadgeCheck,
+  LucideTrophy,
+  LucideActivity
 } from '@lucide/angular';
 
 @Component({
@@ -106,7 +108,9 @@ import {
     LucideEye,
     LucideEyeOff,
     LucideDessert,
-    LucideBadgeCheck
+    LucideBadgeCheck,
+    LucideTrophy,
+    LucideActivity
   ],
   templateUrl: './account.component.html',
   styleUrl: './account.component.scss'
@@ -157,7 +161,7 @@ export class AccountComponent implements OnInit, OnDestroy {
       groupLabel: 'ME',
       tabs: [
         { key: 'profile', label: 'Profile information', icon: 'user' },
-        { key: 'rewards', label: 'Rewards',              icon: 'award',    comingSoon: true },
+        { key: 'rewards', label: 'Rewards',              icon: 'trophy',   comingSoon: true },
         { key: 'dna',     label: 'My Ritual DNA',        icon: 'activity', comingSoon: true },
       ]
     }
@@ -194,6 +198,15 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (tier === 'silver') return 'Silver member';
     if (tier === 'platinum') return 'Platinum member';
     return 'Active member';
+  }
+
+  /** Customer tier from the shared membership system */
+  getCustomerTier(): string {
+    return this.user()?.membership_tier || 'Seed';
+  }
+
+  getCustomerTierClass(): string {
+    return 'tier-' + this.getCustomerTier().toLowerCase();
   }
 
   /** Points display */
