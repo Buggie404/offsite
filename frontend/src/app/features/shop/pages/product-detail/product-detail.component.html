@@ -186,7 +186,7 @@
               [attr.aria-pressed]="purchaseType() === 'subscription'">
               <span class="purchase-option-radio" aria-hidden="true"></span>
               <span class="purchase-option-copy">
-                <strong>Subscribe &amp; Save · −10%</strong>
+                <strong>Subscribe &amp; Save · −{{ getSubscribeDiscountPercent() }}%</strong>
                 <small>Delivered {{ deliveryFrequency().toLowerCase() }} · skip, pause or cancel anytime</small>
               </span>
               <strong class="purchase-option-price">{{ getSubscriptionPrice() | currency:'USD':'symbol':'1.2-2' }}</strong>

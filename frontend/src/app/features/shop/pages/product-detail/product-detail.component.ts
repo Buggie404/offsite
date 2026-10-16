@@ -30,6 +30,14 @@ import {
   isProductOutOfStock
 } from '../../../../features/home/models/product.model';
 import { CartService } from '../../../purchase/services/cart.service';
+import {
+  DEFAULT_SUBSCRIPTION_FREQUENCY_DAYS,
+  SUBSCRIPTION_FREQUENCY_OPTIONS,
+  SubscriptionFrequencyDays,
+  getSubscribeDiscountPercent,
+  getSubscribePrice,
+  isSubscriptionEligibleProduct
+} from '../../../purchase/models/subscription-cart.model';
 import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
 import { BestSellerComponent } from '../../../../features/home/components/best-seller/best-seller.component';
@@ -496,19 +504,21 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return this.getPrice();
   }
 
+  getSubscribeDiscountPercent(): number {
+    return getSubscribeDiscountPercent(this.product() as any);
+  }
+
   getSubscriptionPrice(): number {
-    return this.getPrice() * 0.9;
+    return getSubscribePrice(this.getPrice(), this.getSubscribeDiscountPercent());
   }
 
   isSubscriptionEligible(): boolean {
-    const product = this.product();
-    const category = product?.category;
-    const enabled = product?.is_subscription === true
-      || product?.is_subscribable === true
-      || (product as any)?.is_subscription === 'true'
-      || (product as any)?.is_subscribable === 'true';
+    return isSubscriptionEligibleProduct(this.product() as any);
+  }
 
-    return (category === 'coffee' || category === 'matcha') && enabled;
+  private getSelectedFrequencyDays(): SubscriptionFrequencyDays {
+    return SUBSCRIPTION_FREQUENCY_OPTIONS.find(option => option.label === this.deliveryFrequency())?.days
+      ?? DEFAULT_SUBSCRIPTION_FREQUENCY_DAYS;
   }
 
   getOneTimePurchaseNotice(): string | null {
@@ -716,7 +726,11 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     const prod = this.product();
     const variant = this.selectedVariant();
     if (!prod || !variant || this.isUnavailable() || !this.validateQuantity()) return;
-    this.cartService.addToCart(prod as any, variant.sku, this.quantity());
+    const isSubscription = this.isSubscriptionEligible() && this.purchaseType() === 'subscription';
+    this.cartService.addToCart(prod as any, variant.sku, this.quantity(), true, {
+      purchaseType: isSubscription ? 'subscription' : 'one_time',
+      subscriptionFrequencyDays: isSubscription ? this.getSelectedFrequencyDays() : null
+    });
   }
 
   buyNow(): void {

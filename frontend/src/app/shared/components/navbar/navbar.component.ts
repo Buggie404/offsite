@@ -28,11 +28,28 @@ import {
   LucideTruck,
   LucideHeart,
   LucideMessageSquare,
-  LucideRefreshCw
+  LucideRefreshCw,
+  LucideRepeat,
+  LucideInfo
 } from '@lucide/angular';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
-import { CartService, CartItem } from '../../../features/purchase/services/cart.service';
+import {
+  CartService,
+  CartItem,
+  getCartItemChargedUnitPrice,
+  getCartItemOriginalUnitPrice,
+  getPurchaseType,
+  isSubscriptionItem
+} from '../../../features/purchase/services/cart.service';
+import {
+  PurchaseType,
+  SUBSCRIPTION_FREQUENCY_OPTIONS,
+  SubscriptionFrequencyDays,
+  getSubscribeDiscountPercent,
+  getSubscriptionFrequencyLabel,
+  isSubscriptionEligibleProduct
+} from '../../../features/purchase/models/subscription-cart.model';
 import { ProductService } from '../../../features/home/services/product.service';
 import { RecipeService } from '../../../features/home/services/recipe.service';
 import { ContentService } from '../../../features/content/services/content.service';
@@ -90,6 +107,8 @@ import {
     LucideHeart,
     LucideMessageSquare,
     LucideRefreshCw,
+    LucideRepeat,
+    LucideInfo,
     FormsModule
   ],
   templateUrl: './navbar.component.html',
@@ -170,7 +189,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   cartItemErrors = signal<Record<string, string>>({});
 
   getCartItemError(item: CartItem): string | null {
-    const key = `${this.getProductIdentifier(item)}::${item.variantSku}`;
+    const key = this.getItemKey(item);
     return this.cartItemErrors()[key] || null;
   }
 
@@ -178,8 +197,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     if (!this.hasSelectedItems) return true;
     return this.cartItems.some(item => {
       if (!item.selected || this.isItemOutOfStock(item)) return false;
-      const key = `${this.getProductIdentifier(item)}::${item.variantSku}`;
-      return !!this.cartItemErrors()[key];
+      return !!this.cartItemErrors()[this.getItemKey(item)];
     });
   }
 
@@ -203,7 +221,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     const qty = value ? parseInt(value, 10) : 0;
     const variant = this.getVariant(item);
     const stock = variant ? variant.stock : 0;
-    const key = `${this.getProductIdentifier(item)}::${item.variantSku}`;
+    const key = this.getItemKey(item);
 
     if (qty <= 0 || value === '') {
       this.cartItemErrors.update(errors => ({
@@ -221,7 +239,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
         delete copy[key];
         return copy;
       });
-      this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, qty);
+      this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, qty, getPurchaseType(item));
     }
   }
 
@@ -231,7 +249,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     let qty = value ? parseInt(value, 10) : 0;
     const variant = this.getVariant(item);
     const stock = variant ? variant.stock : 0;
-    const key = `${this.getProductIdentifier(item)}::${item.variantSku}`;
+    const key = this.getItemKey(item);
 
     if (qty <= 0 || value === '') {
       qty = 1;
@@ -245,7 +263,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       return copy;
     });
 
-    this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, qty);
+    this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, qty, getPurchaseType(item));
     input.value = String(qty);
   }
 
@@ -829,11 +847,83 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   get subtotal(): number {
-    return this.cartItems.reduce((sum, item) => {
-      if (!item.selected) return sum;
-      if (this.isItemOutOfStock(item)) return sum;
-      return sum + getCartItemLineTotal(item);
-    }, 0);
+    return this.checkoutLines.reduce((sum, item) => sum + this.getChargedLineTotal(item), 0);
+  }
+
+  // Selected, in-stock lines — what checkout will actually charge.
+  private get checkoutLines(): CartItem[] {
+    return this.cartItems.filter(item => item.selected && !this.isItemOutOfStock(item));
+  }
+
+  private getChargedLineTotal(item: CartItem): number {
+    if (item.bundle) return getCartItemLineTotal(item);
+    return getCartItemChargedUnitPrice(item) * item.quantity;
+  }
+
+  // ── Subscribe & Save ──────────────────────────────────────────────────
+
+  readonly frequencyOptions = SUBSCRIPTION_FREQUENCY_OPTIONS;
+
+  isSubscription(item: CartItem): boolean {
+    return isSubscriptionItem(item);
+  }
+
+  isSubscriptionEligible(item: CartItem): boolean {
+    return !item.bundle && isSubscriptionEligibleProduct(item.product);
+  }
+
+  getSubscribeDiscountPercent(item: CartItem): number {
+    return getSubscribeDiscountPercent(item.product);
+  }
+
+  getOriginalLineTotal(item: CartItem): number {
+    return getCartItemOriginalUnitPrice(item) * item.quantity;
+  }
+
+  setPurchaseType(item: CartItem, purchaseType: PurchaseType): void {
+    this.cartService.setPurchaseType(item, purchaseType);
+  }
+
+  changeFrequency(item: CartItem, days: number | string): void {
+    this.cartService.setSubscriptionFrequency(item, Number(days) as SubscriptionFrequencyDays);
+  }
+
+  get hasSubscriptionLines(): boolean {
+    return this.checkoutLines.some(item => isSubscriptionItem(item));
+  }
+
+  get oneTimeLineCount(): number {
+    return this.checkoutLines
+      .filter(item => !isSubscriptionItem(item))
+      .reduce((sum, item) => sum + item.quantity, 0);
+  }
+
+  get oneTimeTotal(): number {
+    return this.checkoutLines
+      .filter(item => !isSubscriptionItem(item))
+      .reduce((sum, item) => sum + this.getChargedLineTotal(item), 0);
+  }
+
+  // One "Ritual Box" row per delivery frequency.
+  get subscriptionGroups(): Array<{ days: SubscriptionFrequencyDays; label: string; total: number }> {
+    const groups = new Map<SubscriptionFrequencyDays, number>();
+    for (const item of this.checkoutLines) {
+      if (!isSubscriptionItem(item) || !item.subscriptionFrequencyDays) continue;
+      const days = item.subscriptionFrequencyDays;
+      groups.set(days, (groups.get(days) ?? 0) + this.getChargedLineTotal(item));
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([days, total]) => ({ days, label: getSubscriptionFrequencyLabel(days).toLowerCase(), total }));
+  }
+
+  // You save on every delivery = original price × subscribe_discount_percent.
+  get subscriptionSavings(): number {
+    const cents = this.checkoutLines
+      .filter(item => isSubscriptionItem(item))
+      .reduce((sum, item) =>
+        sum + this.getOriginalLineTotal(item) * this.getSubscribeDiscountPercent(item), 0);
+    return Math.round(cents) / 100;
   }
 
   isBundleItem(item: CartItem): boolean {
@@ -848,7 +938,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     if (item.bundle) {
       return getBundleSaleLineTotal(item);
     }
-    return getCartItemLineTotal(item);
+    return this.getChargedLineTotal(item);
   }
 
   getComponentImage = getBundleComponentImage;
@@ -862,7 +952,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     getBundleComponentTrackKey(component);
 
   getItemKey(item: CartItem): string {
-    return `${this.getProductIdentifier(item)}::${item.variantSku}`;
+    return `${this.getProductIdentifier(item)}::${item.variantSku}::${getPurchaseType(item)}`;
   }
 
   isKitContentExpanded(item: CartItem): boolean {
@@ -925,15 +1015,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   incrementQuantity(item: CartItem): void {
-    this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, item.quantity + 1);
+    this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, item.quantity + 1, getPurchaseType(item));
   }
 
   decrementQuantity(item: CartItem): void {
-    this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, item.quantity - 1);
+    this.cartService.updateQuantity(this.getProductIdentifier(item), item.variantSku, item.quantity - 1, getPurchaseType(item));
   }
 
   removeFromCart(item: CartItem): void {
-    this.cartService.removeFromCart(this.getProductIdentifier(item), item.variantSku);
+    this.cartService.removeFromCart(this.getProductIdentifier(item), item.variantSku, getPurchaseType(item));
   }
 
   removeSelected(): void {
@@ -941,11 +1031,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   toggleSelection(item: CartItem): void {
-    this.cartService.toggleSelection(this.getProductIdentifier(item), item.variantSku);
+    this.cartService.toggleSelection(this.getProductIdentifier(item), item.variantSku, getPurchaseType(item));
   }
 
   changeVariant(item: CartItem, newSku: string): void {
-    this.cartService.updateVariant(this.getProductIdentifier(item), item.variantSku, newSku);
+    this.cartService.updateVariant(this.getProductIdentifier(item), item.variantSku, newSku, getPurchaseType(item));
   }
 
   changeBundleComponentVariant(

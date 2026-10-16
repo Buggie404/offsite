@@ -38,7 +38,7 @@ const subscriptionSchema = new mongoose.Schema({
   },
 
   pricing_snapshot:  { type: pricingSnapshotSchema, required: true },
-  payment_method_id: { type: String, default: null },             // _id của payment method dùng để auto-charge
+  payment_method_id: { type: String, default: null },             // _id của Orders.payment_methods[] dùng để auto-charge
   delivery_info:     { type: deliveryInfoSchema, required: true },
   shipping_method:   { type: String, enum: ['standard', 'express'], default: 'standard' },
 

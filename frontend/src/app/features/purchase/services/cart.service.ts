@@ -10,6 +10,15 @@ import {
   refreshBundleCartItem,
   updateBundleComponentVariant
 } from '../models/bundle-cart.model';
+import {
+  DEFAULT_SUBSCRIPTION_FREQUENCY_DAYS,
+  PurchaseType,
+  SubscriptionFrequencyDays,
+  getSubscribeDiscountPercent,
+  getSubscribePrice,
+  isSubscriptionEligibleProduct,
+  isSubscriptionFrequency
+} from '../models/subscription-cart.model';
 
 export interface CartItem {
   product: Product;
@@ -17,6 +26,49 @@ export interface CartItem {
   quantity: number;
   selected: boolean;
   bundle?: BundleCartMeta;
+  // Missing = 'one_time' (carts saved before Subscribe & Save existed).
+  purchaseType?: PurchaseType;
+  subscriptionFrequencyDays?: SubscriptionFrequencyDays | null;
+}
+
+export interface PurchaseOptions {
+  purchaseType: PurchaseType;
+  subscriptionFrequencyDays?: SubscriptionFrequencyDays | null;
+}
+
+export function getPurchaseType(item: { purchaseType?: PurchaseType }): PurchaseType {
+  return item.purchaseType === 'subscription' ? 'subscription' : 'one_time';
+}
+
+export function isSubscriptionItem(item: { purchaseType?: PurchaseType; bundle?: unknown }): boolean {
+  return !item.bundle && getPurchaseType(item) === 'subscription';
+}
+
+// Normalise purchase options against the product: subscription is kept only for
+// eligible products with a valid frequency, everything else is one-time.
+export function normalizePurchaseOptions(product: Product, options?: Partial<PurchaseOptions> | null): PurchaseOptions {
+  const wantsSubscription = options?.purchaseType === 'subscription';
+  if (!wantsSubscription || !isSubscriptionEligibleProduct(product)) {
+    return { purchaseType: 'one_time', subscriptionFrequencyDays: null };
+  }
+  const days = Number(options?.subscriptionFrequencyDays);
+  return {
+    purchaseType: 'subscription',
+    subscriptionFrequencyDays: isSubscriptionFrequency(days) ? days : DEFAULT_SUBSCRIPTION_FREQUENCY_DAYS
+  };
+}
+
+// Original (pre-discount) unit price of a non-bundle cart line.
+export function getCartItemOriginalUnitPrice(item: CartItem): number {
+  const variant = item.product.variants.find(v => v.sku === item.variantSku) ?? item.product.variants[0];
+  return variant?.price ?? 0;
+}
+
+// Unit price actually charged: subscribe price for subscription lines.
+export function getCartItemChargedUnitPrice(item: CartItem): number {
+  const original = getCartItemOriginalUnitPrice(item);
+  if (!isSubscriptionItem(item)) return original;
+  return getSubscribePrice(original, getSubscribeDiscountPercent(item.product));
 }
 
 type ProductIdentifier = string | number | null | undefined;
@@ -71,7 +123,8 @@ export class CartService {
                 variantSku: item.variantSku,
                 quantity: item.quantity,
                 selected: item.selected !== undefined ? item.selected : true,
-                bundle: item.bundle
+                bundle: item.bundle,
+                ...normalizePurchaseOptions(item.product, item)
               })
             );
             this.cartItems.set(items);
@@ -98,7 +151,8 @@ export class CartService {
                 quantity: item.quantity,
                 selected: item.selected !== undefined ? item.selected : true,
                 bundle: item.bundle,
-                isComplement: item.isComplement
+                isComplement: item.isComplement,
+                ...normalizePurchaseOptions(item.product, item)
               }))
             );
           }
@@ -136,15 +190,24 @@ export class CartService {
     this.isOpen.set(false);
   }
 
-  addToCart(product: Product, variantSku?: string, quantity = 1, openDrawer = true): void {
+  addToCart(
+    product: Product,
+    variantSku?: string,
+    quantity = 1,
+    openDrawer = true,
+    purchaseOptions?: Partial<PurchaseOptions>
+  ): void {
     const variant = this.getInStockVariant(product, variantSku);
     if (!variant) return;
     const sku = variant.sku;
+    const purchase = normalizePurchaseOptions(product, purchaseOptions);
 
     let currentItems = [...this.cartItems()];
     const productKey = this.getProductKey(product);
     const existingIndex = currentItems.findIndex(
-      item => this.getProductKey(item.product) === productKey && item.variantSku === sku
+      item => this.getProductKey(item.product) === productKey
+        && item.variantSku === sku
+        && getPurchaseType(item) === purchase.purchaseType
     );
 
     const maxStock = variant.stock ?? 0;
@@ -156,6 +219,7 @@ export class CartService {
       if (newQty <= maxStock) {
         currentItems[existingIndex] = {
           ...existingItem,
+          ...purchase, // latest frequency wins
           quantity: newQty,
           selected: true // Auto select and check when re-adding
         };
@@ -166,7 +230,8 @@ export class CartService {
         product,
         variantSku: sku,
         quantity: Math.min(Math.max(1, quantity), maxStock),
-        selected: maxStock > 0 // Only select initially if in stock
+        selected: maxStock > 0, // Only select initially if in stock
+        ...purchase
       });
     }
 
@@ -233,6 +298,14 @@ export class CartService {
     return this.getProductKey(product) === id || String(product.product_id) === id;
   }
 
+  // A cart line is product + variant + purchase type. When purchaseType is
+  // omitted the line is matched on product + variant only (legacy callers).
+  private matchesLine(item: CartItem, productId: ProductIdentifier, variantSku: string, purchaseType?: PurchaseType): boolean {
+    return this.matchesProduct(item.product, productId)
+      && item.variantSku === variantSku
+      && (purchaseType === undefined || getPurchaseType(item) === purchaseType);
+  }
+
   buyNow(product: Product, variantSku: string, quantity = 1): void {
     const variant = product.variants.find(v => v.sku === variantSku);
     if (!variant || variant.stock <= 0) return;
@@ -253,9 +326,9 @@ export class CartService {
     this.closeCart();
   }
 
-  removeFromCart(productId: ProductIdentifier, variantSku: string): void {
+  removeFromCart(productId: ProductIdentifier, variantSku: string, purchaseType?: PurchaseType): void {
     const filtered = this.cartItems().filter(
-      item => !(this.matchesProduct(item.product, productId) && item.variantSku === variantSku)
+      item => !this.matchesLine(item, productId, variantSku, purchaseType)
     );
     this.saveCart(filtered);
   }
@@ -266,10 +339,10 @@ export class CartService {
     this.saveCart(remaining);
   }
 
-  updateQuantity(productId: ProductIdentifier, variantSku: string, quantity: number): void {
+  updateQuantity(productId: ProductIdentifier, variantSku: string, quantity: number, purchaseType?: PurchaseType): void {
     let currentItems = [...this.cartItems()];
     const index = currentItems.findIndex(
-      item => this.matchesProduct(item.product, productId) && item.variantSku === variantSku
+      item => this.matchesLine(item, productId, variantSku, purchaseType)
     );
 
     if (index > -1) {
@@ -294,10 +367,10 @@ export class CartService {
     }
   }
 
-  updateVariant(productId: ProductIdentifier, oldVariantSku: string, newVariantSku: string): void {
+  updateVariant(productId: ProductIdentifier, oldVariantSku: string, newVariantSku: string, purchaseType?: PurchaseType): void {
     let currentItems = [...this.cartItems()];
     const index = currentItems.findIndex(
-      item => this.matchesProduct(item.product, productId) && item.variantSku === oldVariantSku
+      item => this.matchesLine(item, productId, oldVariantSku, purchaseType)
     );
 
     if (index > -1 && currentItems[index].bundle) {
@@ -306,9 +379,9 @@ export class CartService {
 
     if (index > -1) {
       const item = currentItems[index];
-      // Check if the new variant is already in the cart
+      // Check if the new variant is already in the cart (same purchase type)
       const existingNewIndex = currentItems.findIndex(
-        it => this.matchesProduct(it.product, productId) && it.variantSku === newVariantSku
+        it => this.matchesLine(it, productId, newVariantSku, getPurchaseType(item))
       );
 
       if (existingNewIndex > -1 && existingNewIndex !== index) {
@@ -441,10 +514,10 @@ export class CartService {
     return this.moveItemToFront(items, index);
   }
 
-  toggleSelection(productId: ProductIdentifier, variantSku: string): void {
+  toggleSelection(productId: ProductIdentifier, variantSku: string, purchaseType?: PurchaseType): void {
     const currentItems = [...this.cartItems()];
     const index = currentItems.findIndex(
-      item => this.matchesProduct(item.product, productId) && item.variantSku === variantSku
+      item => this.matchesLine(item, productId, variantSku, purchaseType)
     );
 
     if (index > -1) {
@@ -480,6 +553,48 @@ export class CartService {
     this.saveCart(currentItems);
   }
 
+  // Switch a line between one-time and Subscribe & Save. If a line with the
+  // target purchase type already exists for the same variant, the two merge.
+  setPurchaseType(item: CartItem, purchaseType: PurchaseType): void {
+    if (item.bundle || getPurchaseType(item) === purchaseType) return;
+    const purchase = normalizePurchaseOptions(item.product, {
+      purchaseType,
+      subscriptionFrequencyDays: item.subscriptionFrequencyDays
+    });
+    if (purchase.purchaseType !== purchaseType) return; // not eligible
+
+    const productId = this.getProductKey(item.product);
+    const currentItems = [...this.cartItems()];
+    const index = currentItems.findIndex(it => this.matchesLine(it, productId, item.variantSku, getPurchaseType(item)));
+    if (index === -1) return;
+
+    const targetIndex = currentItems.findIndex(it => this.matchesLine(it, productId, item.variantSku, purchaseType));
+    if (targetIndex > -1) {
+      const target = currentItems[targetIndex];
+      const maxStock = item.product.variants.find(v => v.sku === item.variantSku)?.stock ?? 99;
+      currentItems[targetIndex] = {
+        ...target,
+        quantity: Math.min(target.quantity + currentItems[index].quantity, maxStock),
+        selected: target.selected || currentItems[index].selected
+      };
+      currentItems.splice(index, 1);
+    } else {
+      currentItems[index] = { ...currentItems[index], ...purchase };
+    }
+    this.saveCart(currentItems);
+  }
+
+  setSubscriptionFrequency(item: CartItem, days: SubscriptionFrequencyDays): void {
+    if (!isSubscriptionItem(item) || !isSubscriptionFrequency(days)) return;
+    const productId = this.getProductKey(item.product);
+    const currentItems = this.cartItems().map(it =>
+      this.matchesLine(it, productId, item.variantSku, 'subscription')
+        ? { ...it, subscriptionFrequencyDays: days }
+        : it
+    );
+    this.saveCart(currentItems);
+  }
+
   clearPurchased(): void {
     const remaining = this.cartItems().filter(item => !item.selected);
     this.saveCart(remaining);
@@ -503,7 +618,9 @@ export class CartService {
     const currentSummary = [...this.checkoutSummaryItems()];
     for (const selItem of selected) {
       const existingIdx = currentSummary.findIndex(
-        it => this.getProductKey(it.product) === this.getProductKey(selItem.product) && it.variantSku === selItem.variantSku
+        it => this.getProductKey(it.product) === this.getProductKey(selItem.product)
+          && it.variantSku === selItem.variantSku
+          && getPurchaseType(it) === getPurchaseType(selItem)
       );
       if (existingIdx > -1) {
         currentSummary[existingIdx].quantity += selItem.quantity;
@@ -529,7 +646,9 @@ export class CartService {
     const currentCart = [...this.cartItems()];
     for (const sumItem of summary) {
       const existingIdx = currentCart.findIndex(
-        it => this.getProductKey(it.product) === this.getProductKey(sumItem.product) && it.variantSku === sumItem.variantSku
+        it => this.getProductKey(it.product) === this.getProductKey(sumItem.product)
+          && it.variantSku === sumItem.variantSku
+          && getPurchaseType(it) === getPurchaseType(sumItem)
       );
       if (existingIdx > -1) {
         currentCart[existingIdx].quantity += sumItem.quantity;
@@ -540,7 +659,8 @@ export class CartService {
           variantSku: sumItem.variantSku,
           quantity: sumItem.quantity,
           selected: true,
-          bundle: sumItem.bundle
+          bundle: sumItem.bundle,
+          ...normalizePurchaseOptions(sumItem.product, sumItem)
         });
       }
     }
@@ -684,13 +804,23 @@ export class CartService {
   }
 
   // Guest cart payload sent to the backend merge (product_id = Product._id, variant = sku).
-  getGuestCartPayload(): Array<{ product_id: string | number; variantSku: string; quantity: number; selected: boolean; bundle?: any }> {
+  getGuestCartPayload(): Array<{
+    product_id: string | number;
+    variantSku: string;
+    quantity: number;
+    selected: boolean;
+    bundle?: any;
+    purchaseType: PurchaseType;
+    subscriptionFrequencyDays: SubscriptionFrequencyDays | null;
+  }> {
     return this.cartItems().map(item => ({
       product_id: item.product?._id ?? item.product?.product_id,
       variantSku: item.variantSku,
       quantity: item.quantity,
       selected: item.selected,
-      bundle: item.bundle
+      bundle: item.bundle,
+      purchaseType: getPurchaseType(item),
+      subscriptionFrequencyDays: item.subscriptionFrequencyDays ?? null
     }));
   }
 
@@ -704,7 +834,8 @@ export class CartService {
         variantSku: it.variantSku,
         quantity: it.quantity,
         selected: it.selected !== undefined ? it.selected : true,
-        bundle: it.bundle
+        bundle: it.bundle,
+        ...normalizePurchaseOptions(it.product, it)
       })
     );
     this.suppressSync = true;
@@ -768,7 +899,8 @@ export class CartService {
               variantSku: item.variantSku,
               quantity: item.quantity,
               selected: item.selected !== undefined ? item.selected : true,
-              bundle: item.bundle
+              bundle: item.bundle,
+              ...normalizePurchaseOptions(item.product, item)
             })
           );
         }

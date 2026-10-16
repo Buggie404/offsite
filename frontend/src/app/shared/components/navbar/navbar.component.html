@@ -608,7 +608,11 @@
 <div class="cart-drawer" [class.open]="isCartOpen">
   <!-- Header -->
   <div class="cart-header">
-    <h2 class="cart-title">YOUR CART</h2>
+    <div class="cart-header-title">
+      <h2 class="cart-title">YOUR CART</h2>
+      <span class="cart-count" *ngIf="cartItems.length > 0">({{ cartCount }})</span>
+      <span class="cart-tier-badge" *ngIf="isLoggedIn()" [ngClass]="getTierClass()">{{ getUserTier() }} member</span>
+    </div>
     <button class="cart-close-btn" (click)="closeCart()" aria-label="Close cart">
       <svg lucideX [size]="20"></svg>
     </button>
@@ -616,6 +620,19 @@
 
   <!-- Empty State & Cart Items -->
   <div class="cart-body" *ngIf="cartItems.length > 0">
+    <!-- Select All control -->
+    <div class="select-all-row">
+      <label class="select-all-container">
+        <input type="checkbox" [checked]="isAllSelected" (change)="toggleSelectAll($event)">
+        <span class="checkmark"></span>
+        <span class="select-all-label">Select all</span>
+      </label>
+      <button type="button" class="remove-selected-btn" (click)="removeSelected()"
+              [disabled]="!hasSelectedItems" aria-label="Remove selected items">
+        Remove selected
+      </button>
+    </div>
+
     <div class="cart-items-list">
       <div class="cart-item" *ngFor="let item of cartItems" [class.out-of-stock]="isItemOutOfStock(item)">
         <!-- Checkbox -->
@@ -642,14 +659,17 @@
               [routerLink]="getCartItemDetailLink(item)"
               (click)="openCartItemDetail()"
             >
-              {{ item.quantity }} x {{ isBundleItem(item) ? item.bundle!.title : item.product.name }}
+              {{ isBundleItem(item) ? item.quantity + ' x ' + item.bundle!.title : item.product.name }}
             </a>
             <span class="cart-item-price">
               <ng-container *ngIf="isBundleItem(item); else regularCartPrice">
                 <span class="cart-item-price__sale">${{ getLineTotal(item) | number:'1.2-2' }}</span>
               </ng-container>
               <ng-template #regularCartPrice>
-                ${{ getLineTotal(item) | number:'1.2-2' }}
+                <span class="cart-item-price__current">${{ getLineTotal(item) | number:'1.2-2' }}</span>
+                <span class="cart-item-price__original" *ngIf="isSubscription(item)">
+                  ${{ getOriginalLineTotal(item) | number:'1.2-2' }}
+                </span>
               </ng-template>
             </span>
           </div>
@@ -760,6 +780,44 @@
                 <svg lucideTrash2 [size]="16"></svg>
               </button>
             </div>
+
+            <!-- Purchase option (Subscribe & Save) -->
+            <ng-container *ngIf="isSubscriptionEligible(item); else oneTimeOnly">
+              <div class="purchase-type-toggle" role="group" aria-label="Purchase option">
+                <button type="button" class="purchase-type-toggle__option"
+                        [class.is-active]="!isSubscription(item)"
+                        [attr.aria-pressed]="!isSubscription(item)"
+                        (click)="setPurchaseType(item, 'one_time')">
+                  One-time
+                </button>
+                <button type="button" class="purchase-type-toggle__option"
+                        [class.is-active]="isSubscription(item)"
+                        [attr.aria-pressed]="isSubscription(item)"
+                        (click)="setPurchaseType(item, 'subscription')">
+                  Subscribe &amp; Save −{{ getSubscribeDiscountPercent(item) }}%
+                </button>
+              </div>
+
+              <label class="delivery-frequency" *ngIf="isSubscription(item)">
+                <svg lucideRepeat [size]="16" aria-hidden="true"></svg>
+                <span class="delivery-frequency__label">Deliver</span>
+                <span class="delivery-frequency__select">
+                  <select [ngModel]="item.subscriptionFrequencyDays"
+                          (ngModelChange)="changeFrequency(item, $event)"
+                          [ngModelOptions]="{ standalone: true }"
+                          aria-label="Delivery frequency">
+                    <option *ngFor="let option of frequencyOptions" [ngValue]="option.days">{{ option.label }}</option>
+                  </select>
+                  <svg lucideChevronDown [size]="14" class="variant-caret" aria-hidden="true"></svg>
+                </span>
+              </label>
+            </ng-container>
+            <ng-template #oneTimeOnly>
+              <p class="one-time-only-note">
+                <svg lucideInfo [size]="14" aria-hidden="true"></svg>
+                <span>One-time purchase only · not eligible for Ritual Box</span>
+              </p>
+            </ng-template>
           </ng-template>
           <div class="qty-error-msg" *ngIf="getCartItemError(item) as errorMsg">
             {{ errorMsg }}
@@ -791,17 +849,20 @@
 
   <!-- Cart Footer -->
   <div class="cart-footer" *ngIf="cartItems.length > 0">
-    <!-- Select All control -->
-    <div class="select-all-row">
-      <label class="select-all-container">
-        <input type="checkbox" [checked]="isAllSelected" (change)="toggleSelectAll($event)">
-        <span class="checkmark"></span>
-        <span class="select-all-label">SELECT ALL</span>
-      </label>
-      <button type="button" class="remove-selected-btn" (click)="removeSelected()"
-              [disabled]="!hasSelectedItems" aria-label="Remove selected items">
-        <svg lucideTrash2 [size]="18"></svg>
-      </button>
+    <!-- Ship now vs Ritual Box breakdown -->
+    <div class="cart-breakdown" *ngIf="hasSubscriptionLines">
+      <div class="cart-breakdown__row" *ngIf="oneTimeLineCount > 0">
+        <span>Ship now · one-time ({{ oneTimeLineCount }} {{ oneTimeLineCount === 1 ? 'item' : 'items' }})</span>
+        <span class="cart-breakdown__amount">${{ oneTimeTotal | number:'1.2-2' }}</span>
+      </div>
+      <div class="cart-breakdown__row" *ngFor="let group of subscriptionGroups">
+        <span>Ritual Box · {{ group.label }}</span>
+        <span class="cart-breakdown__amount">${{ group.total | number:'1.2-2' }} /delivery</span>
+      </div>
+      <div class="cart-breakdown__row cart-breakdown__row--savings">
+        <span>You save on every delivery</span>
+        <span class="cart-breakdown__amount">-${{ subscriptionSavings | number:'1.2-2' }}</span>
+      </div>
     </div>
 
     <div class="subtotal-row">
@@ -809,6 +870,9 @@
       <span class="subtotal-price">${{ subtotal | number:'1.2-2' }}</span>
     </div>
     
+    <p class="ritual-box-signin-note" *ngIf="hasSubscriptionLines && !isLoggedIn()">
+      Sign in or create an account at checkout to start your Ritual Box.
+    </p>
     <button class="checkout-btn" (click)="checkout($event)" [disabled]="isCheckoutDisabled()">
       CHECKOUT
     </button>
