@@ -1,4 +1,6 @@
 <section class="admin-forbidden" aria-labelledby="forbidden-title">
+  <div class="ambient-glow bg-sage" aria-hidden="true"></div>
+  <div class="ambient-glow bg-forest" aria-hidden="true"></div>
   <div class="admin-forbidden__content">
     <div class="admin-forbidden__badge">
       <svg lucideShieldAlert [size]="18" aria-hidden="true"></svg>
@@ -8,7 +10,7 @@
     <h1>403</h1>
     <h2 id="forbidden-title">This area is outside your role.</h2>
     <p>
-      Your current role is <strong>{{ roleLabel }}</strong>. Contact Admin CC if you need access.
+      Your current role is <strong>{{ roleLabel }}</strong>. You don't have access for this function.
     </p>
 
     <div class="admin-forbidden__actions">

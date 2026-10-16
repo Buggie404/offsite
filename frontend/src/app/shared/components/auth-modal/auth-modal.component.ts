@@ -32,6 +32,7 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
   @ViewChild('signupPhoneInput') signupPhoneInput!: ElementRef<HTMLInputElement>;
   @ViewChild('signupPasswordInput') signupPasswordInput!: ElementRef<HTMLInputElement>;
   @ViewChild('signupConfirmPasswordInput') signupConfirmPasswordInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('signupReferralInput') signupReferralInput!: ElementRef<HTMLInputElement>;
   
   // Input tàng hình hứng OTP
   @ViewChild('hiddenOtpInput') hiddenOtpInput!: ElementRef<HTMLInputElement>;
@@ -80,6 +81,11 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
   signupPhone = '';
   signupPassword = '';
   signupConfirmPassword = '';
+  signupReferralCode = '';
+  referralCodeTouched = false;
+  referralCodeServerError: string | null = null;
+  /** Tracks whether user already dismissed a 'code not found' error and should be allowed to skip */
+  private referralCodeSkipOnRetry = false;
 
   // Touch states
   emailTouched = false;
@@ -172,11 +178,15 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
     this.signupPhone = '';
     this.signupPassword = '';
     this.signupConfirmPassword = '';
+    this.signupReferralCode = '';
     this.signupNameTouched = false;
     this.signupEmailTouched = false;
     this.signupPhoneTouched = false;
     this.signupPasswordTouched = false;
     this.signupConfirmPasswordTouched = false;
+    this.referralCodeTouched = false;
+    this.referralCodeServerError = null;
+    this.referralCodeSkipOnRetry = false;
 
     this.serverEmailError = null;
     this.serverPhoneError = null;
@@ -302,6 +312,33 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
     if (!this.signupConfirmPassword) return this.signupConfirmPasswordTouched ? 'Confirm password is required' : null;
     if (this.signupConfirmPassword !== this.signupPassword) return 'Passwords do not match';
     return null;
+  }
+
+  // ══════════════ Referral Code validation ══════════════
+  /**
+   * Regex: [NAME]_[8 ký tự A-Z0-9]
+   * NAME = 1+ ký tự chữ in hoa hoặc số
+   * _ = dấu gạch dưới phân cách cố định
+   * CHUỖI 8 KÝ TỰ = đúng 8, chỉ gồm A-Z và 0-9
+   */
+  private readonly REFERRAL_CODE_REGEX = /^[A-Z0-9]+_[A-Z0-9]{8}$/;
+
+  get referralCodeError(): string | null {
+    const code = this.signupReferralCode.trim();
+    if (!code) return null; // optional field
+    if (!this.REFERRAL_CODE_REGEX.test(code)) {
+      return 'Invalid format. Expected: NAME_8CHARS (e.g. JOHN_AB12CD34)';
+    }
+    return null;
+  }
+
+  onReferralCodeInput(): void {
+    this.referralCodeServerError = null;
+    this.referralCodeSkipOnRetry = false;
+    if (this.signupValidator) {
+      this.signupValidator.validateField('signup-referral-code');
+    }
+    this.cdr.detectChanges();
   }
 
   get signupPasswordStrengthScore(): number {
@@ -514,8 +551,26 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
             condition: 'value !== document.getElementById("signup-password")?.value',
             error_message: 'Passwords do not match'
           }
-        ]
-      }
+        ]\r
+      },\r
+      {\r
+        field_id: 'signup-referral-code',\r
+        error_element_id: 'signup-referral-error',\r
+        rules: [\r
+          {\r
+            sequence: 1,\r
+            type: 'FORMAT_CHECK',\r
+            condition: 'value.trim() !== "" && /[^A-Z0-9_]/.test(value.trim())',\r
+            error_message: 'Only uppercase letters, digits, and underscore allowed'\r
+          },\r
+          {\r
+            sequence: 2,\r
+            type: 'FORMAT_CHECK',\r
+            condition: 'value.trim() !== "" && !/^[A-Z0-9]+_[A-Z0-9]{8}$/.test(value.trim())',\r
+            error_message: 'Invalid format. Expected: NAME_8CHARS (e.g. JOHN_AB12CD34)'\r
+          }\r
+        ]\r
+      }\r
     ];
 
     this.signupValidator = new InlineValidator(signupConfigs);
@@ -610,12 +665,19 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
       try {
         const submitEmail = this.signupEmail ? this.signupEmail.trim() : '';
         const submitPhone = this.signupPhone ? this.signupPhone.trim().replace(/\s+/g, '') : '';
+        const submitReferral = this.signupReferralCode ? this.signupReferralCode.trim() : '';
+
+        // Nếu referral code có format sai → chặn ngay
+        if (submitReferral && this.referralCodeError) {
+          return;
+        }
 
         const response = await this.authService.register({
           name: this.signupName,
           email: submitEmail,
           phone: submitPhone,
-          password: this.signupPassword
+          password: this.signupPassword,
+          ...(submitReferral ? { referral_code: submitReferral } : {})
         });
 
         this.registrationId = response.registration_id;
@@ -660,6 +722,27 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
               phoneEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
           }, 50);
+        } else if (errorCode === 'REFERRAL_NOT_FOUND') {
+          // Mã giới thiệu không tồn tại → báo lỗi inline, user có thể bỏ qua bằng cách nhấn Join Us lần nữa
+          if (!this.referralCodeSkipOnRetry) {
+            this.referralCodeServerError = 'Referral code not found. Press Join Us again to skip.';
+            this.referralCodeSkipOnRetry = true;
+            setTimeout(() => {
+              const refEl = document.getElementById('signup-referral-code') as HTMLInputElement | null;
+              if (refEl) {
+                refEl.focus();
+                refEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 50);
+          } else {
+            // Lần thứ 2 nhấn → bỏ qua mã, xóa referral và thử lại
+            this.signupReferralCode = '';
+            this.referralCodeServerError = null;
+            this.referralCodeSkipOnRetry = false;
+            // Retry submit without referral code
+            this.onSubmitAuth(event);
+            return;
+          }
         } else {
           const msg = errorMessage || 'An error occurred during registration. Please try again.';
           this.serverEmailError = msg;

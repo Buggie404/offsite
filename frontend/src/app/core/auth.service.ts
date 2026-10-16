@@ -64,6 +64,7 @@ export class AuthService {
     email: string;
     phone: string;
     password: string;
+    referral_code?: string;
   }): Promise<any> {
     const response = await this.http.post('/auth/register', data);
 
