@@ -60,6 +60,8 @@ export interface Product {
   review_count: number;
   is_best_seller?: boolean;
   is_new_arrival?: boolean;
+  is_subscribable?: boolean;
+  subscribe_discount_percent?: number | null;
   createdAt: string;
   updatedAt: string;
   is_active: boolean;

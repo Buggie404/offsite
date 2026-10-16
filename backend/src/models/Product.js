@@ -62,6 +62,18 @@ const productSchema = new mongoose.Schema({
   product_tag: { type: [String], default: [] },
   is_best_seller: { type: Boolean, default: false },
   is_new_arrival: { type: Boolean, default: false },
+  is_subscribable: { type: Boolean, default: false },
+  // Integer percent (5-15). null = use the shop-wide default subscribe discount.
+  subscribe_discount_percent: {
+    type: Number,
+    default: null,
+    min: 5,
+    max: 15,
+    validate: {
+      validator: value => value === null || Number.isInteger(value),
+      message: 'subscribe_discount_percent must be an integer or null'
+    }
+  },
   total_sold_quantity: { type: Number, default: 0 },
   variant_type: { type: String, required: true, default: 'none' },
   images: { type: [imageSchema], default: [] },
