@@ -36,6 +36,7 @@ import { ParallaxDirective } from '../../../../shared/directives/parallax.direct
 export class RecipeSectionComponent implements OnInit, OnChanges {
   @Input() sectionHeading = 'Brew It Yourself';
   @Input() compact = false;
+  @Input() embedded = false;
   @Input() baseFilter: 'matcha' | 'coffee' | null = null;
   @Input() showViewAll = true;
   @Input() detailLinkState?: Record<string, unknown>;

@@ -60,6 +60,7 @@ const productSchema = new mongoose.Schema({
     enum: ['matcha', 'coffee', 'drinkware', 'sets_bundles', 'tools'] 
   },
   product_tag: { type: [String], default: [] },
+  is_subscription: { type: Boolean, default: false },
   is_best_seller: { type: Boolean, default: false },
   is_new_arrival: { type: Boolean, default: false },
   is_subscribable: { type: Boolean, default: false },

@@ -10,8 +10,21 @@
   @if (product() && !isLoading()) {
   <section class="detail-shell" [class.detail-shell--bundle]="product()?.category === 'sets_bundles'">
     <!-- Product image -->
-    <aside class="product-media" (mouseenter)="pauseCarousel()" (mouseleave)="resumeCarousel()"
+    <aside class="product-media" [class.product-media--single-image]="images().length <= 1"
+      (mouseenter)="pauseCarousel()" (mouseleave)="resumeCarousel()"
       (focusin)="pauseCarousel()" (focusout)="resumeCarousel()">
+      @if (images().length > 1) {
+      <div class="gallery-thumbnails" aria-label="Choose product image">
+        @for (image of images(); track image.public_id || image.url; let index = $index) {
+        <button type="button" class="gallery-thumbnail" [class.is-active]="index === activeImageIndex()"
+          (click)="goToImage(index)" [attr.aria-label]="'Show image ' + (index + 1) + ' of ' + images().length"
+          [attr.aria-current]="index === activeImageIndex() ? 'true' : null">
+          <img [src]="image.url" [alt]="image.alt_text || product()?.name" />
+        </button>
+        }
+      </div>
+      }
+
       <div class="image-frame">
         @if (images().length) {
         <div class="product-image-track" [class.without-transition]="!isSlideTransitionEnabled()"
@@ -44,15 +57,6 @@
         </button>
         }
 
-        @if (showGalleryDots()) {
-        <div class="gallery-dots" aria-label="Choose product image">
-          @for (image of images(); track image.public_id || image.url; let index = $index) {
-          <button type="button" class="gallery-dot" [class.is-active]="index === activeImageIndex()"
-            (click)="goToImage(index)" [attr.aria-label]="'Show image ' + (index + 1) + ' of ' + images().length"
-            [attr.aria-current]="index === activeImageIndex() ? 'true' : null"></button>
-          }
-        </div>
-        }
       </div>
     </aside>
 
@@ -60,6 +64,12 @@
     <article class="product-info">
       <div class="product-scroll">
         <header class="product-header">
+          <div class="product-header-tags" aria-label="Product labels">
+            @for (tag of getProductHeaderTags(); track tag.label) {
+            <span class="product-header-tag" [ngClass]="'product-header-tag--' + tag.kind">{{ tag.label | uppercase }}</span>
+            }
+          </div>
+
           <div class="title-row">
             <h1>{{ product()?.name }}</h1>
             <button type="button" class="save-button" [class.is-saved]="isSaved()" (click)="toggleSave()"
@@ -67,6 +77,13 @@
               <svg lucideHeart [size]="30" [attr.fill]="isSaved() ? 'currentColor' : 'none'" aria-hidden="true"></svg>
             </button>
           </div>
+
+          @if (reviewCount() > 0) {
+          <div class="product-rating" [attr.aria-label]="averageRating() + ' out of 5 from ' + reviewCount() + ' reviews'">
+            <svg lucideStar [size]="22" aria-hidden="true"></svg>
+            <span>{{ averageRating() | number:'1.1-1' }} · {{ reviewCount() }} reviews</span>
+          </div>
+          }
 
           <p class="description">
             {{ product()?.description || 'No description available for this product.' }}
@@ -120,7 +137,7 @@
           <div class="note-pills">
             @for (note of getTastingNotes(); track note) {
             <span class="note-pill">
-              <svg lucideLeaf [size]="18" aria-hidden="true"></svg>
+              <svg lucideSparkle [size]="14" [strokeWidth]="3" aria-hidden="true"></svg>
               {{ note }}
             </span>
             }
@@ -147,6 +164,52 @@
               }
             </div>
           </fieldset>
+          }
+
+          @if (isSubscriptionEligible()) {
+          <fieldset class="purchase-option-selector">
+            <legend>PURCHASE OPTION</legend>
+
+            <button type="button" class="purchase-option-card"
+              [class.is-selected]="purchaseType() === 'one-time'" (click)="setPurchaseType('one-time')"
+              [attr.aria-pressed]="purchaseType() === 'one-time'">
+              <span class="purchase-option-radio" aria-hidden="true"></span>
+              <span class="purchase-option-copy">
+                <strong>One-time purchase</strong>
+                <small>Ships once</small>
+              </span>
+              <strong class="purchase-option-price">{{ getTotalPrice() | currency:'USD':'symbol':'1.2-2' }}</strong>
+            </button>
+
+            <button type="button" class="purchase-option-card"
+              [class.is-selected]="purchaseType() === 'subscription'" (click)="setPurchaseType('subscription')"
+              [attr.aria-pressed]="purchaseType() === 'subscription'">
+              <span class="purchase-option-radio" aria-hidden="true"></span>
+              <span class="purchase-option-copy">
+                <strong>Subscribe &amp; Save · −10%</strong>
+                <small>Delivered {{ deliveryFrequency().toLowerCase() }} · skip, pause or cancel anytime</small>
+              </span>
+              <strong class="purchase-option-price">{{ getSubscriptionPrice() | currency:'USD':'symbol':'1.2-2' }}</strong>
+            </button>
+          </fieldset>
+
+          @if (purchaseType() === 'subscription') {
+          <label class="delivery-frequency">
+            <span>DELIVER</span>
+            <select [value]="deliveryFrequency()" (change)="setDeliveryFrequency($event)" aria-label="Delivery frequency">
+              <option value="Every week">Every week</option>
+              <option value="Every 2 weeks">Every 2 weeks</option>
+              <option value="Every month">Every month</option>
+            </select>
+          </label>
+          }
+          }
+
+          @if (getOneTimePurchaseNotice(); as notice) {
+          <p class="one-time-purchase-notice">
+            <svg lucidePackage [size]="16" [strokeWidth]="2.25" aria-hidden="true"></svg>
+            <span>{{ notice }}</span>
+          </p>
           }
 
           <div class="quantity-field">
@@ -220,23 +283,22 @@
     </article>
   </section>
 
-  @if (shouldShowBrewingMethods() && (isBrewingMethodsLoading() || brewingMethods().length)) {
-  <section class="brewing-methods-section" aria-labelledby="brewing-methods-title">
-    <div class="brewing-methods__decor brewing-methods__decor--blob" aria-hidden="true"></div>
-    <div class="brewing-methods__decor brewing-methods__decor--ring" aria-hidden="true"></div>
-    <div class="brewing-methods__decor brewing-methods__decor--diamond" aria-hidden="true"></div>
-    <div class="brewing-methods__decor brewing-methods__decor--diamond-sm" aria-hidden="true"></div>
-    <div class="brewing-methods__decor brewing-methods__decor--dot" aria-hidden="true"></div>
-    <div class="brewing-methods__decor brewing-methods__decor--dot-sm" aria-hidden="true"></div>
-    <div class="brewing-methods__decor brewing-methods__decor--square" aria-hidden="true"></div>
-    <div class="brewing-methods__decor brewing-methods__decor--triangle" aria-hidden="true"></div>
-    <div class="brewing-methods__decor brewing-methods__decor--line" aria-hidden="true"></div>
-    <div class="brewing-methods-header reveal-fade-in" appAnimateInView>
-      <h2 id="brewing-methods-title">BREWING METHODS</h2>
-      <span aria-hidden="true"></span>
+  @if (shouldShowRecipes()) {
+  <section class="product-content-tabs" aria-label="Product guides and recipes">
+    <div class="product-content-tabs__list" role="tablist" aria-label="Product content">
+      <button type="button" role="tab" class="product-content-tabs__tab"
+        [class.is-active]="activeProductContentTab() === 'brewing'"
+        [attr.aria-selected]="activeProductContentTab() === 'brewing'"
+        (click)="setProductContentTab('brewing')">BREWING METHODS</button>
+      <button type="button" role="tab" class="product-content-tabs__tab"
+        [class.is-active]="activeProductContentTab() === 'recipes'"
+        [attr.aria-selected]="activeProductContentTab() === 'recipes'"
+        (click)="setProductContentTab('recipes')">POPULAR RECIPES</button>
     </div>
 
-    <div class="brewing-methods-grid reveal-fade-in" appAnimateInView>
+    @if (activeProductContentTab() === 'brewing') {
+    <div class="product-content-tabs__panel" role="tabpanel">
+      <div class="brewing-methods-grid">
       @if (isBrewingMethodsLoading()) {
       @for (item of [1, 2, 3]; track item) {
       <article class="brewing-card brewing-card--loading" aria-hidden="true">
@@ -253,16 +315,7 @@
       <article class="brewing-card" [routerLink]="['/journal', method.slug]" [state]="contentDetailEntryState" role="link" tabindex="0"
         [attr.aria-label]="'Read journal guide for ' + method.title">
         <div class="brewing-card__top">
-          <span class="brewing-card__badge">{{ method.methodLabel }}</span>
-          <span class="brewing-card__icon" aria-hidden="true">
-            @if (getMethodIcon(method) === 'coffee') {
-            <svg lucideCoffee [size]="24"></svg>
-            } @else if (getMethodIcon(method) === 'droplet') {
-            <svg lucideDroplet [size]="24"></svg>
-            } @else {
-            <svg lucideLeaf [size]="24"></svg>
-            }
-          </span>
+          <span class="brewing-card__badge">METHOD {{ index + 1 | number:'2.0-0' }}</span>
         </div>
 
         <h3>{{ method.title }}</h3>
@@ -283,13 +336,15 @@
       </article>
       }
       }
+      </div>
     </div>
+    } @else {
+    <div class="product-content-tabs__panel" role="tabpanel">
+      <app-recipe-section [embedded]="true" [compact]="true" [baseFilter]="getRecipeBaseFilter()"
+        [detailLinkState]="contentDetailEntryState" [showViewAll]="false"></app-recipe-section>
+    </div>
+    }
   </section>
-  }
-
-  @if (shouldShowRecipes()) {
-  <app-recipe-section sectionHeading="POPULAR RECIPES" [compact]="true" [baseFilter]="getRecipeBaseFilter()"
-    [detailLinkState]="contentDetailEntryState" [showViewAll]="false"></app-recipe-section>
   }
 
   @if (youMayAlsoLikeProducts().length) {

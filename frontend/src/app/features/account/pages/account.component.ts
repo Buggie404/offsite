@@ -5,6 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink, ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/auth.service';
+import { AuthModalService } from '../../../core/auth-modal.service';
 import { OrderSocketService } from '../../../core/services/order-socket.service';
 import { UserAddress, UserPaymentMethod } from '../../../shared/models/user.model';
 import { CheckoutService } from '../../purchase/services/checkout.service';
@@ -118,6 +119,7 @@ import {
 export class AccountComponent implements OnInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   private authService = inject(AuthService);
+  private authModalService = inject(AuthModalService);
   private http = inject(HttpClient);
   private router = inject(Router);
   private fb = inject(FormBuilder);
@@ -862,34 +864,45 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (!isPlatformBrowser(this.platformId)) return;
 
     this.isLoading.set(true);
+    this.errorMessage.set('');
     try {
-      this.http.get<{ user: any }>('/api/auth/me').subscribe({
-        next: (response) => {
-          this.user.set(response.user);
-          if (response.user?.user_id) {
-            this.orderSocketService.joinUserRoom(response.user.user_id);
-          }
-          // Sync localStorage
-          localStorage.setItem('user', JSON.stringify(response.user));
+      // AuthService uses the shared authenticated request flow, including a
+      // one-time token refresh. Calling HttpClient directly here bypassed that
+      // flow, so an expired access token incorrectly opened the sign-out modal.
+      const response = await this.authService.getMe();
+      const user = response?.user;
 
-          this.profileForm.patchValue({
-            profile_name: response.user.profile_name || '',
-            community_name: response.user.community_name || '',
-            email: response.user.email || '',
-            phone: response.user.phone || ''
-          });
-          this.isLoading.set(false);
-        },
-        error: (err) => {
-          console.error('Failed to load profile:', err);
-          this.errorMessage.set(err.error?.error || 'Failed to load profile information.');
-          this.isLoading.set(false);
-          if (err.status === 401 || err.status === 403) {
-            this.signOut();
-          }
-        }
+      if (!user) {
+        throw new Error('Profile data was not returned.');
+      }
+
+      this.user.set(user);
+      this.authService.setUser(user);
+      if (user.user_id) {
+        this.orderSocketService.joinUserRoom(user.user_id);
+      }
+
+      this.profileForm.patchValue({
+        profile_name: user.profile_name || '',
+        community_name: user.community_name || '',
+        email: user.email || '',
+        phone: user.phone || ''
       });
-    } catch (e) {
+    } catch (err: any) {
+      console.error('Failed to load profile:', err);
+
+      // The shared request flow only returns this error after both the access
+      // token and its refresh token are unusable. End the broken session and
+      // take the customer straight to sign in again; never leave Account blank
+      // or ask them to manually "sign out".
+      if (err?.message === 'Unauthorized') {
+        this.authService.logout();
+        this.authModalService.open('login');
+        return;
+      }
+
+      this.errorMessage.set(err?.error?.error || err?.error || err?.message || 'Failed to load profile information. Please try again.');
+    } finally {
       this.isLoading.set(false);
     }
   }

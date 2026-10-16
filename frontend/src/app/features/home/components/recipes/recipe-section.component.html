@@ -2,7 +2,7 @@
      components/recipe-section/recipe-section.component.html
 ───────────────────────────────────────────────────────────── -->
 
-<section class="brew-section" [class.brew-section--compact]="compact">
+<section class="brew-section" [class.brew-section--compact]="compact" [class.brew-section--embedded]="embedded">
 
   <!-- Background geometric decorations -->
   <div class="geo geo--circle" [appParallax]="0.1" aria-hidden="true"></div>
@@ -12,7 +12,7 @@
   <div class="brew-container">
 
     <!-- ── HEADING ─────────────────────────────────────────── -->
-    <div class="section-header reveal-fade-in" appAnimateInView>
+    <div class="section-header reveal-fade-in" appAnimateInView *ngIf="!embedded">
       <div class="heading-block">
         <h2 class="heading-block__title">{{ sectionHeading }}</h2>
         <hr class="heading-block__divider" />

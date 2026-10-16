@@ -17,6 +17,7 @@ import {
   LucideStar,
   LucideShoppingBag,
   LucideShoppingCart,
+  LucideSparkle,
   LucideX
 } from '@lucide/angular';
 import { ProductReview as ProductReviewDto, ProductService } from '../../../../features/home/services/product.service';
@@ -43,6 +44,11 @@ import { Subscription } from 'rxjs';
 interface ProductTag {
   icon: 'map' | 'drop' | 'package';
   label: string;
+}
+
+interface ProductHeaderTag {
+  label: string;
+  kind: 'status' | 'pantry' | 'category' | 'tag';
 }
 
 interface IncludedProduct {
@@ -100,6 +106,7 @@ interface BrewingMethodCard {
     LucideStar,
     LucideShoppingBag,
     LucideShoppingCart,
+    LucideSparkle,
     LucideX,
     BackToTopComponent
   ],
@@ -142,6 +149,9 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   youMayAlsoLikeProducts = signal<Product[]>([]);
   recentlyViewedProducts = signal<Product[]>([]);
   productCatalog = signal<Product[]>([]);
+  purchaseType = signal<'one-time' | 'subscription'>('subscription');
+  deliveryFrequency = signal<'Every week' | 'Every 2 weeks' | 'Every month'>('Every 2 weeks');
+  activeProductContentTab = signal<'brewing' | 'recipes'>('brewing');
 
   private carouselTimer?: ReturnType<typeof setInterval>;
   private scrollRestoreTimers: Array<ReturnType<typeof setTimeout>> = [];
@@ -207,6 +217,9 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     this.isSaved.set(false);
     this.brewingMethods.set([]);
     this.youMayAlsoLikeProducts.set([]);
+    this.purchaseType.set('subscription');
+    this.deliveryFrequency.set('Every 2 weeks');
+    this.activeProductContentTab.set('brewing');
 
     this.productService.getProductById(productId).subscribe({
       next: (prod: Product) => {
@@ -404,6 +417,41 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     }
   }
 
+  getProductHeaderTags(): ProductHeaderTag[] {
+    const product = this.product();
+    if (!product) return [];
+
+    const tags: ProductHeaderTag[] = [];
+    if (product.is_best_seller) tags.push({ label: 'BEST SELLER', kind: 'status' });
+    if (product.is_new_arrival) tags.push({ label: 'NEW ARRIVAL', kind: 'status' });
+
+    // Purchase history is not available in the product payload yet, so this remains display text for now.
+    tags.push({ label: 'IN YOUR PANTRY', kind: 'pantry' });
+    tags.push({ label: this.getCategoryLabel(product.category), kind: 'category' });
+
+    const existingLabels = new Set(tags.map(tag => tag.label.toLowerCase()));
+    for (const tag of product.product_tag ?? []) {
+      const label = tag.trim();
+      if (label && !existingLabels.has(label.toLowerCase())) {
+        tags.push({ label, kind: 'tag' });
+        existingLabels.add(label.toLowerCase());
+      }
+    }
+
+    return tags;
+  }
+
+  private getCategoryLabel(category: string): string {
+    const labels: Record<string, string> = {
+      coffee: 'COFFEE',
+      matcha: 'MATCHA',
+      drinkware: 'DRINKWARE',
+      tools: 'TOOLS',
+      sets_bundles: 'SETS & BUNDLES'
+    };
+    return labels[category] ?? category.replace(/[_-]+/g, ' ').toUpperCase();
+  }
+
   getTastingNotes(): string[] {
     const p = this.product();
     return p?.category === 'coffee' ? (p.coffee?.tasting_notes ?? []) : [];
@@ -448,6 +496,45 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return this.getPrice();
   }
 
+  getSubscriptionPrice(): number {
+    return this.getPrice() * 0.9;
+  }
+
+  isSubscriptionEligible(): boolean {
+    const category = this.product()?.category;
+    return (category === 'coffee' || category === 'matcha')
+      && this.product()?.is_subscription === true;
+  }
+
+  getOneTimePurchaseNotice(): string | null {
+    const category = this.product()?.category;
+    switch (category) {
+      case 'coffee':
+      case 'matcha':
+        if (this.product()?.is_subscription !== true) {
+          return 'This product is a one-time purchase · Not eligible for Ritual Box.';
+        }
+        return null;
+      case 'tools':
+        return 'Tools are one-time purchases · Not eligible for Ritual Box.';
+      case 'drinkware':
+        return 'Drinkware is a one-time purchase · Not eligible for Ritual Box.';
+      default:
+        return null;
+    }
+  }
+
+  setPurchaseType(type: 'one-time' | 'subscription'): void {
+    this.purchaseType.set(type);
+  }
+
+  setDeliveryFrequency(event: Event): void {
+    const frequency = (event.target as HTMLSelectElement).value;
+    if (frequency === 'Every week' || frequency === 'Every 2 weeks' || frequency === 'Every month') {
+      this.deliveryFrequency.set(frequency);
+    }
+  }
+
   maxQuantity(): number {
     return Math.max(0, this.selectedVariant()?.stock ?? 0);
   }
@@ -463,6 +550,10 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
 
   shouldShowBrewingMethods(): boolean {
     return this.shouldShowRecipes();
+  }
+
+  setProductContentTab(tab: 'brewing' | 'recipes'): void {
+    this.activeProductContentTab.set(tab);
   }
 
   getRecipeBaseFilter(): 'matcha' | 'coffee' | null {

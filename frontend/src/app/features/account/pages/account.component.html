@@ -980,6 +980,14 @@
     </main>
   </div>
 
+  <!-- Keep the page actionable if the profile request fails; previously this
+       state was blank after dismissing the unrelated sign-out modal. -->
+  <section class="account-load-error" *ngIf="!isLoading() && !user() && errorMessage()">
+    <h1>We couldn’t load your account</h1>
+    <p>{{ errorMessage() }}</p>
+    <button type="button" (click)="fetchProfile()">TRY AGAIN</button>
+  </section>
+
   <div class="modal-overlay edit-profile-overlay" *ngIf="showEditModal()" (click)="handleCloseEditModal()">
     <div class="modal-content edit-profile-modal" (click)="$event.stopPropagation()">
       <div class="profile-modal-header">

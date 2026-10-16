@@ -54,6 +54,7 @@ export interface Product {
   description?: string;
   category: string;
   product_tag?: string[];
+  is_subscription?: boolean;
   variant_type?: string;
   images: ProductImage[];
   variants: Variant[];
