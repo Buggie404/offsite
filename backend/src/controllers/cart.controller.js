@@ -58,7 +58,7 @@ async function getCart(req, res) {
 }
 
 // PUT /api/cart  (authenticated) — live-sync: overwrite the user's DB cart.
-// Body: { items: [{ product_id, variantSku, quantity, selected }] }
+// Body: { items: [{ product_id, variantSku, quantity, selected, purchaseType?, subscriptionFrequencyDays? }] }
 async function replaceCart(req, res) {
   try {
     const userIdStr = await resolveUserIdString(req.user);

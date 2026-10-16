@@ -62,6 +62,42 @@ async function resolveProductVariant(productId, sku, bundle) {
   return { product, variant };
 }
 
+// Shop-wide Subscribe & Save discount used when Product.subscribe_discount_percent is null.
+const DEFAULT_SUBSCRIBE_DISCOUNT_PERCENT = 10;
+const SUBSCRIPTION_FREQUENCIES = [7, 14, 30];
+
+// Normalise the purchase options of an incoming line and price it.
+// Subscription is only kept when the product is subscribable and the frequency
+// is valid; anything else falls back to a one-time line at full price.
+function buildPurchaseFields(product, variant, line) {
+  const wantsSubscription = (line.purchaseType || line.purchase_type) === 'subscription';
+  const frequency = Number(line.subscriptionFrequencyDays ?? line.subscription_frequency_days);
+  const isSubscription = wantsSubscription
+    && product.is_subscribable === true
+    && SUBSCRIPTION_FREQUENCIES.includes(frequency);
+
+  if (!isSubscription) {
+    return {
+      purchase_type: 'one_time',
+      subscription_frequency_days: null,
+      price_at_add: variant.price,
+      original_price_at_add: null
+    };
+  }
+
+  const discount = product.subscribe_discount_percent ?? DEFAULT_SUBSCRIBE_DISCOUNT_PERCENT;
+  return {
+    purchase_type: 'subscription',
+    subscription_frequency_days: frequency,
+    price_at_add: Math.round(variant.price * (100 - discount)) / 100,
+    original_price_at_add: variant.price
+  };
+}
+
+function lineKey(productId, sku, purchaseType) {
+  return `${productId}::${sku}::${purchaseType}`;
+}
+
 // Sequential cart_id like the seed (CRT00000, CRT00001, ...).
 async function nextCartId() {
   const last = await Cart.findOne({}).sort({ cart_id: -1 }).select('cart_id').lean();
@@ -92,7 +128,11 @@ async function enrichCart(cart) {
       variantSku: it.variant_id,
       quantity: it.quantity,
       selected: it.is_selected,
-      bundle: it.bundle || undefined
+      bundle: it.bundle || undefined,
+      purchaseType: it.purchase_type || 'one_time',
+      subscriptionFrequencyDays: it.subscription_frequency_days ?? null,
+      priceAtAdd: it.price_at_add,
+      originalPriceAtAdd: it.original_price_at_add ?? null
     });
   }
   return { cart_id: cart.cart_id, items };
@@ -131,12 +171,15 @@ async function mergeGuestCartIntoUser(userId, guestItems) {
     const sku = variant.sku;
     const stock = variant.stock ?? 0;
     const addQty = Math.max(1, Number(g.quantity) || 1);
+    const purchase = buildPurchaseFields(product, variant, g);
 
-    const idx = working.findIndex(w => w.product_id === pid && w.variant_id === sku);
+    const idx = working.findIndex(w =>
+      lineKey(w.product_id, w.variant_id, w.purchase_type || 'one_time') === lineKey(pid, sku, purchase.purchase_type)
+    );
     if (idx > -1) {
-      // Same product + same variant -> cộng dồn (cap to stock).
+      // Same product + same variant + same purchase type -> cộng dồn (cap to stock).
       working[idx].quantity = capQuantity(working[idx].quantity + addQty, stock);
-      working[idx].price_at_add = variant.price; // latest price
+      Object.assign(working[idx], purchase); // latest price / frequency
       working[idx].is_selected = true;
       if (g.bundle) {
         working[idx].bundle = g.bundle;
@@ -147,7 +190,7 @@ async function mergeGuestCartIntoUser(userId, guestItems) {
         product_id: pid,
         variant_id: sku,
         quantity: capQuantity(addQty, stock),
-        price_at_add: variant.price,
+        ...purchase,
         is_selected: true,
         bundle: g.bundle || null,
         added_at: new Date()
@@ -196,18 +239,19 @@ async function replaceUserCart(userId, items) {
   if (!userId) return null;
   const incoming = Array.isArray(items) ? items : [];
 
-  const byKey = new Map(); // dedupe by product+variant, last wins
+  const byKey = new Map(); // dedupe by product+variant+purchase_type, last wins
   for (const g of incoming) {
     const resolved = await resolveProductVariant(g.product_id, g.variantSku, g.bundle);
     if (!resolved) continue; // deleted product/variant -> drop
 
     const { product, variant } = resolved;
     const stock = variant.stock ?? 0;
-    byKey.set(`${product._id}::${variant.sku}`, {
+    const purchase = buildPurchaseFields(product, variant, g);
+    byKey.set(lineKey(product._id, variant.sku, purchase.purchase_type), {
       product_id: product._id.toString(),
       variant_id: variant.sku,
       quantity: capQuantity(Math.max(1, Number(g.quantity) || 1), stock),
-      price_at_add: variant.price,
+      ...purchase,
       is_selected: g.selected !== undefined ? !!g.selected : true,
       bundle: g.bundle || null,
       added_at: new Date()
@@ -237,5 +281,7 @@ module.exports = {
   mergeGuestCartIntoUser,
   getUserCart,
   replaceUserCart,
-  resolveProductVariant
+  resolveProductVariant,
+  buildPurchaseFields,
+  DEFAULT_SUBSCRIBE_DISCOUNT_PERCENT
 };

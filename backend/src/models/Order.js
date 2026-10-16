@@ -133,6 +133,10 @@ const orderSchema = new mongoose.Schema({
   // ─── Refund request ──────────────────────────────────────
   refund_request: { type: refundRequestSchema, default: null },
 
+  // ─── Subscription (only on orders created by the scheduler) ─
+  subscription_id:    { type: String, default: null, index: true }, // ref: Subscriptions.subscription_id
+  subscription_cycle: { type: Number, default: null, min: 1 },      // lần giao thứ mấy của subscription
+
   // ─── Admin internal notes ─────────────────────────────────
   internal_notes: { type: String, default: "" },
 
