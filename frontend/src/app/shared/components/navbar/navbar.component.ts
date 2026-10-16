@@ -1160,6 +1160,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return user?.membership_tier || 'Seed';
   }
 
+  /** Tier as shown in the cart badge: Seed | Leaf | Bloom | Zen */
+  getUserTierLabel(): string {
+    const tier = this.getUserTier().trim().toLowerCase();
+    return tier.charAt(0).toUpperCase() + tier.slice(1);
+  }
+
   /** CSS modifier class for the tier badge */
   getTierClass(): string {
     return 'tier-' + this.getUserTier().toLowerCase();

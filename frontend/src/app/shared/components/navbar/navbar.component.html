@@ -611,7 +611,7 @@
     <div class="cart-header-title">
       <h2 class="cart-title">YOUR CART</h2>
       <span class="cart-count" *ngIf="cartItems.length > 0">({{ cartCount }})</span>
-      <span class="cart-tier-badge" *ngIf="isLoggedIn()" [ngClass]="getTierClass()">{{ getUserTier() }} member</span>
+      <span class="cart-tier-badge" *ngIf="isLoggedIn()" [ngClass]="getTierClass()">{{ getUserTierLabel() }}</span>
     </div>
     <button class="cart-close-btn" (click)="closeCart()" aria-label="Close cart">
       <svg lucideX [size]="20"></svg>
