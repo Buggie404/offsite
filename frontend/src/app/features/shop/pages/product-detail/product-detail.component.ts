@@ -501,9 +501,14 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   }
 
   isSubscriptionEligible(): boolean {
-    const category = this.product()?.category;
-    return (category === 'coffee' || category === 'matcha')
-      && this.product()?.is_subscription === true;
+    const product = this.product();
+    const category = product?.category;
+    const enabled = product?.is_subscription === true
+      || product?.is_subscribable === true
+      || (product as any)?.is_subscription === 'true'
+      || (product as any)?.is_subscribable === 'true';
+
+    return (category === 'coffee' || category === 'matcha') && enabled;
   }
 
   getOneTimePurchaseNotice(): string | null {
@@ -511,7 +516,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     switch (category) {
       case 'coffee':
       case 'matcha':
-        if (this.product()?.is_subscription !== true) {
+        if (!this.isSubscriptionEligible()) {
           return 'This product is a one-time purchase · Not eligible for Ritual Box.';
         }
         return null;
