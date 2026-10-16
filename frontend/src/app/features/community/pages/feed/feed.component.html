@@ -101,31 +101,32 @@
 
         <ng-container *ngIf="loading && posts.length === 0">
           <div class="skeleton-card" *ngFor="let i of [1,2,3,4,5,6,7,8,9]">
+            <div class="skeleton-avatar-row">
+              <div class="sk-avatar"></div>
+              <div class="sk-name"></div>
+            </div>
             <div class="skeleton-image"></div>
             <div class="skeleton-content">
-              <div class="skeleton-avatar-row">
-                <div class="sk-avatar"></div>
-                <div class="sk-name"></div>
-              </div>
               <div class="skeleton-line"></div>
               <div class="skeleton-line short"></div>
             </div>
           </div>
         </ng-container>
 
-        <app-post-card *ngFor="let post of posts" [post]="post" (like)="likePost($event)" (save)="savePost($event)"
-          (share)="sharePost($event)" (openDetail)="goToDetail($event)">
+        <app-post-card *ngFor="let post of posts" [post]="post" [isOwner]="!!post.user_id && post.user_id === currentUserId()"
+          (like)="likePost($event)" (save)="savePost($event)" (share)="sharePost($event)"
+          (openDetail)="goToDetail($event)" (delete)="promptDeletePost($event)" (report)="openReport($event)">
         </app-post-card>
 
         <!-- Skeleton Cards for Infinite Scroll (loads a row of 3 cards in the grid) -->
         <ng-container *ngIf="loading && posts.length > 0">
           <div class="skeleton-card" *ngFor="let i of [1,2,3]">
+            <div class="skeleton-avatar-row">
+              <div class="sk-avatar"></div>
+              <div class="sk-name"></div>
+            </div>
             <div class="skeleton-image"></div>
             <div class="skeleton-content">
-              <div class="skeleton-avatar-row">
-                <div class="sk-avatar"></div>
-                <div class="sk-name"></div>
-              </div>
               <div class="skeleton-line"></div>
               <div class="skeleton-line short"></div>
             </div>
@@ -182,5 +183,27 @@
 <app-create-recipe-modal *ngIf="showCreateRecipe" (close)="closeCreateRecipe()"></app-create-recipe-modal>
 
 <app-share-modal *ngIf="showShareModal" [shareUrl]="shareUrl" (close)="closeShareModal()"></app-share-modal>
+
+<app-report-post-modal
+  *ngIf="reportingPost as rp"
+  [authorUsername]="rp.author.username"
+  [postExcerpt]="rp.content"
+  [submitting]="reportSubmitting"
+  (cancel)="closeReport()"
+  (submitReport)="submitReport($event)">
+</app-report-post-modal>
+
+<app-confirmation-modal
+  *ngIf="pendingDeletePost"
+  [isOpen]="!!pendingDeletePost"
+  [title]="pendingDeletePost.post_type === 'recipe' ? 'Delete Recipe?' : 'Delete Post?'"
+  [message]="pendingDeletePost.post_type === 'recipe' ? 'Are you sure you want to delete this recipe?' : 'Are you sure you want to delete this post?'"
+  warningMessage="This action cannot be undone."
+  confirmText="DELETE"
+  cancelText="CANCEL"
+  type="danger"
+  (confirm)="confirmDeletePost()"
+  (cancel)="cancelDeletePost()">
+</app-confirmation-modal>
 
 <app-back-to-top></app-back-to-top>

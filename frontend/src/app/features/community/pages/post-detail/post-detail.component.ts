@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, ViewChild, ElementRef, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -9,11 +9,21 @@ import { CommentSectionComponent } from '../../components/comment-section/commen
 import { ShareModalComponent } from '../../components/share-modal/share-modal.component';
 import { AuthService } from '../../../../core/auth.service';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { ToastService } from '../../../../shared/services/toast.service';
+import { ReportPostModalComponent, ReportPayload } from '../../components/report-post-modal/report-post-modal.component';
+import {
+  LucideArrowLeft, LucideArrowRight, LucideBookmark, LucideClock, LucideEllipsis, LucideFlag,
+  LucideHeart, LucideMessageCircle, LucidePlay, LucideShare2, LucideStar, LucideTrash2, LucideUser
+} from '@lucide/angular';
 
 @Component({
   selector: 'app-post-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, CommentSectionComponent, ShareModalComponent, ConfirmationModalComponent],
+  imports: [
+    CommonModule, FormsModule, RouterModule, CommentSectionComponent, ShareModalComponent, ConfirmationModalComponent,
+    ReportPostModalComponent, LucideArrowLeft, LucideArrowRight, LucideBookmark, LucideClock, LucideEllipsis, LucideFlag,
+    LucideHeart, LucideMessageCircle, LucidePlay, LucideShare2, LucideStar, LucideTrash2, LucideUser
+  ],
   templateUrl: './post-detail.component.html',
   styleUrls: ['./post-detail.component.scss']
 })
@@ -24,8 +34,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   private communityService = inject(CommunityService);
   private cdr = inject(ChangeDetectorRef);
   private authService = inject(AuthService);
-
-  @ViewChild('carouselEl') carouselEl?: ElementRef<HTMLDivElement>;
+  private toast = inject(ToastService);
 
   post: Post | null = null;
   loading = true;
@@ -36,12 +45,95 @@ export class PostDetailComponent implements OnInit, OnDestroy {
 
   postContentParts: { text: string; isTag: boolean }[] = [];
   activeMediaIndex = 0;
-  playingVideoIndex: number | null = null;
   private timeTickHandle?: ReturnType<typeof setInterval>;
 
   // Variables for Deleting Post
   showPostOptions = false;
   isConfirmModalOpen = false;
+
+  showReportModal = false;
+  reportSubmitting = false;
+
+  private static readonly TAG_LABELS: Record<string, string> = {
+    HOT: 'Hot', COLD: 'Iced', DESSERT: 'Dessert', COCKTAIL: 'Cocktail'
+  };
+
+  get isRecipe(): boolean {
+    return this.post?.post_type === 'recipe' && !!this.post.recipe;
+  }
+
+  get activeMedia() {
+    return this.mediaList[this.activeMediaIndex] ?? null;
+  }
+
+  // "Matcha · Iced" line under the RECIPE chip.
+  get recipeKicker(): string {
+    // The RECIPE chip already says "Recipe", so only matcha/coffee bases are repeated here.
+    const rawBase = this.post?.base && this.post.base !== 'RECIPE' ? this.post.base : '';
+    const base = rawBase ? rawBase.charAt(0) + rawBase.slice(1).toLowerCase() : '';
+    const tags = (this.post?.recipe?.metadata?.tags || []).map(t => PostDetailComponent.TAG_LABELS[t] || t);
+    return [base, ...tags].filter(Boolean).join(' · ');
+  }
+
+  get totalMinutes(): number {
+    const meta = this.post?.recipe?.metadata;
+    return (meta?.prepTime || 0) + (meta?.cookTime || 0);
+  }
+
+  // Short single-line captions read as a title (Figma "Sunday iced oat matcha"); long ones as body text.
+  get isShortCaption(): boolean {
+    const text = this.post?.content || '';
+    return text.length <= 80 && !text.includes('\n');
+  }
+
+  initials(username: string): string {
+    return (username || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase();
+  }
+
+  avatarTone(username: string): 'sage' | 'pink' {
+    let sum = 0;
+    for (let i = 0; i < (username || '').length; i++) sum += username.charCodeAt(i);
+    return sum % 2 === 0 ? 'sage' : 'pink';
+  }
+
+  formatTimer(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  onMenuSave(): void {
+    this.showPostOptions = false;
+    this.savePost();
+  }
+
+  openReport(): void {
+    this.showPostOptions = false;
+    this.showReportModal = true;
+  }
+
+  closeReport(): void {
+    if (!this.reportSubmitting) this.showReportModal = false;
+  }
+
+  submitReport(payload: ReportPayload): void {
+    if (!this.post || this.reportSubmitting) return;
+    this.reportSubmitting = true;
+    this.communityService.reportPost(this.post.post_id, payload.reason, payload.note).subscribe({
+      next: () => {
+        this.reportSubmitting = false;
+        this.showReportModal = false;
+        this.toast.success('Thanks for letting us know. We will review this post.');
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.reportSubmitting = false;
+        this.showReportModal = false;
+        this.toast.error(err?.error?.error || 'Failed to submit report. Please try again.');
+        this.cdr.markForCheck();
+      }
+    });
+  }
 
   get deleteModalTitle(): string {
     return this.post?.post_type === 'recipe' ? 'Delete Recipe?' : 'Delete Post?';
@@ -61,7 +153,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
       return;
     }
     this.loadPost(id);
-    this.timeTickHandle = setInterval(() => this.cdr.detectChanges(), 30000);
+    this.timeTickHandle = setInterval(() => this.cdr.markForCheck(), 30000);
   }
 
   ngOnDestroy(): void {
@@ -78,7 +170,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
         this.postSaved = post.saved ?? false;
         this.postContentParts = this.parseContentTags(post.content);
         this.loading = false;
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
       },
       error: (err) => {
         if (err?.status === 404) {
@@ -86,7 +178,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
         } else {
           this.error = 'Failed to load this post. Please try again.';
           this.loading = false;
-          this.cdr.detectChanges();
+          this.cdr.markForCheck();
         }
       }
     });
@@ -133,7 +225,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
         console.error('Failed to delete post:', err);
         this.loading = false;
         alert('Failed to delete this post. Please try again.');
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
       }
     });
   }
@@ -143,41 +235,6 @@ export class PostDetailComponent implements OnInit, OnDestroy {
 
   setActiveMedia(index: number): void { this.activeMediaIndex = index; }
 
-  onCarouselScroll(event: Event): void {
-    const el = event.target as HTMLElement;
-    const index = Math.round(el.scrollLeft / el.clientWidth);
-    if (index !== this.activeMediaIndex) {
-      this.activeMediaIndex = index;
-      if (this.playingVideoIndex !== null) {
-        el.querySelectorAll('video').forEach(v => (v as HTMLVideoElement).pause());
-        this.playingVideoIndex = null;
-      }
-    }
-  }
-
-  togglePlayVideo(index: number, event: Event): void {
-    event.stopPropagation();
-    const container = event.currentTarget as HTMLElement;
-    const videoEl = container.querySelector('video') as HTMLVideoElement | null;
-    if (!videoEl) return;
-
-    if (this.playingVideoIndex === index) {
-      videoEl.pause();
-      this.playingVideoIndex = null;
-    } else {
-      videoEl.muted = false;
-      videoEl.play().catch(() => {});
-      this.playingVideoIndex = index;
-    }
-  }
-
-  scrollToMedia(index: number): void {
-    const el = this.carouselEl?.nativeElement;
-    if (!el) return;
-    el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' });
-    this.activeMediaIndex = index;
-    this.playingVideoIndex = null;
-  }
 
   // ── Like / Save post ──
   likePost(): void {
@@ -186,7 +243,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
       if (this.post) {
         this.post.like_count = res.like_count;
         this.postLiked = res.liked;
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
       }
     });
   }
@@ -199,7 +256,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
           this.post.saved = res.saved;
           this.post.save_count = res.save_count;
           this.postSaved = res.saved;
-          this.cdr.detectChanges();
+          this.cdr.markForCheck();
         }
       },
       error: (err) => console.error('Failed to save post:', err)
@@ -217,7 +274,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
       next: (res) => {
         if (this.post) {
           this.post.share_count = res.share_count;
-          this.cdr.detectChanges();
+          this.cdr.markForCheck();
         }
       },
       error: (err) => console.error('Failed to record share:', err)
@@ -230,7 +287,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   onCommentCountChange(total: number): void {
     if (this.post) {
       this.post.comment_count = total;
-      this.cdr.detectChanges();
+      this.cdr.markForCheck();
     }
   }
 

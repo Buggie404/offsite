@@ -1,21 +1,29 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, ElementRef, EventEmitter, HostListener, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { LucideBookmark, LucideEllipsis, LucideFlag, LucideHeart, LucideMessageCircle, LucideShare2, LucideTrash2 } from '@lucide/angular';
 import { Post } from '../../models/post.model';
 
 @Component({
   selector: 'app-post-card',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LucideEllipsis, LucideFlag, LucideBookmark, LucideTrash2, LucideHeart, LucideMessageCircle, LucideShare2],
   templateUrl: './post-card.component.html',
   styleUrls: ['./post-card.component.scss']
 })
 export class PostCardComponent {
   @Input() post!: Post;
-  
+  @Input() isOwner = false;
+
   @Output() like = new EventEmitter<string>();
   @Output() save = new EventEmitter<string>();
   @Output() share = new EventEmitter<string>();
   @Output() openDetail = new EventEmitter<string>();
+  @Output() delete = new EventEmitter<string>();
+  @Output() report = new EventEmitter<string>();
+
+  menuOpen = false;
+
+  constructor(private elementRef: ElementRef) {}
 
   get hasMedia(): boolean {
     return this.post?.media && this.post.media.length > 0;
@@ -26,14 +34,50 @@ export class PostCardComponent {
     return this.post.media[0];
   }
 
-  get cardColor(): string {
-    if (this.post?.base === 'COFFEE') return '#EFEBE6';
-    if (this.post?.base === 'RECIPE') return '#F2E9DC';
-    return '#EAEFE9';
+  get initials(): string {
+    const name = (this.post?.author?.username || '').replace(/[^a-zA-Z0-9]/g, '');
+    return name.slice(0, 2).toUpperCase();
+  }
+
+  // Alternate avatar fallback tones (sage / pink) per user, stable across renders.
+  get avatarTone(): 'sage' | 'pink' {
+    const name = this.post?.author?.username || '';
+    let sum = 0;
+    for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
+    return sum % 2 === 0 ? 'sage' : 'pink';
   }
 
   onCardClick(): void {
     this.openDetail.emit(this.post.post_id);
+  }
+
+  toggleMenu(event: Event): void {
+    event.stopPropagation();
+    this.menuOpen = !this.menuOpen;
+  }
+
+  onMenuSave(event: Event): void {
+    this.menuOpen = false;
+    this.onSave(event);
+  }
+
+  onMenuDelete(event: Event): void {
+    event.stopPropagation();
+    this.menuOpen = false;
+    this.delete.emit(this.post.post_id);
+  }
+
+  onMenuReport(event: Event): void {
+    event.stopPropagation();
+    this.menuOpen = false;
+    this.report.emit(this.post.post_id);
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: Event): void {
+    if (this.menuOpen && !this.elementRef.nativeElement.querySelector('.card-menu-wrap')?.contains(event.target)) {
+      this.menuOpen = false;
+    }
   }
 
   onLike(event: Event): void {
@@ -50,21 +94,9 @@ export class PostCardComponent {
     event.stopPropagation();
     this.share.emit(this.post.post_id);
   }
-  
+
   onComment(event: Event): void {
     event.stopPropagation();
     this.openDetail.emit(this.post.post_id);
   }
-
-  timeAgo(dateStr: string): string {
-    const created = new Date(dateStr).getTime();
-    const now = Date.now();
-    const diffMs = Math.max(0, now - created);
-    const days = Math.floor(diffMs / 86400000);
-    if (days === 0) return 'TODAY';
-    if (days === 1) return 'YESTERDAY';
-    return `${days}D AGO`;
-  }
 }
-
-

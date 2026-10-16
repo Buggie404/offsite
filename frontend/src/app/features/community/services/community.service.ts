@@ -92,6 +92,12 @@ export class CommunityService {
     );
   }
 
+  reportPost(id: string, reason: string, note: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(
+      `${this.apiUrl}/${id}/report`, { reason, note }
+    );
+  }
+
   // ── Comments ──
 
   getComments(postId: string, page: number = 1, limit: number = 50): Observable<CommentsResponse> {

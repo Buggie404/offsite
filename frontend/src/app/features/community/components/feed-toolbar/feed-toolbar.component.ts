@@ -1,10 +1,11 @@
 import { Component, EventEmitter, Input, Output, HostListener, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { LucideChevronDown, LucidePlus, LucideUser } from '@lucide/angular';
 
 @Component({
   selector: 'app-feed-toolbar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LucidePlus, LucideUser, LucideChevronDown],
   templateUrl: './feed-toolbar.component.html',
   styleUrls: ['./feed-toolbar.component.scss']
 })
@@ -50,7 +51,9 @@ export class FeedToolbarComponent {
 
   @HostListener('document:click', ['$event'])
   onClickOutside(event: Event) {
-    if (!this.elementRef.nativeElement.contains(event.target)) {
+    // Close on any click outside the dropdown itself (not just outside the toolbar).
+    const dropdown = this.elementRef.nativeElement.querySelector('.custom-dropdown');
+    if (!dropdown?.contains(event.target as Node)) {
       this.isDropdownOpen = false;
     }
   }

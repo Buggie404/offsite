@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, inject, ChangeDetectorRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { LucideEllipsis, LucideHeart, LucideSend } from '@lucide/angular';
 
 import { Comment } from '../../models/comment.model';
 import { CommunityService } from '../../services/community.service';
@@ -14,7 +15,7 @@ interface CommentThread extends Comment {
 @Component({
   selector: 'app-comment-section',
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmationModalComponent],
+  imports: [CommonModule, FormsModule, ConfirmationModalComponent, LucideEllipsis, LucideHeart, LucideSend],
   templateUrl: './comment-section.component.html',
   styleUrls: ['./comment-section.component.scss']
 })
@@ -47,7 +48,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadComments();
-    this.timeTickHandle = setInterval(() => this.cdr.detectChanges(), 30000);
+    this.timeTickHandle = setInterval(() => this.cdr.markForCheck(), 30000);
   }
 
   ngOnDestroy(): void {
@@ -82,11 +83,11 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
         this.commentThreads = this.buildThreads(res.data);
         this.commentsLoading = false;
         this.commentCountChange.emit(res.total);
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
       },
       error: () => {
         this.commentsLoading = false;
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
       }
     });
   }
@@ -144,7 +145,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
       error: (err) => {
         console.error('Failed to submit comment:', err);
         this.postingComment = false;
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
       }
     });
   }
@@ -160,7 +161,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
       } else {
         this.likedCommentIds.add(comment.comment_id);
       }
-      this.cdr.detectChanges();
+      this.cdr.markForCheck();
     });
   }
 
@@ -169,6 +170,16 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
   }
 
   // ── Phân quyền và xóa Comment ──
+  initials(username?: string): string {
+    return (username || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase();
+  }
+
+  avatarTone(username?: string): 'sage' | 'pink' {
+    let sum = 0;
+    for (let i = 0; i < (username || '').length; i++) sum += username!.charCodeAt(i);
+    return sum % 2 === 0 ? 'sage' : 'pink';
+  }
+
   get currentUser() {
     return this.authService.getUser();
   }
@@ -223,10 +234,11 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
     const hours = Math.floor(diffMs / 3600000);
     const days = Math.floor(diffMs / 86400000);
 
-    if (minutes < 1) return 'JUST NOW';
-    if (minutes < 60) return `${minutes}M AGO`;
-    if (hours < 24) return `${hours}H AGO`;
-    return `${days}D AGO`;
+    // Compact, Figma-style: "now", "5m", "2h", "3d".
+    if (minutes < 1) return 'now';
+    if (minutes < 60) return `${minutes}m`;
+    if (hours < 24) return `${hours}h`;
+    return `${days}d`;
   }
 }
 

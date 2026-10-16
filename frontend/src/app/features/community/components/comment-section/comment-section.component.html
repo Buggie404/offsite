@@ -18,46 +18,38 @@
 </div>
 
 <div class="comment-composer">
-  <div class="composer-row">
-    <input 
-      type="text" 
-      placeholder="Add a comment..." 
-      [(ngModel)]="mainCommentText" 
-      (keydown.enter)="submitComment(false)">
-    <button type="button" class="composer-clear-btn" *ngIf="mainCommentText.trim()" (click)="mainCommentText = ''">✕</button>
-    
-    <button type="button" class="composer-send-btn" [disabled]="!mainCommentText.trim() || postingComment" (click)="submitComment(false)">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-        <path d="M12 16V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M8.5 11.5L12 8L15.5 11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
+  <div class="composer-avatar" [class.composer-avatar--pink]="avatarTone(currentUser?.username) === 'pink'">
+    <img *ngIf="currentUser?.avatar_url" [src]="currentUser.avatar_url" [alt]="currentUser.username">
+    <span *ngIf="!currentUser?.avatar_url">{{ initials(currentUser?.username) }}</span>
   </div>
+  <input
+    type="text"
+    class="composer-input"
+    placeholder="Write a comment…"
+    [(ngModel)]="mainCommentText"
+    (keydown.enter)="submitComment(false)">
+  <button type="button" class="composer-post-btn" [disabled]="!mainCommentText.trim() || postingComment" (click)="submitComment(false)">
+    <svg lucideSend [size]="14"></svg>
+    <span>Post</span>
+  </button>
 </div>
 
 <ng-template #commentRow let-comment let-isReply="isReply" let-parentId="parentId">
   <div class="comment-item" [class.comment-item--reply]="isReply">
-    <div class="comment-avatar" [class.comment-avatar--sm]="isReply">
+    <div class="comment-avatar" [class.comment-avatar--pink]="avatarTone(comment.author.username) === 'pink'">
       <img *ngIf="comment.author.avatar_url" [src]="comment.author.avatar_url" [alt]="comment.author.username">
-      <span *ngIf="!comment.author.avatar_url" class="avatar-fallback avatar-fallback--sm">
-        {{ comment.author.username.charAt(0) | uppercase }}
-      </span>
+      <span *ngIf="!comment.author.avatar_url">{{ initials(comment.author.username) }}</span>
     </div>
 
     <div class="comment-body">
       <div class="comment-meta">
-        <span class="comment-username">{{ comment.author.username }}</span>
+        <span class="comment-username">&#64;{{ comment.author.username }}</span>
         <span class="author-badge" *ngIf="comment.author.is_post_author">AUTHOR</span>
         <span class="comment-time">{{ timeAgo(comment.created_at) }}</span>
         
         <div class="comment-options" *ngIf="isCommentAuthor(comment.user_id)">
            <button type="button" class="options-trigger" (click)="toggleCommentOptions(comment.comment_id, $event)">
-             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-               <circle cx="12" cy="12" r="1"></circle>
-               <circle cx="12" cy="5" r="1"></circle>
-               <circle cx="12" cy="19" r="1"></circle>
-             </svg>
+             <svg lucideEllipsis [size]="16"></svg>
            </button>
            <div class="options-dropdown" *ngIf="showCommentOptionsFor === comment.comment_id">
              <button type="button" class="delete-action" (click)="promptDeleteComment(comment.comment_id)">Delete Comment</button>
@@ -72,9 +64,7 @@
 
       <div class="comment-actions">
         <button type="button" class="comment-like-btn" [class.active]="isCommentLiked(comment)" (click)="toggleLikeComment(comment)">
-          <svg width="14" height="14" viewBox="0 0 24 24" [attr.fill]="isCommentLiked(comment) ? 'currentColor' : 'none'">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+          <svg lucideHeart [size]="12"></svg>
           <span>{{ comment.like_count }}</span>
         </button>
         <button type="button" class="comment-reply-btn" (click)="startReply(parentId, comment.comment_id, comment.author.username)">Reply</button>

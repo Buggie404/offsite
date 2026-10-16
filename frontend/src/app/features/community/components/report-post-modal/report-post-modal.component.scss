@@ -1,0 +1,247 @@
+$border-default: rgba(84, 74, 64, 0.18);
+$border-strong: rgba(84, 74, 64, 0.35);
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.modal-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 460px;
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+  background: #faf6f0;
+  border: 1px solid $border-default;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(26, 26, 26, 0.18);
+}
+
+// ── Header ──
+.modal-header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 20px 24px;
+  background: var(--color-cream);
+  border-bottom: 1px solid $border-default;
+}
+
+.modal-heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modal-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 24px;
+  color: var(--color-forest-green);
+}
+
+.modal-subtitle {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-warm-brown);
+}
+
+.close-btn {
+  display: flex;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-near-black);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-forest-green);
+  }
+}
+
+// ── Body ──
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.reason-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reason {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-near-black);
+  cursor: pointer;
+
+  // Native input stays for keyboard/a11y; the visual is the .radio below.
+  input {
+    position: absolute;
+    opacity: 0;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  input:focus-visible + .radio {
+    box-shadow: 0 0 0 3px rgba(55, 85, 52, 0.25);
+  }
+}
+
+.radio {
+  position: relative;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 1.5px solid $border-strong;
+  border-radius: 999px;
+  background: var(--color-white);
+
+  img {
+    position: absolute;
+    top: -1.5px;
+    left: -1.5px;
+    display: block;
+  }
+}
+
+.note-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.88px;
+  text-transform: uppercase;
+  color: var(--color-warm-brown);
+}
+
+.note {
+  width: 100%;
+  height: 72px;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid $border-strong;
+  border-radius: var(--radius-input);
+  background: var(--color-white);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-near-black);
+  resize: none;
+
+  &::placeholder {
+    color: rgba(84, 74, 64, 0.6);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-forest-green);
+    box-shadow: 0 0 0 2px rgba(55, 85, 52, 0.15);
+  }
+}
+
+.note--required {
+  border-color: var(--state-error);
+}
+
+.note-error {
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--state-error);
+}
+
+.modal-hint {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-warm-brown);
+}
+
+// ── Footer ──
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 16px 24px;
+  border-top: 1px solid $border-default;
+}
+
+.btn {
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.72px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+
+  &--outline {
+    background: #fffdf9;
+    border: 1px solid $border-strong;
+    color: var(--color-near-black);
+
+    &:hover {
+      border-color: var(--color-forest-green);
+    }
+  }
+
+  &--primary {
+    background: var(--color-forest-green);
+    border: none;
+    color: var(--color-white);
+
+    &:hover:not(:disabled) {
+      background: var(--color-forest-green-hover);
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
+}

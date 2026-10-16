@@ -1,6 +1,7 @@
 const Post = require('../models/Post');
 const User = require('../models/User');
 const Recipe = require('../models/Recipe');
+const PostReport = require('../models/PostReport');
 const mongoose = require('mongoose');
 
 async function getAllPosts(req, res) {
@@ -422,6 +423,56 @@ async function sharePost(req, res) {
   }
 }
 
+async function reportPost(req, res) {
+  try {
+    const { id } = req.params;
+    const { reason, note = '' } = req.body || {};
+
+    if (!PostReport.REPORT_REASONS.includes(reason)) {
+      return res.status(400).json({ error: 'Invalid report reason' });
+    }
+
+    if (reason === 'other' && !String(note).trim()) {
+      return res.status(400).json({ error: 'A note is required when the reason is Other' });
+    }
+
+    let query = {};
+    if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
+      query = { _id: id };
+    } else {
+      query = { post_id: id };
+    }
+
+    const post = await Post.findOne(query);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    if (post.user_id === req.user.user_id) {
+      return res.status(400).json({ error: 'You cannot report your own post' });
+    }
+
+    try {
+      await PostReport.create({
+        post_id: post.post_id,
+        reporter_id: req.user.user_id,
+        reason,
+        note: String(note).trim().slice(0, 500)
+      });
+    } catch (err) {
+      if (err.code === 11000) {
+        return res.status(409).json({ error: 'You have already reported this post' });
+      }
+      throw err;
+    }
+
+    res.status(201).json({ message: 'Report submitted' });
+  } catch (error) {
+    console.error('Error reporting post:', error);
+    res.status(500).json({ error: 'Failed to submit report' });
+  }
+}
+
 module.exports = {
   getAllPosts,
   getPostById,
@@ -430,6 +481,7 @@ module.exports = {
   deletePost,
   likePost,
   savePost,
-  sharePost
+  sharePost,
+  reportPost
 };
 

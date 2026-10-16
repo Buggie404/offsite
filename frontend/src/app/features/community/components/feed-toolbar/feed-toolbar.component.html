@@ -1,81 +1,56 @@
 <section class="feed-toolbar">
 
-  <div class="toolbar-left">
-    <span class="section-label">COMMUNITY</span>
-    <h1>Sip &amp; Share</h1>
+  <div class="toolbar-head">
+    <h1 class="toolbar-title">Sip &amp; Share</h1>
+    <button type="button" class="btn-create btn-create--outline" (click)="onCreatePost()">
+      <svg lucidePlus [size]="14"></svg>
+      <span>Create post</span>
+    </button>
+    <button type="button" class="btn-create btn-create--primary" (click)="onCreateRecipe()">
+      <svg lucidePlus [size]="14"></svg>
+      <span>Create recipe</span>
+    </button>
   </div>
 
-  <div class="toolbar-right">
+  <div class="toolbar-filter-row">
 
-    <div class="toolbar-actions">
-      <button class="btn-create" (click)="onCreatePost()">+ CREATE POST</button>
-      <button class="btn-create" (click)="onCreateRecipe()">+ CREATE RECIPE</button>
+    <div class="toolbar-filters">
+      <button type="button" class="filter" [class.active]="activeCategory === ''" (click)="onFilterClick('')">
+        All stories
+      </button>
+      <button type="button" class="filter" [class.active]="activeCategory === 'COFFEE'" (click)="onFilterClick('COFFEE')">
+        Coffee
+      </button>
+      <button type="button" class="filter" [class.active]="activeCategory === 'MATCHA'" (click)="onFilterClick('MATCHA')">
+        Matcha
+      </button>
+      <button type="button" class="filter" [class.active]="activeCategory === 'RECIPE'" (click)="onFilterClick('RECIPE')">
+        Recipe
+      </button>
+      <button type="button" class="filter" [class.active]="activeCategory === 'MY_POST'" (click)="onFilterClick('MY_POST')">
+        <svg lucideUser [size]="13"></svg>
+        My profile
+      </button>
     </div>
 
-    <div class="toolbar-filter-row">
-
-      <div class="toolbar-filters">
-        <button
-          class="filter"
-          [class.active]="activeCategory === ''"
-          (click)="onFilterClick('')"
-        >
-          All Stories
-        </button>
-        <button
-          class="filter"
-          [class.active]="activeCategory === 'COFFEE'"
-          (click)="onFilterClick('COFFEE')"
-        >
-          Coffee
-        </button>
-        <button
-          class="filter"
-          [class.active]="activeCategory === 'MATCHA'"
-          (click)="onFilterClick('MATCHA')"
-        >
-          Matcha
-        </button>
-        <button
-          class="filter"
-          [class.active]="activeCategory === 'RECIPE'"
-          (click)="onFilterClick('RECIPE')"
-        >
-          Recipe
-        </button>
-        <button
-          class="filter"
-          [class.active]="activeCategory === 'MY_POST'"
-          (click)="onFilterClick('MY_POST')"
-        >
-          My Post
-        </button>
-      </div>
-
+    <div class="toolbar-sort">
+      <span class="sort-label">Sort</span>
       <div class="custom-dropdown" [class.open]="isDropdownOpen">
-        <div class="dropdown-trigger" (click)="toggleDropdown($event)">
+        <button type="button" class="dropdown-trigger" (click)="toggleDropdown($event)">
           <span>{{ sort === 'created_at' ? 'Latest' : 'Trending' }}</span>
-          <span class="dropdown-arrow"></span>
-        </div>
+          <svg lucideChevronDown class="dropdown-arrow" [size]="16"></svg>
+        </button>
         <div class="dropdown-menu" *ngIf="isDropdownOpen">
-          <div 
-            class="dropdown-item" 
-            [class.active]="sort === 'created_at'" 
-            (click)="selectSort('created_at', $event)"
-          >
+          <div class="dropdown-item" [class.active]="sort === 'created_at'" (click)="selectSort('created_at', $event)">
             Latest
           </div>
-          <div 
-            class="dropdown-item" 
-            [class.active]="sort === 'like_count'" 
-            (click)="selectSort('like_count', $event)"
-          >
+          <div class="dropdown-item" [class.active]="sort === 'like_count'" (click)="selectSort('like_count', $event)">
             Trending
           </div>
         </div>
       </div>
-
     </div>
+
   </div>
 
 </section>

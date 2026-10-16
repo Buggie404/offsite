@@ -1,0 +1,46 @@
+<div class="modal-overlay" (click)="cancel.emit()">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="report-title" (click)="$event.stopPropagation()">
+
+    <header class="modal-header">
+      <div class="modal-heading">
+        <h3 class="modal-title" id="report-title">Report this post</h3>
+        <p class="modal-subtitle" *ngIf="authorUsername">
+          &#64;{{ authorUsername }}<ng-container *ngIf="excerpt"> · “{{ excerpt }}”</ng-container>
+        </p>
+      </div>
+      <button type="button" class="close-btn" aria-label="Close" (click)="cancel.emit()">
+        <svg lucideX [size]="18"></svg>
+      </button>
+    </header>
+
+    <div class="modal-body">
+      <div class="reason-list" role="radiogroup" aria-labelledby="report-title">
+        <label class="reason" *ngFor="let r of reasons">
+          <input type="radio" name="report-reason" [value]="r.value" [(ngModel)]="reason">
+          <span class="radio" aria-hidden="true">
+            <img *ngIf="reason === r.value" src="assets/icons/radio-selected.svg" width="18" height="18" alt="">
+          </span>
+          <span>{{ r.label }}</span>
+        </label>
+      </div>
+
+      <div class="note-field">
+        <label class="note-label" for="report-note">{{ noteRequired ? 'Add a note (required)' : 'Add a note (optional)' }}</label>
+        <textarea id="report-note" class="note" maxlength="500" [class.note--required]="noteRequired && !note.trim()"
+          [attr.aria-required]="noteRequired"
+          [placeholder]="noteRequired ? 'Please tell us what is wrong with this post' : 'Tell us a bit more about the problem'"
+          [(ngModel)]="note"></textarea>
+        <span class="note-error" *ngIf="noteRequired && !note.trim()">A note is required when you choose Other.</span>
+      </div>
+
+      <p class="modal-hint">The post stays visible until a moderator reviews it.</p>
+    </div>
+
+    <footer class="modal-footer">
+      <button type="button" class="btn btn--outline" (click)="cancel.emit()">Cancel</button>
+      <button type="button" class="btn btn--primary" [disabled]="!canSubmit" (click)="onSubmit()">
+        {{ submitting ? 'Sending…' : 'Submit report' }}
+      </button>
+    </footer>
+  </div>
+</div>
