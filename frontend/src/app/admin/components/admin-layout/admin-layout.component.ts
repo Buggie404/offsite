@@ -120,14 +120,11 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   }
 
   get adminDisplayName(): string {
-    const user = this.adminAuth.getUser();
-    return user?.profile_name?.trim() || user?.email || 'Admin';
+    return 'Offsite Official';
   }
 
   get adminInitials(): string {
-    const parts = this.adminDisplayName.trim().split(/\s+/).filter(Boolean);
-    if (parts.length > 1) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    return this.adminDisplayName.slice(0, 2).toUpperCase();
+    return 'OO';
   }
 
   get adminRoleLabel(): string {

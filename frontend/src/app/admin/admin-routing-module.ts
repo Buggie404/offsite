@@ -11,6 +11,11 @@ import {
 import { OrdersListingComponent } from './pages/orders-listing/orders-listing.component';
 import { OrderDetailComponent } from './pages/order-detail/order-detail.component';
 
+// Chỉ dùng 3 role thực tế trong DB
+const SALES_OPS_ROLES    = ['admin_cc', 'qlsp'] as const;
+const SERVICES_OPS_ROLES = ['admin_cc', 'cskh'] as const;
+const SYSTEM_ROLES       = ['admin_cc'] as const;
+
 const routes: Routes = [
   {
     path: 'login',
@@ -24,24 +29,29 @@ const routes: Routes = [
     loadComponent: () =>
       import('./components/admin-layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
     children: [
+      // Redirect về trang mặc định theo role
       {
         path: '',
         pathMatch: 'full',
         canActivate: [adminHomeGuard],
         children: []
       },
+
+      // ── Sales Operations ──────────────────────────────────────────────────
       {
         path: 'orders',
         component: OrdersListingComponent,
         canActivate: [adminRoleGuard],
-        data: { adminRoles: ['admin_cc', 'cskh', 'qlsp'] }
+        data: { adminRoles: SALES_OPS_ROLES }
       },
       {
         path: 'orders/:id',
         component: OrderDetailComponent,
         canActivate: [adminRoleGuard],
-        data: { adminRoles: ['admin_cc', 'cskh', 'qlsp'] }
+        data: { adminRoles: SALES_OPS_ROLES }
       },
+
+      // ── Error pages ───────────────────────────────────────────────────────
       {
         path: '403',
         loadComponent: () =>
@@ -52,6 +62,8 @@ const routes: Routes = [
         loadComponent: () =>
           import('./pages/not-found/not-found.component').then((m) => m.AdminNotFoundComponent)
       },
+
+      // ── Wildcard — unknown routes qua adminUnknownRouteGuard ──────────────
       {
         path: '**',
         loadComponent: () =>
