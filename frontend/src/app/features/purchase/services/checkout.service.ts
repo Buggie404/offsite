@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { PurchaseType, SubscriptionFrequencyDays } from '../models/subscription-cart.model';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { Product, ProductVariant } from '../../../shared/models/product.model';
@@ -12,6 +13,8 @@ export interface CheckoutItem {
   quantity: number;
   isComplement?: boolean;
   bundle?: BundleCartMeta;
+  purchaseType?: PurchaseType;
+  subscriptionFrequencyDays?: SubscriptionFrequencyDays | null;
 }
 
 export interface DeliveryInfo {

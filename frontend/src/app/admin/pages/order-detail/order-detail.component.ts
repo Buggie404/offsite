@@ -11,8 +11,11 @@ import {
   LucideEye,
   LucideCheck,
   LucideX,
-  LucideUndo2
+  LucideUndo2,
+  LucideRepeat
 } from '@lucide/angular';
+import { OrderTypeBadgeComponent } from '../../../shared/components/order-type-badge/order-type-badge.component';
+import { getSubscriptionLineLabel } from '../../../shared/utils/order-type';
 import { AdminOrderService } from '../../services/admin-order.service';
 import { AdminAuthService } from '../../services/admin-auth.service';
 import { AdminRefreshService } from '../../services/admin-refresh.service';
@@ -44,6 +47,8 @@ interface TimelineStep {
   imports: [
     CommonModule,
     RouterLink,
+    LucideRepeat,
+    OrderTypeBadgeComponent,
     LucideSave,
     LucideStickyNote,
     LucideXCircle,
@@ -57,6 +62,8 @@ interface TimelineStep {
   styleUrl: './order-detail.component.scss'
 })
 export class OrderDetailComponent implements OnInit {
+  readonly getSubscriptionLineLabel = getSubscriptionLineLabel;
+
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private adminOrderService = inject(AdminOrderService);

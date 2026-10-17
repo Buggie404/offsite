@@ -475,6 +475,25 @@
     }
   }
 
+  // Ritual Box: title with a subtitle underneath.
+  &--stack {
+    align-items: flex-start;
+  }
+
+  .page-title-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .page-subtitle {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--color-warm-brown);
+  }
+
   .page-title {
     font-size: 28px;
     font-weight: 600;

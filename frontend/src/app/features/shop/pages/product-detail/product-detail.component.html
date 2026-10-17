@@ -187,9 +187,9 @@
               <span class="purchase-option-radio" aria-hidden="true"></span>
               <span class="purchase-option-copy">
                 <strong>Subscribe &amp; Save · −{{ getSubscribeDiscountPercent() }}%</strong>
-                <small>Delivered {{ deliveryFrequency().toLowerCase() }} · skip, pause or cancel anytime</small>
+                <small>First box full price, then {{ getSubscriptionPrice() | currency:'USD':'symbol':'1.2-2' }} {{ deliveryFrequency().toLowerCase() }} · skip, pause or cancel anytime</small>
               </span>
-              <strong class="purchase-option-price">{{ getSubscriptionPrice() | currency:'USD':'symbol':'1.2-2' }}</strong>
+              <strong class="purchase-option-price">{{ getTotalPrice() | currency:'USD':'symbol':'1.2-2' }}</strong>
             </button>
           </fieldset>
 

@@ -39,6 +39,10 @@ const cartSchema = new mongoose.Schema({
   collection: 'Carts'
 });
 
+// TTL: Mongo tự xoá cart guest khi tới expires_at. Cart của user có
+// expires_at = null nên không bao giờ bị xoá.
+cartSchema.index({ expires_at: 1 }, { expireAfterSeconds: 0 });
+
 // Mutual exclusivity: must have exactly one of user_id / session_id
 cartSchema.pre('validate', function(next) {
   const hasUser  = !!this.user_id;

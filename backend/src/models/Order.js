@@ -13,7 +13,10 @@ const orderItemSchema = new mongoose.Schema({
   quantity:   { type: Number, required: true, min: 1 },
   subtotal:   { type: Number, required: true }, // unit_price * quantity
   is_reviewed: { type: Boolean, default: false },
-  review_id:   { type: String, default: null }  // "RV7XXXX"
+  review_id:   { type: String, default: null },  // "RV7XXXX"
+  // Subscribe & Save: a 'subscription' line starts a Ritual Box once the card payment succeeds.
+  purchase_type:               { type: String, enum: ['one_time', 'subscription'], default: 'one_time' },
+  subscription_frequency_days: { type: Number, enum: [7, 14, 30, null], default: null }
 }, { _id: false });
 
 const deliveryInfoSchema = new mongoose.Schema({

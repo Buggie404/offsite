@@ -38,6 +38,7 @@ import {
   CartService,
   CartItem,
   getCartItemChargedUnitPrice,
+  getCartItemRecurringUnitPrice,
   getCartItemOriginalUnitPrice,
   getPurchaseType,
   isSubscriptionItem
@@ -880,6 +881,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return getCartItemOriginalUnitPrice(item) * item.quantity;
   }
 
+  /** Each later Ritual Box delivery (Subscribe & Save price); the first box is full price. */
+  getRecurringLineTotal(item: CartItem): number {
+    return getCartItemRecurringUnitPrice(item) * item.quantity;
+  }
+
   setPurchaseType(item: CartItem, purchaseType: PurchaseType): void {
     this.cartService.setPurchaseType(item, purchaseType);
   }
@@ -910,14 +916,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
     for (const item of this.checkoutLines) {
       if (!isSubscriptionItem(item) || !item.subscriptionFrequencyDays) continue;
       const days = item.subscriptionFrequencyDays;
-      groups.set(days, (groups.get(days) ?? 0) + this.getChargedLineTotal(item));
+      groups.set(days, (groups.get(days) ?? 0) + this.getRecurringLineTotal(item));
     }
     return [...groups.entries()]
       .sort(([a], [b]) => a - b)
       .map(([days, total]) => ({ days, label: getSubscriptionFrequencyLabel(days).toLowerCase(), total }));
   }
 
-  // You save on every delivery = original price × subscribe_discount_percent.
+  // Saved on every delivery after the first = original price × subscribe_discount_percent.
   get subscriptionSavings(): number {
     const cents = this.checkoutLines
       .filter(item => isSubscriptionItem(item))

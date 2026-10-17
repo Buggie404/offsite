@@ -15,8 +15,11 @@ import {
   LucideCog,
   LucideArrowRight,
   LucideRefreshCw,
-  LucideLandmark
+  LucideLandmark,
+  LucideRepeat
 } from '@lucide/angular';
+import { OrderTypeBadgeComponent } from '../../../../shared/components/order-type-badge/order-type-badge.component';
+import { getRecurringRows, getSubscriptionLineLabel } from '../../../../shared/utils/order-type';
 import { CheckoutService } from '../../services/checkout.service';
 import { CartService } from '../../services/cart.service';
 import { PaymentFailedModalComponent } from '../../components/payment-failed-modal/payment-failed-modal.component';
@@ -52,6 +55,8 @@ interface StatusConfig {
   imports: [
     CommonModule,
     RouterLink,
+    LucideRepeat,
+    OrderTypeBadgeComponent,
     LucideCheck,
     LucideX,
     LucideCopy,
@@ -77,6 +82,13 @@ interface StatusConfig {
   styleUrl: './order-detail.component.scss'
 })
 export class OrderDetailComponent implements OnInit, OnDestroy {
+  readonly getSubscriptionLineLabel = getSubscriptionLineLabel;
+
+  /** "Then every 2 weeks · $X" for Ritual Boxes this order started. */
+  get recurringRows() {
+    return getRecurringRows(this.order()?.subscriptions);
+  }
+
   private router = inject(Router);
   private checkoutService = inject(CheckoutService);
   private cartService = inject(CartService);

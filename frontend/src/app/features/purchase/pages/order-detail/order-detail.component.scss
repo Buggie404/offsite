@@ -1175,3 +1175,34 @@
     font-size: 32px;
   }
 }
+
+/* ─── ORDER TYPE / SUBSCRIPTION ─── */
+.items-header__badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.item-sub-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-sage);
+  color: var(--color-forest-green);
+  font-size: 12px;
+}
+
+.summary-row--then {
+  margin-top: -6px;
+  color: var(--color-warm-brown);
+}
+
+.summary-cycle-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--color-forest-green);
+}

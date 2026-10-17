@@ -16,6 +16,8 @@ connectDB()
     server.listen(PORT, () => {
       console.log(`Backend server running on http://localhost:${PORT}`);
     });
+    // Hourly: move pending purchase points to posted once the refund window ends.
+    require('./services/points.service').startPointsPostingJob();
   })
   .catch((error) => {
     console.error('Failed to start server:', error.message);

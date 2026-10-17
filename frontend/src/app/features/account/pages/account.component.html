@@ -62,7 +62,7 @@
             <span class="menu-label">{{ tab.label }}</span>
 
             <!-- Badge: warn (!) -->
-            <span *ngIf="tab.badge?.type === 'warn'" class="menu-badge menu-badge--warn">!</span>
+            <span *ngIf="tab.badge?.type === 'warn' || (tab.key === 'ritual-box' && ritualBox.needsAttention())" class="menu-badge menu-badge--warn">!</span>
             <!-- Badge: info / count with label -->
             <span *ngIf="tab.badge?.type === 'info' || tab.badge?.type === 'count'" class="menu-badge menu-badge--info">
               {{ tab.badge?.label }}
@@ -84,12 +84,17 @@
     <!-- Right Content Area -->
     <main class="content-panel">
       <!-- Title Header with Mobile Sidebar Toggle -->
-      <div class="content-header">
+      <div class="content-header" [class.content-header--stack]="activeTab() === 'ritual-box'">
         <div class="header-title-wrapper">
           <button class="sidebar-toggle-btn" (click)="toggleSidebar()" aria-label="Open sidebar menu">
             <svg lucideMenu [size]="24"></svg>
           </button>
-          <h1 class="page-title">{{ getActiveTabLabel() }}</h1>
+          <div class="page-title-stack">
+            <h1 class="page-title">{{ getActiveTabLabel() }}</h1>
+            <p class="page-subtitle" *ngIf="activeTab() === 'ritual-box'">
+              Manage your subscriptions. New subscriptions are started from your cart.
+            </p>
+          </div>
         </div>
 
         <div class="header-action-wrapper" *ngIf="activeTab() === 'saved' && hasAnySavedItems()">
@@ -968,7 +973,12 @@
         </div>
       </div>
 
-      <div class="tab-content placeholder-tab" *ngIf="activeTab() !== 'profile' && activeTab() !== 'saved' && activeTab() !== 'address' && activeTab() !== 'orders' && activeTab() !== 'payment'">
+      <!-- Ritual Box (Subscription) Tab -->
+      <div class="tab-content ritual-box-tab" *ngIf="activeTab() === 'ritual-box'">
+        <app-ritual-box (addCard)="switchTab('payment'); openAddCardForm()"></app-ritual-box>
+      </div>
+
+      <div class="tab-content placeholder-tab" *ngIf="activeTab() !== 'profile' && activeTab() !== 'saved' && activeTab() !== 'address' && activeTab() !== 'orders' && activeTab() !== 'payment' && activeTab() !== 'ritual-box'">
         <div class="profile-info-card empty-state-card">
           <svg lucideShoppingBag [size]="48" class="empty-icon" *ngIf="activeTab() === 'orders'"></svg>
           <svg lucideCreditCard [size]="48" class="empty-icon" *ngIf="activeTab() === 'payment'"></svg>

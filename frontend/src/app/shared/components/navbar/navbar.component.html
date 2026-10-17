@@ -667,8 +667,8 @@
               </ng-container>
               <ng-template #regularCartPrice>
                 <span class="cart-item-price__current">${{ getLineTotal(item) | number:'1.2-2' }}</span>
-                <span class="cart-item-price__original" *ngIf="isSubscription(item)">
-                  ${{ getOriginalLineTotal(item) | number:'1.2-2' }}
+                <span class="cart-item-price__then" *ngIf="isSubscription(item)">
+                  then ${{ getRecurringLineTotal(item) | number:'1.2-2' }}
                 </span>
               </ng-template>
             </span>
@@ -856,11 +856,11 @@
         <span class="cart-breakdown__amount">${{ oneTimeTotal | number:'1.2-2' }}</span>
       </div>
       <div class="cart-breakdown__row" *ngFor="let group of subscriptionGroups">
-        <span>Ritual Box · {{ group.label }}</span>
+        <span>Ritual Box · {{ group.label }} · from 2nd box</span>
         <span class="cart-breakdown__amount">${{ group.total | number:'1.2-2' }} /delivery</span>
       </div>
       <div class="cart-breakdown__row cart-breakdown__row--savings">
-        <span>You save on every delivery</span>
+        <span>You save on every delivery after the first</span>
         <span class="cart-breakdown__amount">-${{ subscriptionSavings | number:'1.2-2' }}</span>
       </div>
     </div>

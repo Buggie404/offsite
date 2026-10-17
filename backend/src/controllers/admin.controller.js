@@ -254,8 +254,12 @@ async function buildOrderDetail(order) {
       image_url: item.image?.url || null,
       quantity: item.quantity,
       unit_price: item.unit_price,
-      subtotal: item.subtotal
+      subtotal: item.subtotal,
+      purchase_type: item.purchase_type || 'one_time',
+      subscription_frequency_days: item.subscription_frequency_days ?? null
     })),
+    subscription_id: order.subscription_id || null,
+    subscription_cycle: order.subscription_cycle || null,
     pricing: order.pricing,
     payment: order.payment,
     payment_label: formatPaymentLabel(order.payment),
@@ -487,6 +491,13 @@ async function approveRefundRequest(req, res) {
     order.payment_status = 'refunded';
     await order.save();
     socketService.emitOrderUpdated(order, 'refund_approved');
+
+    // Refunded order → take its purchase points back.
+    try {
+      await require('../services/points.service').reversePurchasePoints(order);
+    } catch (pointsErr) {
+      console.error('Error reversing purchase points:', pointsErr);
+    }
 
     // Trigger REFUND_APPROVED notification if registered customer
     if (order.user_id) {

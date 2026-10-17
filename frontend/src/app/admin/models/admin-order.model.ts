@@ -66,6 +66,8 @@ export interface AdminOrderLineItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  purchase_type?: 'one_time' | 'subscription';
+  subscription_frequency_days?: number | null;
 }
 
 export interface AdminOrderStatusHistoryEntry {
@@ -122,6 +124,9 @@ export interface AdminOrderDetail {
   canceled_at: string | null;
   is_guest: boolean;
   items: AdminOrderLineItem[];
+  /** Set on orders billed by the Ritual Box charge job. */
+  subscription_id?: string | null;
+  subscription_cycle?: number | null;
   pricing: {
     subtotal: number;
     shipping_cost: number;

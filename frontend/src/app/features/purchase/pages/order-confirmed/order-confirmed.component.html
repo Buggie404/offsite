@@ -145,7 +145,10 @@
         <div class="panel items-ordered-card">
           <header class="items-header">
             <h2 class="items-title font-body">ITEMS ORDERED</h2>
-            <span class="items-count-badge">{{ order().items.length }} {{ order().items.length === 1 ? 'item' : 'items' }}</span>
+            <span class="items-header__badges">
+              <span class="items-count-badge">{{ order().items.length }} {{ order().items.length === 1 ? 'item' : 'items' }}</span>
+              <app-order-type-badge [order]="order()"></app-order-type-badge>
+            </span>
           </header>
 
           <div class="items-list">
@@ -156,6 +159,9 @@
               <div class="item-details">
                 <h3 class="item-name font-body">{{ item.product_name }}</h3>
                 <span class="item-variant">{{ item.variant_name }}</span>
+                <span class="item-sub-tag" *ngIf="getSubscriptionLineLabel(item) as subLabel">
+                  <svg lucideRepeat [size]="12"></svg>{{ subLabel }}
+                </span>
                 <span class="item-quantity">x{{ item.quantity }}</span>
               </div>
               <div class="item-price font-mono">
@@ -291,6 +297,41 @@
       <!-- Right Column -->
       <aside class="right-col">
         
+        <!-- Ritual Box started by this order -->
+        <section class="panel ritual-card" *ngIf="subscriptions.length">
+          <header class="ritual-card__head">
+            <span class="ritual-card__title"><svg lucideRepeat [size]="18"></svg>Your Ritual Box is set up</span>
+            <span class="ritual-card__status">{{ subscriptionStatusLabel(subscriptions[0].status) }}</span>
+          </header>
+          <div class="ritual-card__item" *ngFor="let sub of subscriptions">
+            <div class="ritual-card__thumb">
+              <img *ngIf="sub.image" [src]="sub.image" [alt]="sub.product_name" />
+            </div>
+            <div class="ritual-card__info">
+              <p class="ritual-card__name">{{ sub.product_name }}{{ sub.variant_label ? ' · ' + sub.variant_label : '' }}</p>
+              <p class="ritual-card__meta">{{ getFrequencyLabel(sub.frequency_days) }} · ${{ sub.price_per_delivery | number:'1.2-2' }} per delivery</p>
+              <p class="ritual-card__next">Next delivery <strong>{{ sub.next_charge_at | date:'MMM d' }}</strong></p>
+            </div>
+          </div>
+          <a routerLink="/account" [queryParams]="{ tab: 'ritual-box' }" class="ritual-card__btn">Manage Ritual Box</a>
+        </section>
+
+        <!-- Points earned by this order -->
+        <section class="panel points-card" *ngIf="order().points as pts">
+          <h2 class="points-card__title"><svg lucideTrophy [size]="18"></svg>Points from this order</h2>
+          <div class="points-card__row">
+            <span class="points-card__amount font-display">+{{ pts.amount }}</span>
+            <span class="points-card__chip" [class]="'points-card__chip points-card__chip--' + pts.status">{{ pts.status }}</span>
+          </div>
+          <p class="points-card__note" [ngSwitch]="pts.status">
+            <ng-container *ngSwitchCase="'posted'">Added to your points balance.</ng-container>
+            <ng-container *ngSwitchCase="'reversed'">Reversed because the order was refunded.</ng-container>
+            <ng-container *ngSwitchDefault>
+              Posts {{ pts.hold_days }} days after the order is delivered. Reversed if the order is refunded.
+            </ng-container>
+          </p>
+        </section>
+
         <!-- Payment Summary Panel -->
         <div class="panel summary-card">
           <header class="summary-header">
@@ -320,8 +361,13 @@
               <span>TOTAL PAID</span>
               <span class="total-price font-mono">${{ order().pricing.total | number:'1.2-2' }}</span>
             </div>
+            <div class="summary-row summary-row--then" *ngFor="let row of recurringRows">
+              <span>Then {{ row.label }}</span>
+              <span class="font-mono">${{ row.amount | number:'1.2-2' }}</span>
+            </div>
           </div>
         </div>
+
 
         <!-- You Might Also Like Panel -->
         <div class="panel suggestions-card" *ngIf="complements().length">

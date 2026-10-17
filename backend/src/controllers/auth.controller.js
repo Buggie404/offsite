@@ -6,6 +6,7 @@ const ADMIN_ROLES = new Set(['admin_cc', 'cskh', 'qlsp']);
 const REFRESH_SECRET  = process.env.JWT_REFRESH_SECRET  || 'refresh_secret_dev';
 const { ObjectId } = require('mongodb');
 const { mergeGuestCartIntoUser } = require('../services/cart-merge.service');
+const { AUTH_TOKEN_TTL } = require('../config/auth');
 
 // Chuẩn hóa
 function normalizeIdentity(value, isEmail = false) {
@@ -264,7 +265,7 @@ async function verifyRegistrationOtp(req, res) {
     const token = jwt.sign(
       { user_id: result.insertedId, email: newUser.email || '', role: newUser.role },
       ACCESS_SECRET,
-      { expiresIn: '8h' }
+      { expiresIn: AUTH_TOKEN_TTL }
     );
 
     res.status(201).json({
@@ -363,7 +364,7 @@ async function login(req, res) {
     const token = jwt.sign(
       { user_id: user._id, email: user.email || '', role: user.role },
       ACCESS_SECRET,
-      { expiresIn: '8h' }
+      { expiresIn: AUTH_TOKEN_TTL }
     );
 
     let mergedCart = null;
@@ -446,7 +447,7 @@ async function adminLogin(req, res) {
           : {})
       },
       ACCESS_SECRET,
-      { expiresIn: '8h' }
+      { expiresIn: AUTH_TOKEN_TTL }
     );
 
     res.json({
@@ -482,19 +483,19 @@ async function refreshToken(req, res) {
     catch { return res.status(401).json({ error: 'refreshToken không hợp lệ hoặc hết hạn.' }); }
 
     const { userCollection } = await getCollections();
-    const user = await userCollection.findOne({ _id: new ObjectId(payload.sub) });
+    const user = await userCollection.findOne({ _id: new ObjectId(payload.user_id || payload.sub) });
     if (!user) return res.status(404).json({ error: 'Tài khoản không tồn tại.' });
 
     const accessToken = jwt.sign(
       { user_id: user._id, email: user.email || '', role: user.role },
       ACCESS_SECRET,
-      { expiresIn: '8h' }
+      { expiresIn: AUTH_TOKEN_TTL }
     );
 
     const newRefreshToken = jwt.sign(
       { user_id: user._id },
       REFRESH_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: AUTH_TOKEN_TTL }
     );
 
     res.json({
