@@ -17,6 +17,8 @@ import { CompletePaymentModalComponent } from '../../purchase/components/complet
 import { PaymentModalComponent } from '../../purchase/components/payment-modal/payment-modal.component';
 import { ChangePaymentModalComponent } from '../../purchase/components/change-payment-modal/change-payment-modal.component';
 import { InlineValidator, FieldConfig } from '../../../shared/utils/inline-validator';
+import { RitualBoxComponent } from '../components/ritual-box/ritual-box.component';
+import { RitualBoxService } from '../services/ritual-box.service';
 import { ToastService } from '../../../shared/services/toast.service';
 import { QuickViewModalComponent } from '../../shop/components/quick-view-modal/quick-view-modal.component';
 import { ConfirmationModalComponent } from '../../../shared/components/confirmation-modal/confirmation-modal.component';
@@ -111,13 +113,15 @@ import {
     LucideDessert,
     LucideBadgeCheck,
     LucideTrophy,
-    LucideActivity
+    LucideActivity,
+    RitualBoxComponent
   ],
   templateUrl: './account.component.html',
   styleUrl: './account.component.scss'
 })
 export class AccountComponent implements OnInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
+  readonly ritualBox = inject(RitualBoxService);
   private authService = inject(AuthService);
   private authModalService = inject(AuthModalService);
   private http = inject(HttpClient);
@@ -151,7 +155,7 @@ export class AccountComponent implements OnInit, OnDestroy {
       groupLabel: 'SHOPPING',
       tabs: [
         { key: 'orders',  label: 'My orders',      icon: 'shopping-bag' },
-        { key: 'ritual-box', label: 'Ritual Box',  icon: 'refresh-cw',  comingSoon: true },
+        { key: 'ritual-box', label: 'Ritual Box',  icon: 'refresh-cw' },
         { key: 'pantry',  label: 'My Pantry',       icon: 'archive',     badge: null, comingSoon: true },
         { key: 'saved',   label: 'Saved items',     icon: 'bookmark' },
         { key: 'address', label: 'My address',      icon: 'map-pin' },
@@ -520,6 +524,10 @@ export class AccountComponent implements OnInit, OnDestroy {
     this.initForms();
     this.fetchProfile();
     this.fetchOrders();
+    // Ritual Box drives the sidebar "!" badge, so load it whatever tab is open.
+    if (isPlatformBrowser(this.platformId)) {
+      this.ritualBox.load();
+    }
 
     this.socketSub = this.orderSocketService.orderUpdated$.subscribe((event) => {
       if (!event || !event.order_id) return;
@@ -2501,6 +2509,7 @@ export class AccountComponent implements OnInit, OnDestroy {
 
   confirmSignOut(): void {
     this.isSignOutModalOpen = false;
+    this.ritualBox.reset();
     this.authService.logout();
     this.router.navigate(['/']);
   }

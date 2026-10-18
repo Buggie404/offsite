@@ -27,38 +27,62 @@ const subscriptionSchema = new mongoose.Schema({
   variant_id: { type: String, required: true },                    // SKU
   quantity:   { type: Number, required: true, min: 1 },
 
-  frequency_days:   { type: Number, required: true, enum: [7, 14, 30] }, // Every week / 2 weeks / month
-  next_delivery_at: { type: Date, required: true, index: true },
+  frequency_days: { type: Number, required: true, enum: [7, 14, 30] }, // Every week / 2 weeks / month
+  // Mỗi lần charge ứng với một lần giao. Job charge lấy active có next_charge_at <= now,
+  // charge xong thì next_charge_at += frequency_days.
+  next_charge_at: { type: Date, required: true, index: true },
 
   status: {
     type: String,
-    enum: ['active', 'paused', 'payment_failed', 'canceled'],
+    enum: ['active', 'paused', 'payment_failed', 'suspended', 'cancelled', 'cancelled_by_admin'],
     default: 'active',
     index: true
   },
 
   pricing_snapshot:  { type: pricingSnapshotSchema, required: true },
-  payment_method_id: { type: String, default: null },             // _id của Orders.payment_methods[] dùng để auto-charge
+  payment_method_id: { type: String, default: null },             // _id của Users.payment_methods[] dùng để auto-charge
   delivery_info:     { type: deliveryInfoSchema, required: true },
   shipping_method:   { type: String, enum: ['standard', 'express'], default: 'standard' },
 
-  skip_next:                { type: Boolean, default: false },    // bỏ qua một chu kỳ, không tính phí
-  suggested_frequency_days: { type: Number, enum: [7, 14, 30, null], default: null }, // chờ khách xác nhận
+  // Bỏ qua chu kỳ: không tính phí, tối đa 2 chu kỳ liên tiếp (reset khi charge thành công).
+  consecutive_skips:  { type: Number, default: 0, min: 0, max: 2 },
+  skipped_deliveries: { type: [Date], default: [] },             // các chu kỳ đã bỏ qua (hiện trong Delivery history)
+
+  // Trong 48 giờ trước next_charge_at, đổi tần suất / bỏ qua / tạm dừng chỉ có tác dụng từ chu kỳ sau:
+  // lưu ở đây để job áp dụng ngay sau lần charge sắp tới.
+  pending_changes: {
+    frequency_days: { type: Number, enum: [7, 14, 30, null], default: null },
+    skip:           { type: Boolean, default: false },
+    pause_option:   { type: String, enum: ['1_month', '2_months', 'until_reactivated', null], default: null }
+  },
+
+  // Điều chỉnh thông minh (SUBSCRIPTION_ADJUSTED): gợi ý rút ngắn chu kỳ kế tiếp một mức,
+  // chỉ áp dụng khi khách xác nhận; quá 3 ngày thì bỏ gợi ý.
+  suggested_frequency_days: { type: Number, enum: [7, 14, null], default: null },
+  suggested_at:             { type: Date, default: null },
 
   failed_attempts:     { type: Number, default: 0, min: 0 },
   last_failure_reason: { type: String, default: null },
-  last_delivery_at:    { type: Date, default: null },
+  last_failed_at:      { type: Date, default: null },
+  next_retry_at:       { type: Date, default: null },             // thử lại sau 24h → 48h → 72h, rồi suspended
+  last_charged_at:     { type: Date, default: null },
   source_order_id:     { type: String, default: null },           // đơn checkout tạo ra subscription này
 
-  paused_at:   { type: Date, default: null },
-  canceled_at: { type: Date, default: null }
+  // Tạm dừng: 1 tháng, 2 tháng, hoặc đến khi khách kích hoạt lại (resume_at = null).
+  pause_option: { type: String, enum: ['1_month', '2_months', 'until_reactivated', null], default: null },
+  paused_at:    { type: Date, default: null },
+  resume_at:    { type: Date, default: null },
+
+  cancelled_at:  { type: Date, default: null },
+  cancel_reason: { type: String, default: null },                 // tuỳ chọn với khách, bắt buộc với cancelled_by_admin
+  cancelled_by:  { type: String, default: null }                  // user_id của admin khi cancelled_by_admin
 }, {
   collection: 'Subscriptions',
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
 
-// Scheduler query: active subscriptions due for delivery
-subscriptionSchema.index({ status: 1, next_delivery_at: 1 });
+// Charge job query: active subscriptions due for a charge
+subscriptionSchema.index({ status: 1, next_charge_at: 1 });
 
 subscriptionSchema.pre('validate', async function(next) {
   // 1. Auto-generate sequential subscription_id: SUB0001, SUB0002, ...
@@ -80,11 +104,17 @@ subscriptionSchema.pre('validate', async function(next) {
     }
   }
 
-  // 2. Stamp paused_at / canceled_at on status transitions
+  // 2. Stamp paused_at / cancelled_at on status transitions
   if (this.isModified('status')) {
     if (this.status === 'paused' && !this.paused_at) this.paused_at = new Date();
-    if (this.status === 'active') this.paused_at = null;
-    if (this.status === 'canceled' && !this.canceled_at) this.canceled_at = new Date();
+    if (this.status === 'active') {
+      this.paused_at = null;
+      this.resume_at = null;
+      this.pause_option = null;
+    }
+    if (['cancelled', 'cancelled_by_admin'].includes(this.status) && !this.cancelled_at) {
+      this.cancelled_at = new Date();
+    }
   }
   next();
 });

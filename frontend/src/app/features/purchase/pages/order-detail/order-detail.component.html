@@ -300,7 +300,10 @@
         <div class="panel items-panel">
           <header class="panel-header dark-green-header">
             <h2 class="panel-title font-body">ITEMS ORDERED</h2>
-            <span class="items-count-badge font-mono">{{ getItemCount() }} items</span>
+            <span class="items-header__badges">
+              <span class="items-count-badge font-mono">{{ getItemCount() }} items</span>
+              <app-order-type-badge [order]="order()"></app-order-type-badge>
+            </span>
           </header>
           
           <div class="items-list">
@@ -315,6 +318,9 @@
                 </h3>
                 <span class="item-specs font-body">
                   {{ item.variant_name || 'Default variant' }}
+                </span>
+                <span class="item-sub-tag" *ngIf="getSubscriptionLineLabel(item) as subLabel">
+                  <svg lucideRepeat [size]="12"></svg>{{ subLabel }}
                 </span>
                 <span class="item-qty font-mono">x{{ item.quantity }}</span>
               </div>
@@ -571,6 +577,13 @@
               <span>TOTAL PAID</span>
               <span class="total-price font-mono">${{ order().pricing.total | number:'1.2-2' }}</span>
             </div>
+            <div class="summary-row summary-row--then" *ngFor="let row of recurringRows">
+              <span>Then {{ row.label }}</span>
+              <span class="font-mono">${{ row.amount | number:'1.2-2' }}</span>
+            </div>
+            <p class="summary-cycle-note" *ngIf="order().subscription_id">
+              Ritual Box delivery{{ order().subscription_cycle ? ' #' + order().subscription_cycle : '' }} · charged at the Subscribe &amp; Save price
+            </p>
           </div>
         </div>
       </aside>

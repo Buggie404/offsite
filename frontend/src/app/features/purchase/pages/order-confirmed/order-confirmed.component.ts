@@ -13,8 +13,12 @@ import {
   LucideBanknote,
   LucideCircleCheck,
   LucideQrCode,
-  LucideLandmark
+  LucideLandmark,
+  LucideRepeat,
+  LucideTrophy
 } from '@lucide/angular';
+import { OrderTypeBadgeComponent } from '../../../../shared/components/order-type-badge/order-type-badge.component';
+import { getFrequencyLabel, getOpenSubscriptions, getRecurringRows, getSubscriptionLineLabel } from '../../../../shared/utils/order-type';
 import { CheckoutService, CheckoutItem } from '../../services/checkout.service';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { CartService } from '../../services/cart.service';
@@ -38,6 +42,9 @@ import { Product } from '../../../../shared/models/product.model';
     LucideCircleCheck,
     LucideQrCode,
     LucideLandmark,
+    LucideRepeat,
+    LucideTrophy,
+    OrderTypeBadgeComponent,
     ConfirmationModalComponent
   ],
   templateUrl: './order-confirmed.component.html',
@@ -98,6 +105,7 @@ export class OrderConfirmedComponent implements OnInit {
         this.showModal.set(true);
       }
       this.loadRecommendations();
+      this.loadOrderExtras();
     } else {
       // Attempt recovery from localStorage
       const stored = localStorage.getItem('last_order_info');
@@ -118,6 +126,36 @@ export class OrderConfirmedComponent implements OnInit {
       
       console.warn('Access denied. No order state or cached order found. Redirecting to home...');
       this.router.navigate(['/']);
+    }
+  }
+
+  // ─── Ritual Box & points ────────────────────────────────────
+
+  readonly getSubscriptionLineLabel = getSubscriptionLineLabel;
+  readonly getFrequencyLabel = getFrequencyLabel;
+
+  /** Ritual Boxes this order started that are still running. */
+  get subscriptions(): any[] {
+    return getOpenSubscriptions(this.order()?.subscriptions);
+  }
+
+  subscriptionStatusLabel(status: string): string {
+    return ({ active: 'Active', paused: 'Paused', payment_failed: 'Payment failed', suspended: 'Suspended' } as Record<string, string>)[status] ?? status;
+  }
+
+  get recurringRows() {
+    return getRecurringRows(this.subscriptions);
+  }
+
+  /** The order passed from checkout has no Ritual Box / points data yet: fetch it. */
+  private async loadOrderExtras(): Promise<void> {
+    const current = this.order();
+    if (!current?.order_id) return;
+    try {
+      const fresh = await this.checkoutService.getOrderStatus(current.order_id, current.session_id);
+      this.order.set({ ...current, subscriptions: fresh.subscriptions ?? [], points: fresh.points ?? null });
+    } catch (err) {
+      console.error('Failed to load Ritual Box / points for order:', err);
     }
   }
 

@@ -27,7 +27,11 @@ import {
   LucideCreditCard,
   LucidePackage,
   LucideAlertCircle,
-  LucidePencil
+  LucidePencil,
+  LucideRepeat,
+  LucideTrophy,
+  LucideInfo,
+  LucideLogIn
 } from '@lucide/angular';
 
 import {
@@ -37,7 +41,22 @@ import {
   ShippingMethod,
   VoucherFetchError
 } from '../../services/checkout.service';
-import { CartService } from '../../services/cart.service';
+import {
+  CartService,
+  getCartItemChargedUnitPrice,
+  getCartItemOriginalUnitPrice,
+  getCartItemRecurringUnitPrice,
+  getPurchaseType,
+  isSubscriptionItem
+} from '../../services/cart.service';
+import {
+  SUBSCRIPTION_FREQUENCY_OPTIONS,
+  SubscriptionFrequencyDays,
+  getSubscribeDiscountPercent,
+  getSubscriptionFrequencyLabel,
+  isSubscriptionEligibleProduct
+} from '../../models/subscription-cart.model';
+import { AuthModalService } from '../../../../core/auth-modal.service';
 import { Product, ProductVariant } from '../../../../shared/models/product.model';
 import {
   BundleComponentSelection,
@@ -52,13 +71,12 @@ import {
   getBundleContentToggleLabel,
   getBundleSaleLineTotal,
   getCartItemImage,
-  getCartItemUnitPrice,
   isBundleCartItem
 } from '../../models/bundle-cart.model';
 import { Voucher } from '../../../../shared/models/voucher.model';
 import { AuthService } from '../../../../core/auth.service';
 import { InlineValidator, FieldConfig } from '../../../../shared/utils/inline-validator';
-import { UserAddress, UserPaymentMethod, UserProfile } from '../../../../shared/models/user.model';
+import { TIER_POINT_MULTIPLIER, UserAddress, UserPaymentMethod, UserProfile } from '../../../../shared/models/user.model';
 import { AddressModalComponent } from '../../../../shared/components/address-modal/address-modal.component';
 import { PaymentModalComponent } from '../../components/payment-modal/payment-modal.component';
 
@@ -87,6 +105,10 @@ const VIETNAM_BANK_LIST = ['Vietcombank','BIDV','Techcombank','VietinBank','Agri
     LucidePackage,
     LucideAlertCircle,
     LucidePencil,
+    LucideRepeat,
+    LucideTrophy,
+    LucideInfo,
+    LucideLogIn,
     AddressModalComponent,
     PaymentModalComponent
   ],
@@ -98,6 +120,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   authService = inject(AuthService);
   private router = inject(Router);
   private cartService = inject(CartService);
+  private authModalService = inject(AuthModalService);
 
   // Payment Verification Modal State
   showPaymentModal = signal(false);
@@ -439,6 +462,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     if (Object.keys(this.summaryItemErrors()).length > 0) {
       return true;
     }
+    // Ritual Box: signed-in customer, credit/debit card and auto-billing consent.
+    if (this.hasSubscription()) {
+      if (!this.authService.isAuthenticated()) return true;
+      if (!this.isSubscriptionPaymentOk()) return true;
+      if (!this.autoBillingAgreed()) return true;
+    }
     if (this.authService.isAuthenticated() && this.paymentMethod() === 'card') {
       if (this.showInlineCardForm() || this.savedCards().length === 0) {
         return true;
@@ -593,8 +622,68 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   applyingVoucher = signal(false);
 
   readonly subtotal = computed(() =>
-    this.items().reduce((sum, it) => sum + getCartItemUnitPrice(it) * it.quantity, 0)
+    this.items().reduce((sum, it) => sum + this.getItemPrice(it) * it.quantity, 0)
   );
+
+  // ─── Subscribe & Save (Ritual Box) ─────────────────────────────
+  readonly frequencyOptions = SUBSCRIPTION_FREQUENCY_OPTIONS;
+  readonly oneTimeItems = computed(() => this.items().filter(it => !isSubscriptionItem(it)));
+  readonly subscriptionItems = computed(() => this.items().filter(it => isSubscriptionItem(it)));
+  readonly hasSubscription = computed(() => this.subscriptionItems().length > 0);
+
+  /** Customer must tick "I agree to automatic billing" before a Ritual Box order. */
+  autoBillingAgreed = signal(false);
+
+  /** Header badge: "SAVE 10%", or "SAVE UP TO 15%" when lines differ. */
+  readonly subscriptionSaveLabel = computed(() => {
+    const percents = this.subscriptionItems().map(it => getSubscribeDiscountPercent(it.product));
+    if (!percents.length) return '';
+    const max = Math.max(...percents);
+    return percents.every(p => p === max) ? `Save ${max}%` : `Save up to ${max}%`;
+  });
+
+  /** "Then every 2 weeks · $28.80" — what each later Ritual Box charge costs, per frequency. */
+  readonly recurringGroups = computed(() => {
+    const groups = new Map<number, number>();
+    for (const it of this.subscriptionItems()) {
+      const days = it.subscriptionFrequencyDays ?? 14;
+      groups.set(days, (groups.get(days) ?? 0) + this.getItemRecurringLineTotal(it));
+    }
+    return [...groups.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([days, amount]) => ({
+        label: getSubscriptionFrequencyLabel(days as SubscriptionFrequencyDays).toLowerCase(),
+        amount
+      }));
+  });
+
+  /**
+   * Ritual Box charges the card on file every cycle, so only a credit/debit card
+   * works (not COD, QR, bank transfer or a NAPAS ATM card).
+   */
+  // Methods, not computed(): cardForm is a plain object, re-read on every check.
+  isSubscriptionPaymentOk(): boolean {
+    if (this.paymentMethod() !== 'card') return false;
+    const usingSavedCard = this.savedCards().length > 0 && !this.showInlineCardForm();
+    if (usingSavedCard) {
+      const card = this.savedCards().find(c => c._id === this.selectedCardId());
+      return !card || card.card_type !== 'NAPAS';
+    }
+    return this.cardForm.card_type !== 'NAPAS';
+  }
+
+  showSubscriptionPaymentBanner(): boolean {
+    return this.hasSubscription() && !this.isSubscriptionPaymentOk();
+  }
+
+  /**
+   * Points this order earns once delivered: 1 point per USD of subtotal × tier
+   * multiplier, rounded (same formula as backend points.service).
+   */
+  readonly estimatedPoints = computed(() => {
+    const tier = this.userProfile()?.membership_tier ?? 'Seed';
+    return Math.round(this.subtotal() * (TIER_POINT_MULTIPLIER[tier] ?? 1));
+  });
 
   readonly discountAmount = computed(() => {
     const v = this.appliedVoucher();
@@ -1614,14 +1703,68 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     if (item.bundle) {
       return item.bundle.discountedTotal;
     }
-    return getCartItemUnitPrice(item);
+    // Charged today: full price, also for the first Ritual Box.
+    return getCartItemChargedUnitPrice(item as any);
   }
 
   getItemLineTotal(item: CheckoutItem): number {
     if (item.bundle) {
       return getBundleSaleLineTotal(item);
     }
-    return getCartItemUnitPrice(item) * item.quantity;
+    return this.getItemPrice(item) * item.quantity;
+  }
+
+  getItemOriginalLineTotal(item: CheckoutItem): number {
+    return getCartItemOriginalUnitPrice(item as any) * item.quantity;
+  }
+
+  /** What each later Ritual Box delivery costs (Subscribe & Save price). */
+  getItemRecurringLineTotal(item: CheckoutItem): number {
+    return getCartItemRecurringUnitPrice(item as any) * item.quantity;
+  }
+
+  getSubscriptionSavings(item: CheckoutItem): number {
+    return this.getItemOriginalLineTotal(item) - this.getItemRecurringLineTotal(item);
+  }
+
+  /** First box ships with this order; the next one a cycle later. */
+  getNextDeliveryDate(item: CheckoutItem): Date {
+    const days = item.subscriptionFrequencyDays ?? 14;
+    return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  }
+
+  /**
+   * One dropdown drives both purchase type and frequency: 'one_time', or a
+   * frequency in days for Subscribe & Save. Switching type merges into an
+   * existing line of that type for the same variant.
+   */
+  changePurchaseOption(item: CheckoutItem, value: string): void {
+    if (value === 'one_time') {
+      this.cartService.setSummaryPurchaseType(item as any, 'one_time');
+      return;
+    }
+    const days = Number(value) as SubscriptionFrequencyDays;
+    if (isSubscriptionItem(item)) {
+      this.cartService.setSummarySubscriptionFrequency(item as any, days);
+    } else {
+      this.cartService.setSummaryPurchaseType(item as any, 'subscription', days);
+    }
+  }
+
+  getPurchaseOptionValue(item: CheckoutItem): string {
+    return isSubscriptionItem(item) ? String(item.subscriptionFrequencyDays ?? 14) : 'one_time';
+  }
+
+  isSubscriptionEligible(item: CheckoutItem): boolean {
+    return !item.bundle && isSubscriptionEligibleProduct(item.product);
+  }
+
+  getSubscribeDiscount(item: CheckoutItem): number {
+    return getSubscribeDiscountPercent(item.product);
+  }
+
+  openSignIn(): void {
+    this.authModalService.open('login');
   }
 
   isBundleItem(item: CheckoutItem): boolean {
@@ -1639,7 +1782,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     getBundleComponentTrackKey(component);
 
   getCheckoutItemKey(item: CheckoutItem): string {
-    return `${item.product._id}::${item.variantSku}`;
+    return `${item.product._id}::${item.variantSku}::${getPurchaseType(item)}`;
   }
 
   isKitContentExpanded(item: CheckoutItem): boolean {
@@ -1658,12 +1801,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   trackByItem = (_: number, it: CheckoutItem) =>
     it.bundle?.bundleKey
       ? `${it.bundle.bundleKey}::${it.variantSku}`
-      : `${it.product._id}::${it.variantSku}`;
+      : `${it.product._id}::${it.variantSku}::${getPurchaseType(it)}`;
 
   trackByProduct = (_: number, p: Product) => p._id;
 
   changeVariant(item: CheckoutItem, sku: string) {
-    this.cartService.updateSummaryVariant(item.product._id, item.variantSku, sku);
+    this.cartService.updateSummaryVariant(item.product._id, item.variantSku, sku, getPurchaseType(item));
   }
 
   changeBundleComponentVariant(
@@ -1680,19 +1823,19 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   inc(item: CheckoutItem) {
-    this.cartService.updateSummaryQuantity(item.product._id, item.variantSku, item.quantity + 1);
+    this.cartService.updateSummaryQuantity(item.product._id, item.variantSku, item.quantity + 1, getPurchaseType(item));
   }
 
   dec(item: CheckoutItem) {
-    this.cartService.updateSummaryQuantity(item.product._id, item.variantSku, item.quantity - 1);
+    this.cartService.updateSummaryQuantity(item.product._id, item.variantSku, item.quantity - 1, getPurchaseType(item));
   }
 
   remove(item: CheckoutItem) {
-    this.cartService.removeFromSummary(item.product._id, item.variantSku);
+    this.cartService.removeFromSummary(item.product._id, item.variantSku, getPurchaseType(item));
   }
 
   getSummaryItemError(item: CheckoutItem): string | null {
-    const key = `${item.product._id}::${item.variantSku}`;
+    const key = this.getCheckoutItemKey(item);
     return this.summaryItemErrors()[key] || null;
   }
 
@@ -1716,7 +1859,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     const qty = value ? parseInt(value, 10) : 0;
     const variant = this.getVariant(item);
     const stock = variant ? variant.stock : 0;
-    const key = `${item.product._id}::${item.variantSku}`;
+    const key = this.getCheckoutItemKey(item);
 
     if (qty <= 0 || value === '') {
       this.summaryItemErrors.update(errors => ({
@@ -1734,7 +1877,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         delete copy[key];
         return copy;
       });
-      this.cartService.updateSummaryQuantity(item.product._id, item.variantSku, qty);
+      this.cartService.updateSummaryQuantity(item.product._id, item.variantSku, qty, getPurchaseType(item));
     }
   }
 
@@ -1744,7 +1887,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     let qty = value ? parseInt(value, 10) : 0;
     const variant = this.getVariant(item);
     const stock = variant ? variant.stock : 0;
-    const key = `${item.product._id}::${item.variantSku}`;
+    const key = this.getCheckoutItemKey(item);
 
     if (qty <= 0 || value === '') {
       qty = 1;
@@ -1758,7 +1901,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       return copy;
     });
 
-    this.cartService.updateSummaryQuantity(item.product._id, item.variantSku, qty);
+    this.cartService.updateSummaryQuantity(item.product._id, item.variantSku, qty, getPurchaseType(item));
     input.value = String(qty);
   }
 
@@ -1982,6 +2125,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (this.hasSubscription() && (!this.isSubscriptionPaymentOk() || !this.autoBillingAgreed())) {
+      return;
+    }
+
 
 
     const backendItems = this.items().flatMap((it) => {
@@ -1993,6 +2140,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       }
 
       const variant = this.getVariant(it);
+      const isSubscription = isSubscriptionItem(it);
+      const unitPrice = this.getItemPrice(it);
       return [{
         product_id: it.product._id,
         variant_id: variant.sku,
@@ -2002,9 +2151,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           url: variant.images?.[0]?.url || it.product.images?.[0]?.url || '',
           public_id: variant.images?.[0]?.public_id || it.product.images?.[0]?.public_id || 'default'
         },
-        unit_price: variant.price,
+        unit_price: unitPrice,
         quantity: it.quantity,
-        subtotal: variant.price * it.quantity
+        subtotal: unitPrice * it.quantity,
+        // Backend re-prices subscription lines and starts the Ritual Box once the card is charged.
+        purchase_type: isSubscription ? 'subscription' : 'one_time',
+        subscription_frequency_days: isSubscription ? (it.subscriptionFrequencyDays ?? 14) : null
       }];
     });
 

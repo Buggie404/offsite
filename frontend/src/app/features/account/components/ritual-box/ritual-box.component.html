@@ -1,0 +1,341 @@
+<div class="ritual-box">
+  <!-- Loading -->
+  <div class="rb-state" *ngIf="box.isLoading() && !box.data()">
+    <svg lucideLoader [size]="28" class="rb-spin"></svg>
+    <p>Loading your Ritual Box…</p>
+  </div>
+
+  <!-- Load error -->
+  <div class="rb-state rb-state--error" *ngIf="!box.isLoading() && box.error() && !box.data()">
+    <p>{{ box.error() }}</p>
+    <button type="button" class="rb-btn" (click)="box.load()">Try again</button>
+  </div>
+
+  <ng-container *ngIf="box.data() as data">
+    <!-- ─── Empty state: glow centre with the Subscribe & Save perks orbiting it ─── -->
+    <section class="rb-empty" *ngIf="data.subscriptions.length === 0" aria-labelledby="rb-empty-title">
+      <div class="rb-empty__glow" aria-hidden="true">
+        <span class="rb-empty__blob rb-empty__blob--sage"></span>
+        <span class="rb-empty__blob rb-empty__blob--blush"></span>
+        <span class="rb-empty__blob rb-empty__blob--wheat"></span>
+      </div>
+
+      <div class="rb-empty__core">
+        <p class="rb-overline rb-empty__eyebrow">Subscribe &amp; Save</p>
+        <h2 id="rb-empty-title" class="rb-empty__title">Your Ritual Box is empty</h2>
+        <p class="rb-empty__text">
+          Put the matcha and coffee you reach for every day on repeat. We deliver on your rhythm,
+          and every box costs less.
+        </p>
+
+        <div class="rb-empty__actions">
+          <a routerLink="/shop/matcha" class="rb-btn rb-btn--primary">
+            Shop matcha<svg lucideArrowRight [size]="14"></svg>
+          </a>
+          <a routerLink="/shop/coffee" class="rb-btn">Shop coffee</a>
+        </div>
+        <p class="rb-empty__hint">Pick “Subscribe &amp; Save” on a product or in your cart to start your first box.</p>
+      </div>
+
+      <ul class="rb-empty__orbit" aria-label="What you get with a Ritual Box">
+        <li class="rb-orbit rb-orbit--1"><svg lucideBadgePercent [size]="16"></svg>Save up to 15%</li>
+        <li class="rb-orbit rb-orbit--2"><svg lucideRepeat [size]="16"></svg>Weekly to monthly</li>
+        <li class="rb-orbit rb-orbit--3"><svg lucideSkipForward [size]="16"></svg>Skip for free</li>
+        <li class="rb-orbit rb-orbit--4"><svg lucidePause [size]="16"></svg>Pause 1–2 months</li>
+        <li class="rb-orbit rb-orbit--5"><svg lucideTruck [size]="16"></svg>Delivered to your door</li>
+        <li class="rb-orbit rb-orbit--6"><svg lucideCircleCheck [size]="16"></svg>Cancel anytime</li>
+      </ul>
+    </section>
+
+    <ng-container *ngIf="data.subscriptions.length > 0">
+      <!-- ─── Payment failed / suspended banners ─────────────── -->
+      <div class="rb-banner" *ngFor="let sub of failedSubs()" role="alert">
+        <svg lucideCreditCard [size]="18" class="rb-banner__icon"></svg>
+        <p class="rb-banner__text" *ngIf="sub.status === 'payment_failed'">
+          <strong>Payment failed{{ sub.last_failed_at ? ' on ' + shortDate(sub.last_failed_at) : '' }}.</strong>
+          Your “{{ sub.product_name }}” box is on hold.
+          {{ sub.last_failure_reason === 'card_expired' ? 'Your card has expired —' : '' }}
+          Update your card and we’ll charge it right away to send your box, or cancel the subscription.
+        </p>
+        <p class="rb-banner__text" *ngIf="sub.status === 'suspended'">
+          <strong>Subscription suspended.</strong>
+          We couldn’t charge your card for “{{ sub.product_name }}” after 3 attempts. Update your card to continue, or cancel the subscription.
+        </p>
+        <button type="button" class="rb-btn rb-btn--danger" (click)="openCardFromBanner($event, sub)">Update card</button>
+      </div>
+
+      <!-- ─── Smart adjustment (SUBSCRIPTION_ADJUSTED) ───────── -->
+      <div class="rb-suggest" *ngFor="let sub of suggestionSubs()">
+        <svg lucideSparkles [size]="18" class="rb-suggest__icon"></svg>
+        <p class="rb-suggest__text">
+          <strong>Running low on {{ sub.product_name }}?</strong>
+          You bought it separately this cycle. Bring your next box forward to
+          {{ shortDate(sub.suggestion!.next_charge_at) }}?
+          <span class="rb-suggest__sub">Nothing changes unless you confirm by {{ shortDate(sub.suggestion!.expires_at) }}.</span>
+        </p>
+        <div class="rb-suggest__actions">
+          <button type="button" class="rb-btn rb-btn--primary" (click)="run(sub, 'accept_adjustment')">Deliver earlier</button>
+          <button type="button" class="rb-btn" (click)="run(sub, 'dismiss_adjustment')">Keep schedule</button>
+        </div>
+      </div>
+
+      <!-- ─── Subscription cards ─────────────────────────────── -->
+      <article
+        class="rb-card"
+        *ngFor="let sub of data.subscriptions"
+        [id]="'sub-' + sub.subscription_id"
+        [class.is-busy]="busyId() === sub.subscription_id"
+      >
+        <div class="rb-card__main">
+          <a class="rb-card__thumb" [routerLink]="sub.product_slug ? ['/products', sub.product_slug] : null">
+            <img *ngIf="sub.image" [src]="sub.image" [alt]="sub.product_name" loading="lazy" />
+            <svg *ngIf="!sub.image" lucideRepeat [size]="24" class="rb-card__thumb-fallback"></svg>
+          </a>
+
+          <div class="rb-card__info">
+            <h3 class="rb-card__name">{{ sub.product_name }}</h3>
+            <p class="rb-card__detail" *ngIf="detailLine(sub)">{{ detailLine(sub) }}</p>
+            <div class="rb-card__meta">
+              <span class="rb-meta">
+                <svg lucideRepeat [size]="14"></svg>
+                {{ frequencyLabel(sub.frequency_days) }}
+              </span>
+              <span class="rb-meta">
+                <svg lucideCalendar [size]="14"></svg>
+                {{ scheduleLabel(sub) }}
+              </span>
+              <span class="rb-card__price">${{ sub.pricing.total | number: '1.2-2' }}</span>
+            </div>
+          </div>
+
+          <span class="rb-chip" [ngClass]="'rb-chip--' + statusChip(sub).tone">{{ statusChip(sub).label }}</span>
+        </div>
+
+        <!-- 48h lock: frequency / skip / pause only apply from the following cycle -->
+        <p class="rb-note" *ngIf="sub.is_locked">
+          <svg lucideClock [size]="14"></svg>
+          <span>
+            Your {{ shortDate(sub.next_charge_at) }} box is being prepared, so changes now apply from the following cycle.
+            <ng-container *ngIf="pendingSummary(sub)">
+              <strong>Scheduled after {{ shortDate(sub.next_charge_at) }}:</strong> {{ pendingSummary(sub) }}.
+            </ng-container>
+          </span>
+        </p>
+
+        <div class="rb-card__actions">
+          <!-- Active -->
+          <ng-container *ngIf="sub.status === 'active'">
+            <button
+              type="button"
+              class="rb-btn"
+              [disabled]="!sub.can_skip || sub.pending_changes?.skip"
+              [attr.title]="!sub.can_skip ? 'You can skip up to 2 deliveries in a row' : null"
+              (click)="run(sub, 'skip')"
+            >
+              <svg lucideSkipForward [size]="14"></svg>Skip next delivery
+            </button>
+
+            <div class="rb-menu-anchor">
+              <button
+                type="button"
+                class="rb-btn"
+                [disabled]="!!sub.pending_changes?.pause_option"
+                [attr.aria-expanded]="isMenuOpen(sub.subscription_id, 'pause')"
+                (click)="toggleMenu($event, sub.subscription_id, 'pause')"
+              >
+                <svg lucidePause [size]="14"></svg>Pause
+              </button>
+              <div class="rb-menu" *ngIf="isMenuOpen(sub.subscription_id, 'pause')" (click)="$event.stopPropagation()">
+                <p class="rb-menu__label">Pause deliveries</p>
+                <button
+                  type="button"
+                  class="rb-menu__item"
+                  *ngFor="let p of pauseOptions"
+                  (click)="run(sub, 'pause', { pause_option: p.value })"
+                >{{ p.label }}</button>
+              </div>
+            </div>
+          </ng-container>
+
+          <!-- Paused -->
+          <button *ngIf="sub.status === 'paused'" type="button" class="rb-btn" (click)="run(sub, 'resume')">
+            <svg lucidePlay [size]="14"></svg>Resume now
+          </button>
+
+          <!-- Change frequency (active only; a failed payment only allows a new card or cancelling) -->
+          <div class="rb-menu-anchor" *ngIf="sub.status === 'active'">
+            <button
+              type="button"
+              class="rb-btn"
+              [attr.aria-expanded]="isMenuOpen(sub.subscription_id, 'frequency')"
+              (click)="toggleMenu($event, sub.subscription_id, 'frequency')"
+            >Change frequency</button>
+            <div class="rb-menu" *ngIf="isMenuOpen(sub.subscription_id, 'frequency')" (click)="$event.stopPropagation()">
+              <button
+                type="button"
+                class="rb-menu__item"
+                *ngFor="let f of frequencies"
+                [class.is-selected]="f.days === effectiveFrequency(sub)"
+                (click)="chooseFrequency(sub, f.days)"
+              >
+                <span>{{ f.label }}</span>
+                <svg *ngIf="f.days === effectiveFrequency(sub)" lucideCheck [size]="14"></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Change card (active) / Update card (failed, shown first) -->
+          <div class="rb-menu-anchor" [class.rb-menu-anchor--first]="isFailed(sub)" *ngIf="sub.status !== 'paused'">
+            <button
+              type="button"
+              class="rb-btn"
+              [class.rb-btn--danger]="isFailed(sub)"
+              [attr.aria-expanded]="isMenuOpen(sub.subscription_id, 'card')"
+              (click)="toggleMenu($event, sub.subscription_id, 'card')"
+            >
+              <ng-container *ngIf="!isFailed(sub)"><svg lucideCreditCard [size]="14"></svg>Change card</ng-container>
+              <ng-container *ngIf="isFailed(sub)">Update card</ng-container>
+            </button>
+            <div class="rb-menu rb-menu--cards" *ngIf="isMenuOpen(sub.subscription_id, 'card')" (click)="$event.stopPropagation()">
+              <p class="rb-menu__label">{{ isFailed(sub) ? 'Charge this card now' : 'Charge future boxes to' }}</p>
+              <button
+                type="button"
+                class="rb-menu__item"
+                *ngFor="let card of data.payment_methods"
+                [class.is-selected]="card.id === sub.payment_method?.id"
+                [disabled]="card.is_expired"
+                (click)="chooseCard(sub, card)"
+              >
+                <span>
+                  {{ cardLabel(card) }}
+                  <small *ngIf="card.is_expired"> · Expired</small>
+                  <small *ngIf="!card.is_expired && card.is_default"> · Default</small>
+                </span>
+                <svg *ngIf="card.id === sub.payment_method?.id" lucideCheck [size]="14"></svg>
+              </button>
+              <p class="rb-menu__empty" *ngIf="data.payment_methods.length === 0">You have no saved cards yet.</p>
+              <button type="button" class="rb-menu__item rb-menu__item--link" (click)="addCard.emit()">
+                <span class="rb-menu__item-icon"><svg lucidePlus [size]="14"></svg>Add a new card</span>
+              </button>
+            </div>
+          </div>
+
+          <span class="rb-card__spacer"></span>
+          <svg *ngIf="busyId() === sub.subscription_id" lucideLoader [size]="14" class="rb-spin rb-card__busy"></svg>
+          <button type="button" class="rb-link-danger" (click)="openCancel(sub)">Cancel subscription</button>
+        </div>
+
+        <p class="rb-card__hint" *ngIf="sub.status === 'active' && !sub.can_skip">
+          You’ve skipped 2 deliveries in a row. To take a longer break, pause or cancel instead.
+        </p>
+        <p class="rb-card__error" *ngIf="actionError()?.id === sub.subscription_id" role="alert">
+          {{ actionError()?.message }}
+        </p>
+      </article>
+
+      <!-- ─── Out of stock replacement ───────────────────────── -->
+      <section class="rb-oos" *ngFor="let sub of outOfStockSubs()">
+        <div class="rb-oos__head">
+          <svg lucideAlertTriangle [size]="16" class="rb-oos__icon"></svg>
+          <p>
+            {{ sub.product_name }}{{ sub.variant_label ? ' ' + sub.variant_label : '' }} is out of stock for your
+            {{ shortDate(sub.next_charge_at) }} delivery.
+          </p>
+        </div>
+        <div class="rb-oos__body">
+          <ng-container *ngIf="sub.replacement as rep; else noReplacement">
+            <div class="rb-oos__thumb">
+              <img *ngIf="rep.image" [src]="rep.image" [alt]="rep.name" loading="lazy" />
+            </div>
+            <div class="rb-oos__text">
+              <p>
+                Suggested replacement:
+                <strong>{{ rep.name }}{{ rep.variant_label ? ' ' + rep.variant_label : '' }}</strong>
+                · {{ rep.same_price ? 'similar pick, same price' : 'similar pick, $' + (rep.price | number: '1.2-2') }}
+              </p>
+              <p class="rb-oos__sub">
+                We will not charge you until you confirm. No answer by {{ shortDate(sub.out_of_stock_deadline) }}
+                and we skip this delivery for free.
+              </p>
+            </div>
+            <button type="button" class="rb-btn rb-btn--primary" (click)="run(sub, 'use_replacement')">Use replacement</button>
+          </ng-container>
+          <ng-template #noReplacement>
+            <p class="rb-oos__text rb-oos__sub">
+              We could not find a similar item right now. This delivery will be skipped without charge.
+            </p>
+          </ng-template>
+          <button type="button" class="rb-btn" [disabled]="!sub.can_skip" (click)="run(sub, 'skip')">Skip this delivery</button>
+        </div>
+      </section>
+
+    </ng-container>
+
+    <!-- ─── Delivery history ───────────────────────────────── -->
+    <section class="rb-history" *ngIf="data.subscriptions.length > 0 || data.history.length > 0">
+      <p class="rb-overline">Delivery history</p>
+      <div class="rb-table" role="table" aria-label="Delivery history" *ngIf="data.history.length > 0; else noHistory">
+        <div class="rb-table__row rb-table__row--head" role="row">
+          <span class="rb-col-date" role="columnheader">Date</span>
+          <span class="rb-col-box" role="columnheader">Box</span>
+          <span class="rb-col-order" role="columnheader">Order</span>
+          <span class="rb-col-amount" role="columnheader">Amount</span>
+          <span class="rb-col-status" role="columnheader">Status</span>
+        </div>
+        <div class="rb-table__row" role="row" *ngFor="let row of data.history">
+          <span class="rb-col-date" role="cell">{{ shortDate(row.date) }}</span>
+          <span class="rb-col-box" role="cell">
+            {{ row.box }}
+            <span class="rb-cell-note" *ngIf="row.note">“{{ row.note }}”</span>
+          </span>
+          <span class="rb-col-order" role="cell">
+            <span class="rb-cell-label">Order</span>{{ row.order_id ? row.order_id : '—' }}
+          </span>
+          <span class="rb-col-amount" role="cell">
+            <span class="rb-cell-label">Amount</span>{{ row.amount !== null ? '$' + (row.amount | number: '1.2-2') : '—' }}
+          </span>
+          <span class="rb-col-status" role="cell">
+            <span class="rb-chip" [ngClass]="'rb-chip--' + historyChip(row).tone">{{ historyChip(row).label }}</span>
+          </span>
+        </div>
+      </div>
+      <ng-template #noHistory>
+        <p class="rb-history__empty">Your first box hasn’t shipped yet. Deliveries will show up here.</p>
+      </ng-template>
+    </section>
+  </ng-container>
+</div>
+
+<!-- ─── Cancel dialog: takes effect immediately, reason is optional ─── -->
+<div class="rb-dialog-backdrop" *ngIf="cancelTarget() as target" (click)="cancelTarget.set(null)">
+  <div
+    class="rb-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="rb-cancel-title"
+    (click)="$event.stopPropagation()"
+  >
+    <button type="button" class="rb-dialog__close" aria-label="Close" (click)="cancelTarget.set(null)">
+      <svg lucideX [size]="18"></svg>
+    </button>
+    <h2 id="rb-cancel-title" class="rb-dialog__title">Cancel subscription?</h2>
+    <p class="rb-dialog__text">
+      “{{ target.product_name }}” stops right away and we won’t charge you again.
+      A box you’ve already paid for will still be delivered.
+    </p>
+
+    <label class="rb-dialog__label" for="rb-cancel-reason">Why are you cancelling? <span>(optional)</span></label>
+    <div class="rb-dialog__select-wrap">
+      <select id="rb-cancel-reason" class="rb-dialog__select" [(ngModel)]="cancelReason">
+        <option value="">Prefer not to say</option>
+        <option *ngFor="let r of cancelReasons" [value]="r">{{ r }}</option>
+      </select>
+      <svg lucideChevronDown [size]="16" class="rb-dialog__select-icon" aria-hidden="true"></svg>
+    </div>
+
+    <div class="rb-dialog__actions">
+      <button type="button" class="rb-btn" (click)="cancelTarget.set(null)">Keep subscription</button>
+      <button type="button" class="rb-btn rb-btn--danger" (click)="confirmCancel()">Cancel subscription</button>
+    </div>
+  </div>
+</div>

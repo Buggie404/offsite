@@ -16,10 +16,18 @@
       <p class="order-hero__meta">
         Placed {{ formatDateTime(order.created_at) }} · {{ itemCount }} items
       </p>
-      <span class="status-badge" [ngClass]="statusClass(order.order_status)">
-        {{ statusLabel(order.order_status) }}
+      <span class="order-hero__badges">
+        <app-order-type-badge [order]="order"></app-order-type-badge>
+        <span class="status-badge" [ngClass]="statusClass(order.order_status)">
+          {{ statusLabel(order.order_status) }}
+        </span>
       </span>
     </div>
+    @if (order.subscription_id) {
+      <p class="order-hero__meta">
+        Ritual Box {{ order.subscription_id }}{{ order.subscription_cycle ? ' · delivery #' + order.subscription_cycle : '' }}
+      </p>
+    }
   </div>
 
   @if (hasPendingRefundRequest) {
@@ -64,6 +72,9 @@
               <div class="line-item__info">
                 <p class="line-item__name">{{ item.product_name }}</p>
                 <p class="line-item__variant">{{ item.variant_name }}</p>
+                @if (getSubscriptionLineLabel(item); as subLabel) {
+                  <span class="line-item__sub-tag"><svg lucideRepeat [size]="12"></svg>{{ subLabel }}</span>
+                }
               </div>
               <span class="line-item__qty">× {{ item.quantity }}</span>
               <span class="line-item__price">{{

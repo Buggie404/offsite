@@ -177,6 +177,14 @@
 
       <h2 class="section-title">PAYMENT METHOD</h2>
       <div class="panel">
+        <!-- Ritual Box needs a card on file: shown only when another method is picked -->
+        <div class="sub-pay-banner" *ngIf="showSubscriptionPaymentBanner()" role="alert">
+          <svg lucideInfo [size]="18" class="sub-pay-banner__icon"></svg>
+          <p class="sub-pay-banner__text">
+            <strong>Ritual Box needs a card for automatic billing.</strong>
+            Choose a saved card or add a new one. Cash on delivery, QR and bank transfer apply to one-time items only.
+          </p>
+        </div>
         <div class="option-grid option-grid--2">
           <button type="button" class="option-card option-card--pay" [class.selected]="paymentMethod() === 'cod'"
             (click)="selectPayment('cod')">
@@ -483,7 +491,8 @@
 
         <div class="summary-items">
           <ng-container *ngIf="!loading(); else loadingTpl">
-            <div class="summary-item" *ngFor="let item of items(); trackBy: trackByItem">
+            <p class="summary-group-label" *ngIf="hasSubscription() && oneTimeItems().length">Ship now · one-time</p>
+            <div class="summary-item" *ngFor="let item of oneTimeItems(); trackBy: trackByItem">
               <div class="summary-item__media slide-cart--item-image">
                 <img *ngIf="getItemImage(item); else noImg" [src]="getItemImage(item)" [alt]="isBundleItem(item) ? item.bundle!.title : item.product.name" />
                 <ng-template #noImg>
@@ -580,6 +589,18 @@
                     </div>
                   </ng-template>
 
+                  <!-- Subscribable product bought once: offer Subscribe & Save from here -->
+                  <div class="variant-select purchase-select" *ngIf="isSubscriptionEligible(item)">
+                    <select [ngModel]="'one_time'" (ngModelChange)="changePurchaseOption(item, $event)"
+                      [ngModelOptions]="{standalone: true}" aria-label="Purchase option">
+                      <option value="one_time">ONE-TIME PURCHASE</option>
+                      <option *ngFor="let f of frequencyOptions" [value]="'' + f.days">
+                        SUBSCRIBE · {{ f.label.toUpperCase() }} · SAVE {{ getSubscribeDiscount(item) }}%
+                      </option>
+                    </select>
+                    <svg lucideChevronDown [size]="12" class="variant-caret"></svg>
+                  </div>
+
                   <div class="summary-item__controls">
                     <div class="qty-stepper">
                       <button type="button" (click)="dec(item)" aria-label="Decrease">
@@ -607,6 +628,84 @@
                 </div>
               </div>
             </div>
+
+            <!-- ─── Ritual Box · subscription ─────────────────── -->
+            <section class="sub-box" *ngIf="hasSubscription()" aria-label="Ritual Box subscription">
+              <header class="sub-box__head">
+                <span class="sub-box__title"><svg lucideRepeat [size]="16"></svg>Ritual Box · subscription</span>
+                <span class="sub-box__save" title="Applies from your 2nd delivery">{{ subscriptionSaveLabel() }}</span>
+              </header>
+
+              <div class="sub-item" *ngFor="let item of subscriptionItems(); trackBy: trackByItem">
+                <div class="sub-item__main">
+                  <div class="summary-item__media sub-item__media">
+                    <img *ngIf="getItemImage(item); else subNoImg" [src]="getItemImage(item)" [alt]="item.product.name" />
+                    <ng-template #subNoImg><div class="thumb-fallback"></div></ng-template>
+                  </div>
+                  <div class="sub-item__info">
+                    <div class="sub-item__row">
+                      <span class="sub-item__name">{{ item.product.name }}</span>
+                      <span class="sub-item__prices">
+                        <span class="sub-item__price">${{ getItemLineTotal(item) | number:'1.2-2' }}</span>
+                        <span class="sub-item__then">then ${{ getItemRecurringLineTotal(item) | number:'1.2-2' }}</span>
+                      </span>
+                    </div>
+
+                    <label class="sub-field">
+                      <span class="sub-field__label">Variant</span>
+                      <span class="sub-select" *ngIf="item.product.variants.length > 1; else subSingleVariant">
+                        <select [ngModel]="item.variantSku" (ngModelChange)="changeVariant(item, $event)"
+                          [ngModelOptions]="{standalone: true}">
+                          <option *ngFor="let v of item.product.variants" [value]="v.sku">{{ v.label }}</option>
+                        </select>
+                        <svg lucideChevronDown [size]="16" class="sub-select__caret"></svg>
+                      </span>
+                      <ng-template #subSingleVariant>
+                        <span class="sub-select sub-select--static">{{ getVariant(item).label }}</span>
+                      </ng-template>
+                    </label>
+
+                    <label class="sub-field">
+                      <span class="sub-field__label">Deliver</span>
+                      <span class="sub-select">
+                        <select [ngModel]="getPurchaseOptionValue(item)" (ngModelChange)="changePurchaseOption(item, $event)"
+                          [ngModelOptions]="{standalone: true}">
+                          <option *ngFor="let f of frequencyOptions" [value]="'' + f.days">{{ f.label }}</option>
+                          <option value="one_time">One-time purchase (no discount)</option>
+                        </select>
+                        <svg lucideChevronDown [size]="16" class="sub-select__caret"></svg>
+                      </span>
+                    </label>
+
+                    <div class="sub-item__controls">
+                      <div class="qty-stepper">
+                        <button type="button" (click)="dec(item)" aria-label="Decrease">
+                          <svg lucideMinus [size]="12"></svg>
+                        </button>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" [value]="item.quantity"
+                          (keydown)="onQtyKeydown($event)" (input)="onQtyInput($event, item)"
+                          (blur)="onQtyBlur(item, $event)" class="qty-input" />
+                        <button type="button" (click)="inc(item)" aria-label="Increase">
+                          <svg lucidePlus [size]="12"></svg>
+                        </button>
+                      </div>
+                      <button type="button" class="sub-remove" (click)="remove(item)"
+                        aria-label="Remove from Ritual Box" title="Remove">
+                        <svg lucideTrash2 [size]="16"></svg>
+                      </button>
+                    </div>
+                    <div class="qty-error-msg" *ngIf="getSummaryItemError(item) as errorMsg">{{ errorMsg }}</div>
+                  </div>
+                </div>
+
+                <p class="sub-item__note">
+                  First box ships with this order at full price. From
+                  <strong>{{ getNextDeliveryDate(item) | date:'MMM d' }}</strong>
+                  each delivery is ${{ getItemRecurringLineTotal(item) | number:'1.2-2' }}
+                  · you save ${{ getSubscriptionSavings(item) | number:'1.2-2' }} each time
+                </p>
+              </div>
+            </section>
 
             <div *ngIf="!items().length" class="empty-state">
               Your cart is empty.
@@ -637,8 +736,17 @@
         <div class="summary-divider"></div>
 
         <div class="total-row total-row--grand">
-          <span>TOTAL (USD)</span>
+          <span>{{ hasSubscription() ? 'Total today (USD)' : 'TOTAL (USD)' }}</span>
           <span>${{ total() | number:'1.2-2' }}</span>
+        </div>
+        <div class="total-row total-row--then" *ngFor="let group of recurringGroups()">
+          <span>Then {{ group.label }}</span>
+          <span>${{ group.amount | number:'1.2-2' }}</span>
+        </div>
+
+        <div class="points-note" *ngIf="authService.isAuthenticated() && estimatedPoints() > 0">
+          <svg lucideTrophy [size]="16"></svg>
+          <span>You will earn <strong>+{{ estimatedPoints() }} points</strong> when this order is delivered</span>
         </div>
 
         <div *ngIf="motivationMessage() as msg" class="motivation-label"
@@ -652,6 +760,22 @@
             Spend <strong>${{ msg.needed }}</strong> more to get <strong>${{ msg.discount }}</strong> discount!
           </ng-container>
         </div>
+
+        <ng-container *ngIf="hasSubscription()">
+          <div class="sub-signin" *ngIf="!authService.isAuthenticated(); else consentTpl">
+            <p>Sign in or create an account to start your Ritual Box. Subscriptions are managed from your account.</p>
+            <button type="button" class="sub-signin__btn" (click)="openSignIn()">
+              <svg lucideLogIn [size]="14"></svg>Sign in
+            </button>
+          </div>
+          <ng-template #consentTpl>
+            <label class="sub-consent">
+              <input type="checkbox" [checked]="autoBillingAgreed()" (change)="autoBillingAgreed.set($any($event.target).checked)" />
+              <span class="sub-consent__box" aria-hidden="true"><svg lucideCheck [size]="14"></svg></span>
+              <span>I agree to automatic billing for my Ritual Box. Skip, pause or cancel anytime in Account.</span>
+            </label>
+          </ng-template>
+        </ng-container>
 
         <button type="button" class="confirm-btn" [disabled]="isFormInvalid" (click)="confirmOrder()">
           CONFIRM ORDER

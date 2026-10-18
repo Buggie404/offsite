@@ -73,4 +73,4 @@ async function replaceCart(req, res) {
   }
 }
 
-module.exports = { mergeCart, getCart, replaceCart };
+module.exports = { mergeCart, getCart, replaceCart, resolveUserIdString };

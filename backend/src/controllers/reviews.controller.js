@@ -185,6 +185,13 @@ async function createReview(req, res) {
 
     await newReview.save();
 
+    // +1 point per review (× tier multiplier) for signed-in customers.
+    try {
+      await require('../services/points.service').awardReviewPoints(newReview);
+    } catch (pointsErr) {
+      console.error('Error awarding review points:', pointsErr);
+    }
+
     // 6. Update order item review state
     orderItem.is_reviewed = true;
     orderItem.review_id = newReview.review_id;

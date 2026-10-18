@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
+const { AUTH_TOKEN_TTL } = require('../config/auth');
 
 // ========== Google OAuth Routes ==========
 // Initiate Google login
@@ -24,7 +25,7 @@ router.get('/google/callback',
         role: req.user.role
       },
       process.env.JWT_SECRET || 'fallback-secret-key',
-      { expiresIn: '8h' }
+      { expiresIn: AUTH_TOKEN_TTL }
     );
 
     // Redirect to frontend with token
@@ -53,7 +54,7 @@ router.get('/facebook/callback',
         role: req.user.role
       },
       process.env.JWT_SECRET || 'fallback-secret-key',
-      { expiresIn: '8h' }
+      { expiresIn: AUTH_TOKEN_TTL }
     );
 
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';

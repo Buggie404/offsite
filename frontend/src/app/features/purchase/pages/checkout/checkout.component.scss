@@ -1722,3 +1722,332 @@
   transform: none !important;
 }
 
+
+/* ─── Subscribe & Save (Ritual Box) ────────────────────────── */
+
+// Payment section: shown only when a Ritual Box is in the order and the
+// chosen method can't be charged automatically.
+.sub-pay-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: var(--space-3);
+  padding: 12px 16px;
+  background: var(--color-sage);
+  border: 1px solid rgba(122, 154, 104, 0.55);
+  border-radius: var(--radius-input);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--color-near-black);
+
+  &__icon { flex-shrink: 0; margin-top: 1px; color: var(--color-forest-green); }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    strong { font-weight: 600; }
+  }
+}
+
+// One-time line of a subscribable product: Subscribe & Save is one pick away.
+.purchase-select select {
+  border-color: rgba(55, 85, 52, 0.35);
+  color: var(--color-forest-green);
+}
+
+.summary-group-label {
+  margin: 0 0 calc(-1 * var(--space-1));
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-warm-brown);
+}
+
+.sub-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-sage);
+  border: 1px solid rgba(122, 154, 104, 0.45);
+  border-radius: var(--radius-card);
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  &__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-near-black);
+    white-space: nowrap;
+
+    svg { color: var(--color-forest-green); }
+  }
+
+  &__save {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-forest-green);
+  }
+}
+
+.sub-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+
+  & + & {
+    padding-top: var(--space-3);
+    border-top: 1px solid rgba(55, 85, 52, 0.18);
+  }
+
+  &__main {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  &__media { background: rgba(255, 255, 255, 0.6); }
+
+  &__info {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  &__name {
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-near-black);
+  }
+
+  &__prices {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-family: var(--font-mono);
+  }
+
+  &__price { font-size: 14px; color: var(--color-near-black); }
+  &__then { font-size: 12px; color: var(--color-forest-green); }
+
+  &__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+
+    .qty-stepper { border-color: rgba(55, 85, 52, 0.45); background: #fff; }
+  }
+
+  &__note {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--color-warm-brown);
+
+    strong { font-weight: 600; color: var(--color-near-black); }
+  }
+}
+
+.sub-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  &__label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-warm-brown);
+  }
+}
+
+.sub-select {
+  position: relative;
+  display: block;
+
+  select,
+  &--static {
+    width: 100%;
+    display: block;
+    padding: 9px 40px 9px 12px;
+    border: 1px solid rgba(84, 74, 64, 0.18);
+    border-radius: var(--radius-input);
+    background: #fff;
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-near-black);
+  }
+
+  select {
+    appearance: none;
+    cursor: pointer;
+
+    &:hover { border-color: var(--color-warm-brown); }
+    &:focus, &:focus-visible { outline: none; border-color: var(--color-warm-brown); }
+  }
+
+  &__caret {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    transform: translateY(-50%);
+    color: var(--color-warm-brown);
+    pointer-events: none;
+  }
+}
+
+// Icon-only remove for Ritual Box lines (label lives in aria-label/title).
+.sub-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--state-error);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover { background: rgba(192, 57, 43, 0.1); }
+}
+
+.total-row--then {
+  padding: 6px var(--space-4) 0;
+  font-family: var(--font-body);
+  font-size: 13px;
+  letter-spacing: 0;
+
+  span:last-child { font-family: var(--font-mono); }
+}
+
+.points-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: var(--space-3) var(--space-4) 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-input);
+  background: #efe3fb;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: #5b2b8c;
+
+  svg { flex-shrink: 0; }
+  strong { font-weight: 600; }
+}
+
+.sub-consent {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: var(--space-3) var(--space-4) 0;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--color-warm-brown);
+  cursor: pointer;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  &__box {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid rgba(84, 74, 64, 0.45);
+    border-radius: 4px;
+    background: #fff;
+    color: transparent;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  input:checked + &__box {
+    background: var(--color-forest-green);
+    border-color: var(--color-forest-green);
+    color: #fff;
+  }
+
+  input:focus-visible + &__box {
+    outline: 2px solid var(--color-forest-green);
+    outline-offset: 2px;
+  }
+}
+
+.sub-signin {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) var(--space-4) 0;
+  padding: 12px 14px;
+  border: 1px dashed rgba(84, 74, 64, 0.35);
+  border-radius: var(--radius-input);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--color-warm-brown);
+
+  p { flex: 1; margin: 0; }
+
+  &__btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 1px solid var(--color-near-black);
+    border-radius: var(--radius-pill);
+    background: #fff;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+
+    &:hover { background: var(--color-cream); }
+  }
+}
+
+.sub-consent + .confirm-btn,
+.sub-signin + .confirm-btn,
+.points-note + .confirm-btn {
+  margin-top: var(--space-3);
+}

@@ -64,8 +64,15 @@ export function getCartItemOriginalUnitPrice(item: CartItem): number {
   return variant?.price ?? 0;
 }
 
-// Unit price actually charged: subscribe price for subscription lines.
+// Unit price charged at checkout. Subscribe & Save lines also pay full price
+// for the first box (this order); the discount only applies to later boxes
+// billed by the subscription charge job, so it can't be gamed by cancelling.
 export function getCartItemChargedUnitPrice(item: CartItem): number {
+  return getCartItemOriginalUnitPrice(item);
+}
+
+// Unit price of each later Ritual Box delivery (subscribe price).
+export function getCartItemRecurringUnitPrice(item: CartItem): number {
   const original = getCartItemOriginalUnitPrice(item);
   if (!isSubscriptionItem(item)) return original;
   return getSubscribePrice(original, getSubscribeDiscountPercent(item.product));
@@ -111,6 +118,7 @@ export class CartService {
 
   private loadCart(): void {
     if (isPlatformBrowser(this.platformId)) {
+      this.expireGuestSessionIfStale();
       const saved = localStorage.getItem('checkout_cart_items');
       if (saved) {
         try {
@@ -167,6 +175,7 @@ export class CartService {
     this.cartItems.set(items);
     if (isPlatformBrowser(this.platformId)) {
       localStorage.setItem('checkout_cart_items', JSON.stringify(items));
+      this.touchGuestSession(items);
     }
     // While logged in, mirror every change to the DB cart (add/edit/remove),
     // unless we are currently hydrating from the server.
@@ -702,11 +711,14 @@ export class CartService {
     }
   }
 
-  updateSummaryQuantity(productId: ProductIdentifier, variantSku: string, quantity: number): void {
+  // Summary lines are product + variant + purchase type, like cart lines.
+  private findSummaryIndex(items: any[], productId: ProductIdentifier, variantSku: string, purchaseType?: PurchaseType): number {
+    return items.findIndex(item => this.matchesLine(item, productId, variantSku, purchaseType));
+  }
+
+  updateSummaryQuantity(productId: ProductIdentifier, variantSku: string, quantity: number, purchaseType?: PurchaseType): void {
     const currentSummary = [...this.checkoutSummaryItems()];
-    const index = currentSummary.findIndex(
-      item => this.matchesProduct(item.product, productId) && item.variantSku === variantSku
-    );
+    const index = this.findSummaryIndex(currentSummary, productId, variantSku, purchaseType);
 
     if (index > -1) {
       const item = currentSummary[index];
@@ -722,11 +734,9 @@ export class CartService {
     }
   }
 
-  updateSummaryVariant(productId: ProductIdentifier, oldVariantSku: string, newVariantSku: string): void {
+  updateSummaryVariant(productId: ProductIdentifier, oldVariantSku: string, newVariantSku: string, purchaseType?: PurchaseType): void {
     const currentSummary = [...this.checkoutSummaryItems()];
-    const index = currentSummary.findIndex(
-      item => this.matchesProduct(item.product, productId) && item.variantSku === oldVariantSku
-    );
+    const index = this.findSummaryIndex(currentSummary, productId, oldVariantSku, purchaseType);
 
     if (index > -1) {
       const item = currentSummary[index];
@@ -734,9 +744,7 @@ export class CartService {
         return;
       }
 
-      const existingNewIndex = currentSummary.findIndex(
-        it => this.matchesProduct(it.product, productId) && it.variantSku === newVariantSku
-      );
+      const existingNewIndex = this.findSummaryIndex(currentSummary, productId, newVariantSku, getPurchaseType(item));
 
       if (existingNewIndex > -1 && existingNewIndex !== index) {
         const existingNewItem = currentSummary[existingNewIndex];
@@ -761,11 +769,50 @@ export class CartService {
     }
   }
 
-  removeFromSummary(productId: ProductIdentifier, variantSku: string): void {
+  removeFromSummary(productId: ProductIdentifier, variantSku: string, purchaseType?: PurchaseType): void {
     const filtered = this.checkoutSummaryItems().filter(
-      item => !(this.matchesProduct(item.product, productId) && item.variantSku === variantSku)
+      item => !this.matchesLine(item, productId, variantSku, purchaseType)
     );
     this.saveCheckoutSummary(filtered);
+  }
+
+  // Checkout: move a summary line between one-time and Subscribe & Save.
+  // Merges into an existing line of the target type for the same variant.
+  setSummaryPurchaseType(item: CartItem, purchaseType: PurchaseType, frequencyDays?: SubscriptionFrequencyDays): void {
+    if (item.bundle || getPurchaseType(item) === purchaseType) return;
+    const purchase = normalizePurchaseOptions(item.product, {
+      purchaseType,
+      subscriptionFrequencyDays: frequencyDays ?? item.subscriptionFrequencyDays
+    });
+    if (purchase.purchaseType !== purchaseType) return; // not eligible
+
+    const productId = this.getProductKey(item.product);
+    const summary = [...this.checkoutSummaryItems()];
+    const index = this.findSummaryIndex(summary, productId, item.variantSku, getPurchaseType(item));
+    if (index === -1) return;
+
+    const targetIndex = this.findSummaryIndex(summary, productId, item.variantSku, purchaseType);
+    if (targetIndex > -1) {
+      const maxStock = item.product.variants.find(v => v.sku === item.variantSku)?.stock ?? 99;
+      summary[targetIndex] = {
+        ...summary[targetIndex],
+        quantity: Math.min(summary[targetIndex].quantity + summary[index].quantity, maxStock)
+      };
+      summary.splice(index, 1);
+    } else {
+      summary[index] = { ...summary[index], ...purchase };
+    }
+    this.saveCheckoutSummary(summary);
+  }
+
+  setSummarySubscriptionFrequency(item: CartItem, days: SubscriptionFrequencyDays): void {
+    if (!isSubscriptionItem(item) || !isSubscriptionFrequency(days)) return;
+    const productId = this.getProductKey(item.product);
+    this.saveCheckoutSummary(this.checkoutSummaryItems().map(it =>
+      this.matchesLine(it, productId, item.variantSku, 'subscription')
+        ? { ...it, subscriptionFrequencyDays: days }
+        : it
+    ));
   }
 
   addComplementToSummary(product: Product, variantSku: string): void {
@@ -795,6 +842,35 @@ export class CartService {
     const [item] = items.splice(index, 1);
     items.unshift(item);
     return items;
+  }
+
+  // ===== Guest session lifetime (24h) =====
+
+  // Guest data lives only in localStorage; it expires 24h after the guest
+  // first put something in the cart.
+  private static readonly GUEST_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+  private static readonly GUEST_SESSION_KEY = 'guest_session_expires_at';
+
+  private isGuestSessionExpired(): boolean {
+    const raw = localStorage.getItem(CartService.GUEST_SESSION_KEY);
+    return !!raw && Date.now() >= Number(raw);
+  }
+
+  private expireGuestSessionIfStale(): void {
+    if (this.isAuthed() || !this.isGuestSessionExpired()) return;
+    localStorage.removeItem('checkout_cart_items');
+    localStorage.removeItem('checkout_summary_items');
+    localStorage.removeItem('guest_cart_backup');
+    localStorage.removeItem(CartService.GUEST_SESSION_KEY);
+  }
+
+  private touchGuestSession(items: CartItem[]): void {
+    if (this.isAuthed() || items.length === 0) return;
+    if (localStorage.getItem(CartService.GUEST_SESSION_KEY)) return;
+    localStorage.setItem(
+      CartService.GUEST_SESSION_KEY,
+      String(Date.now() + CartService.GUEST_SESSION_TTL_MS)
+    );
   }
 
   // ===== Guest cart merge & logged-in DB sync =====
@@ -887,7 +963,9 @@ export class CartService {
   // cart captured at login (the user cart stays safe in the DB).
   restoreGuestCartOnLogout(): void {
     if (!isPlatformBrowser(this.platformId)) return;
-    const backup = localStorage.getItem('guest_cart_backup');
+    // A guest cart older than 24h is not restored.
+    const backup = this.isGuestSessionExpired() ? null : localStorage.getItem('guest_cart_backup');
+    if (!backup) localStorage.removeItem(CartService.GUEST_SESSION_KEY);
     let items: CartItem[] = [];
     if (backup) {
       try {

@@ -5,6 +5,8 @@ const RefundRequest = require('../models/RefundRequest');
 const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
 const voucherService = require('../services/voucher.service');
+const subscriptionService = require('../services/subscription.service');
+const pointsService = require('../services/points.service');
 const { hasAdminRole, isAdminRole, ADMIN_ORDER_VIEW_ROLES } = require('../middleware/auth.middleware');
 
 const REFUND_REASONS = ['Damaged item', 'Wrong item', 'Size/color mismatch', 'Other'];
@@ -141,6 +143,39 @@ async function createOrder(req, res) {
       session = null;
       useTransaction = false;
       return res.status(400).json({ error: 'session_id is required for guest checkout.' });
+    }
+
+    // Subscribe & Save lines: signed-in customer, credit/debit card, server-side price.
+    const subscriptionLines = items.filter(it => it.purchase_type === 'subscription');
+    if (subscriptionLines.length) {
+      const rejectSubscription = async (message) => {
+        await cleanupSession(session);
+        session = null;
+        useTransaction = false;
+        return res.status(400).json({ error: message });
+      };
+      if (is_guest) {
+        return rejectSubscription('Sign in to start a Ritual Box subscription.');
+      }
+      const isNapas = (payment.card_info?.brand || '').toUpperCase() === 'NAPAS'
+        || payment.full_card_info?.card_type === 'NAPAS';
+      if (payment.method !== 'card' || isNapas) {
+        return rejectSubscription('Ritual Box subscriptions can only be paid by credit or debit card.');
+      }
+      for (const line of subscriptionLines) {
+        const price = await subscriptionService.priceSubscriptionLine(line.product_id, line.variant_id);
+        if (!price) {
+          return rejectSubscription(`${line.product_name || 'This product'} can't be subscribed to.`);
+        }
+        // The first box (this order) is charged at full price; the Subscribe & Save
+        // price only applies to boxes the charge job bills later, so cancelling
+        // before the next charge never keeps a discount.
+        line.unit_price = price.original_price;
+        line.subtotal = Math.round(price.original_price * line.quantity * 100) / 100;
+        line.subscription_frequency_days = [7, 14, 30].includes(Number(line.subscription_frequency_days))
+          ? Number(line.subscription_frequency_days)
+          : 14;
+      }
     }
 
     // Enforce that delivery address and card details already exist in User profile if registered customer, otherwise save the new address
@@ -699,6 +734,15 @@ async function confirmPayment(req, res) {
     await order.save();
     socketService.emitOrderUpdated(order, 'status_change');
 
+    // A paid card order with Subscribe & Save lines starts the customer's Ritual Box.
+    if (order.payment?.method === 'card') {
+      try {
+        await subscriptionService.createSubscriptionsFromOrder(order);
+      } catch (subErr) {
+        console.error('Error creating subscriptions from order:', subErr);
+      }
+    }
+
     res.json({
       message: 'Payment confirmed successfully',
       data: order
@@ -769,6 +813,18 @@ async function getOrderStatus(req, res) {
 
     const refundRequest = await getLatestRefundRequest(order.order_id);
 
+    // Ritual Boxes started by this order and the points it earns (signed-in customers).
+    let subscriptions = [];
+    let points = null;
+    try {
+      [subscriptions, points] = await Promise.all([
+        subscriptionService.getOrderSubscriptions(order.order_id),
+        pointsService.getOrderPoints(order)
+      ]);
+    } catch (extraErr) {
+      console.error('Error loading order subscriptions/points:', extraErr);
+    }
+
     res.json({
       order_id: order.order_id,
       order_status: order.order_status,
@@ -776,6 +832,10 @@ async function getOrderStatus(req, res) {
       payment: order.payment,
       pricing: order.pricing,
       items: order.items,
+      subscription_id: order.subscription_id,
+      subscription_cycle: order.subscription_cycle,
+      subscriptions,
+      points,
       coupon: order.coupon,
       delivery_info: order.delivery_info,
       shipping: order.shipping,
@@ -840,6 +900,13 @@ async function receiveOrder(req, res) {
     order._statusChangeNote = 'Order received by user';
     await order.save();
     socketService.emitOrderUpdated(order, 'status_change');
+
+    // Purchase points: pending now, posted once the refund window passes.
+    try {
+      await pointsService.awardPurchasePoints(order);
+    } catch (pointsErr) {
+      console.error('Error awarding purchase points:', pointsErr);
+    }
 
     const refundRequest = await getLatestRefundRequest(order.order_id);
 
@@ -926,6 +993,12 @@ async function requestRefund(req, res) {
 
     if (order.order_status !== 'delivered' && order.order_status !== 'refund_rejected') {
       return res.status(400).json({ error: 'Refund/return can only be requested for delivered orders.' });
+    }
+
+    // Refunds are allowed only within the window after delivery (same period purchase points stay pending).
+    const windowDays = pointsService.REFUND_WINDOW_DAYS;
+    if (order.delivered_at && Date.now() - new Date(order.delivered_at).getTime() > windowDays * 24 * 60 * 60 * 1000) {
+      return res.status(400).json({ error: `Refunds can only be requested within ${windowDays} days of delivery.` });
     }
 
     const existingPending = await RefundRequest.findOne({

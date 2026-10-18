@@ -6,6 +6,7 @@ const session = require('express-session');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const setupPassport = require('./config/passport');
+const { AUTH_TOKEN_TTL } = require('./config/auth');
 
 const app = express();
 
@@ -49,7 +50,7 @@ app.get('/auth/callback/google',
         role: req.user.role
       },
       process.env.JWT_SECRET || 'fallback-secret-key',
-      { expiresIn: '8h' }
+      { expiresIn: AUTH_TOKEN_TTL }
     );
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
     res.redirect(`${clientUrl}/oauth-success?token=${token}`);
@@ -66,7 +67,7 @@ app.get('/auth/callback/facebook',
         role: req.user.role
       },
       process.env.JWT_SECRET || 'fallback-secret-key',
-      { expiresIn: '8h' }
+      { expiresIn: AUTH_TOKEN_TTL }
     );
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
     res.redirect(`${clientUrl}/oauth-success?token=${token}`);
@@ -77,6 +78,7 @@ app.get('/auth/callback/facebook',
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/auth/oauth', require('./routes/oauth.routes'));
 app.use('/api/cart', require('./routes/cart.routes'));
+app.use('/api/subscriptions', require('./routes/subscriptions.routes'));
 app.use('/api/products', require('./routes/products.routes'));
 app.use('/api/vouchers', require('./routes/vouchers.routes'));
 app.use('/api/orders', require('./routes/orders.routes'));

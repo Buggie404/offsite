@@ -3220,19 +3220,17 @@
     }
   }
 
-  // Subscribe & Save line price: current + struck-through original
+  // Subscribe & Save line price: full price today + the price of later boxes
   .cart-item-price__current {
     display: block;
     text-align: right;
   }
 
-  .cart-item-price__original {
+  .cart-item-price__then {
     display: block;
     text-align: right;
     font-size: 12px;
-    color: var(--color-warm-brown);
-    opacity: 0.7;
-    text-decoration: line-through;
+    color: var(--color-forest-green);
   }
 
   // ONE-TIME | SUBSCRIBE & SAVE segmented toggle
