@@ -12,12 +12,14 @@ const { adminActivityLog } = require('../middleware/adminActivityLog.middleware'
 
 router.post('/login', authController.adminLogin);
 
+router.get('/activity-logs', authMiddleware, requireRole('admin_cc'), adminController.getActivityLogs);
+
 router.get('/orders', authMiddleware, adminActivityLog, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminController.getAllOrders);
 router.get('/orders/:id', authMiddleware, adminActivityLog, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminController.getOrderById);
-router.put('/orders/:id/status', authMiddleware, adminActivityLog, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminController.updateOrderStatus);
-router.post('/orders/:id/refund/approve', authMiddleware, adminActivityLog, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminController.approveRefundRequest);
-router.post('/orders/:id/refund/reject', authMiddleware, adminActivityLog, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminController.rejectRefundRequest);
-router.post('/orders/:id/notes', authMiddleware, adminActivityLog, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminController.addInternalNote);
+router.put('/orders/:id/status', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog, adminController.updateOrderStatus);
+router.post('/orders/:id/refund/approve', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog, adminController.approveRefundRequest);
+router.post('/orders/:id/refund/reject', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog, adminController.rejectRefundRequest);
+router.post('/orders/:id/notes', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog, adminController.addInternalNote);
 
 // ── DEV ONLY: Fix admin roles in DB ────────────────────────────────────
 // Gọi POST /api/admin/dev/fix-admin-roles để update role trong DB

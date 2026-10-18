@@ -551,26 +551,26 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
             condition: 'value !== document.getElementById("signup-password")?.value',
             error_message: 'Passwords do not match'
           }
-        ]\r
-      },\r
-      {\r
-        field_id: 'signup-referral-code',\r
-        error_element_id: 'signup-referral-error',\r
-        rules: [\r
-          {\r
-            sequence: 1,\r
-            type: 'FORMAT_CHECK',\r
-            condition: 'value.trim() !== "" && /[^A-Z0-9_]/.test(value.trim())',\r
-            error_message: 'Only uppercase letters, digits, and underscore allowed'\r
-          },\r
-          {\r
-            sequence: 2,\r
-            type: 'FORMAT_CHECK',\r
-            condition: 'value.trim() !== "" && !/^[A-Z0-9]+_[A-Z0-9]{8}$/.test(value.trim())',\r
-            error_message: 'Invalid format. Expected: NAME_8CHARS (e.g. JOHN_AB12CD34)'\r
-          }\r
-        ]\r
-      }\r
+        ]
+      },
+      {
+        field_id: 'signup-referral-code',
+        error_element_id: 'signup-referral-error',
+        rules: [
+          {
+            sequence: 1,
+            type: 'FORMAT_CHECK',
+            condition: 'value.trim() !== "" && /[^A-Z0-9_]/.test(value.trim())',
+            error_message: 'Only uppercase letters, digits, and underscore allowed'
+          },
+          {
+            sequence: 2,
+            type: 'FORMAT_CHECK',
+            condition: 'value.trim() !== "" && !/^[A-Z0-9]+_[A-Z0-9]{8}$/.test(value.trim())',
+            error_message: 'Invalid format. Expected: NAME_8CHARS (e.g. JOHN_AB12CD34)'
+          }
+        ]
+      }
     ];
 
     this.signupValidator = new InlineValidator(signupConfigs);

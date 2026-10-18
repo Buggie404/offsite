@@ -1,6 +1,7 @@
 const Order = require('../models/Order');
 const User = require('../models/User');
 const RefundRequest = require('../models/RefundRequest');
+const ActivityLog = require('../models/ActivityLog');
 const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
 
@@ -196,6 +197,15 @@ function appendInternalNote(value, note, author) {
   return JSON.stringify(notes);
 }
 
+function activitySnapshot(order) {
+  return {
+    order_status: order.order_status,
+    payment_status: order.payment_status,
+    shipping: order.shipping?.toObject ? order.shipping.toObject() : order.shipping,
+    internal_notes: parseInternalNotes(order.internal_notes)
+  };
+}
+
 function formatPaymentLabel(payment) {
   if (!payment) return '—';
   if (payment.method === 'card' && payment.card_info) {
@@ -385,6 +395,7 @@ async function updateOrderStatus(req, res) {
     }
 
     const adminId = await getAdminActorId(req);
+    const oldValue = activitySnapshot(order);
     const currentStatus = order.order_status;
 
     if (status && status !== currentStatus) {
@@ -420,6 +431,10 @@ async function updateOrderStatus(req, res) {
       }
     }
 
+    const newValue = activitySnapshot(order);
+    if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+      await req.writeActivityLog({ actionType: 'order.update-status', targetEntity: 'Orders', targetId: order.order_id, oldValue, newValue });
+    }
     await order.save();
     socketService.emitOrderUpdated(order, 'status_change');
 
@@ -473,6 +488,7 @@ async function approveRefundRequest(req, res) {
 
     const adminId = await getAdminActorId(req);
     const now = new Date();
+    const oldValue = { status: refundRequest.status, admin_reason: refundRequest.admin_reason };
 
     refundRequest.status = 'approved';
     refundRequest.reviewed_by = adminId;
@@ -482,6 +498,13 @@ async function approveRefundRequest(req, res) {
       changed_at: now,
       changed_by: adminId,
       note: 'Refund request approved by admin'
+    });
+    await req.writeActivityLog({
+      actionType: 'refund.approve',
+      targetEntity: 'RefundRequests',
+      targetId: refundRequest.refund_request_id,
+      oldValue,
+      newValue: { status: refundRequest.status, admin_reason: refundRequest.admin_reason }
     });
     await refundRequest.save();
 
@@ -550,6 +573,7 @@ async function rejectRefundRequest(req, res) {
     const adminId = await getAdminActorId(req);
     const now = new Date();
     const rejectionReason = String(reason).trim();
+    const oldValue = { status: refundRequest.status, admin_reason: refundRequest.admin_reason };
 
     refundRequest.status = 'rejected';
     refundRequest.admin_reason = rejectionReason;
@@ -560,6 +584,13 @@ async function rejectRefundRequest(req, res) {
       changed_at: now,
       changed_by: adminId,
       note: rejectionReason
+    });
+    await req.writeActivityLog({
+      actionType: 'refund.reject',
+      targetEntity: 'RefundRequests',
+      targetId: refundRequest.refund_request_id,
+      oldValue,
+      newValue: { status: refundRequest.status, admin_reason: refundRequest.admin_reason }
     });
     await refundRequest.save();
 
@@ -610,7 +641,15 @@ async function addInternalNote(req, res) {
     }
 
     const adminId = await getAdminActorId(req);
+    const oldValue = activitySnapshot(order);
     order.internal_notes = appendInternalNote(order.internal_notes, String(note).trim(), adminId);
+    await req.writeActivityLog({
+      actionType: 'order.add-internal-note',
+      targetEntity: 'Orders',
+      targetId: order.order_id,
+      oldValue,
+      newValue: activitySnapshot(order)
+    });
     await order.save();
 
     const data = await buildOrderDetail(order);
@@ -624,11 +663,31 @@ async function addInternalNote(req, res) {
   }
 }
 
+async function getActivityLogs(req, res) {
+  try {
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 200);
+    const filter = {};
+    for (const field of ['action_type', 'admin_id', 'target_entity', 'target_id']) {
+      if (req.query[field]) filter[field] = req.query[field];
+    }
+    const [total, data] = await Promise.all([
+      ActivityLog.countDocuments(filter),
+      ActivityLog.find(filter).sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).lean()
+    ]);
+    res.json({ total, page, limit, data });
+  } catch (error) {
+    console.error('Error fetching activity logs:', error);
+    res.status(500).json({ error: 'Failed to retrieve activity logs.' });
+  }
+}
+
 module.exports = {
   getAllOrders,
   getOrderById,
   updateOrderStatus,
   approveRefundRequest,
   rejectRefundRequest,
-  addInternalNote
+  addInternalNote,
+  getActivityLogs
 };

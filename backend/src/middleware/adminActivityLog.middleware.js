@@ -15,7 +15,7 @@
  *   - statusCode : HTTP status code trả về
  *   - timestamp  : thời gian thực hiện
  */
-const { getCollections } = require('../config/db');
+const { writeActivityLog } = require('../services/activity-log.service');
 
 /**
  * Loại bỏ các field nhạy cảm trước khi lưu vào log
@@ -58,6 +58,15 @@ function describeAction(method, path) {
 }
 
 async function adminActivityLog(req, res, next) {
+  if (!req.user?.user_id) {
+    return res.status(401).json({ error: 'Authentication is required.' });
+  }
+
+  req.writeActivityLog = ({ actionType, targetEntity, targetId, oldValue, newValue }) =>
+    writeActivityLog({ admin: req.user, actionType, targetEntity, targetId, oldValue, newValue });
+
+  return next();
+
   // Chỉ log khi đã có admin user (qua authMiddleware trước đó)
   if (!req.user || !req.user.user_id) {
     return next();
