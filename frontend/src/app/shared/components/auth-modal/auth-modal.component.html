@@ -279,15 +279,12 @@
               #signupReferralInput
               type="text" 
               class="auth-input" 
-              [class.input-error]="referralCodeError"
               [(ngModel)]="signupReferralCode"
               name="signupReferralCode"
               (ngModelChange)="onReferralCodeInput()"
               placeholder="e.g. JOHN_AB12CD34"
               autocomplete="off">
-            <div *ngIf="referralCodeError" class="error-message">{{ referralCodeError }}</div>
             <div id="signup-referral-error" class="error-message"></div>
-            <div *ngIf="referralCodeServerError" class="error-message">{{ referralCodeServerError }}</div>
             <p class="auth-helper-text referral-hint">Format: NAME_8CHARS (uppercase letters &amp; digits only)</p>
           </div>
 

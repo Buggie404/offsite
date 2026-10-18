@@ -82,10 +82,6 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
   signupPassword = '';
   signupConfirmPassword = '';
   signupReferralCode = '';
-  referralCodeTouched = false;
-  referralCodeServerError: string | null = null;
-  /** Tracks whether user already dismissed a 'code not found' error and should be allowed to skip */
-  private referralCodeSkipOnRetry = false;
 
   // Touch states
   emailTouched = false;
@@ -184,9 +180,6 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
     this.signupPhoneTouched = false;
     this.signupPasswordTouched = false;
     this.signupConfirmPasswordTouched = false;
-    this.referralCodeTouched = false;
-    this.referralCodeServerError = null;
-    this.referralCodeSkipOnRetry = false;
 
     this.serverEmailError = null;
     this.serverPhoneError = null;
@@ -314,31 +307,8 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
     return null;
   }
 
-  // ══════════════ Referral Code validation ══════════════
-  /**
-   * Regex: [NAME]_[8 ký tự A-Z0-9]
-   * NAME = 1+ ký tự chữ in hoa hoặc số
-   * _ = dấu gạch dưới phân cách cố định
-   * CHUỖI 8 KÝ TỰ = đúng 8, chỉ gồm A-Z và 0-9
-   */
-  private readonly REFERRAL_CODE_REGEX = /^[A-Z0-9]+_[A-Z0-9]{8}$/;
-
-  get referralCodeError(): string | null {
-    const code = this.signupReferralCode.trim();
-    if (!code) return null; // optional field
-    if (!this.REFERRAL_CODE_REGEX.test(code)) {
-      return 'Invalid format. Expected: NAME_8CHARS (e.g. JOHN_AB12CD34)';
-    }
-    return null;
-  }
-
   onReferralCodeInput(): void {
-    this.referralCodeServerError = null;
-    this.referralCodeSkipOnRetry = false;
-    if (this.signupValidator) {
-      this.signupValidator.validateField('signup-referral-code');
-    }
-    this.cdr.detectChanges();
+    this.signupValidator?.validateField('signup-referral-code');
   }
 
   get signupPasswordStrengthScore(): number {
@@ -560,11 +530,17 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
           {
             sequence: 1,
             type: 'FORMAT_CHECK',
-            condition: 'value.trim() !== "" && /[^A-Z0-9_]/.test(value.trim())',
-            error_message: 'Only uppercase letters, digits, and underscore allowed'
+            condition: 'value.trim() !== "" && /[a-z]/.test(value.trim())',
+            error_message: 'Use uppercase letters only.'
           },
           {
             sequence: 2,
+            type: 'FORMAT_CHECK',
+            condition: 'value.trim() !== "" && /[^A-Za-z0-9_]/.test(value.trim())',
+            error_message: 'Only letters, digits, and one underscore (_) are allowed.'
+          },
+          {
+            sequence: 3,
             type: 'FORMAT_CHECK',
             condition: 'value.trim() !== "" && !/^[A-Z0-9]+_[A-Z0-9]{8}$/.test(value.trim())',
             error_message: 'Invalid format. Expected: NAME_8CHARS (e.g. JOHN_AB12CD34)'
@@ -665,19 +641,11 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
       try {
         const submitEmail = this.signupEmail ? this.signupEmail.trim() : '';
         const submitPhone = this.signupPhone ? this.signupPhone.trim().replace(/\s+/g, '') : '';
-        const submitReferral = this.signupReferralCode ? this.signupReferralCode.trim() : '';
-
-        // Nếu referral code có format sai → chặn ngay
-        if (submitReferral && this.referralCodeError) {
-          return;
-        }
-
         const response = await this.authService.register({
           name: this.signupName,
           email: submitEmail,
           phone: submitPhone,
-          password: this.signupPassword,
-          ...(submitReferral ? { referral_code: submitReferral } : {})
+          password: this.signupPassword
         });
 
         this.registrationId = response.registration_id;
@@ -722,27 +690,6 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
               phoneEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
           }, 50);
-        } else if (errorCode === 'REFERRAL_NOT_FOUND') {
-          // Mã giới thiệu không tồn tại → báo lỗi inline, user có thể bỏ qua bằng cách nhấn Join Us lần nữa
-          if (!this.referralCodeSkipOnRetry) {
-            this.referralCodeServerError = 'Referral code not found. Press Join Us again to skip.';
-            this.referralCodeSkipOnRetry = true;
-            setTimeout(() => {
-              const refEl = document.getElementById('signup-referral-code') as HTMLInputElement | null;
-              if (refEl) {
-                refEl.focus();
-                refEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }
-            }, 50);
-          } else {
-            // Lần thứ 2 nhấn → bỏ qua mã, xóa referral và thử lại
-            this.signupReferralCode = '';
-            this.referralCodeServerError = null;
-            this.referralCodeSkipOnRetry = false;
-            // Retry submit without referral code
-            this.onSubmitAuth(event);
-            return;
-          }
         } else {
           const msg = errorMessage || 'An error occurred during registration. Please try again.';
           this.serverEmailError = msg;
