@@ -47,7 +47,6 @@ async function connectDB() {
       postCollection: db.collection('Posts'),
       commentCollection: db.collection('Comments'),
       otpCollection: db.collection('Otps'),
-      activityLogCollection: db.collection('ActivityLogs'),
     };
 
     console.log(`Successfully connected to MongoDB database: ${db.databaseName}`);
