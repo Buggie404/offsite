@@ -10,7 +10,6 @@ import {
   LucideDroplet,
   LucideHeart,
   LucideLeaf,
-  LucideMapPin,
   LucideMinus,
   LucidePackage,
   LucidePlus,
@@ -49,25 +48,23 @@ import { AuthPromptModalService } from '../../../../shared/components/auth-promp
 import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 import { Subscription } from 'rxjs';
 
-interface ProductTag {
-  icon: 'map' | 'drop' | 'package';
-  label: string;
-}
-
 interface ProductHeaderTag {
   label: string;
-  kind: 'status' | 'pantry' | 'category' | 'tag';
+  kind: 'status' | 'pantry';
 }
 
 interface IncludedProduct {
   name: string;
   eyebrow: string;
   description: string;
+  quantity: number;
   price: number | null;
   tag: string;
   icon: 'leaf' | 'coffee' | 'tool' | 'package';
   routeId: string;
   imageUrl: string;
+  product: Product | null;
+  variantSku: string | null;
 }
 
 interface ProductReviewView {
@@ -107,7 +104,6 @@ interface BrewingMethodCard {
     LucideDroplet,
     LucideHeart,
     LucideLeaf,
-    LucideMapPin,
     LucideMinus,
     LucidePackage,
     LucidePlus,
@@ -388,43 +384,6 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return getPrimaryProductImage(prod) ?? null;
   }
 
-  getProductTags(): ProductTag[] {
-    const p = this.product();
-    if (!p) return [];
-
-    switch (p.category) {
-      case 'matcha':
-        return [
-          this.makeTag('map', p.matcha?.origin),
-          this.makeTag('drop', p.matcha?.product_grade || 'related tea')
-        ].filter((tag): tag is ProductTag => !!tag);
-      case 'coffee':
-        return [
-          this.makeTag('map', p.coffee?.product_origin),
-          this.makeTag('drop', p.coffee?.process_type)
-        ].filter((tag): tag is ProductTag => !!tag);
-      case 'tools':
-        return [
-          this.makeTag('map', p.tools?.tool_category),
-          this.makeTag('drop', p.tools?.tool_type)
-        ].filter((tag): tag is ProductTag => !!tag);
-      case 'drinkware':
-        return [
-          this.makeTag('map', p.drinkware?.ware_type),
-          this.makeTag('drop', p.drinkware?.material)
-        ].filter((tag): tag is ProductTag => !!tag);
-      case 'sets_bundles': {
-        const count = p.sets_bundles?.composition?.length ?? 0;
-        return [
-          count > 0 ? this.makeTag('package', `${count} ${count === 1 ? 'product' : 'products'}`) : null,
-          p.sets_bundles?.is_exclusive === true ? this.makeTag('drop', 'Exclusive for set') : null
-        ].filter((tag): tag is ProductTag => !!tag);
-      }
-      default:
-        return (p.product_tag ?? []).map(label => ({ icon: 'package', label }));
-    }
-  }
-
   getProductHeaderTags(): ProductHeaderTag[] {
     const product = this.product();
     if (!product) return [];
@@ -435,29 +394,8 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
 
     // Purchase history is not available in the product payload yet, so this remains display text for now.
     tags.push({ label: 'IN YOUR PANTRY', kind: 'pantry' });
-    tags.push({ label: this.getCategoryLabel(product.category), kind: 'category' });
-
-    const existingLabels = new Set(tags.map(tag => tag.label.toLowerCase()));
-    for (const tag of product.product_tag ?? []) {
-      const label = tag.trim();
-      if (label && !existingLabels.has(label.toLowerCase())) {
-        tags.push({ label, kind: 'tag' });
-        existingLabels.add(label.toLowerCase());
-      }
-    }
 
     return tags;
-  }
-
-  private getCategoryLabel(category: string): string {
-    const labels: Record<string, string> = {
-      coffee: 'COFFEE',
-      matcha: 'MATCHA',
-      drinkware: 'DRINKWARE',
-      tools: 'TOOLS',
-      sets_bundles: 'SETS & BUNDLES'
-    };
-    return labels[category] ?? category.replace(/[_-]+/g, ' ').toUpperCase();
   }
 
   getTastingNotes(): string[] {
@@ -705,6 +643,11 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return item.routeId ? ['/products', item.routeId] : ['/shop/sets-bundles'];
   }
 
+  addIncludedProductToCart(item: IncludedProduct): void {
+    if (!item.product || !item.variantSku) return;
+    this.cartService.addToCart(item.product as any, item.variantSku, 1, true);
+  }
+
   async toggleSave(): Promise<void> {
     const prod = this.product();
     if (!prod) return;
@@ -770,11 +713,6 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     return true;
   }
 
-  private makeTag(icon: ProductTag['icon'], value?: string | null): ProductTag | null {
-    const label = value?.trim();
-    return label ? { icon, label } : null;
-  }
-
   private normalizeIncludedProduct(item: unknown): IncludedProduct | null {
     if (item === null || item === undefined) return null;
     if (typeof item !== 'object') {
@@ -799,9 +737,14 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     const variant = variants.find((candidate: any) => candidate?.is_default) ?? variants[0] ?? {};
     const productImages = Array.isArray(product['images']) ? product['images'] : [];
     const image = productImages.find((candidate: any) => candidate?.sort_order === 0) ?? productImages[0] ?? {};
+    const cartProduct = this.isCartProduct(product) ? product as Product : null;
+    const cartVariant = cartProduct?.variants.find(candidate => candidate.is_default)
+      ?? cartProduct?.variants[0]
+      ?? null;
 
     return {
       name,
+      quantity: Math.max(1, Math.round(this.pickNumber(source, ['quantity', 'component_quantity', 'qty']) ?? 1)),
       eyebrow: [category, this.pickText(detailRecord, ['product_grade', 'process_type', 'tool_type', 'material', 'pricing_tier'])]
         .filter(Boolean)
         .join(' · '),
@@ -816,8 +759,16 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
         || 'included',
       icon: this.getIncludedIcon(category),
       routeId: this.getProductRouteId(product, name),
-      imageUrl: this.pickImageUrl(product, image)
+      imageUrl: this.pickImageUrl(product, image),
+      product: cartProduct,
+      variantSku: cartVariant && (cartVariant.stock ?? 0) > 0 ? cartVariant.sku : null
     };
+  }
+
+  private isCartProduct(value: Record<string, any>): value is Product {
+    return typeof value['product_id'] === 'number'
+      && Array.isArray(value['images'])
+      && Array.isArray(value['variants']);
   }
 
   private replaceUrlWithProductSlug(currentId: string, product: Product): void {

@@ -112,24 +112,6 @@
         </section>
         }
 
-        @if (getProductTags().length) {
-        <!-- Product tags -->
-        <div class="product-tags" aria-label="Product attributes">
-          @for (tag of getProductTags(); track tag.label) {
-          <span class="attribute-pill">
-            @if (tag.icon === 'map') {
-            <svg lucideMapPin [size]="20" aria-hidden="true"></svg>
-            } @else if (tag.icon === 'drop') {
-            <svg lucideDroplet [size]="20" aria-hidden="true"></svg>
-            } @else {
-            <svg lucidePackage [size]="20" aria-hidden="true"></svg>
-            }
-            {{ tag.label }}
-          </span>
-          }
-        </div>
-        }
-
         @if (getTastingNotes().length) {
         <!-- Tasting notes -->
         <section class="notes-section">
@@ -246,42 +228,49 @@
           </div>
         </section>
 
-        @if (shouldShowIncludedProducts()) {
-        <!-- Bundle contents -->
-        <section class="included-section">
-          <div class="included-header">
-            <h2>WHAT'S INCLUDED</h2>
-            <span>{{ getIncludedProducts().length }} items</span>
-          </div>
-
-          <div class="included-list">
-            @for (item of getIncludedProducts(); track item.routeId || item.name) {
-            <a class="included-item" [routerLink]="getIncludedProductLink(item)">
-              <div class="included-icon" [attr.data-kind]="item.icon">
-                @if (item.imageUrl) {
-                <img [src]="item.imageUrl" [alt]="item.name" />
-                } @else if (item.icon === 'leaf') {
-                <svg lucideLeaf [size]="22" aria-hidden="true"></svg>
-                } @else if (item.icon === 'coffee') {
-                <svg lucideCoffee [size]="22" aria-hidden="true"></svg>
-                } @else {
-                <svg lucidePackage [size]="22" aria-hidden="true"></svg>
-                }
-              </div>
-              <div class="included-copy">
-                <h3>{{ item.name }}</h3>
-              </div>
-              @if (item.price !== null) {
-              <strong class="included-price">{{ item.price | currency:'USD':'symbol':'1.2-2' }}</strong>
-              }
-            </a>
-            }
-          </div>
-        </section>
-        }
       </div>
     </article>
   </section>
+
+  @if (shouldShowIncludedProducts()) {
+  <!-- Bundle contents span the full product-detail page, below the two-column hero. -->
+  <section class="included-section">
+    <div class="included-header">
+      <h2>WHAT'S INCLUDED</h2>
+    </div>
+
+    <div class="included-list">
+      @for (item of getIncludedProducts(); track item.routeId || item.name) {
+      <article class="included-item">
+        <a class="included-item__link" [routerLink]="getIncludedProductLink(item)" [attr.aria-label]="'View ' + item.name">
+          <div class="included-icon" [attr.data-kind]="item.icon">
+          @if (item.imageUrl) {
+          <img [src]="item.imageUrl" [alt]="item.name" />
+          } @else if (item.icon === 'leaf') {
+          <svg lucideLeaf [size]="22" aria-hidden="true"></svg>
+          } @else if (item.icon === 'coffee') {
+          <svg lucideCoffee [size]="22" aria-hidden="true"></svg>
+          } @else {
+          <svg lucidePackage [size]="22" aria-hidden="true"></svg>
+          }
+          </div>
+          <div class="included-copy">
+            <h3>{{ item.name }}</h3>
+            <p class="included-quantity">×{{ item.quantity }}</p>
+            @if (item.price !== null) {
+            <strong class="included-price">{{ item.price | currency:'USD':'symbol':'1.2-2' }}</strong>
+            }
+          </div>
+        </a>
+        <button type="button" class="included-add-button" (click)="addIncludedProductToCart(item)"
+          [disabled]="!item.variantSku" [attr.aria-label]="'Add ' + item.name + ' to cart'" title="Add to cart">
+          <svg lucidePlus [size]="18" strokeWidth="2.2" aria-hidden="true"></svg>
+        </button>
+      </article>
+      }
+    </div>
+  </section>
+  }
 
   @if (shouldShowRecipes()) {
   <section class="product-content-tabs" aria-label="Product guides and recipes">
@@ -297,7 +286,16 @@
     </div>
 
     @if (activeProductContentTab() === 'brewing') {
-    <div class="product-content-tabs__panel" role="tabpanel">
+    <div class="product-content-tabs__panel product-content-tabs__panel--brewing" role="tabpanel">
+      <div class="brewing-methods__decor brewing-methods__decor--blob" aria-hidden="true"></div>
+      <div class="brewing-methods__decor brewing-methods__decor--ring" aria-hidden="true"></div>
+      <div class="brewing-methods__decor brewing-methods__decor--diamond" aria-hidden="true"></div>
+      <div class="brewing-methods__decor brewing-methods__decor--diamond-sm" aria-hidden="true"></div>
+      <div class="brewing-methods__decor brewing-methods__decor--dot" aria-hidden="true"></div>
+      <div class="brewing-methods__decor brewing-methods__decor--dot-sm" aria-hidden="true"></div>
+      <div class="brewing-methods__decor brewing-methods__decor--square" aria-hidden="true"></div>
+      <div class="brewing-methods__decor brewing-methods__decor--triangle" aria-hidden="true"></div>
+      <div class="brewing-methods__decor brewing-methods__decor--line" aria-hidden="true"></div>
       <div class="brewing-methods-grid">
       @if (isBrewingMethodsLoading()) {
       @for (item of [1, 2, 3]; track item) {
@@ -315,7 +313,16 @@
       <article class="brewing-card" [routerLink]="['/journal', method.slug]" [state]="contentDetailEntryState" role="link" tabindex="0"
         [attr.aria-label]="'Read journal guide for ' + method.title">
         <div class="brewing-card__top">
-          <span class="brewing-card__badge">METHOD {{ index + 1 | number:'2.0-0' }}</span>
+          <span class="brewing-card__badge">{{ method.methodLabel }}</span>
+          <span class="brewing-card__icon" aria-hidden="true">
+            @if (getMethodIcon(method) === 'coffee') {
+            <svg lucideCoffee [size]="24"></svg>
+            } @else if (getMethodIcon(method) === 'droplet') {
+            <svg lucideDroplet [size]="24"></svg>
+            } @else {
+            <svg lucideLeaf [size]="24"></svg>
+            }
+          </span>
         </div>
 
         <h3>{{ method.title }}</h3>

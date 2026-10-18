@@ -22,7 +22,9 @@ $line: rgba(84, 74, 64, 0.18);
 
 .product-detail-page {
   width: 100%;
-  padding: 15px;
+  // Keep the product page comfortably inset on wide screens while retaining
+  // a compact gutter on smaller viewports.
+  padding: 24px clamp(24px, 6.5vw, 96px);
   box-sizing: border-box;
 }
 
@@ -36,6 +38,12 @@ app-best-seller {
 app-recipe-section {
   display: block;
   --font-display: var(--pdp-section-heading-font);
+  // Popular Recipes inherits the PDP background; darker decorative dots keep
+  // the existing shapes visible after the former forest-green panel is removed.
+  --clr-section-bg: #fcf2ea;
+  --clr-geo-green: #a6c99f;
+  --clr-geo-dots: rgba(55, 85, 52, 0.28);
+  --clr-geo-dots-soft: rgba(55, 85, 52, 0.2);
 }
 
 /* State panels */
@@ -516,6 +524,7 @@ app-recipe-section {
     padding: 0;
     margin-bottom: 10px;
     color: $ink;
+    font-family: var(--font-mono, 'DM Mono', monospace);
     font-size: clamp(12px, 0.9vw, 15px);
     font-weight: 400;
     letter-spacing: 0.04em;
@@ -532,6 +541,7 @@ app-recipe-section {
   legend {
     padding: 0;
     color: $ink;
+    font-family: var(--font-mono, 'DM Mono', monospace);
     font-size: clamp(12px, 0.9vw, 15px);
     letter-spacing: 0.04em;
   }
@@ -617,6 +627,7 @@ app-recipe-section {
 
   > span {
     color: $ink;
+    font-family: var(--font-mono, 'DM Mono', monospace);
     font-size: clamp(12px, 0.9vw, 15px);
     letter-spacing: 0.04em;
   }
@@ -624,11 +635,17 @@ app-recipe-section {
   select {
     min-width: 206px;
     min-height: 48px;
-    padding: 0 42px 0 16px;
+    padding: 0 48px 0 16px;
     color: $ink;
     background-color: rgba(255, 255, 255, 0.65);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='%231a1a1a' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.8'/%3E%3C/svg%3E");
+    background-position: right 18px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
     border: 1px solid rgba(84, 74, 64, 0.4);
     border-radius: 10px;
+    appearance: none;
+    -webkit-appearance: none;
     font: inherit;
     cursor: pointer;
   }
@@ -844,61 +861,76 @@ app-recipe-section {
 }
 
 .included-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid rgba(84, 74, 64, 0.26);
-  color: $latte;
+  position: relative;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(84, 74, 64, 0.22);
+  color: $ink;
   font-family: var(--font-mono, 'DM Mono', monospace);
-  font-size: 11px;
-  letter-spacing: 0.22em;
+  font-size: 12px;
+  letter-spacing: 0.04em;
 
   h2 {
     margin: 0;
     font-size: inherit;
+    font-weight: 400;
+  }
+
+  &::after {
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 104px;
+    height: 2px;
+    content: '';
+    background: $forest;
   }
 }
 
 .included-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 250px));
+  gap: 16px;
+  padding-top: 20px;
 }
 
 .included-item {
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: center;
-  min-height: 76px;
-  padding: 10px 16px 10px 10px;
-  color: inherit;
+  position: relative;
+  min-width: 0;
   background: #fff8f4;
-  border: 1px solid rgba(84, 74, 64, 0.08);
-  border-radius: 8px;
-  text-decoration: none;
+  border: 1px solid rgba(84, 74, 64, 0.18);
+  border-radius: 6px;
+  overflow: hidden;
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 
-  &:hover,
-  &:focus-visible {
+  &:hover {
     transform: translateY(-2px);
     border-color: rgba(84, 74, 64, 0.24);
     box-shadow: 0 10px 22px rgba(31, 27, 22, 0.08);
-    outline: none;
+  }
+}
+
+.included-item__link {
+  display: block;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+
+  &:focus-visible {
+    outline: 2px solid $forest;
+    outline-offset: -2px;
   }
 }
 
 .included-icon {
-  width: 54px;
-  height: 54px;
+  width: 100%;
+  // Match the square product-detail gallery so a bundle component keeps the
+  // same visual proportions as its standalone product.
+  aspect-ratio: 1 / 1;
   display: grid;
   place-items: center;
   color: $forest;
-  background: rgba(207, 225, 185, 0.85);
-  border-radius: 6px;
+  background: #eee6e1;
+  border-bottom: 1px solid rgba(84, 74, 64, 0.14);
   overflow: hidden;
 
   img {
@@ -906,6 +938,7 @@ app-recipe-section {
     height: 100%;
     display: block;
     object-fit: cover;
+    object-position: center;
   }
 
   &[data-kind='coffee'] {
@@ -920,16 +953,26 @@ app-recipe-section {
 
 .included-copy {
   min-width: 0;
+  min-height: 70px;
+  padding: 12px 42px 12px 12px;
 
   h3 {
     margin: 0;
+    color: $ink;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  h3 {
-    color: $ink;
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.25;
+  .included-quantity {
+    min-height: 16px;
+    margin: 4px 0 0;
+    color: $muted;
+    font-size: 11px;
+    line-height: 1.35;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -937,10 +980,45 @@ app-recipe-section {
 }
 
 .included-price {
-  color: $ink;
+  display: block;
+  margin-top: 2px;
+  color: rgba($ink, 0.56);
   font-family: var(--font-mono, 'DM Mono', monospace);
-  font-size: 15px;
+  font-size: 11px;
+  font-weight: 400;
+  text-decoration: line-through;
   white-space: nowrap;
+}
+
+.included-add-button {
+  position: absolute;
+  right: 8px;
+  bottom: 10px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: $forest;
+  background: transparent;
+  border: 1px solid rgba(33, 62, 31, 0.55);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease, transform 160ms ease;
+
+  &:hover:not(:disabled),
+  &:focus-visible:not(:disabled) {
+    color: #fff;
+    background: $forest;
+    outline: none;
+    transform: scale(1.06);
+  }
+
+  &:disabled {
+    color: rgba($warm, 0.42);
+    border-color: rgba($warm, 0.24);
+    cursor: not-allowed;
+  }
 }
 
 /* Brewing methods */
@@ -950,7 +1028,7 @@ app-recipe-section {
   width: calc(100% + 30px);
   margin: 30px -15px 0;
   padding: 0 20px 32px;
-  background: var(--color-sage, #cfe1b9);
+  background: $cream;
   color: #1f1b16;
   overflow: hidden;
 }
@@ -1235,31 +1313,35 @@ app-recipe-section {
 
 /* Product guides / recipes tabs */
 .product-content-tabs {
-  width: calc(100% - 72px);
-  max-width: 1216px;
-  margin: 46px auto 0;
+  width: calc(100% + 30px);
+  margin: 30px -15px 0;
+  background: $cream;
   color: #1f1b16;
 }
 
 .product-content-tabs__list {
   display: flex;
   align-items: stretch;
-  gap: 24px;
-  min-height: 42px;
+  gap: clamp(24px, 3vw, 48px);
+  min-height: 48px;
+  padding: 0 clamp(16px, 6vw, 86px);
   border-bottom: 1px solid rgba(31, 27, 22, 0.16);
 }
 
 .product-content-tabs__tab {
   position: relative;
   align-self: stretch;
-  padding: 0 0 11px;
+  padding: 0 0 10px;
   color: rgba(31, 27, 22, 0.45);
   background: transparent;
   border: 0;
-  font-family: var(--font-mono, 'DM Mono', monospace);
-  font-size: 11px;
-  font-weight: 400;
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  // A clear tab-label scale that stays distinct from the page heading.
+  font-size: 15px;
+  font-weight: 500;
   letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
   cursor: pointer;
 
   &::after {
@@ -1276,102 +1358,25 @@ app-recipe-section {
     color: #1f1b16;
 
     &::after {
-      background: #1f1b16;
+      background: $forest;
     }
   }
 }
 
 .product-content-tabs__panel {
-  padding-top: 18px;
+  padding-top: 0;
 }
 
-.product-content-tabs .brewing-methods-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  padding: 0;
-}
+.product-content-tabs__panel--brewing {
+  position: relative;
+  min-height: 525px;
+  padding: 32px 20px;
+  background: $cream;
+  overflow: hidden;
 
-.product-content-tabs .brewing-card {
-  min-height: 180px;
-  gap: 10px;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid rgba(31, 27, 22, 0.12);
-  border-radius: 7px;
-  box-shadow: none;
-
-  &:hover,
-  &:focus-visible {
-    transform: translateY(-2px);
-    border-color: rgba(31, 27, 22, 0.28);
-    box-shadow: none;
+  .brewing-methods-grid {
+    padding-top: 0;
   }
-
-  h3 {
-    font-size: 15px;
-    font-weight: 500;
-    line-height: 1.25;
-  }
-}
-
-.product-content-tabs .brewing-card__top {
-  min-height: 18px;
-}
-
-.product-content-tabs .brewing-card__badge {
-  min-height: 17px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-family: var(--font-mono, 'DM Mono', monospace);
-  font-size: 8px;
-  font-weight: 400;
-  letter-spacing: 0.04em;
-}
-
-.product-content-tabs .brewing-card__steps {
-  min-height: 0;
-  gap: 7px;
-
-  li {
-    grid-template-columns: 18px minmax(0, 1fr);
-    gap: 3px;
-    color: #35322f;
-    font-size: 10px;
-    line-height: 1.35;
-  }
-
-  strong {
-    color: #5e584f;
-    font-family: var(--font-mono, 'DM Mono', monospace);
-    font-size: 9px;
-    font-weight: 400;
-    line-height: 1.5;
-  }
-}
-
-.product-content-tabs .brewing-card__button {
-  width: max-content;
-  min-height: 27px;
-  padding: 5px 11px;
-  color: #1f1b16;
-  border: 1px solid rgba(31, 27, 22, 0.2);
-  border-radius: 3px;
-  font-family: var(--font-mono, 'DM Mono', monospace);
-  font-size: 9px;
-  font-weight: 400;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-
-  &:hover {
-    color: #fff;
-    background: #1f1b16;
-  }
-}
-
-.product-content-tabs .brewing-card--loading {
-  min-height: 180px;
 }
 
 /* Reviews */
@@ -1858,7 +1863,7 @@ app-recipe-section {
     justify-self: end;
     color: rgba(67, 72, 64, 0.46);
     font-family: var(--font-mono, 'DM Mono', monospace);
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.4;
   }
 }
@@ -2070,24 +2075,23 @@ app-recipe-section {
     font-size: 14px;
   }
 
-  .included-item {
-    grid-template-columns: 48px minmax(0, 1fr) auto;
-    gap: 14px;
-    min-height: 68px;
-    padding: 10px 12px 10px 10px;
+  .included-list {
+    grid-template-columns: repeat(2, minmax(0, 260px));
+    gap: 12px;
   }
 
-  .included-icon {
-    width: 48px;
-    height: 48px;
-  }
+  .included-copy {
+    min-height: 66px;
+    padding: 10px 40px 10px 10px;
 
-  .included-copy h3 {
-    font-size: 14px;
-  }
+    h3 {
+      font-size: 12px;
+    }
 
-  .included-price {
-    font-size: 13px;
+    .included-quantity,
+    .included-price {
+      font-size: 10px;
+    }
   }
 
   .brewing-methods-section {
@@ -2248,14 +2252,6 @@ app-recipe-section {
   }
 }
 
-@media (max-width: 1100px) {
-  .product-content-tabs .brewing-methods-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
-    padding-top: 0;
-  }
-}
-
 @media (max-width: 720px) {
   .product-content-tabs {
     width: 100%;
@@ -2264,26 +2260,17 @@ app-recipe-section {
 
   .product-content-tabs__list {
     gap: 18px;
+    min-height: 44px;
+    padding: 0 16px;
     overflow-x: auto;
   }
 
   .product-content-tabs__tab {
     flex: 0 0 auto;
-    font-size: 10px;
+    padding-bottom: 9px;
+    font-size: 12px;
   }
 
-  .product-content-tabs .brewing-methods-grid {
-    display: flex;
-    gap: 12px;
-    overflow-x: auto;
-    padding: 0 0 8px;
-    scroll-snap-type: x mandatory;
-  }
-
-  .product-content-tabs .brewing-card {
-    flex: 0 0 min(304px, 84vw);
-    scroll-snap-align: start;
-  }
 }
 
 @keyframes roast-slide-cell {
