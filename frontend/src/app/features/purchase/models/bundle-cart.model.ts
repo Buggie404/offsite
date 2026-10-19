@@ -96,6 +96,13 @@ export function getBundleContentToggleLabel(bundle: BundleCartMeta): string {
 export function getBundleContentComponents(
   bundle: BundleCartMeta
 ): BundleComponentSelection[] {
+  if (bundle.kitType === 'bundle') {
+    return bundle.components.map((component) => ({
+      ...component,
+      quantity: component.quantity ?? 1
+    }));
+  }
+
   return mergeBundleComponents(bundle.components);
 }
 
@@ -143,13 +150,10 @@ export function createKitBundle(params: {
   title?: string;
   displayImage?: string;
 }): BundleCartMeta {
-  const components =
-    params.kitType === 'bundle'
-      ? mergeBundleComponents(params.components)
-      : params.components.map((component) => ({
-          ...component,
-          quantity: component.quantity ?? 1
-        }));
+  const components = params.components.map((component) => ({
+    ...component,
+    quantity: component.quantity ?? 1
+  }));
   const computed = computeKitBundleTotals(components);
   const bundleKey = buildBundleKey(params.kitType, params.packSize, components);
 
@@ -343,6 +347,11 @@ export function bundleComponentHasVariantOptions(component: BundleComponentSelec
 }
 
 export function getBundleComponentTrackKey(component: BundleComponentSelection): string {
+  const slot = component.slotLabel?.trim();
+  if (slot) {
+    return `${slot}::${component.product.product_id}::${component.variantSku}`;
+  }
+
   return `${component.product.product_id}::${component.variantSku}`;
 }
 
@@ -350,16 +359,21 @@ export function updateBundleComponentVariant(
   bundle: BundleCartMeta,
   productId: number,
   oldVariantSku: string,
-  newVariantSku: string
+  newVariantSku: string,
+  componentKey?: string
 ): BundleCartMeta | null {
   if (oldVariantSku === newVariantSku) {
     return bundle;
   }
 
-  const targetProduct = bundle.components.find(
-    (component) =>
-      component.product.product_id === productId && component.variantSku === oldVariantSku
-  )?.product;
+  const targetComponent = componentKey
+    ? bundle.components.find((component) => getBundleComponentTrackKey(component) === componentKey)
+    : bundle.components.find(
+        (component) =>
+          component.product.product_id === productId && component.variantSku === oldVariantSku
+      );
+
+  const targetProduct = targetComponent?.product;
 
   if (!targetProduct) {
     return null;
@@ -375,25 +389,26 @@ export function updateBundleComponentVariant(
 
   let found = false;
   const updatedComponents = bundle.components.map((component) => {
-    if (component.product.product_id === productId && component.variantSku === oldVariantSku) {
-      found = true;
-      return {
-        ...component,
-        variantSku: newVariantSku
-      };
+    const isTarget = componentKey
+      ? getBundleComponentTrackKey(component) === componentKey
+      : component.product.product_id === productId && component.variantSku === oldVariantSku;
+
+    if (!isTarget) {
+      return component;
     }
 
-    return component;
+    found = true;
+    return {
+      ...component,
+      variantSku: newVariantSku
+    };
   });
 
   if (!found) {
     return null;
   }
 
-  const components =
-    bundle.kitType === 'bundle'
-      ? mergeBundleComponents(updatedComponents)
-      : updatedComponents;
+  const components = updatedComponents;
 
   const { originalTotal, discountedTotal } = computeKitBundleTotals(components);
   const bundleKey = buildBundleKey(bundle.kitType, bundle.packSize, components);

@@ -416,30 +416,29 @@ export class BuildYourBundleComponent implements OnInit {
     const variant = this.getDefaultInStockVariant(product);
     if (!variant) return;
 
-    const activeKey = this.activeSlotKey();
-    if (activeKey && this.requiredSlotKeys().includes(activeKey)) {
-      this.setSlotSelections((selections) => ({
-        ...selections,
-        [activeKey]: {
-          product,
-          variantSku: variant.sku
-        }
-      }));
-      return;
-    }
-
     if (!this.canAddMoreBundleProducts()) return;
 
-    const emptySlot = this.requiredSlotKeys().find((key) => !this.slotSelections()[key]);
-    if (!emptySlot) return;
+    const selections = this.slotSelections();
+    const activeKey = this.activeSlotKey();
+    let targetKey: SlotKey | undefined;
 
-    this.setSlotSelections((selections) => ({
-      ...selections,
-      [emptySlot]: {
+    if (activeKey && this.requiredSlotKeys().includes(activeKey) && !selections[activeKey]) {
+      targetKey = activeKey;
+    } else {
+      targetKey = this.requiredSlotKeys().find((key) => !selections[key]);
+    }
+
+    if (!targetKey) return;
+
+    this.setSlotSelections((current) => ({
+      ...current,
+      [targetKey!]: {
         product,
         variantSku: variant.sku
       }
     }));
+
+    this.activeSlotKey.set(targetKey);
   }
 
   removeSlotProduct(slotKey: SlotKey, event: Event): void {

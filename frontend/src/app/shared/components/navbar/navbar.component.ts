@@ -1053,7 +1053,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
       item.variantSku,
       component.product.product_id,
       component.variantSku,
-      newVariantSku
+      newVariantSku,
+      getBundleComponentTrackKey(component)
     );
   }
 
