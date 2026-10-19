@@ -21,6 +21,8 @@ import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
+import { isWithinRefundWindow } from '../../models/refund-window.model';
+
 @Component({
   selector: 'app-order-tracking',
   standalone: true,
@@ -376,8 +378,9 @@ export class OrderTrackingComponent implements OnInit {
     const ord = this.order();
     if (!ord) return false;
     const status = (ord.order_status || '').toLowerCase();
+    if (status !== 'delivered' && status !== 'refund_rejected') return false;
+    if (!isWithinRefundWindow(ord)) return false;
     if (status === 'refund_rejected') return true;
-    if (status !== 'delivered') return false;
     const refundStatus = ord.refund_request?.status;
     return !refundStatus || refundStatus === 'rejected';
   }

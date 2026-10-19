@@ -21,6 +21,8 @@ import { InlineValidator, FieldConfig } from '../../../../shared/utils/inline-va
 
 const VIETNAM_BANK_LIST = ['Vietcombank', 'BIDV', 'Techcombank', 'VietinBank', 'Agribank', 'MB Bank', 'VPBank', 'ACB', 'Sacombank', 'TPBank', 'VIB', 'SHB', 'MSB', 'SeABank'];
 
+import { isWithinRefundWindow, REFUND_WINDOW_DAYS } from '../../models/refund-window.model';
+
 @Component({
   selector: 'app-order-return',
   standalone: true,
@@ -157,6 +159,12 @@ export class OrderReturnComponent implements OnInit {
       if (ord.order_status !== 'delivered' && ord.order_status !== 'refund_rejected') {
         alert('Refund/return can only be requested for delivered orders.');
         this.router.navigate(['/order-tracking']);
+        return;
+      }
+
+      if (!isWithinRefundWindow(ord)) {
+        alert(`Refunds can only be requested within ${REFUND_WINDOW_DAYS} days of delivery.`);
+        this.router.navigate(['/checkout/delivered'], { state: { order: ord } });
         return;
       }
 

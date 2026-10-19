@@ -730,7 +730,7 @@
                   <svg lucideStar [size]="16" class="btn-icon"></svg>
                   Leave a Review
                 </button>
-                <button type="button" class="btn-outlined-action" (click)="refundOrder(order)">
+                <button type="button" class="btn-outlined-action" *ngIf="canRefund(order)" (click)="refundOrder(order)">
                   Refund/Return
                 </button>
               </ng-container>
@@ -975,7 +975,7 @@
 
       <!-- Ritual Box (Subscription) Tab -->
       <div class="tab-content ritual-box-tab" *ngIf="activeTab() === 'ritual-box'">
-        <app-ritual-box (addCard)="switchTab('payment'); openAddCardForm()"></app-ritual-box>
+        <app-ritual-box (addCard)="switchTab('payment'); openAddCardForm()" (viewOrder)="viewOrderById($event)"></app-ritual-box>
       </div>
 
       <div class="tab-content placeholder-tab" *ngIf="activeTab() !== 'profile' && activeTab() !== 'saved' && activeTab() !== 'address' && activeTab() !== 'orders' && activeTab() !== 'payment' && activeTab() !== 'ritual-box'">

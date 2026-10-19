@@ -289,7 +289,10 @@
             <span class="rb-cell-note" *ngIf="row.note">“{{ row.note }}”</span>
           </span>
           <span class="rb-col-order" role="cell">
-            <span class="rb-cell-label">Order</span>{{ row.order_id ? row.order_id : '—' }}
+            <span class="rb-cell-label">Order</span>
+            <button type="button" class="rb-order-link" *ngIf="row.order_id; else noOrderId"
+                    (click)="viewOrder.emit(row.order_id)" [attr.aria-label]="'View order ' + row.order_id">{{ row.order_id }}</button>
+            <ng-template #noOrderId>—</ng-template>
           </span>
           <span class="rb-col-amount" role="cell">
             <span class="rb-cell-label">Amount</span>{{ row.amount !== null ? '$' + (row.amount | number: '1.2-2') : '—' }}

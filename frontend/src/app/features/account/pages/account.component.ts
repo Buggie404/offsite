@@ -63,6 +63,8 @@ import {
   LucideActivity
 } from '@lucide/angular';
 
+import { isWithinRefundWindow } from '../../purchase/models/refund-window.model';
+
 @Component({
   selector: 'app-account',
   standalone: true,
@@ -1952,6 +1954,21 @@ export class AccountComponent implements OnInit, OnDestroy {
     this.showTrackingModal.set(true);
   }
 
+  // Ritual Box delivery history only carries the order_id — renewal orders are normal
+  // orders, so reuse the order list (or fetch it) and open the usual detail page.
+  async viewOrderById(orderId: string): Promise<void> {
+    let ord = this.orders().find(o => o.order_id === orderId);
+    if (!ord) {
+      try {
+        ord = await this.checkoutService.getOrderStatus(orderId);
+      } catch (e) {
+        console.error('Failed to load order:', e);
+        return;
+      }
+    }
+    this.viewOrderDetails(ord);
+  }
+
   viewOrderDetails(ord: any): void {
     if (!ord) return;
 
@@ -2177,6 +2194,10 @@ export class AccountComponent implements OnInit, OnDestroy {
 
   onReviewOrderUpdated(updatedOrder: any): void {
     this.fetchOrders();
+  }
+
+  canRefund(ord: any): boolean {
+    return isWithinRefundWindow(ord);
   }
 
   refundOrder(ord: any): void {

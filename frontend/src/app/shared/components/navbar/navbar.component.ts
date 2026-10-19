@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild, signal, effect, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild, signal, effect, untracked, ChangeDetectorRef } from '@angular/core';
 import { SuccessModalComponent, SuccessModalConfig } from '../success-modal/success-modal.components';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
@@ -34,6 +34,7 @@ import {
 } from '@lucide/angular';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
+import { AuthPromptModalService } from '../auth-prompt-modal/auth-prompt-modal.service';
 import {
   CartService,
   CartItem,
@@ -119,6 +120,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   private authService = inject(AuthService);
   private authModalService = inject(AuthModalService);
+  private authPromptService = inject(AuthPromptModalService);
   private elementRef = inject(ElementRef);
   private router = inject(Router);
   private cartService = inject(CartService);
@@ -135,6 +137,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private notificationInterval: any;
 
   constructor() {
+    effect(() => {
+      if (!this.awaitingSubscriptionPrompt() || this.authPromptService.isOpen()) return;
+      untracked(() => {
+        this.awaitingSubscriptionPrompt.set(false);
+        // LOG IN closes the prompt and opens the login modal; anything else means "not now".
+        if (!this.authModalService.isOpen()) {
+          this.switchSubscriptionsToOneTime();
+        }
+      });
+    });
+
     effect(() => {
       if (this.isLoggedIn()) {
         this.authService.fetchUserProfile();
@@ -186,6 +199,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   // Read-only signal from auth service
   isLoggedIn = this.authService.isAuthenticated;
+  private awaitingSubscriptionPrompt = signal(false);
 
   cartItemErrors = signal<Record<string, string>>({});
 
@@ -1078,8 +1092,23 @@ export class NavbarComponent implements OnInit, OnDestroy {
     if (event) {
       event.preventDefault();
     }
+    // Ritual Box (subscription) needs an account for recurring billing —
+    // guests must sign in or switch those lines to one-time first.
+    if (this.hasSubscriptionLines && !this.isLoggedIn()) {
+      this.awaitingSubscriptionPrompt.set(true);
+      this.authPromptService.open();
+      return;
+    }
     this.cartService.processCheckout();
     this.router.navigate(['/checkout']);
+  }
+
+  // Guest dismissed the sign-in prompt (LATER / close) instead of logging in:
+  // keep them in the cart and flip the selected Ritual Box lines to one-time.
+  private switchSubscriptionsToOneTime(): void {
+    for (const item of this.checkoutLines.filter(it => isSubscriptionItem(it))) {
+      this.cartService.setPurchaseType(item, 'one_time');
+    }
   }
 
   private getProductIdentifier(item: CartItem): string | number {

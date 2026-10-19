@@ -69,6 +69,9 @@ export class RitualBoxComponent implements OnInit {
   /** No saved card yet — the account page switches to the Payment cards tab. */
   @Output() addCard = new EventEmitter<void>();
 
+  /** Delivery history row clicked — the account page opens that order (refund/return lives there). */
+  @Output() viewOrder = new EventEmitter<string>();
+
   readonly frequencies: { days: 7 | 14 | 30; label: string }[] = [
     { days: 7, label: 'Every week' },
     { days: 14, label: 'Every 2 weeks' },

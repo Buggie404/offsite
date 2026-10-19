@@ -996,8 +996,11 @@ async function requestRefund(req, res) {
     }
 
     // Refunds are allowed only within the window after delivery (same period purchase points stay pending).
+    // Older orders may lack delivered_at — fall back to when 'delivered' was logged.
     const windowDays = pointsService.REFUND_WINDOW_DAYS;
-    if (order.delivered_at && Date.now() - new Date(order.delivered_at).getTime() > windowDays * 24 * 60 * 60 * 1000) {
+    const deliveredAt = order.delivered_at
+      || [...(order.status_history || [])].reverse().find(h => h.status === 'delivered')?.changed_at;
+    if (deliveredAt && Date.now() - new Date(deliveredAt).getTime() > windowDays * 24 * 60 * 60 * 1000) {
       return res.status(400).json({ error: `Refunds can only be requested within ${windowDays} days of delivery.` });
     }
 

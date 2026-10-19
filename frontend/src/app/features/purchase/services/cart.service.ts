@@ -446,14 +446,16 @@ export class CartService {
     bundleLineSku: string,
     componentProductId: number,
     oldComponentVariantSku: string,
-    newComponentVariantSku: string
+    newComponentVariantSku: string,
+    componentKey?: string
   ): void {
     const updated = this.applyBundleComponentVariantChange(
       [...this.checkoutSummaryItems()],
       bundleLineSku,
       componentProductId,
       oldComponentVariantSku,
-      newComponentVariantSku
+      newComponentVariantSku,
+      componentKey
     );
 
     if (updated) {

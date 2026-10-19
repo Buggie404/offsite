@@ -212,6 +212,11 @@ orderSchema.pre('save', async function(next) {
     }
   }
 
+  // Refund window counts from delivered_at — stamp it on every path into 'delivered'.
+  if (this.isModified('order_status') && this.order_status === 'delivered' && !this.delivered_at) {
+    this.delivered_at = new Date();
+  }
+
   // 3. Status history logging
   if (this.isNew || this.isModified('order_status')) {
     const alreadyLogged = this.status_history.some(h => h.status === this.order_status && this.status_history.indexOf(h) === this.status_history.length - 1);

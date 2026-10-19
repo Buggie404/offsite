@@ -11,10 +11,11 @@ const Order = require('../models/Order');
 //   by later credits. Tiers are never downgraded.
 const TIER_MULTIPLIER = { Seed: 1, Leaf: 1.1, Bloom: 1.2, Zen: 1.5 };
 
-// Orders can be refunded for this many days after delivery; purchase points
-// stay pending for the same period. Override with POINTS_HOLD_DAYS for demos.
-const HOLD_DAYS = Number(process.env.POINTS_HOLD_DAYS) > 0 ? Number(process.env.POINTS_HOLD_DAYS) : 3;
-const REFUND_WINDOW_DAYS = HOLD_DAYS;
+// Refund/return requests are locked to 3 days after the order is delivered.
+// Purchase points stay pending for the same period; override only the points
+// hold with POINTS_HOLD_DAYS for demos — the refund window stays fixed.
+const REFUND_WINDOW_DAYS = 3;
+const HOLD_DAYS = Number(process.env.POINTS_HOLD_DAYS) > 0 ? Number(process.env.POINTS_HOLD_DAYS) : REFUND_WINDOW_DAYS;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

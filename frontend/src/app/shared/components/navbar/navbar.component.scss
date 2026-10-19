@@ -2751,13 +2751,13 @@
         content: "";
         position: absolute;
         display: none;
-        left: 6px;
-        top: 2px;
+        left: 50%;
+        top: 50%;
         width: 5px;
         height: 10px;
         border: solid white;
         border-width: 0 2px 2px 0;
-        transform: rotate(45deg);
+        transform: translate(-50%, -60%) rotate(45deg);
       }
     }
   }
@@ -3157,13 +3157,13 @@
           content: "";
           position: absolute;
           display: none;
-          left: 6px;
-          top: 2px;
+          left: 50%;
+          top: 50%;
           width: 5px;
           height: 10px;
           border: solid white;
           border-width: 0 2px 2px 0;
-          transform: rotate(45deg);
+          transform: translate(-50%, -60%) rotate(45deg);
         }
       }
 

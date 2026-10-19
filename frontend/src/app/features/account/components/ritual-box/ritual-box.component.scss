@@ -497,6 +497,19 @@
 // Inline labels only show in the stacked mobile layout.
 .rb-cell-label { display: none; }
 
+.rb-order-link {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+
+  &:hover { color: var(--color-forest-green); }
+}
+
 // ─── Delivery history: responsive by the card's own width ────
 // The account sidebar eats into the content column on tablets, so this keys
 // off the history card (container query) rather than the viewport.
