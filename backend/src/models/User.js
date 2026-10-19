@@ -76,6 +76,10 @@ const userSchema = new mongoose.Schema({
   membership_tier: { type: String, enum: ['Seed', 'Leaf', 'Bloom', 'Zen'], default: 'Seed' },
   // Posted (spendable) points; may go negative after a reversal and is made up by later credits.
   points: { type: Number, default: 0 },
+  referral_code: { type: String, unique: true, sparse: true, default: null },
+  referred_by: { type: String, default: null },
+  welcome_voucher_code: { type: String, default: null },
+  ritual_dna_quiz_completed: { type: Boolean, default: false },
   addresses: { type: [addressSchema], default: [] },
   payment_methods: { type: [paymentMethodSchema], default: [] },
   saved_products: { type: [savedProductSchema], default: [] },

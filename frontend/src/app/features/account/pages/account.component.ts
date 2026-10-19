@@ -7,7 +7,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
 import { OrderSocketService } from '../../../core/services/order-socket.service';
-import { UserAddress, UserPaymentMethod } from '../../../shared/models/user.model';
+import { MembershipTier, UserAddress, UserPaymentMethod } from '../../../shared/models/user.model';
 import { CheckoutService } from '../../purchase/services/checkout.service';
 import { CartService } from '../../purchase/services/cart.service';
 import { ReviewModalComponent } from '../../purchase/components/review-modal/review-modal.component';
@@ -23,6 +23,7 @@ import { ToastService } from '../../../shared/services/toast.service';
 import { QuickViewModalComponent } from '../../shop/components/quick-view-modal/quick-view-modal.component';
 import { ConfirmationModalComponent } from '../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { Product } from '../../home/models/product.model';
+import { RewardsReferralComponent } from '../components/rewards-referral/rewards-referral.component';
 
 const VIETNAM_BANK_LIST = ['Vietcombank', 'BIDV', 'Techcombank', 'VietinBank', 'Agribank', 'MB Bank', 'VPBank', 'ACB', 'Sacombank', 'TPBank', 'VIB', 'SHB', 'MSB', 'SeABank'];
 import {
@@ -101,6 +102,7 @@ import { isWithinRefundWindow } from '../../purchase/models/refund-window.model'
     PaymentModalComponent,
     ChangePaymentModalComponent,
     ConfirmationModalComponent,
+    RewardsReferralComponent,
     LucideChevronDown,
     LucideChevronUp,
     LucideArrowRight,
@@ -169,7 +171,7 @@ export class AccountComponent implements OnInit, OnDestroy {
       groupLabel: 'ME',
       tabs: [
         { key: 'profile', label: 'Profile information', icon: 'user' },
-        { key: 'rewards', label: 'Rewards',              icon: 'trophy',   comingSoon: true },
+        { key: 'rewards', label: 'Rewards',              icon: 'trophy' },
         { key: 'dna',     label: 'My Ritual DNA',        icon: 'activity', comingSoon: true },
       ]
     }
@@ -209,8 +211,10 @@ export class AccountComponent implements OnInit, OnDestroy {
   }
 
   /** Customer tier from the shared membership system */
-  getCustomerTier(): string {
-    return this.user()?.membership_tier || 'Seed';
+  getCustomerTier(): MembershipTier {
+    const tier = this.user()?.membership_tier;
+    if (tier === 'Leaf' || tier === 'Bloom' || tier === 'Zen') return tier;
+    return 'Seed';
   }
 
   getCustomerTierClass(): string {

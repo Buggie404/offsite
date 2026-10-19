@@ -645,7 +645,8 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
           name: this.signupName,
           email: submitEmail,
           phone: submitPhone,
-          password: this.signupPassword
+          password: this.signupPassword,
+          referral_code: this.signupReferralCode.trim() || undefined
         });
 
         this.registrationId = response.registration_id;

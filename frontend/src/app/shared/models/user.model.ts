@@ -24,6 +24,13 @@ export type MembershipTier = 'Seed' | 'Leaf' | 'Bloom' | 'Zen';
 // Keep in sync with TIER_MULTIPLIER in backend points.service.js.
 export const TIER_POINT_MULTIPLIER: Record<MembershipTier, number> = { Seed: 1, Leaf: 1.1, Bloom: 1.2, Zen: 1.5 };
 
+export const TIER_LIFETIME_THRESHOLDS: Record<MembershipTier, number> = {
+  Seed: 0,
+  Leaf: 150,
+  Bloom: 400,
+  Zen: 1000
+};
+
 export interface UserProfile {
   _id: string;
   user_id: string;
@@ -36,4 +43,6 @@ export interface UserProfile {
   membership_tier?: MembershipTier;
   /** Posted (spendable) points; can be negative after a reversal. */
   points?: number;
+  referral_code?: string;
+  referred_by?: string;
 }

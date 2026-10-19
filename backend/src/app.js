@@ -89,6 +89,7 @@ app.use('/api/blogs', require('./routes/blogs.routes'));
 app.use('/api/posts', require('./routes/posts.routes'));
 app.use('/api/comments', require('./routes/comments.routes'));
 app.use('/api/notifications', require('./routes/notifications.routes'));
+app.use('/api/loyalty', require('./routes/loyalty.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 
 // Health check

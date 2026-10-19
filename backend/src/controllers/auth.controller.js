@@ -100,7 +100,7 @@ async function generateCommunityName(userCollection, displayName) {
 // Đăng ký tài khoản mới (Register)
 async function register(req, res) {
   try {
-    const { email, phone, password, name, profile_name } = req.body;
+    const { email, phone, password, name, profile_name, referral_code } = req.body;
     const displayName = profile_name || name;
    
     // phải có password + displayName + ít nhất email OR phone
@@ -157,6 +157,10 @@ async function register(req, res) {
     const normalizedEmail = email ? email.trim().toLowerCase() : null;
     const normalizedPhone = phone ? phone.trim() : null;
 
+    const normalizedReferral = referral_code
+      ? String(referral_code).trim().toUpperCase()
+      : null;
+
     await otpCollection.insertOne({
       registration_id,
       email: normalizedEmail,
@@ -164,6 +168,7 @@ async function register(req, res) {
       password_hash: hashedPassword,
       profile_name: displayName,
       avatar_url: req.body.avatar_url || null,
+      referral_code: normalizedReferral,
       otp,
       attempts: 0,
       expiresAt: new Date(Date.now() + OTP_EXPIRE_MS),
@@ -246,6 +251,8 @@ async function verifyRegistrationOtp(req, res) {
       community_name,
       role: 'customer',
       status: 'active',
+      membership_tier: 'Seed',
+      points: 0,
       addresses: [],
       payment_methods: [],
       saved_products: [],
@@ -261,6 +268,19 @@ async function verifyRegistrationOtp(req, res) {
 
     const result = await userCollection.insertOne(newUser);
     await otpCollection.deleteOne({ _id: pending._id });
+
+    try {
+      const loyaltyService = require('../services/loyalty.service');
+      await loyaltyService.handleReferralRegistration(newUser, pending.referral_code);
+      if (pending.referral_code) {
+        await userCollection.updateOne(
+          { user_id: newUser.user_id },
+          { $set: { referred_by: pending.referral_code } }
+        );
+      }
+    } catch (referralErr) {
+      console.error('Referral registration reward failed:', referralErr);
+    }
 
     const token = jwt.sign(
       { user_id: result.insertedId, email: newUser.email || '', role: newUser.role },

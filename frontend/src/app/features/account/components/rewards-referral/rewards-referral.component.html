@@ -1,0 +1,216 @@
+<section class="rewards-dashboard" aria-label="Rewards and referrals">
+  @if (loading()) {
+    <p class="rewards-loading">Loading rewards…</p>
+  } @else {
+    @let theme = tierTheme(activeTier);
+
+    <section
+      class="tier-card"
+      [style.background]="theme.cardBackground"
+      [style.color]="activeTier === 'Zen' ? '#f5f7f2' : '#1a1a1a'"
+      aria-label="Membership tier overview"
+    >
+      <div class="tier-card__content">
+        <div class="tier-card__header">
+          <div class="tier-card__label-row">
+            <span class="tier-card__eyebrow">YOUR TIER</span>
+            <span class="tier-badge">
+              <svg lucideGift [size]="12" aria-hidden="true"></svg>
+              {{ activeTier }}
+            </span>
+            <button type="button" class="tier-info-btn" (click)="openTierInfo()" aria-label="View tier benefits">
+              <svg lucideInfo [size]="14" aria-hidden="true"></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="points-summary">
+          <div class="summary-item">
+            <strong>{{ availablePoints | number }}</strong>
+            <span>Available points</span>
+          </div>
+          <div class="summary-item">
+            <strong>{{ lifetimePoints | number }}</strong>
+            <span>Lifetime points · decides your tier</span>
+          </div>
+          <div class="summary-item">
+            <strong>{{ pointsPerDollar | number : '1.0-1' }}×</strong>
+            <span>Points per $1</span>
+          </div>
+        </div>
+
+        <div class="tier-progress">
+          <div class="tier-progress__labels">
+            <span>{{ activeTier }}</span>
+            <span>{{ progressLabel }}</span>
+          </div>
+          <div class="tier-progress__track" [style.background]="theme.progressTrack">
+            <div
+              class="tier-progress__fill"
+              [style.width.%]="progressPercent"
+              [style.background]="theme.progressFill"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tier-card__decoration" [style.box-shadow]="'0 0 0 24px ' + theme.ring + ', 0 0 0 48px rgba(255,255,255,0.06)'" aria-hidden="true"></div>
+    </section>
+
+    <section class="dashboard-card history-card" aria-labelledby="points-history-title">
+      <h2 id="points-history-title" class="card-eyebrow">POINTS HISTORY</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">DATE</th>
+              <th scope="col">ACTIVITY</th>
+              <th scope="col">POINTS</th>
+              <th scope="col">STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if ((dashboard()?.pointsHistory?.length || 0) === 0) {
+              <tr>
+                <td colspan="4" class="empty-row">Your points activity will appear here.</td>
+              </tr>
+            } @else {
+              @for (row of dashboard()?.pointsHistory || []; track row.id) {
+                <tr>
+                  <td>{{ formatDate(row.date) }}</td>
+                  <td>{{ row.activity }}</td>
+                  <td [class.points-negative]="row.points < 0">{{ formatPoints(row.points) }}</td>
+                  <td>{{ row.status }}</td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="dashboard-card redeem-card" aria-labelledby="redeem-title">
+      <div class="card-heading">
+        <div>
+          <h2 id="redeem-title" class="card-eyebrow">REDEEM POINTS</h2>
+          <p class="card-note">Redeeming does not lower your tier</p>
+        </div>
+      </div>
+
+      <div class="reward-options">
+        @for (reward of dashboard()?.redeemRewards || []; track reward.id) {
+          <article class="reward-option">
+            <h3>{{ reward.title }}</h3>
+            <p>{{ reward.subtitle }}</p>
+            <div class="reward-action">
+              <span>{{ reward.pointsCost | number }} pts</span>
+              <button
+                type="button"
+                [disabled]="!reward.canRedeem || redeemingId() === reward.id"
+                (click)="redeem(reward.id)"
+              >
+                {{ redeemingId() === reward.id ? 'Redeeming…' : 'Redeem' }}
+              </button>
+            </div>
+          </article>
+        }
+      </div>
+    </section>
+
+    <section class="dashboard-card referral-section" aria-labelledby="referral-title">
+      <div class="card-heading referral-heading">
+        <div>
+          <h2 id="referral-title" class="card-eyebrow">INVITE FRIENDS</h2>
+          <p>Share your personal link with someone who loves discovering good things.</p>
+        </div>
+        <svg lucideUsers [size]="22" aria-hidden="true"></svg>
+      </div>
+
+      @if (dashboard()?.welcomeVoucherCode) {
+        <p class="welcome-voucher-note">
+          Your welcome voucher: <strong>{{ dashboard()?.welcomeVoucherCode }}</strong> ($5 off your next order)
+        </p>
+      }
+
+      <div class="referral-link-card">
+        <div class="referral-link-copy">
+          <span>YOUR PERSONAL REFERRAL LINK</span>
+          @if (activeReferralCode) {
+            <strong>{{ referralLink }}</strong>
+          } @else {
+            <strong class="referral-unavailable">Your referral link is not available yet.</strong>
+          }
+        </div>
+        <button class="copy-button" type="button" [disabled]="!activeReferralCode" (click)="copyReferralLink()">
+          <svg lucideCopy [size]="15" aria-hidden="true"></svg>
+          <span>Copy</span>
+        </button>
+      </div>
+
+      <h3 class="referral-history-title">REFERRAL ACTIVITY</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">FRIEND</th>
+              <th scope="col">STATUS</th>
+              <th scope="col">POINTS</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if ((dashboard()?.referralActivity?.length || 0) === 0) {
+              <tr>
+                <td colspan="3" class="empty-row">Your referral activity will appear here.</td>
+              </tr>
+            } @else {
+              @for (row of dashboard()?.referralActivity || []; track row.id) {
+                <tr>
+                  <td>{{ row.friend }}</td>
+                  <td>{{ row.status }}</td>
+                  <td>{{ formatPoints(row.points) }}</td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  @if (showTierInfo()) {
+    <div class="tier-modal-backdrop" (click)="closeTierInfo()" aria-hidden="true"></div>
+    <div class="tier-modal" role="dialog" aria-modal="true" aria-labelledby="tier-modal-title">
+      <div class="tier-modal__header">
+        <div>
+          <p class="tier-modal__eyebrow">Membership tiers</p>
+          <h3 id="tier-modal-title">How tiers work</h3>
+        </div>
+        <button type="button" class="tier-modal__close" (click)="closeTierInfo()" aria-label="Close">
+          <svg lucideX [size]="18" aria-hidden="true"></svg>
+        </button>
+      </div>
+
+      <p class="tier-modal__intro">
+        Lifetime points decide your tier. Redeeming rewards only uses available points and does not reduce lifetime points.
+      </p>
+
+      <div class="tier-modal__grid">
+        @for (tier of tierModalTiers; track tier) {
+          <article class="tier-modal__card" [class.tier-modal__card--active]="tier === activeTier">
+            <div class="tier-modal__card-head">
+              <strong>{{ tier }}</strong>
+              @if (tier === activeTier) {
+                <span class="tier-modal__current">Current</span>
+              }
+            </div>
+            <ul>
+              @for (benefit of benefitsForTier(tier); track benefit) {
+                <li>{{ benefit }}</li>
+              }
+            </ul>
+          </article>
+        }
+      </div>
+    </div>
+  }
+</section>

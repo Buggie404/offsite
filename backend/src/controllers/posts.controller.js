@@ -164,6 +164,13 @@ async function createPost(req, res) {
       console.error('Error creating post-creation notification:', notifError);
     }
 
+    try {
+      const loyaltyService = require('../services/loyalty.service');
+      await loyaltyService.scheduleCommunityPointsForPost(user.user_id, savedPost);
+    } catch (pointsErr) {
+      console.error('Error scheduling community points:', pointsErr);
+    }
+
     res.status(201).json({
       message: 'Post created successfully',
       data: savedPost

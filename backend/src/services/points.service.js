@@ -46,6 +46,13 @@ async function toAppUserId(id) {
 async function adjustBalance(userId, delta) {
   if (!delta) return;
   await User.updateOne({ user_id: userId }, { $inc: { points: delta } });
+  try {
+    const { getCollections } = require('../config/db');
+    const { userCollection } = await getCollections();
+    await userCollection.updateOne({ user_id: userId }, { $inc: { points: delta } });
+  } catch (_) {
+    // Native user collection may be unavailable in some test contexts.
+  }
 }
 
 // ─── Purchase ───────────────────────────────────────────────────
@@ -138,31 +145,81 @@ async function reverseTransaction(txn) {
 
 // Post pending purchase points whose refund window has ended.
 // Orders with a refund under review stay pending; refunded orders are reversed.
-async function postDuePoints(now = new Date()) {
+async function postPendingByType(types, holdMs, now, validateTxn, onPosted) {
   const due = await PointTransaction.find({
     status: 'pending',
-    type: 'purchase',
-    created_at: { $lte: new Date(now.getTime() - HOLD_DAYS * DAY_MS) }
+    type: { $in: types },
+    created_at: { $lte: new Date(now.getTime() - holdMs) }
   });
 
   let posted = 0;
   for (const txn of due) {
-    const order = await Order.findOne({ order_id: txn.ref_id }, { order_status: 1 }).lean();
-    if (order?.order_status === 'pending_refund') continue;
-    if (order?.order_status === 'refund') {
-      await reverseTransaction(txn);
-      continue;
+    if (validateTxn) {
+      const verdict = await validateTxn(txn);
+      if (verdict === 'skip') continue;
+      if (verdict === 'reverse') {
+        await reverseTransaction(txn);
+        continue;
+      }
     }
-    // Claim the row first so overlapping runs can't post it twice.
+
     const claimed = await PointTransaction.findOneAndUpdate(
       { _id: txn._id, status: 'pending' },
       { $set: { status: 'posted', posted_at: now } }
     );
     if (claimed) {
       await adjustBalance(txn.user_id, txn.amount);
+      if (onPosted) {
+        await onPosted(claimed);
+      }
       posted++;
     }
   }
+  return posted;
+}
+
+async function postDuePoints(now = new Date()) {
+  let posted = 0;
+
+  posted += await postPendingByType(['purchase'], HOLD_DAYS * DAY_MS, now, async (txn) => {
+    const order = await Order.findOne({ order_id: txn.ref_id }, { order_status: 1 }).lean();
+    if (order?.order_status === 'pending_refund') return 'skip';
+    if (order?.order_status === 'refund') return 'reverse';
+    return 'post';
+  });
+
+  const Referral = require('../models/Referral');
+  posted += await postPendingByType(
+    ['referral_order'],
+    HOLD_DAYS * DAY_MS,
+    now,
+    async (txn) => {
+      const order = await Order.findOne({ order_id: txn.ref_id }, { order_status: 1 }).lean();
+      if (!order || order.order_status !== 'delivered') return 'skip';
+      if (order.order_status === 'refund' || order.order_status === 'pending_refund') return 'reverse';
+      return 'post';
+    },
+    async (txn) => {
+      await Referral.updateOne(
+        { first_order_id: txn.ref_id, order_reward_status: 'awaiting_post' },
+        { $set: { order_reward_status: 'posted' } }
+      );
+    }
+  );
+
+  posted += await postPendingByType(
+    ['post_approved', 'recipe_approved', 'recipe_curated'],
+    DAY_MS,
+    now
+  );
+
+  try {
+    const loyaltyService = require('./loyalty.service');
+    await loyaltyService.finalizeReferralOrderRewards(now);
+  } catch (loyaltyErr) {
+    console.error('Referral finalize job failed:', loyaltyErr);
+  }
+
   return posted;
 }
 

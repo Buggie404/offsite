@@ -908,6 +908,13 @@ async function receiveOrder(req, res) {
       console.error('Error awarding purchase points:', pointsErr);
     }
 
+    try {
+      const loyaltyService = require('../services/loyalty.service');
+      await loyaltyService.handleOrderDelivered(order);
+    } catch (referralErr) {
+      console.error('Error processing referral order reward:', referralErr);
+    }
+
     const refundRequest = await getLatestRefundRequest(order.order_id);
 
     res.json({

@@ -400,6 +400,19 @@
     gap: 12px;
   }
 
+  .page-heading-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .page-subtitle {
+    margin: 0;
+    color: rgba(26, 26, 26, 0.62);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
   .btn-collapse-all {
     display: flex;
     align-items: center;
@@ -486,12 +499,31 @@
     gap: 4px;
   }
 
+  .page-title-stack--rewards {
+    gap: 8px;
+  }
+
   .page-subtitle {
     margin: 0;
     font-family: var(--font-body);
     font-size: 12px;
     line-height: 16px;
     color: var(--color-warm-brown);
+  }
+
+  &--rewards {
+    margin-bottom: 30px;
+
+    .page-title {
+      font-size: clamp(34px, 4vw, 46px);
+      line-height: 1.05;
+      letter-spacing: -0.045em;
+    }
+
+    .page-subtitle {
+      font-size: 14px;
+      line-height: 1.4;
+    }
   }
 
   .page-title {
