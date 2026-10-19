@@ -196,6 +196,9 @@
                   <svg *ngSwitchCase="'REFUND_REQUESTED'" lucideRefreshCw    [size]="15"></svg>
                   <svg *ngSwitchCase="'REFUND_APPROVED'" lucideCheckCheck    [size]="15"></svg>
                   <svg *ngSwitchCase="'REFUND_REJECTED'" lucideX             [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_PAUSED'"    lucideRepeat [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_RESUMED'"   lucideRepeat [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_CANCELLED'" lucideX      [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_CREATED'"    lucideArrowRight    [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_LIKED'"      lucideHeart         [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_COMMENTED'"  lucideMessageSquare [size]="15"></svg>
@@ -221,6 +224,9 @@
                       <span *ngSwitchCase="'REFUND_REQUESTED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been submitted.</span>
                       <span *ngSwitchCase="'REFUND_APPROVED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been approved.</span>
                       <span *ngSwitchCase="'REFUND_REJECTED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been rejected: "{{ item.comment_content }}"</span>
+                      <span *ngSwitchCase="'SUBSCRIPTION_PAUSED'">Your Ritual Box <strong>{{ item.post_id }}</strong> has been paused{{ item.comment_content ? ': "' + item.comment_content + '"' : '.' }}</span>
+                      <span *ngSwitchCase="'SUBSCRIPTION_RESUMED'">Your Ritual Box <strong>{{ item.post_id }}</strong> is active again{{ item.comment_content ? ': "' + item.comment_content + '"' : '.' }}</span>
+                      <span *ngSwitchCase="'SUBSCRIPTION_CANCELLED'">Your Ritual Box <strong>{{ item.post_id }}</strong> has been cancelled{{ item.comment_content ? ': "' + item.comment_content + '"' : '.' }}</span>
                     </ng-container>
                   </span>
                 </p>

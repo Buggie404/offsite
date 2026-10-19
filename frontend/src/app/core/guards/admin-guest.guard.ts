@@ -1,7 +1,7 @@
 import { inject, PLATFORM_ID } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { isPlatformBrowser } from '@angular/common';
-import { AdminAuthService } from '../../admin/services/admin-auth.service';
+import { AdminAuthService } from '../../admin/auth/services/admin-auth.service';
 
 export const adminGuestGuard: CanActivateFn = () => {
   const platformId = inject(PLATFORM_ID);

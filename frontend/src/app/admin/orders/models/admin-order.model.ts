@@ -1,3 +1,5 @@
+import { OrderType } from '../../../shared/utils/order-type';
+
 export type AdminOrderStatus =
   | 'pending'
   | 'processing'
@@ -24,8 +26,10 @@ export interface AdminOrderListItem {
   _id: string;
   order_id: string;
   customer_name: string;
-  customer_email: string;
+  customer_email: string | null;
+  user_id: string | null;
   created_at: string;
+  order_type: OrderType;
   order_status: AdminOrderStatus;
   total: number;
   currency: string;
@@ -127,6 +131,7 @@ export interface AdminOrderDetail {
   /** Set on orders billed by the Ritual Box charge job. */
   subscription_id?: string | null;
   subscription_cycle?: number | null;
+  ritual_boxes?: AdminOrderRitualBox[];
   pricing: {
     subtotal: number;
     shipping_cost: number;
@@ -136,8 +141,8 @@ export interface AdminOrderDetail {
   };
   payment_label: string;
   customer_name: string;
-  customer_email: string;
-  customer_phone: string;
+  customer_email: string | null;
+  customer_phone: string | null;
   shipping_address: string;
   status_history: AdminOrderStatusHistoryEntry[];
   refund_request: AdminOrderRefundRequest | null;
@@ -149,3 +154,14 @@ export interface AdminOrderDetailResponse {
 }
 
 export type AdminOrderStatusUpdate = 'processing' | 'shipping';
+
+export interface AdminOrderRitualBox {
+  subscription_id: string;
+  relation: 'renewal' | 'started';
+  product_name: string;
+  variant_label: string;
+  quantity: number;
+  frequency_days: number;
+  next_charge_at: string | null;
+  status: string;
+}

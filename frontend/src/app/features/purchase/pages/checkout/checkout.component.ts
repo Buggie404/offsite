@@ -2231,7 +2231,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       delivery_info: {
         recipient_name: this.delivery.name,
         mobile: this.delivery.mobile,
-        email: this.delivery.email || 'guest@example.com',
+        email: this.delivery.email?.trim() || null,
         city: this.delivery.city,
         address: this.delivery.address,
         note: this.delivery.note || ''

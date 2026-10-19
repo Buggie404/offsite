@@ -601,6 +601,49 @@
   margin: 6px 0 0;
 }
 
+.ritual-box-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 12px 18px;
+  margin-bottom: var(--space-4);
+  background: var(--color-sage);
+  border: 1px solid rgba(55, 85, 52, 0.25);
+  border-radius: var(--radius-card);
+  color: var(--color-near-black);
+}
+
+.ritual-box-banner__icon {
+  color: var(--color-forest-green);
+  flex-shrink: 0;
+}
+
+.ritual-box-banner__text {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+
+  strong {
+    font-weight: 600;
+  }
+}
+
+.ritual-box-banner__link {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-near-black);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--color-forest-green);
+  }
+}
+
 .refund-request-banner {
   display: flex;
   align-items: center;

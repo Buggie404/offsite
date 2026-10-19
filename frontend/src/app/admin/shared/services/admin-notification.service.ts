@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, forkJoin, map, catchError, of } from 'rxjs';
-import { AdminOrderService } from './admin-order.service';
-import { AdminOrderListItem } from '../models/admin-order.model';
+import { AdminOrderService } from '../../orders/services/admin-order.service';
+import { AdminOrderListItem } from '../../orders/models/admin-order.model';
 
 export type AdminNotificationType =
   | 'refund_pending'

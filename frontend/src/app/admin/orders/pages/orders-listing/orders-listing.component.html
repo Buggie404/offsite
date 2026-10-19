@@ -138,6 +138,7 @@
           <th>Order ID</th>
           <th>Customer</th>
           <th>Date</th>
+          <th>Type</th>
           <th>Status</th>
           <th>Total</th>
           <th>Actions</th>
@@ -152,10 +153,18 @@
               </a>
             </td>
             <td>
-              <div>{{ order.customer_name }}</div>
-              <div class="data-table__muted">{{ order.customer_email }}</div>
+              @if (order.user_id) {
+                <!-- Customer detail page is not built yet; the link is wired for it. -->
+                <a [routerLink]="['/admin/customers', order.user_id]" class="data-table__customer-link">
+                  {{ order.customer_name }}
+                </a>
+              } @else {
+                <div>{{ order.customer_name }}</div>
+              }
+              <div class="data-table__muted">{{ order.customer_email || '—' }}</div>
             </td>
             <td class="data-table__muted">{{ formatDate(order.created_at) }}</td>
+            <td><app-order-type-badge [orderType]="order.order_type"></app-order-type-badge></td>
             <td>
               <span class="status-badge" [ngClass]="statusClass(order.order_status)">
                 {{ statusLabel(order.order_status) }}

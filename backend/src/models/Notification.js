@@ -23,7 +23,10 @@ const notificationSchema = new mongoose.Schema({
       'ORDER_CANCELED',
       'REFUND_REQUESTED',
       'REFUND_APPROVED',
-      'REFUND_REJECTED'
+      'REFUND_REJECTED',
+      'SUBSCRIPTION_PAUSED',
+      'SUBSCRIPTION_RESUMED',
+      'SUBSCRIPTION_CANCELLED'
     ],
     required: true
   },

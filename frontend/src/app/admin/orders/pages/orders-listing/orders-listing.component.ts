@@ -5,8 +5,8 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { LucideDownload, LucideEye, LucideChevronDown, LucideCalendar } from '@lucide/angular';
 import { Subject, catchError, distinctUntilChanged, interval, map, of, switchMap } from 'rxjs';
 import { AdminOrderService } from '../../services/admin-order.service';
-import { AdminRefreshService } from '../../services/admin-refresh.service';
-import { OrderSocketService } from '../../../core/services/order-socket.service';
+import { AdminRefreshService } from '../../../shared/services/admin-refresh.service';
+import { OrderSocketService } from '../../../../core/services/order-socket.service';
 import {
   AdminDateRange,
   AdminOrderListItem,
@@ -20,10 +20,12 @@ interface StatusFilterOption {
   label: string;
 }
 
+import { ORDER_TYPE_LABEL } from '../../../../shared/utils/order-type';
+import { OrderTypeBadgeComponent } from '../../../../shared/components/order-type-badge/order-type-badge.component';
 @Component({
   selector: 'app-orders-listing',
   standalone: true,
-  imports: [CommonModule, RouterLink, LucideDownload, LucideEye, LucideChevronDown, LucideCalendar],
+  imports: [CommonModule, RouterLink, LucideDownload, LucideEye, LucideChevronDown, LucideCalendar, OrderTypeBadgeComponent],
   templateUrl: './orders-listing.component.html',
   styleUrl: './orders-listing.component.scss'
 })
@@ -302,12 +304,13 @@ export class OrdersListingComponent implements OnInit {
   exportOrders(): void {
     if (!this.orders.length) return;
 
-    const headers = ['Order ID', 'Customer', 'Email', 'Date', 'Status', 'Total'];
+    const headers = ['Order ID', 'Customer', 'Email', 'Date', 'Type', 'Status', 'Total'];
     const rows = this.orders.map((order) => [
       order.order_id,
       order.customer_name,
-      order.customer_email,
+      order.customer_email ?? '',
       this.formatDate(order.created_at),
+      ORDER_TYPE_LABEL[order.order_type],
       this.statusLabel(order.order_status),
       String(order.total)
     ]);

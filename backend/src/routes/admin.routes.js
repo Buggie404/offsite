@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
+const adminSubscriptionsController = require('../controllers/admin-subscriptions.controller');
 const authController = require('../controllers/auth.controller');
 const {
   authMiddleware,
@@ -20,6 +21,11 @@ router.put('/orders/:id/status', authMiddleware, requireRole(...ADMIN_ORDER_MANA
 router.post('/orders/:id/refund/approve', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog, adminController.approveRefundRequest);
 router.post('/orders/:id/refund/reject', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog, adminController.rejectRefundRequest);
 router.post('/orders/:id/notes', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog, adminController.addInternalNote);
+
+// Subscriptions (QLSP, Admin CC): list, detail, pause / reactivate / frequency / cancel / internal note.
+router.get('/subscriptions', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminSubscriptionsController.getSubscriptions);
+router.get('/subscriptions/:id', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminSubscriptionsController.getSubscription);
+router.post('/subscriptions/:id/:action', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog, adminSubscriptionsController.runAction);
 
 // ── DEV ONLY: Fix admin roles in DB ────────────────────────────────────
 // Gọi POST /api/admin/dev/fix-admin-roles để update role trong DB

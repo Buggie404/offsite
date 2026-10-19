@@ -1,7 +1,7 @@
 import { inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { CanActivateFn, Router } from '@angular/router';
-import { AdminAuthService } from '../../admin/services/admin-auth.service';
+import { AdminAuthService } from '../../admin/auth/services/admin-auth.service';
 import { ADMIN_NAV_GROUPS } from '../../admin/admin-navigation.config';
 import { ADMIN_DEFAULT_ROUTES } from '../../admin/admin-navigation.config';
 import { AdminRole } from '../../shared/models/admin-role.model';

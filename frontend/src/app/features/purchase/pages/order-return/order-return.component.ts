@@ -23,11 +23,13 @@ const VIETNAM_BANK_LIST = ['Vietcombank', 'BIDV', 'Techcombank', 'VietinBank', '
 
 import { isWithinRefundWindow, REFUND_WINDOW_DAYS } from '../../models/refund-window.model';
 
+import { OrderTypeBadgeComponent } from '../../../../shared/components/order-type-badge/order-type-badge.component';
 @Component({
   selector: 'app-order-return',
   standalone: true,
   imports: [
     CommonModule,
+    OrderTypeBadgeComponent,
     FormsModule,
     RouterLink,
     LucideArrowLeft,

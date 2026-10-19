@@ -12,14 +12,15 @@ import {
   LucideCheck,
   LucideX,
   LucideUndo2,
-  LucideRepeat
+  LucideRepeat,
+  LucideInfo
 } from '@lucide/angular';
-import { OrderTypeBadgeComponent } from '../../../shared/components/order-type-badge/order-type-badge.component';
-import { getSubscriptionLineLabel } from '../../../shared/utils/order-type';
+import { OrderTypeBadgeComponent } from '../../../../shared/components/order-type-badge/order-type-badge.component';
+import { getFrequencyLabel, getSubscriptionLineLabel } from '../../../../shared/utils/order-type';
 import { AdminOrderService } from '../../services/admin-order.service';
-import { AdminAuthService } from '../../services/admin-auth.service';
-import { AdminRefreshService } from '../../services/admin-refresh.service';
-import { OrderSocketService } from '../../../core/services/order-socket.service';
+import { AdminAuthService } from '../../../auth/services/admin-auth.service';
+import { AdminRefreshService } from '../../../shared/services/admin-refresh.service';
+import { OrderSocketService } from '../../../../core/services/order-socket.service';
 import {
   AdminInternalNote,
   AdminOrderDetail,
@@ -27,6 +28,7 @@ import {
   AdminOrderRefundItem,
   AdminOrderRefundRequest,
   AdminOrderStatus,
+  AdminOrderRitualBox,
   AdminOrderStatusUpdate
 } from '../../models/admin-order.model';
 
@@ -56,13 +58,36 @@ interface TimelineStep {
     LucideEye,
     LucideCheck,
     LucideX,
-    LucideUndo2
+    LucideUndo2,
+    LucideInfo
   ],
   templateUrl: './order-detail.component.html',
   styleUrl: './order-detail.component.scss'
 })
 export class OrderDetailComponent implements OnInit {
   readonly getSubscriptionLineLabel = getSubscriptionLineLabel;
+
+  ritualBoxProduct(box: AdminOrderRitualBox): string {
+    const name = [box.product_name, box.variant_label].filter(Boolean).join(' ');
+    return box.quantity > 1 ? `${box.quantity} × ${name}` : name;
+  }
+
+  ritualBoxFrequency(box: AdminOrderRitualBox): string {
+    return getFrequencyLabel(box.frequency_days).toLowerCase();
+  }
+
+  ritualBoxNextStep(box: AdminOrderRitualBox): string {
+    switch (box.status) {
+      case 'active':
+        return box.next_charge_at
+          ? `next delivery ${new Date(box.next_charge_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+          : 'active';
+      case 'paused': return 'paused';
+      case 'payment_failed': return 'payment failed';
+      case 'suspended': return 'suspended';
+      default: return 'cancelled';
+    }
+  }
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);

@@ -2,8 +2,8 @@ import { Component, inject } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { Router } from '@angular/router';
 import { LucideArrowLeft, LucideLogOut, LucideShieldAlert } from '@lucide/angular';
-import { AdminAuthService } from '../../services/admin-auth.service';
-import { ADMIN_ROLE_LABELS } from '../../../shared/models/admin-role.model';
+import { AdminAuthService } from '../../../auth/services/admin-auth.service';
+import { ADMIN_ROLE_LABELS } from '../../../../shared/models/admin-role.model';
 
 @Component({
   selector: 'app-admin-forbidden',

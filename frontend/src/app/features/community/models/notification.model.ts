@@ -9,7 +9,7 @@ export interface Notification {
   notification_id: string;
   recipient_id: string;
   sender: NotificationSender | null;
-  type: 'POST_CREATED' | 'POST_LIKED' | 'POST_COMMENTED' | 'COMMENT_REPLIED' | 'COMMENT_LIKED' | 'ORDER_PLACED' | 'ORDER_SHIPPING' | 'ORDER_CANCELED' | 'REFUND_REQUESTED' | 'REFUND_APPROVED' | 'REFUND_REJECTED';
+  type: 'POST_CREATED' | 'POST_LIKED' | 'POST_COMMENTED' | 'COMMENT_REPLIED' | 'COMMENT_LIKED' | 'ORDER_PLACED' | 'ORDER_SHIPPING' | 'ORDER_CANCELED' | 'REFUND_REQUESTED' | 'REFUND_APPROVED' | 'REFUND_REJECTED' | 'SUBSCRIPTION_PAUSED' | 'SUBSCRIPTION_RESUMED' | 'SUBSCRIPTION_CANCELLED';
   post_id: string;
   comment_id?: string | null;
   comment_content?: string | null;

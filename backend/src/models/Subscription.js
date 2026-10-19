@@ -13,10 +13,30 @@ const pricingSnapshotSchema = new mongoose.Schema({
 const deliveryInfoSchema = new mongoose.Schema({
   recipient_name: { type: String, required: true },
   mobile:         { type: String, required: true },
-  email:          { type: String, required: true },
+  email:          { type: String, default: null },
   city:           { type: String, required: true },
   address:        { type: String, required: true },
   note:           { type: String, default: '' }
+}, { _id: false });
+
+const adminMessageSchema = new mongoose.Schema({
+  action:  { type: String, enum: ['pause', 'cancel', 'resume', 'reactivate', 'frequency'], required: true },
+  reason:  { type: String, default: null },
+  message: { type: String, default: '' },
+  sent_by: { type: String, required: true },                      // user_id của admin
+  sent_at: { type: Date, default: Date.now }
+}, { _id: false });
+
+const replacementOfferSchema = new mongoose.Schema({
+  product_id: { type: String, required: true },
+  variant_id: { type: String, required: true },
+  offered_at: { type: Date, default: Date.now },
+  offered_by: { type: String, required: true }
+}, { _id: false });
+
+const pendingCancelSchema = new mongoose.Schema({
+  reason: { type: String, required: true },
+  by:     { type: String, required: true }                        // user_id của admin
 }, { _id: false });
 
 const subscriptionSchema = new mongoose.Schema({
@@ -53,7 +73,9 @@ const subscriptionSchema = new mongoose.Schema({
   pending_changes: {
     frequency_days: { type: Number, enum: [7, 14, 30, null], default: null },
     skip:           { type: Boolean, default: false },
-    pause_option:   { type: String, enum: ['1_month', '2_months', 'until_reactivated', null], default: null }
+    pause_option:   { type: String, enum: ['1_month', '2_months', 'until_reactivated', null], default: null },
+    // Admin huỷ "sau lần giao kế tiếp": chu kỳ sắp tới vẫn charge & giao, rồi chuyển cancelled_by_admin.
+    cancel:         { type: pendingCancelSchema, default: null }
   },
 
   // Điều chỉnh thông minh (SUBSCRIPTION_ADJUSTED): gợi ý rút ngắn chu kỳ kế tiếp một mức,
@@ -75,7 +97,17 @@ const subscriptionSchema = new mongoose.Schema({
 
   cancelled_at:  { type: Date, default: null },
   cancel_reason: { type: String, default: null },                 // tuỳ chọn với khách, bắt buộc với cancelled_by_admin
-  cancelled_by:  { type: String, default: null }                  // user_id của admin khi cancelled_by_admin
+  cancelled_by:  { type: String, default: null },                 // user_id của admin khi cancelled_by_admin
+
+  // Admin (QLSP / Admin CC): tin nhắn gửi khách khi tạm dừng / huỷ / kích hoạt lại, và ghi chú nội bộ.
+  admin_messages: { type: [adminMessageSchema], default: [] },
+  // Admin tạm dừng vì hết hàng có thể đề nghị sản phẩm thay thế; khách chấp nhận trong Ritual Box.
+  replacement_offer: { type: replacementOfferSchema, default: null },
+  internal_note: {
+    text:       { type: String, default: '' },
+    updated_by: { type: String, default: null },
+    updated_at: { type: Date, default: null }
+  }
 }, {
   collection: 'Subscriptions',
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

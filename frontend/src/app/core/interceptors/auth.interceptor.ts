@@ -1,7 +1,7 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { AdminAuthService } from '../../admin/services/admin-auth.service';
+import { AdminAuthService } from '../../admin/auth/services/admin-auth.service';
 import { environment } from '../../../environments/environment';
 
 // Các domain bên thứ 3 KHÔNG được gắn Authorization của app vào

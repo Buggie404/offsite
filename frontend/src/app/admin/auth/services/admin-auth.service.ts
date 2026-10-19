@@ -2,8 +2,8 @@ import { Injectable, signal, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, timeout } from 'rxjs';
-import { AdminRole, isAdminRole } from '../../shared/models/admin-role.model';
-import { ADMIN_DEFAULT_ROUTES } from '../admin-navigation.config';
+import { AdminRole, isAdminRole } from '../../../shared/models/admin-role.model';
+import { ADMIN_DEFAULT_ROUTES } from '../../admin-navigation.config';
 
 export interface AdminUser {
   _id: string;

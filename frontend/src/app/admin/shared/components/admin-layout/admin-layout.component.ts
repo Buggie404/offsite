@@ -39,14 +39,14 @@ import {
   LucideStar,
   LucideListChecks
 } from '@lucide/angular';
-import { AdminAuthService } from '../../services/admin-auth.service';
+import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { AdminRefreshService } from '../../services/admin-refresh.service';
 import {
   AdminNotification,
   AdminNotificationService
 } from '../../services/admin-notification.service';
-import { ADMIN_NAV_GROUPS, AdminNavGroup, AdminNavItem } from '../../admin-navigation.config';
-import { ADMIN_ROLE_LABELS } from '../../../shared/models/admin-role.model';
+import { ADMIN_NAV_GROUPS, AdminNavGroup, AdminNavItem } from '../../../admin-navigation.config';
+import { ADMIN_ROLE_LABELS } from '../../../../shared/models/admin-role.model';
 
 @Component({
   selector: 'app-admin-layout',

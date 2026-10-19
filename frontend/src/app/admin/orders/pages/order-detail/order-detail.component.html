@@ -23,12 +23,26 @@
         </span>
       </span>
     </div>
-    @if (order.subscription_id) {
-      <p class="order-hero__meta">
-        Ritual Box {{ order.subscription_id }}{{ order.subscription_cycle ? ' · delivery #' + order.subscription_cycle : '' }}
-      </p>
-    }
   </div>
+
+  @for (box of order.ritual_boxes ?? []; track box.subscription_id) {
+    <div class="ritual-box-banner" role="note">
+      <svg lucideInfo class="ritual-box-banner__icon" aria-hidden="true" [size]="18"></svg>
+      <p class="ritual-box-banner__text">
+        {{ box.relation === 'renewal' ? 'Created by' : 'Started' }} Ritual Box
+        <strong>{{ box.subscription_id }}</strong>
+        ({{ ritualBoxProduct(box) }}, {{ ritualBoxFrequency(box) }})
+        @if (box.relation === 'renewal' && order.subscription_cycle) {
+          · delivery {{ order.subscription_cycle }}
+        }
+        · {{ ritualBoxNextStep(box) }}
+      </p>
+      <!-- Admin subscription detail page is not built yet; the link is wired for it. -->
+      <a [routerLink]="['/admin/subscriptions', box.subscription_id]" class="ritual-box-banner__link">
+        Open subscription →
+      </a>
+    </div>
+  }
 
   @if (hasPendingRefundRequest) {
     <div class="refund-request-banner" role="status">

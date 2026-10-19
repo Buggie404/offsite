@@ -606,7 +606,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     // Navigate to post detail or order tracking
     const isOrderOrRefund = notification.type.startsWith('ORDER_') || notification.type.startsWith('REFUND_');
-    if (isOrderOrRefund) {
+    if (notification.type.startsWith('SUBSCRIPTION_')) {
+      this.router.navigate(['/account'], { queryParams: { tab: 'ritual-box' } });
+    } else if (isOrderOrRefund) {
       this.router.navigate(['/order-tracking'], { queryParams: { orderId: notification.post_id } });
     } else {
       this.router.navigate(['/community/post', notification.post_id]);
@@ -1131,7 +1133,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     if (tab === 'COMMUNITY') return all.filter(n =>
       n.type.startsWith('POST_') || n.type.startsWith('COMMENT_')
     );
-    return []; // RITUAL BOX / PANTRY — future feature
+    if (tab === 'RITUAL_BOX') return all.filter(n => n.type.startsWith('SUBSCRIPTION_'));
+    return []; // PANTRY — future feature
   }
 
   /**
@@ -1146,6 +1149,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
       case 'REFUND_REQUESTED': return 'notif-icon--orange';
       case 'REFUND_APPROVED':  return 'notif-icon--green';
       case 'REFUND_REJECTED':  return 'notif-icon--red';
+      case 'SUBSCRIPTION_PAUSED':    return 'notif-icon--orange';
+      case 'SUBSCRIPTION_RESUMED':   return 'notif-icon--green';
+      case 'SUBSCRIPTION_CANCELLED': return 'notif-icon--red';
       case 'POST_CREATED':     return 'notif-icon--green';
       case 'POST_LIKED':       return 'notif-icon--pink';
       case 'POST_COMMENTED':   return 'notif-icon--sage';

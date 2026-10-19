@@ -1,6 +1,6 @@
 const Order = require('../models/Order');
-const User = require('../models/User');
 const RefundRequest = require('../models/RefundRequest');
+const subscriptionService = require('../services/subscription.service');
 const ActivityLog = require('../models/ActivityLog');
 const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
@@ -64,23 +64,40 @@ function mapStatusFilter(orderStatus) {
   return orderStatus;
 }
 
-function resolveCustomer(order, userMap) {
-  const user = order.user_id ? userMap.get(order.user_id) : null;
+// Older checkouts stored this placeholder when the customer left email blank.
+const PLACEHOLDER_EMAIL = 'guest@example.com';
+
+// Customer shown to admins is whoever the order was placed for (Orders.delivery_info),
+// not the account profile — a user can order for someone else. Email may be missing.
+function resolveCustomer(order) {
+  const email = order.delivery_info?.email;
   return {
-    customer_name: user?.profile_name || order.delivery_info?.recipient_name || 'Guest',
-    customer_email: user?.email || order.delivery_info?.email || ''
+    customer_name: order.delivery_info?.recipient_name || 'Guest',
+    customer_email: email && email !== PLACEHOLDER_EMAIL ? email : null,
+    customer_phone: order.delivery_info?.mobile || null
   };
 }
 
-function enrichOrders(orders, userMap) {
+// Same rule as frontend shared/utils/order-type.ts: One-time / Subscription / Mixed.
+function getOrderType(order) {
+  if (order.subscription_id) return 'subscription';
+  const items = order.items || [];
+  const subs = items.filter((item) => item.purchase_type === 'subscription').length;
+  if (subs === 0) return 'one_time';
+  return subs === items.length ? 'subscription' : 'mixed';
+}
+
+function enrichOrders(orders) {
   return orders.map((order) => {
-    const customer = resolveCustomer(order, userMap);
+    const customer = resolveCustomer(order);
     return {
       _id: order._id,
       order_id: order.order_id,
       customer_name: customer.customer_name,
       customer_email: customer.customer_email,
+      user_id: order.user_id || null,
       created_at: order.created_at,
+      order_type: getOrderType(order),
       order_status: order.order_status,
       total: order.pricing?.total ?? 0,
       currency: order.pricing?.currency ?? 'USD',
@@ -101,14 +118,6 @@ function filterBySearch(orders, search) {
       order.customer_email?.toLowerCase().includes(query)
     );
   });
-}
-
-async function buildUserMap(orders) {
-  const userIds = [...new Set(orders.filter((order) => order.user_id).map((order) => order.user_id))];
-  if (userIds.length === 0) return new Map();
-
-  const users = await User.find({ user_id: { $in: userIds } }).select('user_id profile_name email');
-  return new Map(users.map((user) => [user.user_id, user]));
 }
 
 async function getLatestRefundRequest(orderId) {
@@ -228,23 +237,14 @@ function formatShippingAddress(deliveryInfo) {
 }
 
 async function buildOrderDetail(order) {
-  let customerName = order.delivery_info?.recipient_name || 'Guest';
-  let customerEmail = order.delivery_info?.email || '';
-  let customerPhone = order.delivery_info?.mobile || '';
-
-  // Run user lookup and refund request lookup in parallel to avoid sequential round-trips
-  const [user, refundRequestDoc] = await Promise.all([
-    order.user_id
-      ? User.findOne({ user_id: order.user_id }).select('profile_name email phone').lean()
-      : Promise.resolve(null),
-    getLatestRefundRequest(order.order_id)
+  const customer = resolveCustomer(order);
+  const [refundRequestDoc, ritualBoxes] = await Promise.all([
+    getLatestRefundRequest(order.order_id),
+    subscriptionService.getOrderRitualBoxes(order).catch((err) => {
+      console.error('Error loading order Ritual Boxes:', err);
+      return [];
+    })
   ]);
-
-  if (user) {
-    customerName = user.profile_name || customerName;
-    customerEmail = user.email || customerEmail;
-    customerPhone = user.phone || customerPhone;
-  }
 
   return {
     _id: order._id,
@@ -270,14 +270,15 @@ async function buildOrderDetail(order) {
     })),
     subscription_id: order.subscription_id || null,
     subscription_cycle: order.subscription_cycle || null,
+    ritual_boxes: ritualBoxes,
     pricing: order.pricing,
     payment: order.payment,
     payment_label: formatPaymentLabel(order.payment),
     delivery_info: order.delivery_info,
     shipping: order.shipping,
-    customer_name: customerName,
-    customer_email: customerEmail,
-    customer_phone: customerPhone,
+    customer_name: customer.customer_name,
+    customer_email: customer.customer_email,
+    customer_phone: customer.customer_phone,
     shipping_address: formatShippingAddress(order.delivery_info),
     status_history: order.status_history || [],
     refund_request: formatRefundRequestForAdmin(refundRequestDoc, order.items),
@@ -334,12 +335,11 @@ async function getAllOrders(req, res) {
     }
 
     const [orders, stats] = await Promise.all([
-      Order.find(filter).sort({ created_at: -1 }).select('order_id user_id delivery_info created_at order_status pricing is_guest').lean(),
+      Order.find(filter).sort({ created_at: -1 }).select('order_id user_id delivery_info created_at order_status pricing is_guest subscription_id items.purchase_type').lean(),
       computeStats(createdAtFilter, orderScope)
     ]);
 
-    const userMap = await buildUserMap(orders);
-    const enriched = filterBySearch(enrichOrders(orders, userMap), search);
+    const enriched = filterBySearch(enrichOrders(orders), search);
 
     const parsedLimit = Math.min(parseInt(limit, 10) || 50, 200);
     const parsedPage = Math.max(parseInt(page, 10) || 1, 1);

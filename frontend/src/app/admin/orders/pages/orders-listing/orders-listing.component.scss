@@ -476,6 +476,16 @@
   text-decoration: underline;
 }
 
+.data-table__customer-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: var(--color-forest-green);
+  }
+}
+
 .data-table__muted {
   font-size: 13px;
   color: var(--color-warm-brown);

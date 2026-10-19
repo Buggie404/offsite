@@ -1,0 +1,424 @@
+<header class="page-header">
+  <h1 class="page-header__title">Subscriptions</h1>
+  <p class="page-header__meta">{{ subtitle }}</p>
+</header>
+
+<div class="filters">
+  <label class="search-field">
+    <svg lucideSearch class="search-field__icon" aria-hidden="true" [size]="16"></svg>
+    <input
+      type="search"
+      class="search-field__input"
+      placeholder="Customer, product or SUB-ID"
+      aria-label="Search subscriptions"
+      [value]="search"
+      (input)="onSearchInput($any($event.target).value)"
+    />
+  </label>
+
+  <div class="segmented" role="tablist" aria-label="Filter subscriptions">
+    @for (filter of filters; track filter.value) {
+      <button
+        type="button"
+        role="tab"
+        class="segmented__item"
+        [class.segmented__item--active]="activeFilter === filter.value"
+        [attr.aria-selected]="activeFilter === filter.value"
+        (click)="setFilter(filter.value)"
+      >
+        {{ filterLabel(filter) }}
+      </button>
+    }
+  </div>
+</div>
+
+<div class="list-layout" [class.list-layout--with-drawer]="selectedId">
+  <section class="card table-card">
+    @if (loading) {
+      <p class="state-message">Loading subscriptions…</p>
+    } @else if (error) {
+      <p class="state-message state-message--error" role="alert">{{ error }}</p>
+    } @else if (!rows.length) {
+      <p class="state-message">No subscriptions match these filters.</p>
+    } @else {
+      <table class="sub-table">
+        <thead>
+          <tr>
+            <th class="col-customer">Customer</th>
+            <th class="col-box">Box</th>
+            <th class="col-every">Every · next</th>
+            <th class="col-status">Status</th>
+            <th class="col-price">Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows; track row.subscription_id) {
+            <tr
+              class="sub-table__row"
+              [class.sub-table__row--selected]="row.subscription_id === selectedId"
+              tabindex="0"
+              (click)="selectRow(row)"
+              (keydown.enter)="selectRow(row)"
+            >
+              <td class="col-customer">
+                <span class="customer">
+                  <span class="avatar" aria-hidden="true">{{ row.customer.initials }}</span>
+                  <span class="customer__name">{{ row.customer.name }}</span>
+                </span>
+              </td>
+              <td class="col-box">{{ row.box }}</td>
+              <td class="col-every">{{ everyNext(row) }}</td>
+              <td class="col-status">
+                <span class="chips">
+                  <span class="chip" [ngClass]="'chip--' + statusChip(row.status).tone">{{ statusChip(row.status).label }}</span>
+                  @if (row.out_of_stock && row.status === 'active') {
+                    <span class="chip chip--danger">Item out of stock</span>
+                  }
+                </span>
+              </td>
+              <td class="col-price">{{ formatPrice(row.price) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </section>
+
+  @if (selectedId) {
+    <aside class="card drawer" aria-label="Subscription details">
+      <div class="drawer__header">
+        <p class="drawer__title">
+          {{ detail ? detail.customer.name + ' · ' + detail.subscription_id : selectedId }}
+        </p>
+        <button type="button" class="icon-button" (click)="closeDrawer()" aria-label="Close details">
+          <svg lucideX aria-hidden="true" [size]="18"></svg>
+        </button>
+      </div>
+
+      @if (detailLoading && !detail) {
+        <p class="state-message">Loading…</p>
+      } @else if (detail) {
+        <div class="drawer__body">
+          @if (detail.out_of_stock && detail.status === 'active') {
+            <div class="alert alert--danger" role="status">
+              <svg lucideAlertTriangle class="alert__icon" aria-hidden="true" [size]="16"></svg>
+              <p>
+                <strong>{{ detail.box }} is out of stock</strong>
+                for the {{ shortDate(detail.next_charge_at) }} delivery. Pause this subscription and offer a replacement.
+              </p>
+            </div>
+          }
+          @if (detail.status === 'payment_failed' || detail.status === 'suspended') {
+            <div class="alert alert--danger" role="status">
+              <svg lucideAlertTriangle class="alert__icon" aria-hidden="true" [size]="16"></svg>
+              <p>
+                <strong>Payment failed</strong>
+                {{ detail.failed_attempts ? '(' + detail.failed_attempts + ' attempts)' : '' }}.
+                Reactivate charges the card on file now.
+              </p>
+            </div>
+          }
+
+          @if (!isClosed) {
+            <div class="drawer__actions">
+              @if (detail.status === 'active') {
+                <button type="button" class="btn btn--dark" [disabled]="busy" (click)="openPauseModal()">
+                  <svg lucidePause aria-hidden="true" [size]="14"></svg>
+                  Pause
+                </button>
+              } @else {
+                <button type="button" class="btn btn--dark" [disabled]="busy" (click)="reactivate()">
+                  <svg lucidePlay aria-hidden="true" [size]="14"></svg>
+                  {{ detail.status === 'paused' ? 'Resume' : 'Reactivate' }}
+                </button>
+              }
+              <button type="button" class="btn btn--danger-outline" [disabled]="busy" (click)="openCancelModal()">
+                <svg lucideX aria-hidden="true" [size]="14"></svg>
+                Cancel subscription
+              </button>
+            </div>
+          }
+
+          @if (actionError && !showPauseModal && !showCancelModal) {
+            <p class="form-error" role="alert">{{ actionError }}</p>
+          }
+
+          <div class="kv">
+            <span class="kv__label">Status</span>
+            <span class="chips chips--row">
+              <span class="chip" [ngClass]="'chip--' + statusChip(detail.status).tone">{{ statusChip(detail.status).label }}</span>
+              @if (detail.status === 'paused' && detail.resume_at) {
+                <span class="kv__hint">until {{ shortDate(detail.resume_at) }}</span>
+              }
+              @if (pendingHint(detail); as hint) {
+                <span class="chip chip--warning">{{ hint }}</span>
+              }
+            </span>
+          </div>
+          @if (isClosed && detail.cancel_reason) {
+            <div class="kv">
+              <span class="kv__label">Reason</span>
+              <span class="kv__value">{{ detail.cancel_reason }}</span>
+            </div>
+          }
+          <div class="kv">
+            <span class="kv__label">Item</span>
+            <span class="kv__value">{{ itemLabel(detail) }}</span>
+          </div>
+          <div class="kv">
+            <span class="kv__label">Every</span>
+            <span class="kv__value kv__value--inline">
+              @if (isClosed) {
+                {{ frequencyShort(detail.frequency_days) }}
+              } @else {
+                <span class="inline-select">
+                  <select
+                    class="inline-select__control"
+                    aria-label="Delivery frequency"
+                    [ngModel]="detail.frequency_days"
+                    [disabled]="busy"
+                    (ngModelChange)="changeFrequency($event)"
+                  >
+                    @for (f of frequencies; track f.days) {
+                      <option [ngValue]="f.days">{{ frequencyShort(f.days) }}</option>
+                    }
+                  </select>
+                  <svg lucideChevronDown class="inline-select__icon" aria-hidden="true" [size]="14"></svg>
+                </span>
+              }
+              @if (detail.next_charge_at) {
+                · next {{ shortDate(detail.next_charge_at) }}
+              }
+            </span>
+          </div>
+          <div class="kv">
+            <span class="kv__label">Price</span>
+            <span class="kv__value">
+              {{ formatPrice(detail.price) }}{{ detail.pricing.discount_percent ? ' (' + detail.pricing.discount_percent + '% off)' : '' }}
+            </span>
+          </div>
+          <div class="kv">
+            <span class="kv__label">Card</span>
+            <span class="kv__value">{{ detail.card ? detail.card.brand + ' •• ' + detail.card.last4 : '—' }}</span>
+          </div>
+
+          <p class="overline">Deliveries</p>
+          @if (detail.deliveries.length) {
+            <table class="mini-table">
+              <thead>
+                <tr>
+                  <th class="mini-table__date">Date</th>
+                  <th>Order</th>
+                  <th class="mini-table__result">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (d of detail.deliveries; track d.order_id) {
+                  <tr>
+                    <td class="mini-table__date">{{ shortDate(d.date) }}</td>
+                    <td><a class="mini-table__link" [routerLink]="['/admin/orders', d.order_id]">#{{ d.order_id }}</a></td>
+                    <td class="mini-table__result">
+                      <span class="chip" [ngClass]="'chip--' + deliveryChip(d.result).tone">{{ deliveryChip(d.result).label }}</span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="muted">No deliveries yet.</p>
+          }
+
+          <p class="overline">Messages with owner</p>
+          @if (detail.messages.length) {
+            <ul class="messages">
+              @for (m of detail.messages; track m.sent_at) {
+                <li class="messages__item">
+                  <span class="messages__meta">{{ messageLabel(m.action) }} · {{ shortDate(m.sent_at) }}{{ m.reason ? ' · ' + m.reason : '' }}</span>
+                  @if (m.message) {
+                    <span class="messages__text">{{ m.message }}</span>
+                  }
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="muted">No messages yet. Messages are sent when you pause or cancel.</p>
+          }
+
+          <label class="overline" for="sub-internal-note">Internal note · staff only</label>
+          <textarea
+            id="sub-internal-note"
+            class="textarea textarea--note"
+            rows="2"
+            placeholder="Add a note for the team…"
+            [(ngModel)]="noteDraft"
+            (ngModelChange)="noteSaved = false"
+            (blur)="saveNote()"
+          ></textarea>
+          @if (noteSaved) {
+            <p class="muted muted--saved"><svg lucideCheck aria-hidden="true" [size]="12"></svg> Note saved</p>
+          }
+        </div>
+      } @else if (actionError) {
+        <p class="state-message state-message--error" role="alert">{{ actionError }}</p>
+      }
+    </aside>
+  }
+</div>
+
+<!-- Pause modal -->
+@if (showPauseModal && detail) {
+  <div class="modal-backdrop" (click)="showPauseModal = false">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pause-title" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 id="pause-title" class="modal__title">Pause {{ detail.subscription_id }}</h2>
+        <button type="button" class="icon-button" (click)="showPauseModal = false" aria-label="Close">
+          <svg lucideX aria-hidden="true" [size]="18"></svg>
+        </button>
+      </div>
+      <div class="modal__body">
+        <p class="overline">Reason (sent to customer)</p>
+        <div class="radio-group" role="radiogroup">
+          @for (reason of pauseReasons; track reason) {
+            <label class="radio">
+              <input type="radio" name="pause-reason" [value]="reason" [checked]="pauseReason === reason" (change)="onPauseReasonChange(reason)" />
+              <span class="radio__dot" aria-hidden="true"></span>
+              {{ reason }}
+            </label>
+          }
+        </div>
+
+        <div class="field-row">
+          <label class="field">
+            <span class="overline">Affects</span>
+            <span class="select">
+              <select class="select__control" [ngModel]="pauseAffects" (ngModelChange)="onPauseAffectsChange($event)">
+                <option value="next">{{ shortDate(detail.upcoming_delivery_at) }} delivery</option>
+                <option value="following">{{ shortDate(detail.following_delivery_at) }} delivery ({{ shortDate(detail.upcoming_delivery_at) }} still ships)</option>
+              </select>
+              <svg lucideChevronDown class="select__icon" aria-hidden="true" [size]="16"></svg>
+            </span>
+          </label>
+          <label class="field">
+            <span class="overline">Pause until</span>
+            <span class="select">
+              <select class="select__control" [(ngModel)]="pauseOption">
+                <option value="until_reactivated">Resumed by staff</option>
+                <option value="1_month">1 month</option>
+                <option value="2_months">2 months</option>
+              </select>
+              <svg lucideChevronDown class="select__icon" aria-hidden="true" [size]="16"></svg>
+            </span>
+          </label>
+        </div>
+
+        @if (canOfferReplacement && detail.replacement; as rep) {
+          <div class="offer">
+            <label class="checkbox">
+              <input type="checkbox" [checked]="offerReplacement" (change)="onOfferReplacementChange($any($event.target).checked)" />
+              <span class="checkbox__box" aria-hidden="true"><svg lucideCheck [size]="12"></svg></span>
+              <span class="checkbox__text">
+                <span class="checkbox__title">Offer a one-time replacement</span>
+                <span class="checkbox__hint">Customer can accept or decline in Ritual Box</span>
+              </span>
+            </label>
+            <div class="offer__product">
+              <span class="offer__thumb">
+                @if (rep.image) {
+                  <img [src]="rep.image" [alt]="rep.name" />
+                }
+              </span>
+              <span class="offer__text">
+                <span class="offer__name">{{ rep.name }}{{ rep.variant_label ? ' ' + rep.variant_label : '' }}</span>
+                <span class="offer__meta">
+                  Similar pick · {{ formatPrice(rep.price) }}{{ rep.same_price ? ' · same price' : '' }}
+                </span>
+              </span>
+            </div>
+          </div>
+        }
+
+        <label class="field">
+          <span class="overline">Message to {{ firstName }}</span>
+          <textarea class="textarea" rows="3" [(ngModel)]="pauseMessage"></textarea>
+        </label>
+        <p class="muted">
+          Customer gets SUBSCRIPTION_PAUSED on the bell.
+          {{ pauseAffects === 'following' ? 'The ' + shortDate(detail.upcoming_delivery_at) + ' delivery is still charged; nothing after that while paused.' : 'Nothing is charged while paused.' }}
+        </p>
+        @if (actionError) {
+          <p class="form-error" role="alert">{{ actionError }}</p>
+        }
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn--outline" (click)="showPauseModal = false">Cancel</button>
+        <button type="button" class="btn btn--dark" [disabled]="busy" (click)="confirmPause()">Pause &amp; send</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Cancel modal -->
+@if (showCancelModal && detail) {
+  <div class="modal-backdrop" (click)="showCancelModal = false">
+    <div class="modal modal--narrow" role="dialog" aria-modal="true" aria-labelledby="cancel-title" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 id="cancel-title" class="modal__title">Cancel {{ detail.subscription_id }}?</h2>
+        <button type="button" class="icon-button" (click)="showCancelModal = false" aria-label="Close">
+          <svg lucideX aria-hidden="true" [size]="18"></svg>
+        </button>
+      </div>
+      <div class="modal__body">
+        <div class="alert alert--warning">
+          <svg lucideAlertTriangle class="alert__icon" aria-hidden="true" [size]="16"></svg>
+          <p>
+            @if (cancelEffective === 'after_next') {
+              The {{ shortDate(detail.upcoming_delivery_at) }} delivery is still charged and ships; nothing after that.
+            } @else {
+              This stops all future deliveries.
+            }
+            @if (detail.open_order_ids.length) {
+              Order{{ detail.open_order_ids.length > 1 ? 's' : '' }}
+              {{ '#' + detail.open_order_ids.join(', #') }} already in progress still ship{{ detail.open_order_ids.length > 1 ? '' : 's' }}.
+            }
+          </p>
+        </div>
+
+        <p class="overline">Reason (sent to customer)</p>
+        <div class="radio-group" role="radiogroup">
+          @for (reason of cancelReasons; track reason) {
+            <label class="radio">
+              <input type="radio" name="cancel-reason" [value]="reason" [checked]="cancelReason === reason" (change)="onCancelReasonChange(reason)" />
+              <span class="radio__dot" aria-hidden="true"></span>
+              {{ reason }}
+            </label>
+          }
+        </div>
+
+        <label class="field">
+          <span class="overline">Message to customer</span>
+          <textarea class="textarea" rows="3" [(ngModel)]="cancelMessage"></textarea>
+        </label>
+
+        <label class="field">
+          <span class="overline">Effective</span>
+          <span class="select">
+            <select class="select__control" [ngModel]="cancelEffective" (ngModelChange)="onCancelEffectiveChange($event)">
+              <option value="now">Immediately · no further charges</option>
+              @if (canCancelAfterNext) {
+                <option value="after_next">After the {{ shortDate(detail.upcoming_delivery_at) }} delivery · 1 more charge</option>
+              }
+            </select>
+            <svg lucideChevronDown class="select__icon" aria-hidden="true" [size]="16"></svg>
+          </span>
+        </label>
+        @if (actionError) {
+          <p class="form-error" role="alert">{{ actionError }}</p>
+        }
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn--outline" (click)="showCancelModal = false">Keep</button>
+        <button type="button" class="btn btn--danger" [disabled]="busy" (click)="confirmCancel()">Cancel subscription</button>
+      </div>
+    </div>
+  </div>
+}

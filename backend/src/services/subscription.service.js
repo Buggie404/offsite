@@ -107,6 +107,22 @@ async function findReplacement(product, variant) {
   };
 }
 
+// Replacement chosen by staff when pausing an out-of-stock box (admin screen 1.6.1).
+async function offeredReplacement(offer) {
+  const product = await findProduct(offer.product_id);
+  const variant = (product?.variants || []).find(v => v.sku === offer.variant_id);
+  if (!product || !variant || (variant.stock ?? 0) <= 0) return null;
+  return {
+    product_id: String(product._id),
+    variant_id: variant.sku,
+    name: product.name,
+    variant_label: variant.label || '',
+    image: pickImage(product, variant),
+    price: variant.price,
+    same_price: false
+  };
+}
+
 function orderHistoryStatus(order) {
   if (order.payment_status === 'failed') return 'failed';
   switch (order.order_status) {
@@ -195,7 +211,36 @@ async function chargeSubscription(sub, { now = new Date() } = {}) {
   sub.last_failure_reason = null;
   sub.next_retry_at = null;
   sub.consecutive_skips = 0;
+  applyPendingAfterCharge(sub, now);
   return { ok: true, order };
+}
+
+// Changes made inside the 48h lock window (or scheduled by staff for "after the next delivery")
+// take effect right after the upcoming charge.
+function applyPendingAfterCharge(sub, now) {
+  const p = sub.pending_changes || {};
+  if (p.cancel) {
+    sub.status = 'cancelled_by_admin';
+    sub.cancel_reason = p.cancel.reason;
+    sub.cancelled_by = p.cancel.by;
+    sub.pending_changes = {};
+    return;
+  }
+  if (p.frequency_days) {
+    sub.frequency_days = p.frequency_days;
+    sub.next_charge_at = addDays(now, p.frequency_days);
+  }
+  if (p.skip) {
+    sub.skipped_deliveries.push(sub.next_charge_at);
+    sub.next_charge_at = addDays(sub.next_charge_at, sub.frequency_days);
+    sub.consecutive_skips = 1;
+  }
+  if (p.pause_option) {
+    sub.status = 'paused';
+    sub.pause_option = p.pause_option;
+    sub.resume_at = PAUSE_OPTIONS[p.pause_option] ? addDays(now, PAUSE_OPTIONS[p.pause_option]) : null;
+  }
+  sub.pending_changes = {};
 }
 
 // ─── Checkout ───────────────────────────────────────────────────
@@ -265,25 +310,38 @@ async function createSubscriptionsFromOrder(order) {
 }
 
 // Ritual Boxes started by a checkout order (for the order confirmation page).
+async function shapeOrderSubscription(sub) {
+  const product = await findProduct(sub.product_id);
+  const variant = (product?.variants || []).find(v => v.sku === sub.variant_id) || null;
+  return {
+    subscription_id: sub.subscription_id,
+    product_name: product?.name || 'Unavailable product',
+    variant_label: variant?.label || '',
+    image: pickImage(product, variant),
+    quantity: sub.quantity,
+    frequency_days: sub.frequency_days,
+    price_per_delivery: round2(sub.pricing_snapshot.subscribe_price * sub.quantity),
+    discount_percent: sub.pricing_snapshot.discount_percent,
+    next_charge_at: sub.next_charge_at,
+    status: sub.status
+  };
+}
+
 async function getOrderSubscriptions(orderId) {
   if (!orderId) return [];
   const subs = await Subscription.find({ source_order_id: orderId }).sort({ created_at: 1 }).lean();
-  return Promise.all(subs.map(async sub => {
-    const product = await findProduct(sub.product_id);
-    const variant = (product?.variants || []).find(v => v.sku === sub.variant_id) || null;
-    return {
-      subscription_id: sub.subscription_id,
-      product_name: product?.name || 'Unavailable product',
-      variant_label: variant?.label || '',
-      image: pickImage(product, variant),
-      quantity: sub.quantity,
-      frequency_days: sub.frequency_days,
-      price_per_delivery: round2(sub.pricing_snapshot.subscribe_price * sub.quantity),
-      discount_percent: sub.pricing_snapshot.discount_percent,
-      next_charge_at: sub.next_charge_at,
-      status: sub.status
-    };
-  }));
+  return Promise.all(subs.map(shapeOrderSubscription));
+}
+
+// Admin order detail: the Ritual Box that billed this order (renewal, relation 'renewal')
+// or the ones this checkout started (relation 'started').
+async function getOrderRitualBoxes(order) {
+  if (order.subscription_id) {
+    const sub = await Subscription.findOne({ subscription_id: order.subscription_id }).lean();
+    return sub ? [{ ...(await shapeOrderSubscription(sub)), relation: 'renewal' }] : [];
+  }
+  const started = await getOrderSubscriptions(order.order_id);
+  return started.map(sub => ({ ...sub, relation: 'started' }));
 }
 
 // ─── Read ───────────────────────────────────────────────────────
@@ -310,11 +368,12 @@ async function applyDueTransitions(sub, now) {
 
 function shapePendingChanges(sub) {
   const p = sub.pending_changes || {};
-  if (!p.frequency_days && !p.skip && !p.pause_option) return null;
+  if (!p.frequency_days && !p.skip && !p.pause_option && !p.cancel) return null;
   return {
     frequency_days: p.frequency_days || null,
     skip: !!p.skip,
-    pause_option: p.pause_option || null
+    pause_option: p.pause_option || null,
+    cancel: !!p.cancel
   };
 }
 
@@ -323,7 +382,9 @@ async function shapeSubscription(sub, paymentMethods, now) {
   const variant = (product?.variants || []).find(v => v.sku === sub.variant_id) || null;
   const unitPrice = sub.pricing_snapshot.subscribe_price;
   const card = paymentMethods.find(pm => pm.id === String(sub.payment_method_id)) || null;
-  const outOfStock = sub.status === 'active' && !!variant && (variant.stock ?? 0) <= 0;
+  // Paused by staff with a replacement offer: the customer can still accept it here.
+  const hasOffer = sub.status === 'paused' && !!sub.replacement_offer;
+  const outOfStock = (sub.status === 'active' || hasOffer) && !!variant && (variant.stock ?? 0) <= 0;
   const suggestion = sub.suggested_frequency_days
     ? {
         frequency_days: sub.suggested_frequency_days,
@@ -367,7 +428,9 @@ async function shapeSubscription(sub, paymentMethods, now) {
     out_of_stock: outOfStock,
     // Chờ khách xác nhận tối đa 3 ngày; không xác nhận thì bỏ qua chu kỳ, không charge.
     out_of_stock_deadline: outOfStock ? addDays(sub.next_charge_at, SUGGESTION_TTL_DAYS) : null,
-    replacement: outOfStock ? await findReplacement(product, variant) : null,
+    replacement: outOfStock
+      ? (hasOffer ? await offeredReplacement(sub.replacement_offer) : await findReplacement(product, variant))
+      : null,
     suggestion,
     created_at: sub.created_at
   };
@@ -557,7 +620,9 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
     case 'use_replacement': {
       const product = await findProduct(sub.product_id);
       const variant = (product?.variants || []).find(v => v.sku === sub.variant_id);
-      const replacement = await findReplacement(product, variant || { price: sub.pricing_snapshot.original_price });
+      const replacement = sub.replacement_offer
+        ? await offeredReplacement(sub.replacement_offer)
+        : await findReplacement(product, variant || { price: sub.pricing_snapshot.original_price });
       if (!replacement) throw new SubscriptionActionError('No replacement is available right now.');
       const newProduct = await findProduct(replacement.product_id);
       const discount = newProduct.subscribe_discount_percent ?? DEFAULT_SUBSCRIBE_DISCOUNT_PERCENT;
@@ -568,6 +633,12 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
         subscribe_price: round2(replacement.price * (1 - discount / 100)),
         discount_percent: discount
       };
+      // Accepting a staff offer on a paused box resumes it with the new item.
+      if (sub.status === 'paused' && sub.replacement_offer) {
+        sub.status = 'active';
+        sub.next_charge_at = now;
+      }
+      sub.replacement_offer = null;
       break;
     }
 
@@ -612,11 +683,22 @@ module.exports = {
   priceSubscriptionLine,
   createSubscriptionsFromOrder,
   getOrderSubscriptions,
+  getOrderRitualBoxes,
   applyAction,
   chargeSubscription,
   isCardExpired,
   SubscriptionActionError,
   FREQUENCIES,
   SHORTER_FREQUENCY,
-  PAUSE_OPTIONS
+  PAUSE_OPTIONS,
+  CLOSED_STATUSES,
+  // Shared with the admin subscription service.
+  findProduct,
+  pickImage,
+  maskCard,
+  cardBrand,
+  findReplacement,
+  applyDueTransitions,
+  orderHistoryStatus,
+  shapePendingChanges
 };
