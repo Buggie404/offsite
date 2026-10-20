@@ -108,6 +108,105 @@
         </div>
       </section>
 
+      <!-- PRODUCTS (gắn tối đa 3) -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">PRODUCTS</span>
+          <span class="section-divider"></span>
+          <span class="section-count">{{ selectedProducts.length }}/{{ maxProducts }}</span>
+        </div>
+
+        <div class="product-search" *ngIf="canAddMoreProducts">
+          <svg lucideSearch [size]="16" class="product-search__icon"></svg>
+          <input
+            class="tag-input product-search__input"
+            type="text"
+            placeholder="Search a product to tag..."
+            [ngModel]="productQuery"
+            (ngModelChange)="onProductQueryChange($event)"
+            name="productQuery"
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="product-results" *ngIf="canAddMoreProducts && productQuery.trim().length >= 2">
+          <p class="product-hint" *ngIf="searching">Searching...</p>
+          <p class="product-hint" *ngIf="!searching && searchDone && !visibleSearchResults.length">No products found.</p>
+          <button type="button" class="product-option" *ngFor="let p of visibleSearchResults" (click)="addProduct(p)">
+            <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
+            <span class="product-option__name">{{ p.name }}</span>
+            <svg lucidePlus [size]="14"></svg>
+          </button>
+        </div>
+
+        <div class="tag-chip-row" *ngIf="selectedProducts.length">
+          <div class="tag-chip product-chip" *ngFor="let p of selectedProducts">
+            <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
+            <span>{{ p.name }}</span>
+            <button type="button" (click)="removeProduct(p)" aria-label="Remove product">
+              <svg lucideX [size]="12"></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- PREVIEW + gợi ý thẻ AI -->
+      <section class="form-section" *ngIf="showPreview">
+        <div class="section-label-row">
+          <span class="section-label">PREVIEW</span>
+          <span class="section-divider"></span>
+        </div>
+
+        <div class="post-preview">
+          <div class="post-preview__media">
+            <ng-container *ngIf="previewMedia; else previewText">
+              <img *ngIf="previewMedia.type === 'image'" [src]="previewMedia.url" alt="preview" />
+              <video *ngIf="previewMedia.type === 'video'" [src]="previewMedia.url" muted playsinline></video>
+            </ng-container>
+            <ng-template #previewText>
+              <p class="post-preview__text">{{ content }}</p>
+            </ng-template>
+
+            <!-- Thẻ sản phẩm nằm trên ảnh, giống feed -->
+            <div class="post-preview__tags" *ngIf="selectedProducts.length">
+              <span class="preview-tag" *ngFor="let p of selectedProducts">
+                <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
+                {{ p.name }}
+              </span>
+            </div>
+          </div>
+
+          <div class="ai-suggest">
+            <div class="ai-suggest__head">
+              <span class="ai-suggest__title"><svg lucideSparkles [size]="14"></svg> Suggested products</span>
+
+              <button type="button" class="ai-suggest__btn" *ngIf="!hasSuggested"
+                [disabled]="suggestLoading || !canSuggest" (click)="requestSuggestions(false)">
+                {{ suggestLoading ? 'Thinking...' : 'Suggest tags' }}
+              </button>
+
+              <button type="button" class="ai-suggest__btn" *ngIf="hasSuggested"
+                [disabled]="suggestLoading || regenLeft <= 0" (click)="requestSuggestions(true)">
+                <svg lucideRefreshCw [size]="13"></svg>
+                {{ suggestLoading ? 'Thinking...' : 'Suggest again (' + regenLeft + ' left)' }}
+              </button>
+            </div>
+
+            <p class="product-hint" *ngIf="suggestMessage">{{ suggestMessage }}</p>
+
+            <div class="ai-suggest__list" *ngIf="visibleSuggestions.length">
+              <button type="button" class="product-option" *ngFor="let p of visibleSuggestions"
+                [disabled]="!canAddMoreProducts" (click)="addProduct(p)">
+                <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
+                <span class="product-option__name">{{ p.name }}</span>
+                <span class="product-option__badge" *ngIf="p.confidence != null">{{ (p.confidence * 100) | number:'1.0-0' }}%</span>
+                <svg lucidePlus [size]="14"></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <p class="form-error" *ngIf="errorMessage">{{ errorMessage }}</p>
     </div>
 

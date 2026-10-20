@@ -1,4 +1,5 @@
-import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, HostListener, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -35,6 +36,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private authService = inject(AuthService);
   private toast = inject(ToastService);
+  private destroyRef = inject(DestroyRef);
 
   post: Post | null = null;
   loading = true;
@@ -159,13 +161,15 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    const id = this.route.snapshot.paramMap.get('id');
-    if (!id) {
-      this.error = 'Post not found.';
-      this.loading = false;
-      return;
-    }
-    this.loadPost(id);
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      const id = params.get('id');
+      if (!id) {
+        this.error = 'Post not found.';
+        this.loading = false;
+        return;
+      }
+      this.loadPost(id);
+    });
     this.timeTickHandle = setInterval(() => this.cdr.markForCheck(), 30000);
   }
 
@@ -182,6 +186,8 @@ export class PostDetailComponent implements OnInit, OnDestroy {
         this.postLiked = post.liked ?? false;
         this.postSaved = post.saved ?? false;
         this.postContentParts = this.parseContentTags(post.content);
+        this.activeMediaIndex = 0;
+        this.showPostOptions = false;
         this.loading = false;
         this.cdr.markForCheck();
       },
@@ -237,7 +243,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
       error: (err) => {
         console.error('Failed to delete post:', err);
         this.loading = false;
-        alert('Failed to delete this post. Please try again.');
+        this.toast.error(err?.error?.error || 'Failed to delete this post. Please try again.');
         this.cdr.markForCheck();
       }
     });
@@ -252,12 +258,15 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   // ── Like / Save post ──
   likePost(): void {
     if (!this.post) return;
-    this.communityService.likePost(this.post.post_id).subscribe(res => {
-      if (this.post) {
-        this.post.like_count = res.like_count;
-        this.postLiked = res.liked;
-        this.cdr.markForCheck();
-      }
+    this.communityService.likePost(this.post.post_id).subscribe({
+      next: res => {
+        if (this.post) {
+          this.post.like_count = res.like_count;
+          this.postLiked = res.liked;
+          this.cdr.markForCheck();
+        }
+      },
+      error: err => this.toast.error(err?.error?.error || 'Could not like this post. Please try again.')
     });
   }
 
@@ -272,7 +281,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         }
       },
-      error: (err) => console.error('Failed to save post:', err)
+      error: (err) => this.toast.error(err?.error?.error || 'Could not save this post. Please try again.')
     });
   }
 

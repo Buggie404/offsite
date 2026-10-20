@@ -23,6 +23,15 @@ export function postProductLink(p: PostProductCard): string[] {
   return ['/products', getProductDetailSlug({ name: p.name, slug: p.slug, product_id: p.product_id })];
 }
 
+export interface ProductTag {
+  product_id: number;
+  name: string;
+  image_url: string | null;
+  price?: number | null;
+  source?: 'manual' | 'ai';
+  confidence?: number | null;
+}
+
 export interface Post {
   _id: string;
   post_id: string;

@@ -1,8 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
-import { Post } from '../models/post.model';
+import { Post, ProductTag } from '../models/post.model';
 import { Comment } from '../models/comment.model';
 import { Notification } from '../models/notification.model';
 
@@ -86,6 +86,18 @@ export class CommunityService {
     return this.http.post(this.apiUrl, data);
   }
   
+  searchProducts(q: string): Observable<ProductTag[]> {
+    return this.http
+      .get<{ data: ProductTag[] }>(`${this.apiUrl}/product-search`, { params: { q } })
+      .pipe(map(r => r.data));
+  }
+
+  suggestProducts(body: { content: string; base: string | null; exclude: number[] }): Observable<ProductTag[]> {
+    return this.http
+      .post<{ data: ProductTag[] }>(`${this.apiUrl}/product-suggestions`, body)
+      .pipe(map(r => r.data));
+  }
+
   deletePost(id: string): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`${this.apiUrl}/${id}`);
   }

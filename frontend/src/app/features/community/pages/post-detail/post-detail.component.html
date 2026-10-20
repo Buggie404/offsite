@@ -19,7 +19,12 @@
           <svg class="media-quote" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M9.6 6C6 7.2 3.6 10.2 3.6 14.4V19h6.6v-6H7c.2-2 1.5-3.6 3.4-4.2L9.6 6Zm10.2 0c-3.6 1.2-6 4.2-6 8.4V19h6.6v-6h-3.2c.2-2 1.5-3.6 3.4-4.2L19.8 6Z"/>
           </svg>
-          <p>{{ post.content }}</p>
+          <p>
+            <ng-container *ngFor="let part of postContentParts">
+              <span *ngIf="part.isTag" class="hashtag">{{ part.text }}</span>
+              <ng-container *ngIf="!part.isTag">{{ part.text }}</ng-container>
+            </ng-container>
+          </p>
         </div>
       </ng-template>
 
@@ -39,11 +44,12 @@
     <!-- ── Right: info ── -->
     <div class="info-column">
 
-      <div class="hidden-banner" *ngIf="isHiddenPost && isPostAuthor" role="status">
+      <div class="hidden-banner" *ngIf="isHiddenPost" role="status">
         <svg lucideFlag [size]="15"></svg>
         <div>
           <strong>This post is hidden</strong>
-          <span>It was removed from the community feed and only you can see it.</span>
+          <span *ngIf="isPostAuthor">It was removed from the community feed and only you can see it.</span>
+          <span *ngIf="!isPostAuthor">Hidden from the community feed. Visible to moderators only.</span>
         </div>
       </div>
 
@@ -172,7 +178,7 @@
         </a>
       </section>
 
-      <section class="comments-block">
+      <section class="comments-block" id="comments-section">
         <span class="overline">Comments ({{ post.comment_count || 0 }})</span>
         <app-comment-section [postId]="post.post_id" (commentCountChange)="onCommentCountChange($event)"></app-comment-section>
       </section>
