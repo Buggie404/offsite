@@ -75,6 +75,12 @@
               <svg lucideBookmark [size]="15"></svg>
               <span>{{ postSaved ? 'Unsave post' : 'Save post' }}</span>
             </button>
+
+            <button type="button" class="options-menu__item" *ngIf="canEditPost" (click)="openEdit()">
+              <svg lucidePencil [size]="15"></svg>
+              <span>Edit</span>
+            </button>
+
             <button type="button" class="options-menu__item options-menu__item--danger" *ngIf="!isPostAuthor" (click)="openReport()">
               <svg lucideFlag [size]="15"></svg>
               <span>Report post</span>
@@ -187,6 +193,9 @@
 </div>
 
 <app-share-modal *ngIf="showShareModal" [shareUrl]="shareUrl" (close)="closeShareModal()"></app-share-modal>
+
+<app-create-post-modal *ngIf="showEditModal" [post]="post"
+  (saved)="onPostEdited()" (close)="closeEdit()"></app-create-post-modal>
 
 <app-report-post-modal
   *ngIf="showReportModal && post"

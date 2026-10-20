@@ -454,6 +454,25 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     const linkedProducts = this.selectedProducts.slice(0, this.maxProducts).map(p => p.product_id);
 
     const afterUpload = (media: CloudinaryUploadResult[]) => {
+
+      if (this.post) {
+        const editedId = this.post.post_id;
+        this.communityService
+          .updatePost(editedId, { content: finalContent, base, linked_products: JSON.stringify(linkedProducts) })
+          .subscribe({
+            next: () => {
+              this.isSubmitting = false;
+              this.saved.emit(editedId);
+              this.close.emit();
+            },
+            error: err => {
+              this.isSubmitting = false;
+              this.errorMessage = err?.error?.error || 'Failed to update post, please try again.';
+            },
+          });
+        return;
+      }
+
       const formData = new FormData();
       formData.append('content', finalContent);
       formData.append('base', base);

@@ -7,7 +7,7 @@
     <!-- Header -->
     <div class="modal-header">
       <div class="header-text">
-        <h2 class="modal-title">New Post</h2>
+        <h2 class="modal-title">{{ isEdit ? 'Edit Post' : 'New Post' }}</h2>
         <p class="modal-subtitle">Share your daily ritual with the community.</p>
       </div>
       <button class="btn-close" type="button" (click)="onRequestClose()" aria-label="Close">
@@ -62,7 +62,7 @@
           <div class="thumb" *ngFor="let preview of previews; let i = index">
             <img *ngIf="preview.type === 'image'" [src]="preview.url" alt="preview" />
             <video *ngIf="preview.type === 'video'" [src]="preview.url" muted playsinline></video>
-            <button class="thumb-remove" type="button" (click)="removeFile(i)" aria-label="Remove">
+            <button class="thumb-remove" *ngIf="!isEdit" type="button" (click)="removeFile(i)" aria-label="Remove">
               <svg lucideX [size]="12"></svg>
             </button>
           </div>
@@ -219,7 +219,7 @@
         [disabled]="isSubmitting"
         (click)="submitPost()"
       >
-        {{ isSubmitting ? 'POSTING...' : 'POST' }}
+        {{ isSubmitting ? (isEdit ? 'SAVING...' : 'POSTING...') : (isEdit ? 'SAVE' : 'POST') }}
       </button>
     </div>
   </div>

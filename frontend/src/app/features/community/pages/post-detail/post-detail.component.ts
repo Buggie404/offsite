@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-
+import { CreatePostModalComponent } from '../../components/create-post-modal/create-post-modal.component';
 import { Post, PostProductCard, postProductLink } from '../../models/post.model';
 import { CommunityService } from '../../services/community.service';
 import { CommentSectionComponent } from '../../components/comment-section/comment-section.component';
@@ -14,7 +14,7 @@ import { ToastService } from '../../../../shared/services/toast.service';
 import { ReportPostModalComponent, ReportPayload } from '../../components/report-post-modal/report-post-modal.component';
 import {
   LucideArrowLeft, LucideArrowRight, LucideBookmark, LucideClock, LucideEllipsis, LucideFlag,
-  LucideHeart, LucideMessageCircle, LucidePlay, LucideShare2, LucideStar, LucideTrash2, LucideUser
+  LucideHeart, LucideMessageCircle, LucidePlay, LucideShare2, LucideStar, LucideTrash2, LucideUser, LucidePencil
 } from '@lucide/angular';
 
 @Component({
@@ -22,8 +22,9 @@ import {
   standalone: true,
   imports: [
     CommonModule, FormsModule, RouterModule, CommentSectionComponent, ShareModalComponent, ConfirmationModalComponent,
-    ReportPostModalComponent, LucideArrowLeft, LucideArrowRight, LucideBookmark, LucideClock, LucideEllipsis, LucideFlag,
-    LucideHeart, LucideMessageCircle, LucidePlay, LucideShare2, LucideStar, LucideTrash2, LucideUser
+    ReportPostModalComponent, CreatePostModalComponent, LucideArrowLeft, LucideArrowRight, LucideBookmark, LucideClock,
+    LucideEllipsis, LucideFlag, LucideHeart, LucideMessageCircle, LucidePencil, LucidePlay, LucideShare2, LucideStar,
+    LucideTrash2, LucideUser
   ],
   templateUrl: './post-detail.component.html',
   styleUrls: ['./post-detail.component.scss']
@@ -55,6 +56,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
 
   showReportModal = false;
   reportSubmitting = false;
+  showEditModal = false;
 
   private static readonly TAG_LABELS: Record<string, string> = {
     HOT: 'Hot', COLD: 'Iced', DESSERT: 'Dessert', COCKTAIL: 'Cocktail'
@@ -129,6 +131,28 @@ export class PostDetailComponent implements OnInit, OnDestroy {
 
   closeReport(): void {
     if (!this.reportSubmitting) this.showReportModal = false;
+  }
+
+    get canEditPost(): boolean {
+    return this.isPostAuthor && this.post?.post_type !== 'recipe';
+  }
+
+  openEdit(): void {
+    this.showPostOptions = false;
+    this.showEditModal = true;
+  }
+
+  closeEdit(): void {
+    this.showEditModal = false;
+  }
+
+  onPostEdited(): void {
+    if (!this.post) return;
+    this.communityService.getPostById(this.post.post_id).subscribe(updated => {
+      this.post = updated;
+      this.postContentParts = this.parseContentTags(updated.content);
+      this.cdr.markForCheck();
+    });
   }
 
   submitReport(payload: ReportPayload): void {

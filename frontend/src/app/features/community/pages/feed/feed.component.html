@@ -180,7 +180,8 @@
   </div>
 </div>
 
-<app-create-post-modal *ngIf="showCreatePost" (close)="closeCreatePost()"></app-create-post-modal>
+<app-create-post-modal *ngIf="showCreatePost" [post]="editingPost"
+  (saved)="onPostEdited($event)" (close)="closeCreatePost()"></app-create-post-modal>
 <app-create-recipe-modal *ngIf="showCreateRecipe" (close)="closeCreateRecipe()"></app-create-recipe-modal>
 
 <app-share-modal *ngIf="showShareModal" [shareUrl]="shareUrl" (close)="closeShareModal()"></app-share-modal>

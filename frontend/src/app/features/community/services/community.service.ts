@@ -86,6 +86,13 @@ export class CommunityService {
     return this.http.post(this.apiUrl, data);
   }
   
+  updatePost(
+    id: string,
+    data: { content: string; base: string; linked_products: string }
+  ): Observable<any> {
+    return this.http.put(`${this.apiUrl}/${id}`, data);
+  }
+  
   searchProducts(q: string): Observable<ProductTag[]> {
     return this.http
       .get<{ data: ProductTag[] }>(`${this.apiUrl}/product-search`, { params: { q } })
