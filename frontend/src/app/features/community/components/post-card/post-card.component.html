@@ -26,6 +26,10 @@
           <svg lucideFlag [size]="15"></svg>
           <span>Report post</span>
         </button>
+        <button type="button" class="card-menu__item" *ngIf="canEdit" (click)="onMenuEdit($event)">
+          <svg lucidePencil [size]="15"></svg>
+          <span>Edit</span>
+        </button>        
         <button type="button" class="card-menu__item card-menu__item--danger" *ngIf="isOwner" (click)="onMenuDelete($event)">
           <svg lucideTrash2 [size]="15"></svg>
           <span>Delete</span>

@@ -115,7 +115,8 @@
 
         <app-post-card *ngFor="let post of posts" [post]="post" [isOwner]="!!post.user_id && post.user_id === currentUserId()"
           (like)="likePost($event)" (save)="savePost($event)" (share)="sharePost($event)"
-          (openDetail)="goToDetail($event)" (delete)="promptDeletePost($event)" (report)="openReport($event)">
+          (openDetail)="goToDetail($event)" (delete)="promptDeletePost($event)" (report)="openReport($event)"
+          (edit)="openEdit($event)">
         </app-post-card>
 
         <!-- Skeleton Cards for Infinite Scroll (loads a row of 3 cards in the grid) -->

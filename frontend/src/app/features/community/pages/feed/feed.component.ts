@@ -68,6 +68,7 @@ export class FeedComponent implements OnInit, OnDestroy {
 
   showCreatePost = false;
   showCreateRecipe = false;
+  editingPost: Post | null = null;
 
   showShareModal = false;
   shareUrl = '';
@@ -334,11 +335,26 @@ export class FeedComponent implements OnInit, OnDestroy {
 
   openCreatePost(): void {
     if (!this.isLoggedIn()) return this.openLoginModal();
+    this.editingPost = null;
     this.showCreatePost = true;
   }
 
   closeCreatePost(): void {
     this.showCreatePost = false;
+    this.editingPost = null;
+  }
+
+  openEdit(post: Post): void {
+    if (!this.isLoggedIn()) return this.openLoginModal();
+    this.editingPost = post;
+    this.showCreatePost = true;
+  }
+
+  onPostEdited(postId: string): void {
+    this.communityService.getPostById(postId).subscribe(updated => {
+      this.posts = this.posts.map(p => (p.post_id === postId ? updated : p));
+      this.cdr.markForCheck();
+    });
   }
 
   openCreateRecipe(): void {

@@ -1,4 +1,4 @@
-import { Component, DestroyRef, EventEmitter, HostListener, OnDestroy, Output, inject } from '@angular/core';
+import { Component, DestroyRef, EventEmitter, HostListener, Input, OnDestroy, OnInit, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -11,15 +11,13 @@ import {
 
 import { CloudinaryService, CloudinaryUploadResult } from '../../services/cloudinary.service';
 import { CommunityService } from '../../services/community.service';
-import { ProductTag } from '../../models/post.model';
+import { Post, ProductTag } from '../../models/post.model';
 
-// base chỉ có 2 giá trị hợp lệ theo Post model — gõ 1 trong 2 từ này vào ô Tags
-// sẽ được nhận là "base" (tag phân loại bắt buộc), khác đi thì thành hashtag tự do
 const VALID_BASES = ['coffee', 'matcha'] as const;
 type BaseValue = 'COFFEE' | 'MATCHA';
 
 interface TagChip {
-  label: string;   // hiển thị: "coffee"/"matcha" hoặc "icedcoffee" (hashtag tự do)
+  label: string;   
   isBase: boolean;
 }
 
@@ -38,21 +36,30 @@ interface MediaPreview {
   templateUrl: './create-post-modal.component.html',
   styleUrls: ['./create-post-modal.component.scss'],
 })
-export class CreatePostModalComponent implements OnDestroy {
+export class CreatePostModalComponent implements OnInit, OnDestroy {
   private cloudinary = inject(CloudinaryService);
   private communityService = inject(CommunityService);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
 
-  // Khớp với feed.component.html: (close)="closeCreatePost()"
+
   @Output() close = new EventEmitter<void>();
+
+  @Input() post: Post | null = null;
+  @Output() saved = new EventEmitter<string>();
+
+  private initialSnapshot = '';
+
+  get isEdit(): boolean {
+    return !!this.post;
+  }
 
   // ----- State modal Create Post -----
   content = '';
   tagInput = '';
   tags: TagChip[] = [];
   files: File[] = [];
-  previews: MediaPreview[] = []; // object URL + type để show thumbnail (ảnh hoặc video) trước khi upload
+  previews: MediaPreview[] = []; 
   isSubmitting = false;
   errorMessage = '';
 
@@ -71,7 +78,7 @@ export class CreatePostModalComponent implements OnDestroy {
   searchDone = false;
   private query$ = new Subject<string>();
 
-  // ----- Gợi ý thẻ sản phẩm (AI) — "Gợi ý lại" tối đa 2 lần -----
+  // ----- Gợi ý thẻ sản phẩm (AI) 
   readonly maxRegenerate = 2;
   suggestions: ProductTag[] = [];
   suggestLoading = false;
@@ -84,7 +91,6 @@ export class CreatePostModalComponent implements OnDestroy {
   showDiscardConfirm = false;
 
   constructor() {
-    // Tìm sản phẩm thủ công: debounce 300ms, huỷ request cũ khi gõ tiếp
     this.query$
       .pipe(
         debounceTime(300),
@@ -110,6 +116,42 @@ export class CreatePostModalComponent implements OnDestroy {
         this.searching = false;
       });
   }
+
+  ngOnInit(): void {
+    const p = this.post;
+    if (!p) return;
+
+    const tagRe = /#[^\s#]+/g;
+    const hashtags = (p.content?.match(tagRe) || []).map(t => t.slice(1));
+    this.content = (p.content || '').replace(tagRe, '').replace(/[ \t]{2,}/g, ' ').trim();
+
+    this.tags = [];
+    if (p.base === 'COFFEE' || p.base === 'MATCHA') {
+      this.tags.push({ label: p.base.toLowerCase(), isBase: true });
+    }
+    hashtags.forEach(h => this.tags.push({ label: h, isBase: false }));
+
+    this.selectedProducts = (p.products || []).map(c => ({
+      product_id: c.product_id,
+      name: c.name,
+      image_url: c.image_url,
+      source: 'manual' as const,
+      confidence: null,
+    }));
+
+    this.previews = (p.media || []).map(m => ({ url: m.url, type: m.type }));
+
+    this.initialSnapshot = this.snapshot();
+  }
+
+  private snapshot(): string {
+    return JSON.stringify([
+      this.content.trim(),
+      this.tags.map(t => t.label),
+      this.selectedProducts.map(s => s.product_id),
+    ]);
+  }
+
 
   ngOnDestroy(): void {
     this.previews.forEach(p => URL.revokeObjectURL(p.url));
@@ -305,7 +347,6 @@ export class CreatePostModalComponent implements OnDestroy {
             .slice(0, this.maxProducts);
 
           if (fresh.length === 0) {
-            // Không còn gì mới: giữ nguyên kết quả cũ và KHÔNG tính vào lượt gợi ý lại
             this.suggestMessage = this.hasSuggested
               ? 'No other matches for this post.'
               : 'No matching products found. Try adding more detail or search manually.';
@@ -335,7 +376,6 @@ export class CreatePostModalComponent implements OnDestroy {
     return this.previews[0] ?? null;
   }
 
-  // ================== Đóng modal / Discard confirm ==================
 
   get hasUnsavedContent(): boolean {
     return (
@@ -409,7 +449,6 @@ export class CreatePostModalComponent implements OnDestroy {
     this.errorMessage = '';
     this.isSubmitting = true;
 
-    // Nối hashtag tự do vào cuối content (khớp cách post-detail parse hashtag)
     const finalContent = this.composedContent;
     const base = baseTag.label.toUpperCase() as BaseValue;
     const linkedProducts = this.selectedProducts.slice(0, this.maxProducts).map(p => p.product_id);

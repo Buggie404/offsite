@@ -1,13 +1,13 @@
 import { Component, ElementRef, EventEmitter, HostListener, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { LucideBookmark, LucideEllipsis, LucideFlag, LucideHeart, LucideMessageCircle, LucideShare2, LucideTrash2 } from '@lucide/angular';
+import { LucideBookmark, LucideEllipsis, LucideFlag, LucideHeart, LucideMessageCircle, LucidePencil, LucideShare2, LucideTrash2 } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { Post, PostProductCard, postProductLink } from '../../models/post.model';
 
 @Component({
   selector: 'app-post-card',
   standalone: true,
-  imports: [CommonModule, RouterLink, LucideEllipsis, LucideFlag, LucideBookmark, LucideTrash2, LucideHeart, LucideMessageCircle, LucideShare2],
+  imports: [CommonModule, RouterLink, LucideEllipsis, LucideFlag, LucideBookmark, LucideTrash2, LucideHeart, LucideMessageCircle, LucideShare2, LucidePencil],
   templateUrl: './post-card.component.html',
   styleUrls: ['./post-card.component.scss']
 })
@@ -21,6 +21,7 @@ export class PostCardComponent {
   @Output() openDetail = new EventEmitter<string>();
   @Output() delete = new EventEmitter<string>();
   @Output() report = new EventEmitter<string>();
+  @Output() edit = new EventEmitter<Post>();
 
   menuOpen = false;
 
@@ -71,10 +72,22 @@ export class PostCardComponent {
   }
 
   onMenuDelete(event: Event): void {
+    
     event.stopPropagation();
     this.menuOpen = false;
     this.delete.emit(this.post.post_id);
   }
+
+  get canEdit(): boolean {
+    return this.isOwner && this.post.post_type !== 'recipe';
+  }
+
+  onMenuEdit(event: Event): void {
+    event.stopPropagation();
+    this.menuOpen = false;
+    this.edit.emit(this.post);
+  }
+
 
   onMenuReport(event: Event): void {
     event.stopPropagation();
