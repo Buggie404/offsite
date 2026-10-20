@@ -33,6 +33,9 @@ router.get('/community/reports', authMiddleware, requireRole('admin_cc', 'cskh')
 router.post('/community/posts/:postId/hide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.hide);
 router.post('/community/posts/:postId/unhide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.unhide);
 router.post('/community/posts/:postId/dismiss', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.dismissReports);
+router.get('/community/comment-reports', authMiddleware, requireRole('admin_cc', 'cskh'), adminCommunityController.listReportedComments);
+router.post('/community/comments/:commentId/hide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.hideComment);
+router.post('/community/comments/:commentId/unhide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.unhideComment);
 
 // ── DEV ONLY: Fix admin roles in DB ────────────────────────────────────
 // Gọi POST /api/admin/dev/fix-admin-roles để update role trong DB
