@@ -1119,17 +1119,6 @@ $transition-speed: 0.25s;
   100% { transform: rotate(360deg); }
 }
 
-/* Vertically center the Back to Top button relative to the floating mobile timer */
-.recipe-detail-page.has-floating-timer ::ng-deep .back-to-top-btn {
-  @media (max-width: 992px) {
-    bottom: 42px !important; // Vertically center 48px button against ~68px timer (32px bottom + 10px offset)
-  }
-
-  @media (max-width: 768px) {
-    bottom: 36px !important; // Vertically center 44px button against ~68px timer (24px bottom + 12px offset)
-  }
-}
-
 // ── ALARM TIMER ANIMATIONS & STATES ──
 .timer-card.is-alarming {
   animation: shakeTimer 0.5s infinite;

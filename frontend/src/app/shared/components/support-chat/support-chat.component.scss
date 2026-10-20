@@ -2,15 +2,26 @@ $forest: var(--color-forest-green, #2f4a3a);
 $border: #e6dfd6;
 
 .sc-fab {
-  position: fixed; right: 20px; bottom: 20px; z-index: 900; width: 54px; height: 54px; border-radius: 50%;
+  position: fixed; right: 28px; bottom: 96px; z-index: 900; width: 52px; height: 52px; border-radius: 50%;
   border: 0; background: $forest; color: #fff; display: grid; place-items: center; cursor: pointer;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .2);
+
+  @media (max-width: 600px) {
+    right: 16px;
+    bottom: 88px;
+  }
 }
 
 .sc-panel {
-  position: fixed; right: 20px; bottom: 86px; z-index: 900; width: 340px; max-width: calc(100vw - 24px);
-  height: 460px; max-height: calc(100vh - 120px); display: flex; flex-direction: column;
+  position: fixed; right: 28px; bottom: 160px; z-index: 900; width: 340px; max-width: calc(100vw - 24px);
+  height: 460px; max-height: calc(100vh - 311px); display: flex; flex-direction: column;
   background: #fffdf9; border: 1px solid $border; border-radius: 16px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); overflow: hidden;
+
+  @media (max-width: 600px) {
+    right: 16px;
+    bottom: 152px;
+    max-height: calc(100vh - 300px);
+  }
 }
 
 .sc-head {

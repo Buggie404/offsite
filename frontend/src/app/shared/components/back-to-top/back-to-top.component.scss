@@ -1,7 +1,7 @@
 .back-to-top-btn {
   position: fixed;
-  bottom: 88px;
-  right: 30px;
+  bottom: 100px;
+  right: 32px;
   width: 44px;
   height: 44px;
   background-color: var(--color-forest-green);
@@ -28,10 +28,18 @@
   }
 
   @media (max-width: 768px) {
-    bottom: 80px;
-    right: 20px;
+    bottom: 92px;
+    right: 22px;
     width: 40px;
     height: 40px;
+  }
+}
+
+:host-context(body.has-support-chat) .back-to-top-btn {
+  bottom: 168px;
+
+  @media (max-width: 600px) {
+    bottom: 160px;
   }
 }
 

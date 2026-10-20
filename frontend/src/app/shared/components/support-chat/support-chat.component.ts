@@ -1,5 +1,5 @@
-import { ChangeDetectorRef, Component, ElementRef, OnDestroy, ViewChild, effect, inject } from '@angular/core';
-import { CommonModule, DatePipe } from '@angular/common';
+import { ChangeDetectorRef, Component, ElementRef, OnDestroy, PLATFORM_ID, ViewChild, effect, inject } from '@angular/core';
+import { CommonModule, DatePipe, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { ChatConversation, ChatMessage, ChatService } from '../../../core/services/chat.service';
@@ -16,6 +16,7 @@ export class SupportChatComponent implements OnDestroy {
   private chat = inject(ChatService);
   private auth = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
+  private platformId = inject(PLATFORM_ID);
   private subs = new Subscription();
 
   @ViewChild('thread') private thread?: ElementRef<HTMLElement>;
@@ -33,7 +34,11 @@ export class SupportChatComponent implements OnDestroy {
   constructor() {
     // Drop the socket and local state on logout so the next user starts clean.
     effect(() => {
-      if (!this.isLoggedIn()) {
+      const loggedIn = this.isLoggedIn();
+      if (isPlatformBrowser(this.platformId)) {
+        document.body.classList.toggle('has-support-chat', loggedIn);
+      }
+      if (!loggedIn) {
         this.chat.disconnect();
         this.listening = false;
         this.subs.unsubscribe();
@@ -141,6 +146,9 @@ export class SupportChatComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (isPlatformBrowser(this.platformId)) {
+      document.body.classList.remove('has-support-chat');
+    }
     this.subs.unsubscribe();
     clearTimeout(this.typingTimer);
     clearTimeout(this.stopTypingTimer);
