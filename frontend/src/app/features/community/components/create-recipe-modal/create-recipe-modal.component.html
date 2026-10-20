@@ -200,6 +200,16 @@
         </div>
       </section>
 
+      <!-- PRODUCTS (gắn tối đa 3 vào bài community) -->
+      <section class="form-section">
+        <div class="section-label-row">
+          <span class="section-label">PRODUCTS</span>
+          <span class="section-divider"></span>
+          <span class="section-count">{{ linkedProducts.length }}/3</span>
+        </div>
+        <app-product-picker [(selected)]="linkedProducts" [suggestContent]="suggestContent"></app-product-picker>
+      </section>
+
       <p class="form-error" *ngIf="errorMessage">{{ errorMessage }}</p>
     </div>
 

@@ -643,3 +643,9 @@
     background: rgba(186, 26, 26, 0.05);
   }
 }
+.section-count {
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: .08em;
+  color: var(--text-muted, #8a8a80);
+}

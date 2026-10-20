@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, EventEmitter, OnDestroy, Output, inject } from '@angular/core';
+import { AfterViewInit, Component, EventEmitter, OnDestroy, Output, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -8,6 +8,8 @@ import { CloudinaryService } from '../../services/cloudinary.service';
 import { RecipeService } from '../../../home/services/recipe.service';
 import { Difficulty } from '../../../home/models/recipe.model';
 import { InlineValidator, FieldConfig } from '../../../../shared/utils/inline-validator';
+import { ProductTag } from '../../models/post.model';
+import { ProductPickerComponent } from '../product-picker/product-picker.component';
 
 type ServeStyle = 'HOT' | 'COLD' | 'DESSERT';
 
@@ -31,7 +33,7 @@ const ALL_DIFFICULTIES: Difficulty[] = ['EASY', 'MEDIUM', 'HARD'];
 @Component({
   selector: 'app-create-recipe-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideX, LucideCamera, LucideCircleCheck, LucideTrash2],
+  imports: [CommonModule, FormsModule, ProductPickerComponent, LucideX, LucideCamera, LucideCircleCheck, LucideTrash2],
   templateUrl: './create-recipe-modal.component.html',
   styleUrls: ['./create-recipe-modal.component.scss'],
 })
@@ -177,6 +179,20 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
   tools: ToolForm[] = [];
   steps: StepForm[] = [this.emptyStep()];
 
+  // ----- Sản phẩm gắn vào bài community (tối đa 3) -----
+  linkedProducts: ProductTag[] = [];
+  @ViewChild(ProductPickerComponent) private productPicker?: ProductPickerComponent;
+
+  // Nội dung dùng để gợi ý sản phẩm: tiêu đề + mô tả + nguyên liệu + dụng cụ
+  get suggestContent(): string {
+    return [
+      this.title,
+      this.description,
+      ...this.ingredients.map(i => i.name),
+      ...this.tools.map(t => t.name),
+    ].filter(s => s && s.trim()).join(' ');
+  }
+
   // ----- Serve style (single select) -----
   selectedServeStyle: ServeStyle | null = 'HOT';
 
@@ -289,6 +305,7 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
       this.title.trim().length > 0 ||
       this.description.trim().length > 0 ||
       this.heroFile !== null ||
+      this.linkedProducts.length > 0 ||
       this.ingredients.some(i => i.name.trim().length > 0) ||
       this.tools.some(t => t.name.trim().length > 0) ||
       this.steps.some(s => s.description.trim().length > 0)
@@ -321,6 +338,8 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
     this.removeHeroImage();
     this.title = '';
     this.description = '';
+    this.linkedProducts = [];
+    this.productPicker?.reset();
     this.servings = null;
     this.prepTime = null;
     this.cookTime = null;
@@ -403,6 +422,9 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
             })),
           ),
         );
+
+        // Backend: gắn tối đa 3 sản phẩm vào bài community được tạo kèm recipe
+        formData.append('linked_products', JSON.stringify(this.linkedProducts.slice(0, 3).map(p => p.product_id)));
 
         this.recipeService.createRecipe(formData).subscribe({
           next: (res: any) => {

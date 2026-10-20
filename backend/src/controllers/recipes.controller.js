@@ -87,6 +87,13 @@ function parseJSONField(raw, fallback) {
 }
 
 // Create a new recipe
+// Nhận mảng hoặc JSON string (form gửi multipart), tối đa 3 product_id hợp lệ, không trùng.
+function parseLinkedProducts(raw) {
+  const list = parseJSONField(raw, []);
+  if (!Array.isArray(list)) return [];
+  return [...new Set(list.map(Number).filter(Number.isInteger))].slice(0, 3);
+}
+
 async function createRecipe(req, res) {
   try {
     const {
@@ -98,6 +105,7 @@ async function createRecipe(req, res) {
       tools: rawTools,
       steps: rawSteps,
       relatedProducts: rawRelatedProducts,
+      linked_products: rawLinkedProducts,
     } = req.body;
 
     if (!title || !title.trim()) {
@@ -206,6 +214,8 @@ async function createRecipe(req, res) {
       }],
       recipe_id: recipe_id,
       base: 'RECIPE',
+      // Sản phẩm gắn vào bài community (max 3). Khác với recipe.relatedProducts (dùng ở trang Recipe Detail)
+      linked_products: parseLinkedProducts(rawLinkedProducts),
       like_count: 0,
       comment_count: 0,
       share_count: 0,

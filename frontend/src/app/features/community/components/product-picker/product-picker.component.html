@@ -1,0 +1,51 @@
+<div class="picker">
+  <div class="picker__search" *ngIf="canAddMore">
+    <svg lucideSearch [size]="16" class="picker__search-icon"></svg>
+    <input class="picker__input" type="text" placeholder="Search a product to tag..."
+      [ngModel]="query" (ngModelChange)="onQueryChange($event)" name="productPickerQuery" autocomplete="off" />
+  </div>
+
+  <div class="picker__list" *ngIf="canAddMore && query.trim().length >= 2">
+    <p class="picker__hint" *ngIf="searching">Searching...</p>
+    <p class="picker__hint" *ngIf="!searching && searchDone && !visibleResults.length">No products found.</p>
+    <button type="button" class="picker__option" *ngFor="let p of visibleResults" (click)="add(p)">
+      <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
+      <span class="picker__name">{{ p.name }}</span>
+      <svg lucidePlus [size]="14"></svg>
+    </button>
+  </div>
+
+  <div class="picker__chips" *ngIf="selected.length">
+    <div class="picker__chip" *ngFor="let p of selected">
+      <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
+      <span>{{ p.name }}</span>
+      <button type="button" (click)="remove(p)" aria-label="Remove product"><svg lucideX [size]="12"></svg></button>
+    </div>
+  </div>
+  <p class="picker__hint" *ngIf="limitMessage">{{ limitMessage }}</p>
+
+  <div class="picker__suggest">
+    <div class="picker__suggest-head">
+      <span class="picker__suggest-title"><svg lucideSparkles [size]="14"></svg> Suggested products</span>
+      <button type="button" class="picker__btn" *ngIf="!hasSuggested"
+        [disabled]="suggestLoading || !canSuggest" (click)="requestSuggestions(false)">
+        {{ suggestLoading ? 'Thinking...' : 'Suggest tags' }}
+      </button>
+      <button type="button" class="picker__btn" *ngIf="hasSuggested"
+        [disabled]="suggestLoading || regenLeft <= 0" (click)="requestSuggestions(true)">
+        <svg lucideRefreshCw [size]="13"></svg>
+        {{ suggestLoading ? 'Thinking...' : 'Suggest again (' + regenLeft + ' left)' }}
+      </button>
+    </div>
+    <p class="picker__hint" *ngIf="suggestMessage">{{ suggestMessage }}</p>
+    <div class="picker__list" *ngIf="visibleSuggestions.length">
+      <button type="button" class="picker__option" *ngFor="let p of visibleSuggestions"
+        [disabled]="!canAddMore" (click)="add(p)">
+        <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
+        <span class="picker__name">{{ p.name }}</span>
+        <span class="picker__badge" *ngIf="p.confidence != null">{{ p.confidence * 100 | number:'1.0-0' }}%</span>
+        <svg lucidePlus [size]="14"></svg>
+      </button>
+    </div>
+  </div>
+</div>
