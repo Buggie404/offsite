@@ -17,9 +17,14 @@ async function trackOrder(req, res) {
       return res.status(404).json({ error: 'Order not found.' });
     }
 
-    // Verify ownership
     const emailMatch = email && order.delivery_info.email && email.trim().toLowerCase() === order.delivery_info.email.trim().toLowerCase();
-    const mobileMatch = mobile && order.delivery_info.mobile && mobile.trim() === order.delivery_info.mobile.trim();
+    let typedDigits = String(mobile || '').replace(/\D/g, '');
+    let storedDigits = String(order.delivery_info.mobile || '').replace(/\D/g, '');
+    if (typedDigits.startsWith('84') && typedDigits.length > 9) typedDigits = typedDigits.slice(2);
+    if (storedDigits.startsWith('84') && storedDigits.length > 9) storedDigits = storedDigits.slice(2);
+    if (typedDigits.startsWith('0')) typedDigits = typedDigits.slice(1);
+    if (storedDigits.startsWith('0')) storedDigits = storedDigits.slice(1);
+    const mobileMatch = typedDigits.length >= 8 && (storedDigits === typedDigits || storedDigits.endsWith(typedDigits) || typedDigits.endsWith(storedDigits));
 
     if (!emailMatch && !mobileMatch) {
       return res.status(403).json({ error: 'Verification details do not match this order.' });

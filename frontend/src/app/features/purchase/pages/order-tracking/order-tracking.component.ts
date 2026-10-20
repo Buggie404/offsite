@@ -55,14 +55,26 @@ export class OrderTrackingComponent implements OnInit {
   private cartService = inject(CartService);
 
   ngOnInit(): void {
+    const contact = typeof history !== 'undefined' ? String(history.state?.contact || '').trim() : '';
     this.route.queryParams.subscribe(async params => {
       const orderId = params['orderId'];
-      if (orderId) {
-        this.searchQuery.set(orderId);
-        await this.onSearch();
+      if (!orderId) return;
+
+      this.searchQuery.set(orderId);
+      if (contact) {
+        const isEmail = contact.includes('@');
+        this.verificationType.set(isEmail ? 'email' : 'phone');
+        this.verificationQuery.set(contact);
+        await this.onVerify();
         if (this.order()) {
           this.viewOrderDetails();
         }
+        return;
+      }
+
+      await this.onSearch();
+      if (this.order()) {
+        this.viewOrderDetails();
       }
     });
   }

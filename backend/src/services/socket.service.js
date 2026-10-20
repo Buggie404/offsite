@@ -262,10 +262,50 @@ function emitChatEvent(event, payload, conversation = null) {
   if (payload.customer_id) io.to(`user_${payload.customer_id}`).emit(event, payload);
 }
 
+function emitChatHandover(chatSession, agentUserIds = [], note = null) {
+  if (!io || !chatSession) return;
+
+  const createdAt = note?.created_at ? new Date(note.created_at) : new Date();
+  const notes = (chatSession.handover_notes || []).map(entry => ({
+    note_id: entry.note_id,
+    reason: entry.reason,
+    summary: entry.summary,
+    created_at: entry.created_at ? new Date(entry.created_at).toISOString() : null
+  }));
+  const payload = {
+    notification_id: note?.note_id || `${chatSession.session_id}_${createdAt.getTime()}`,
+    session_id: chatSession.session_id,
+    user_id: chatSession.user_id,
+    handover_reason: note?.reason || chatSession.handover_reason,
+    summary: note?.summary || chatSession.summary,
+    notes,
+    messages_count: chatSession.messages?.length || 0,
+    created_at: createdAt.toISOString()
+  };
+
+  io.to('admin').emit('chat_handover', payload);
+  for (const userId of agentUserIds) {
+    io.to(`user_${userId}`).emit('chat_handover', payload);
+  }
+  console.log(`[Socket.IO] Chat session ${chatSession.session_id} handed over to support: ${chatSession.handover_reason}`);
+}
+
+function emitLlmBudgetWarning(adminUserIds, payload) {
+  if (!io) return;
+
+  io.to('admin').emit('llm_budget_warning', payload);
+  for (const userId of adminUserIds || []) {
+    io.to(`user_${userId}`).emit('llm_budget_warning', payload);
+  }
+  console.warn(`[Socket.IO] Admin CC budget warning: ${payload.count}/${payload.limit} (${payload.percent}%)`);
+}
+
 module.exports = {
   initSocket,
   getIO,
   emitOrderUpdated,
   emitNewOrder,
-  emitChatEvent
+  emitChatEvent,
+  emitChatHandover,
+  emitLlmBudgetWarning
 };

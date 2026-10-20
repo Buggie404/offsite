@@ -1,0 +1,410 @@
+<!-- FLOATING TRIGGER PILL & BUTTON (Bottom Right) -->
+<div class="concierge-trigger-container" [class.concierge-trigger-container--hidden]="chatService.isOpen()">
+  <div class="concierge-prompt-pill" (click)="toggleChat()">
+    <div class="pill-sparkle">
+      <svg lucideSparkles [size]="14"></svg>
+    </div>
+    <span class="pill-text">Still deciding? Ask me about grades or brewing.</span>
+  </div>
+
+  <button
+    type="button"
+    class="concierge-fab"
+    (click)="toggleChat()"
+    aria-label="Open Offsite Concierge Chatbot"
+  >
+    <svg lucideMessageCircle [size]="24" class="fab-icon"></svg>
+  </button>
+</div>
+
+<!-- CHAT WINDOW / DRAWER -->
+@if (chatService.isOpen()) {
+  <aside class="concierge-drawer" aria-label="Offsite Concierge Chat">
+    <!-- Header -->
+    <header class="concierge-header">
+      <div class="header-branding">
+        <div class="header-icon-badge">
+          <svg lucideSparkles [size]="16"></svg>
+        </div>
+        <div class="header-title-box">
+          <h2 class="header-title">Offsite Concierge</h2>
+          <span class="header-subtitle">AI assistant · replies instantly</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button
+          type="button"
+          class="header-btn"
+          (click)="closeChat()"
+          aria-label="Minimize"
+          title="Minimize"
+        >
+          <svg lucideMinus [size]="16"></svg>
+        </button>
+        <button
+          type="button"
+          class="header-btn"
+          (click)="closeChat()"
+          aria-label="Close"
+          title="Close"
+        >
+          <svg lucideX [size]="16"></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Chat Messages Flow -->
+    <div class="concierge-body" #messagesContainer>
+      @for (msg of chatService.messages(); track msg.id) {
+        <!-- AI Message Block -->
+        @if (msg.sender === 'ai') {
+          <div class="msg-row msg-row--ai">
+            <div class="msg-avatar msg-avatar--ai">
+              <svg lucideSparkles [size]="14"></svg>
+            </div>
+            <div class="msg-content-wrapper">
+              @if (msg.formattedHtml && !msg.showOrderForm) {
+                <div class="msg-bubble msg-bubble--ai" [innerHTML]="msg.formattedHtml"></div>
+              } @else if (msg.text && !msg.showOrderForm) {
+                <div class="msg-bubble msg-bubble--ai">
+                  <p>{{ msg.text }}</p>
+                </div>
+              }
+
+              @if (msg.showOrderForm) {
+                <div class="chat-order-form-card">
+                  <p class="order-form-intro">{{ msg.text }}</p>
+                  <div class="order-form-group">
+                    <label class="order-form-label">ORDER CODE</label>
+                    <input
+                      type="text"
+                      class="order-form-input"
+                      placeholder="Order code"
+                      [ngModel]="msg.orderForm?.code || ''"
+                      (ngModelChange)="chatService.updateOrderForm(msg.id, 'code', $event)"
+                    />
+                  </div>
+                  <div class="order-form-group">
+                    <label class="order-form-label">PHONE OR EMAIL</label>
+                    <input
+                      type="text"
+                      class="order-form-input"
+                      placeholder="Phone or email"
+                      [ngModel]="msg.orderForm?.contact || ''"
+                      (ngModelChange)="chatService.updateOrderForm(msg.id, 'contact', $event)"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    class="order-form-submit-btn"
+                    [disabled]="!(msg.orderForm?.code || '').trim() || !(msg.orderForm?.contact || '').trim() || chatService.isTyping()"
+                    (click)="submitOrderLookup(msg)"
+                  >
+                    <span>{{ chatService.isTyping() ? 'FINDING...' : 'FIND MY ORDER' }}</span>
+                  </button>
+                </div>
+              }
+
+              @if (msg.supportActions?.length) {
+                <div class="msg-quick-replies">
+                  @for (action of msg.supportActions; track action.kind) {
+                    <button
+                      type="button"
+                      class="quick-reply-pill"
+                      (click)="onSupportAction(action)"
+                    >
+                      {{ action.label }}
+                    </button>
+                  }
+                </div>
+              }
+
+              <!-- Quick reply pills (Capsule tags) -->
+              @if (msg.quickReplies && msg.quickReplies.length > 0) {
+                <div class="msg-quick-replies">
+                  @for (reply of msg.quickReplies; track reply) {
+                    <button
+                      type="button"
+                      class="quick-reply-pill"
+                      [disabled]="chatService.composerLocked()"
+                      (click)="selectQuickReply(reply)"
+                    >
+                      {{ reply }}
+                    </button>
+                  }
+                </div>
+              }
+
+              <!-- Multiple Products Slider / Carousel -->
+              @if (msg.products && msg.products.length > 0) {
+                <div class="chat-products-slider">
+                  @for (prod of msg.products; track prod.name) {
+                    <div class="chat-card chat-card--product" (click)="goToProduct(prod)" title="View product details">
+                      <div class="product-thumb-container">
+                        @if (prod.imageUrl) {
+                          <img [src]="prod.imageUrl" [alt]="prod.name" class="product-thumb-img" />
+                        } @else {
+                          <div class="product-thumb-placeholder">
+                            <svg viewBox="0 0 40 40" class="x-placeholder">
+                              <rect width="40" height="40" fill="#E6DFD9" />
+                              <line x1="0" y1="0" x2="40" y2="40" stroke="#CDC4BE" stroke-width="1.2" />
+                              <line x1="0" y1="40" x2="40" y2="0" stroke="#CDC4BE" stroke-width="1.2" />
+                            </svg>
+                          </div>
+                        }
+                      </div>
+                      <div class="product-meta">
+                        <span class="product-name">{{ prod.name }}</span>
+                        <span class="product-price">{{ prod.price }}</span>
+                      </div>
+                      <button
+                        type="button"
+                        class="product-add-btn"
+                        [disabled]="prod.inStock === false"
+                        (click)="onAddToCart(prod, $event)"
+                        [title]="prod.inStock === false ? 'Sold out' : 'Add to Cart'"
+                      >
+                        {{ prod.inStock === false ? 'SOLD OUT' : 'ADD' }}
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- Single Product Card Fallback -->
+              @if (!msg.products?.length && msg.productCard) {
+                <div class="chat-card chat-card--product" (click)="goToProduct(msg.productCard)" title="View product details">
+                  <div class="product-thumb-container">
+                    @if (msg.productCard.imageUrl) {
+                      <img [src]="msg.productCard.imageUrl" [alt]="msg.productCard.name" class="product-thumb-img" />
+                    } @else {
+                      <div class="product-thumb-placeholder">
+                        <svg viewBox="0 0 40 40" class="x-placeholder">
+                          <rect width="40" height="40" fill="#E6DFD9" />
+                          <line x1="0" y1="0" x2="40" y2="40" stroke="#CDC4BE" stroke-width="1.2" />
+                          <line x1="0" y1="40" x2="40" y2="0" stroke="#CDC4BE" stroke-width="1.2" />
+                        </svg>
+                      </div>
+                    }
+                  </div>
+                  <div class="product-meta">
+                    <span class="product-name">{{ msg.productCard.name }}</span>
+                    <span class="product-price">{{ msg.productCard.price }}</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="product-add-btn"
+                    [disabled]="msg.productCard.inStock === false"
+                    (click)="onAddToCart(msg.productCard, $event)"
+                    [title]="msg.productCard.inStock === false ? 'Sold out' : 'Add to Cart'"
+                  >
+                    {{ msg.productCard.inStock === false ? 'SOLD OUT' : 'ADD' }}
+                  </button>
+                </div>
+              }
+
+              @if (msg.orderCard || msg.orderCards?.length) {
+                <div class="order-card-list">
+                  @if (msg.orderCard) {
+                    <ng-container *ngTemplateOutlet="orderCardTpl; context: { order: msg.orderCard }"></ng-container>
+                  }
+                  @for (card of msg.orderCards || []; track card.orderId) {
+                    <ng-container *ngTemplateOutlet="orderCardTpl; context: { order: card }"></ng-container>
+                  }
+                </div>
+              }
+
+              <!-- Leave a message when the assistant times out or the daily cap is reached -->
+              @if (msg.showContactForm) {
+                <div class="chat-leave-message-card">
+                  @if (msg.contactSubmitted) {
+                    <p class="leave-msg-success">Your message has been received. We will reply by email.</p>
+                  } @else {
+                    <div class="leave-msg-alert">
+                      <svg lucideAlertTriangle [size]="18" class="alert-icon"></svg>
+                      <span>{{ msg.contactCard?.title || 'Our assistant is unavailable right now. Leave a message and we will reply by email.' }}</span>
+                    </div>
+
+                    <div class="leave-msg-form">
+                      <div class="form-group">
+                        <label class="form-label" for="concierge-email">EMAIL</label>
+                        <input
+                          id="concierge-email"
+                          type="email"
+                          class="form-input"
+                          placeholder="Email"
+                          [(ngModel)]="contactEmail"
+                          [class.form-input--invalid]="!!contactEmailError"
+                          (input)="contactEmailError = ''"
+                        />
+                        @if (contactEmailError) {
+                          <p class="field-error">{{ contactEmailError }}</p>
+                        }
+                      </div>
+
+                      <div class="form-group">
+                        <label class="form-label" for="concierge-message">MESSAGE</label>
+                        <textarea
+                          id="concierge-message"
+                          class="form-textarea"
+                          rows="3"
+                          maxlength="1000"
+                          placeholder="Your message"
+                          [(ngModel)]="contactMessage"
+                          [class.form-input--invalid]="!!contactMessageError"
+                          (input)="contactMessageError = ''"
+                        ></textarea>
+                        @if (contactMessageError) {
+                          <p class="field-error">{{ contactMessageError }}</p>
+                        }
+                      </div>
+
+                      <button
+                        type="button"
+                        class="send-message-btn"
+                        [disabled]="isSendingContact"
+                        (click)="submitContactForm(msg)"
+                      >
+                        {{ isSendingContact ? 'SENDING...' : 'SEND MESSAGE' }}
+                      </button>
+                    </div>
+
+                    <div class="leave-msg-footer">
+                      <span>Or read the </span>
+                      <a
+                        class="faq-link"
+                        [href]="msg.contactCard?.faqUrl || '/contact-us#faq'"
+                        (click)="openFaq($event, msg)"
+                      >FAQ</a>
+                      <span> · Hotline </span>
+                      <a
+                        class="hotline-link"
+                        [href]="'tel:' + hotlineDigits(msg)"
+                      >{{ hotlineLabel(msg) }}</a>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- User Message Bubble -->
+        @if (msg.sender === 'user') {
+          <div class="msg-row msg-row--user">
+            <div class="msg-bubble msg-bubble--user">
+              <p>{{ msg.text }}</p>
+            </div>
+          </div>
+        }
+
+        <!-- System Escalation Banner -->
+        @if (msg.sender === 'system') {
+          <div class="system-handoff-banner">
+            <div class="handoff-icon">
+              <svg lucideHeadphones [size]="16"></svg>
+            </div>
+            <div class="handoff-text">
+              <p>{{ msg.text }}</p>
+            </div>
+          </div>
+        }
+
+        <!-- Agent Support Bubble -->
+        @if (msg.sender === 'agent') {
+          <div class="msg-row msg-row--agent">
+            <div class="msg-avatar msg-avatar--agent">
+              <span>{{ msg.agentInfo?.avatarInitial || 'HP' }}</span>
+            </div>
+            <div class="msg-content-wrapper">
+              <div class="msg-bubble msg-bubble--agent">
+                <div class="agent-name-tag">{{ msg.agentInfo?.senderName || 'Ha · Offsite support' }}</div>
+                <p>{{ msg.text }}</p>
+              </div>
+            </div>
+          </div>
+        }
+      }
+
+      <!-- Agent typing status indicator -->
+      @if (chatService.isTyping()) {
+        <div class="agent-typing-note">
+          <span class="typing-dots">
+            <span></span><span></span><span></span>
+          </span>
+          <span class="typing-label">-- Concierge is typing...</span>
+        </div>
+      }
+    </div>
+
+    <!-- Footer Input Bar -->
+    <footer class="concierge-footer" [class.concierge-footer--disabled]="chatService.composerLocked()">
+      <div class="input-row">
+        <input
+          type="text"
+          class="chat-input"
+          [placeholder]="chatService.composerLocked() ? 'Message limit reached for today' : 'Type a message...'"
+          [(ngModel)]="inputText"
+          [disabled]="chatService.isTyping() || chatService.composerLocked()"
+          (keydown)="onKeydown($event)"
+        />
+        <button
+          type="button"
+          class="send-btn"
+          [disabled]="!inputText.trim() || chatService.isTyping() || chatService.composerLocked()"
+          (click)="handleSend()"
+          aria-label="Send message"
+        >
+          <svg lucideSend [size]="16"></svg>
+        </button>
+      </div>
+      <div class="footer-meta">
+        <button
+          type="button"
+          class="talk-to-human-link"
+          (click)="talkToPerson()"
+        >
+          <svg lucideUser [size]="13"></svg>
+          <span>Talk to a person</span>
+        </button>
+        <span class="disclaimer">AI can make mistakes</span>
+      </div>
+    </footer>
+
+    <ng-template #orderCardTpl let-order="order">
+      <div class="chat-card chat-card--order">
+        <div class="order-top">
+          <span class="order-id">{{ order.code }}</span>
+          <span class="order-badge" [ngClass]="orderBadgeClass(order.status)">
+            {{ orderStatusLabel(order.status) }}
+          </span>
+        </div>
+        @if (isHaltedOrder(order.status)) {
+          <div class="order-progress-track order-progress-track--halted">
+            <div class="track-step is-halted">
+              <div class="track-segment"></div>
+              <span class="track-label">{{ orderStatusLabel(order.status) }}</span>
+            </div>
+          </div>
+        } @else {
+          <div class="order-progress-track">
+            @for (step of orderSteps(order.status); track step.label) {
+              <div class="track-step" [class.is-done]="step.done" [class.is-current]="step.current">
+                <div class="track-segment"></div>
+                <span class="track-label">{{ step.label }}</span>
+              </div>
+            }
+          </div>
+        }
+        <div class="order-footer">
+          @if (orderEstimate(order); as estimate) {
+            <span class="order-estimate">{{ estimate }}</span>
+          }
+          <button type="button" class="order-track-link" (click)="openOrderTracking(order)">
+            Track order →
+          </button>
+        </div>
+      </div>
+    </ng-template>
+  </aside>
+}
