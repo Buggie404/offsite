@@ -227,7 +227,6 @@ export class CreatePostModalComponent implements OnDestroy {
     return this.files.length < this.maxFiles;
   }
 
-  // ================== Gắn sản phẩm thủ công ==================
 
   get canAddMoreProducts(): boolean {
     return this.selectedProducts.length < this.maxProducts;
@@ -257,12 +256,10 @@ export class CreatePostModalComponent implements OnDestroy {
     this.errorMessage = '';
   }
 
-  // Kết quả tìm kiếm, bỏ những cái đã chọn
   get visibleSearchResults(): ProductTag[] {
     return this.searchResults.filter(p => !this.isProductSelected(p));
   }
 
-  // ================== Gợi ý thẻ sản phẩm (AI) ==================
 
   get regenLeft(): number {
     return this.maxRegenerate - this.regenCount;
@@ -276,7 +273,6 @@ export class CreatePostModalComponent implements OnDestroy {
     return this.suggestions.filter(p => !this.isProductSelected(p));
   }
 
-  // content + hashtag — cùng định dạng sẽ gửi lên khi đăng
   private get composedContent(): string {
     const hashtags = this.tags.filter(t => !t.isBase).map(t => `#${t.label}`).join(' ');
     const text = this.content.trim();
@@ -294,7 +290,7 @@ export class CreatePostModalComponent implements OnDestroy {
     this.suggestLoading = true;
     this.suggestMessage = '';
 
-    // Loại những sản phẩm đã gợi ý/đã chọn để "Gợi ý lại" ra kết quả khác
+
     const exclude = [
       ...new Set([...this.shownSuggestionIds, ...this.selectedProducts.map(p => p.product_id)]),
     ];
@@ -329,10 +325,10 @@ export class CreatePostModalComponent implements OnDestroy {
       });
   }
 
-  // ================== Preview ==================
+
 
   get showPreview(): boolean {
-    return !!this.content.trim() || this.previews.length > 0;
+  return !!this.content.trim() || this.previews.length > 0 || !!this.selectedBase;
   }
 
   get previewMedia(): MediaPreview | null {

@@ -1,0 +1,427 @@
+diff --git a/backend/src/controllers/recipes.controller.js b/backend/src/controllers/recipes.controller.js
+index c95d32c..a304c13 100644
+--- a/backend/src/controllers/recipes.controller.js
++++ b/backend/src/controllers/recipes.controller.js
+@@ -87,6 +87,13 @@ function parseJSONField(raw, fallback) {
+ }
+ 
+ // Create a new recipe
++// Nhận mảng hoặc JSON string (form gửi multipart), tối đa 3 product_id hợp lệ, không trùng.
++function parseLinkedProducts(raw) {
++  const list = parseJSONField(raw, []);
++  if (!Array.isArray(list)) return [];
++  return [...new Set(list.map(Number).filter(Number.isInteger))].slice(0, 3);
++}
++
+ async function createRecipe(req, res) {
+   try {
+     const {
+@@ -98,6 +105,7 @@ async function createRecipe(req, res) {
+       tools: rawTools,
+       steps: rawSteps,
+       relatedProducts: rawRelatedProducts,
++      linked_products: rawLinkedProducts,
+     } = req.body;
+ 
+     if (!title || !title.trim()) {
+@@ -206,6 +214,8 @@ async function createRecipe(req, res) {
+       }],
+       recipe_id: recipe_id,
+       base: 'RECIPE',
++      // Sản phẩm gắn vào bài community (max 3). Khác với recipe.relatedProducts (dùng ở trang Recipe Detail)
++      linked_products: parseLinkedProducts(rawLinkedProducts),
+       like_count: 0,
+       comment_count: 0,
+       share_count: 0,
+diff --git a/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.html b/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.html
+index 323f4a0..c9de066 100644
+--- a/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.html
++++ b/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.html
+@@ -200,6 +200,16 @@
+         </div>
+       </section>
+ 
++      <!-- PRODUCTS (gắn tối đa 3 vào bài community) -->
++      <section class="form-section">
++        <div class="section-label-row">
++          <span class="section-label">PRODUCTS</span>
++          <span class="section-divider"></span>
++          <span class="section-count">{{ linkedProducts.length }}/3</span>
++        </div>
++        <app-product-picker [(selected)]="linkedProducts" [suggestContent]="suggestContent"></app-product-picker>
++      </section>
++
+       <p class="form-error" *ngIf="errorMessage">{{ errorMessage }}</p>
+     </div>
+ 
+diff --git a/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.scss b/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.scss
+index e2836e1..ecb6b7f 100644
+--- a/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.scss
++++ b/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.scss
+@@ -642,4 +642,10 @@
+   &:hover {
+     background: rgba(186, 26, 26, 0.05);
+   }
+-}
+\ No newline at end of file
++}
++.section-count {
++  margin-left: auto;
++  font-size: 11px;
++  letter-spacing: .08em;
++  color: var(--text-muted, #8a8a80);
++}
+diff --git a/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.ts b/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.ts
+index 4832ec0..69406b8 100644
+--- a/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.ts
++++ b/frontend/src/app/features/community/components/create-recipe-modal/create-recipe-modal.component.ts
+@@ -1,4 +1,4 @@
+-import { AfterViewInit, Component, EventEmitter, OnDestroy, Output, inject } from '@angular/core';
++import { AfterViewInit, Component, EventEmitter, OnDestroy, Output, ViewChild, inject } from '@angular/core';
+ import { CommonModule } from '@angular/common';
+ import { FormsModule } from '@angular/forms';
+ import { Router } from '@angular/router';
+@@ -8,6 +8,8 @@ import { CloudinaryService } from '../../services/cloudinary.service';
+ import { RecipeService } from '../../../home/services/recipe.service';
+ import { Difficulty } from '../../../home/models/recipe.model';
+ import { InlineValidator, FieldConfig } from '../../../../shared/utils/inline-validator';
++import { ProductTag } from '../../models/post.model';
++import { ProductPickerComponent } from '../product-picker/product-picker.component';
+ 
+ type ServeStyle = 'HOT' | 'COLD' | 'DESSERT';
+ 
+@@ -31,7 +33,7 @@ const ALL_DIFFICULTIES: Difficulty[] = ['EASY', 'MEDIUM', 'HARD'];
+ @Component({
+   selector: 'app-create-recipe-modal',
+   standalone: true,
+-  imports: [CommonModule, FormsModule, LucideX, LucideCamera, LucideCircleCheck, LucideTrash2],
++  imports: [CommonModule, FormsModule, ProductPickerComponent, LucideX, LucideCamera, LucideCircleCheck, LucideTrash2],
+   templateUrl: './create-recipe-modal.component.html',
+   styleUrls: ['./create-recipe-modal.component.scss'],
+ })
+@@ -177,6 +179,20 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
+   tools: ToolForm[] = [];
+   steps: StepForm[] = [this.emptyStep()];
+ 
++  // ----- Sản phẩm gắn vào bài community (tối đa 3) -----
++  linkedProducts: ProductTag[] = [];
++  @ViewChild(ProductPickerComponent) private productPicker?: ProductPickerComponent;
++
++  // Nội dung dùng để gợi ý sản phẩm: tiêu đề + mô tả + nguyên liệu + dụng cụ
++  get suggestContent(): string {
++    return [
++      this.title,
++      this.description,
++      ...this.ingredients.map(i => i.name),
++      ...this.tools.map(t => t.name),
++    ].filter(s => s && s.trim()).join(' ');
++  }
++
+   // ----- Serve style (single select) -----
+   selectedServeStyle: ServeStyle | null = 'HOT';
+ 
+@@ -289,6 +305,7 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
+       this.title.trim().length > 0 ||
+       this.description.trim().length > 0 ||
+       this.heroFile !== null ||
++      this.linkedProducts.length > 0 ||
+       this.ingredients.some(i => i.name.trim().length > 0) ||
+       this.tools.some(t => t.name.trim().length > 0) ||
+       this.steps.some(s => s.description.trim().length > 0)
+@@ -321,6 +338,8 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
+     this.removeHeroImage();
+     this.title = '';
+     this.description = '';
++    this.linkedProducts = [];
++    this.productPicker?.reset();
+     this.servings = null;
+     this.prepTime = null;
+     this.cookTime = null;
+@@ -404,6 +423,9 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
+           ),
+         );
+ 
++        // Backend: gắn tối đa 3 sản phẩm vào bài community được tạo kèm recipe
++        formData.append('linked_products', JSON.stringify(this.linkedProducts.slice(0, 3).map(p => p.product_id)));
++
+         this.recipeService.createRecipe(formData).subscribe({
+           next: (res: any) => {
+             this.isSubmitting = false;
+diff --git a/frontend/src/app/features/community/components/product-picker/product-picker.component.html b/frontend/src/app/features/community/components/product-picker/product-picker.component.html
+new file mode 100644
+index 0000000..bd525c4
+--- /dev/null
++++ b/frontend/src/app/features/community/components/product-picker/product-picker.component.html
+@@ -0,0 +1,51 @@
++<div class="picker">
++  <div class="picker__search" *ngIf="canAddMore">
++    <svg lucideSearch [size]="16" class="picker__search-icon"></svg>
++    <input class="picker__input" type="text" placeholder="Search a product to tag..."
++      [ngModel]="query" (ngModelChange)="onQueryChange($event)" name="productPickerQuery" autocomplete="off" />
++  </div>
++
++  <div class="picker__list" *ngIf="canAddMore && query.trim().length >= 2">
++    <p class="picker__hint" *ngIf="searching">Searching...</p>
++    <p class="picker__hint" *ngIf="!searching && searchDone && !visibleResults.length">No products found.</p>
++    <button type="button" class="picker__option" *ngFor="let p of visibleResults" (click)="add(p)">
++      <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
++      <span class="picker__name">{{ p.name }}</span>
++      <svg lucidePlus [size]="14"></svg>
++    </button>
++  </div>
++
++  <div class="picker__chips" *ngIf="selected.length">
++    <div class="picker__chip" *ngFor="let p of selected">
++      <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
++      <span>{{ p.name }}</span>
++      <button type="button" (click)="remove(p)" aria-label="Remove product"><svg lucideX [size]="12"></svg></button>
++    </div>
++  </div>
++  <p class="picker__hint" *ngIf="limitMessage">{{ limitMessage }}</p>
++
++  <div class="picker__suggest">
++    <div class="picker__suggest-head">
++      <span class="picker__suggest-title"><svg lucideSparkles [size]="14"></svg> Suggested products</span>
++      <button type="button" class="picker__btn" *ngIf="!hasSuggested"
++        [disabled]="suggestLoading || !canSuggest" (click)="requestSuggestions(false)">
++        {{ suggestLoading ? 'Thinking...' : 'Suggest tags' }}
++      </button>
++      <button type="button" class="picker__btn" *ngIf="hasSuggested"
++        [disabled]="suggestLoading || regenLeft <= 0" (click)="requestSuggestions(true)">
++        <svg lucideRefreshCw [size]="13"></svg>
++        {{ suggestLoading ? 'Thinking...' : 'Suggest again (' + regenLeft + ' left)' }}
++      </button>
++    </div>
++    <p class="picker__hint" *ngIf="suggestMessage">{{ suggestMessage }}</p>
++    <div class="picker__list" *ngIf="visibleSuggestions.length">
++      <button type="button" class="picker__option" *ngFor="let p of visibleSuggestions"
++        [disabled]="!canAddMore" (click)="add(p)">
++        <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
++        <span class="picker__name">{{ p.name }}</span>
++        <span class="picker__badge" *ngIf="p.confidence != null">{{ p.confidence * 100 | number:'1.0-0' }}%</span>
++        <svg lucidePlus [size]="14"></svg>
++      </button>
++    </div>
++  </div>
++</div>
+diff --git a/frontend/src/app/features/community/components/product-picker/product-picker.component.scss b/frontend/src/app/features/community/components/product-picker/product-picker.component.scss
+new file mode 100644
+index 0000000..258aa8c
+--- /dev/null
++++ b/frontend/src/app/features/community/components/product-picker/product-picker.component.scss
+@@ -0,0 +1,39 @@
++.picker { display: flex; flex-direction: column; gap: 10px; }
++
++.picker__search { position: relative; }
++.picker__search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); opacity: .5; pointer-events: none; }
++.picker__input {
++  width: 100%; box-sizing: border-box; padding: 12px 16px 12px 38px; font: inherit;
++  border: 1px solid var(--border, #e5e2d8); border-radius: 12px; background: #fff;
++  &:focus { outline: none; border-color: #4a5a35; }
++}
++
++.picker__list { display: flex; flex-direction: column; gap: 6px; }
++.picker__hint { margin: 0; font-size: 12px; color: var(--text-muted, #8a8a80); }
++
++.picker__option {
++  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px;
++  border: 1px solid var(--border, #e5e2d8); border-radius: 12px; background: #fff;
++  font: inherit; text-align: left; cursor: pointer; transition: background .15s, border-color .15s;
++  img { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
++  &:hover:not(:disabled) { background: #f6f8f1; border-color: #b9c4a3; }
++  &:disabled { opacity: .45; cursor: not-allowed; }
++}
++.picker__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
++.picker__badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #eef2e6; color: #5c6b45; }
++
++.picker__chips { display: flex; flex-wrap: wrap; gap: 8px; }
++.picker__chip {
++  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 4px; border-radius: 999px;
++  background: #eef2e6; font-size: 13px;
++  img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
++  button { display: inline-flex; border: 0; background: transparent; cursor: pointer; padding: 2px; }
++}
++
++.picker__suggest-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
++.picker__suggest-title { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
++.picker__btn {
++  display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; cursor: pointer;
++  font-size: 12px; font-weight: 600; border: 1px solid #b9c4a3; background: #f6f8f1; color: #4a5a35;
++  &:disabled { opacity: .5; cursor: not-allowed; }
++}
+diff --git a/frontend/src/app/features/community/components/product-picker/product-picker.component.ts b/frontend/src/app/features/community/components/product-picker/product-picker.component.ts
+new file mode 100644
+index 0000000..94d4373
+--- /dev/null
++++ b/frontend/src/app/features/community/components/product-picker/product-picker.component.ts
+@@ -0,0 +1,170 @@
++import { Component, DestroyRef, EventEmitter, Input, Output, inject } from '@angular/core';
++import { CommonModule } from '@angular/common';
++import { FormsModule } from '@angular/forms';
++import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
++import { Subject, of } from 'rxjs';
++import { catchError, debounceTime, distinctUntilChanged, switchMap, tap } from 'rxjs/operators';
++import { LucideX, LucideSearch, LucideSparkles, LucideRefreshCw, LucidePlus } from '@lucide/angular';
++
++import { ProductTag } from '../../models/post.model';
++import { CommunityService } from '../../services/community.service';
++
++/**
++ * Chọn tối đa 3 sản phẩm để gắn vào bài: tìm thủ công + gợi ý theo nội dung ("Gợi ý lại" tối đa 2 lần).
++ * Dùng: <app-product-picker [(selected)]="products" [suggestContent]="text" [suggestBase]="null" />
++ */
++@Component({
++  selector: 'app-product-picker',
++  standalone: true,
++  imports: [CommonModule, FormsModule, LucideX, LucideSearch, LucideSparkles, LucideRefreshCw, LucidePlus],
++  templateUrl: './product-picker.component.html',
++  styleUrls: ['./product-picker.component.scss'],
++})
++export class ProductPickerComponent {
++  private communityService = inject(CommunityService);
++  private destroyRef = inject(DestroyRef);
++
++  @Input() selected: ProductTag[] = [];
++  @Output() selectedChange = new EventEmitter<ProductTag[]>();
++
++  /** Nội dung dùng để gợi ý (vd: tiêu đề + mô tả + nguyên liệu) */
++  @Input() suggestContent = '';
++  @Input() suggestBase: 'COFFEE' | 'MATCHA' | null = null;
++
++  readonly maxProducts = 3;
++  readonly maxRegenerate = 2;
++
++  // ----- Tìm thủ công -----
++  query = '';
++  results: ProductTag[] = [];
++  searching = false;
++  searchDone = false;
++  limitMessage = '';
++  private query$ = new Subject<string>();
++
++  // ----- Gợi ý -----
++  suggestions: ProductTag[] = [];
++  suggestLoading = false;
++  hasSuggested = false;
++  regenCount = 0;
++  suggestMessage = '';
++  private shownIds = new Set<number>();
++
++  constructor() {
++    this.query$
++      .pipe(
++        debounceTime(300),
++        distinctUntilChanged(),
++        tap(q => {
++          const ok = q.trim().length >= 2;
++          this.searching = ok;
++          this.searchDone = false;
++          if (!ok) this.results = [];
++        }),
++        switchMap(q =>
++          q.trim().length < 2
++            ? of(null)
++            : this.communityService.searchProducts(q.trim()).pipe(catchError(() => of([] as ProductTag[]))),
++        ),
++        takeUntilDestroyed(this.destroyRef),
++      )
++      .subscribe(list => {
++        if (list) {
++          this.results = list;
++          this.searchDone = true;
++        }
++        this.searching = false;
++      });
++  }
++
++  get canAddMore(): boolean {
++    return this.selected.length < this.maxProducts;
++  }
++  get regenLeft(): number {
++    return this.maxRegenerate - this.regenCount;
++  }
++  get canSuggest(): boolean {
++    return !!this.suggestContent.trim() || !!this.suggestBase;
++  }
++  get visibleResults(): ProductTag[] {
++    return this.results.filter(p => !this.isSelected(p));
++  }
++  get visibleSuggestions(): ProductTag[] {
++    return this.suggestions.filter(p => !this.isSelected(p));
++  }
++
++  isSelected(p: ProductTag): boolean {
++    return this.selected.some(s => s.product_id === p.product_id);
++  }
++
++  onQueryChange(value: string): void {
++    this.query = value;
++    this.query$.next(value);
++  }
++
++  add(p: ProductTag): void {
++    if (this.isSelected(p)) return;
++    if (!this.canAddMore) {
++      this.limitMessage = `You can tag up to ${this.maxProducts} products.`;
++      return;
++    }
++    this.limitMessage = '';
++    this.selectedChange.emit([...this.selected, p]);
++  }
++
++  remove(p: ProductTag): void {
++    this.limitMessage = '';
++    this.selectedChange.emit(this.selected.filter(s => s.product_id !== p.product_id));
++  }
++
++  requestSuggestions(isRegenerate = false): void {
++    if (this.suggestLoading) return;
++    if (isRegenerate && this.regenLeft <= 0) return;
++    if (!this.canSuggest) {
++      this.suggestMessage = 'Write something first so we can suggest products.';
++      return;
++    }
++
++    this.suggestLoading = true;
++    this.suggestMessage = '';
++    const exclude = [...new Set([...this.shownIds, ...this.selected.map(p => p.product_id)])];
++
++    this.communityService
++      .suggestProducts({ content: this.suggestContent.trim(), base: this.suggestBase, exclude })
++      .subscribe({
++        next: list => {
++          this.suggestLoading = false;
++          const fresh = list.filter(p => !exclude.includes(p.product_id)).slice(0, this.maxProducts);
++          if (fresh.length === 0) {
++            // Không còn gợi ý mới: giữ kết quả cũ, không trừ lượt "Gợi ý lại"
++            this.suggestMessage = this.hasSuggested
++              ? 'No other matches.'
++              : 'No matching products found. Try searching manually.';
++            this.hasSuggested = true;
++            return;
++          }
++          this.suggestions = fresh;
++          fresh.forEach(p => this.shownIds.add(p.product_id));
++          if (isRegenerate) this.regenCount++;
++          this.hasSuggested = true;
++        },
++        error: () => {
++          this.suggestLoading = false;
++          this.suggestMessage = 'Could not load suggestions, please try again.';
++        },
++      });
++  }
++
++  /** Cha gọi khi reset form */
++  reset(): void {
++    this.query = '';
++    this.results = [];
++    this.searchDone = false;
++    this.suggestions = [];
++    this.shownIds.clear();
++    this.hasSuggested = false;
++    this.regenCount = 0;
++    this.suggestMessage = '';
++    this.limitMessage = '';
++  }
++}
