@@ -1,0 +1,52 @@
+<div class="profile-page">
+  <a class="back-link" routerLink="/community">← Back to community</a>
+
+  @if (loading) {
+    <p class="state">Loading profile…</p>
+  } @else if (notFound || !profile) {
+    <p class="state">This profile isn't available.</p>
+  } @else {
+    <header class="profile-head">
+      <div class="avatar">
+        @if (profile.avatar_url) { <img [src]="profile.avatar_url" [alt]="profile.username"> }
+        @else { <span>{{ initials(profile.username) }}</span> }
+      </div>
+
+      <div class="profile-info">
+        <h1>&#64;{{ profile.username }}</h1>
+        <div class="badges">
+          <span class="badge badge--tier" [attr.data-tier]="profile.membership_tier">{{ profile.membership_tier }}</span>
+          @if (profile.ritual_dna_completed) { <span class="badge badge--dna">Ritual DNA</span> }
+        </div>
+        <ul class="stats">
+          <li><strong>{{ profile.post_count }}</strong> posts</li>
+          <li><strong>{{ profile.follower_count }}</strong> followers</li>
+          <li><strong>{{ profile.following_count }}</strong> following</li>
+        </ul>
+      </div>
+
+      @if (!profile.is_self) {
+        <button type="button" class="follow-btn" [class.follow-btn--on]="profile.is_following"
+                [disabled]="followBusy" (click)="toggleFollow()">
+          {{ profile.is_following ? 'Following' : 'Follow' }}
+        </button>
+      }
+    </header>
+
+    @if (posts.length) {
+      <div class="post-grid">
+        @for (post of posts; track post.post_id) {
+          <a class="post-tile" [routerLink]="['/community/post', post.post_id]">
+            @if (post.media?.length) {
+              <img [src]="post.media[0].url" [alt]="post.content">
+            } @else {
+              <p>{{ post.content }}</p>
+            }
+          </a>
+        }
+      </div>
+    } @else {
+      <p class="state">No posts yet.</p>
+    }
+  }
+</div>

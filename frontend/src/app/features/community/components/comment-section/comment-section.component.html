@@ -47,12 +47,13 @@
         <span class="author-badge" *ngIf="comment.author.is_post_author">AUTHOR</span>
         <span class="comment-time">{{ timeAgo(comment.created_at) }}</span>
         
-        <div class="comment-options" *ngIf="isCommentAuthor(comment.user_id)">
+        <div class="comment-options" *ngIf="currentUser">
            <button type="button" class="options-trigger" (click)="toggleCommentOptions(comment.comment_id, $event)">
              <svg lucideEllipsis [size]="16"></svg>
            </button>
            <div class="options-dropdown" *ngIf="showCommentOptionsFor === comment.comment_id">
-             <button type="button" class="delete-action" (click)="promptDeleteComment(comment.comment_id)">Delete Comment</button>
+             <button type="button" class="delete-action" *ngIf="isCommentAuthor(comment.user_id)" (click)="promptDeleteComment(comment.comment_id)">Delete Comment</button>
+             <button type="button" class="delete-action" *ngIf="!isCommentAuthor(comment.user_id)" (click)="openReportComment(comment)">Report Comment</button>
            </div>
         </div>
       </div>
@@ -92,6 +93,16 @@
     </div>
   </div>
 </ng-template>
+
+<app-report-post-modal
+  *ngIf="reportTarget"
+  target="comment"
+  [authorUsername]="reportTarget.author.username"
+  [postExcerpt]="reportTarget.content"
+  [submitting]="reportSubmitting"
+  (cancel)="closeReportComment()"
+  (submitReport)="submitReportComment($event)">
+</app-report-post-modal>
 
 <app-confirmation-modal
   *ngIf="isConfirmDeleteModalOpen"

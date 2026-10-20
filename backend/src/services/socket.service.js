@@ -3,6 +3,8 @@ const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const Order = require('../models/Order');
+const ChatConversation = require('../models/ChatConversation');
+const { AGENT_ROLES, canAccessConversation, appendMessage } = require('./chat.service');
 const {
   hasAdminRole,
   ADMIN_ORDER_UNSCOPED_ROLES,
@@ -81,6 +83,59 @@ function initSocket(server) {
 
       socket.join(`user_${data.user_id}`);
       console.log(`[Socket.IO] User ${socket.user.user_id} joined 'user_${data.user_id}' room.`);
+    });
+
+
+    // ── CSKH live chat ──
+    // Agents join the shared queue room to hear about new handoffs.
+    socket.on('join_chat_agents', () => {
+      if (!socket.user || !AGENT_ROLES.includes(socket.user.role)) {
+        socket.emit('error', { message: 'Unauthorized: CSKH privileges required.' });
+        return;
+      }
+      socket.join('chat_agents');
+    });
+
+    socket.on('join_chat', async (data) => {
+      try {
+        const conversation = data?.conversation_id &&
+          await ChatConversation.findOne({ conversation_id: data.conversation_id });
+        if (!conversation || !(await canAccessConversation(socket.user, conversation))) {
+          socket.emit('error', { message: 'Unauthorized access to chat.' });
+          return;
+        }
+        socket.join(`chat_${conversation.conversation_id}`);
+      } catch (err) {
+        console.error('[Socket.IO] join_chat error:', err);
+      }
+    });
+
+    socket.on('chat_message', async (data) => {
+      try {
+        const conversation = data?.conversation_id &&
+          await ChatConversation.findOne({ conversation_id: data.conversation_id });
+        if (!conversation || conversation.status === 'closed' ||
+            !(await canAccessConversation(socket.user, conversation))) {
+          socket.emit('error', { message: 'Cannot send to this chat.' });
+          return;
+        }
+        const isCustomer = conversation.customer_id === socket.user.user_id;
+        const message = await appendMessage(conversation, {
+          sender_type: isCustomer ? 'customer' : 'agent',
+          sender_id: socket.user.user_id,
+          content: data.content
+        });
+        if (message) emitChatEvent('chat_message', message.toObject(), conversation);
+      } catch (err) {
+        console.error('[Socket.IO] chat_message error:', err);
+      }
+    });
+
+    socket.on('chat_typing', (data) => {
+      if (!data?.conversation_id || !socket.rooms.has(`chat_${data.conversation_id}`)) return;
+      socket.to(`chat_${data.conversation_id}`).emit('chat_typing', {
+        conversation_id: data.conversation_id, user_id: socket.user?.user_id, typing: !!data.typing
+      });
     });
 
     // 3. Join Order Room - Requires user_id match OR guest session_id match OR role === 'admin'
@@ -193,9 +248,24 @@ function emitNewOrder(order) {
   }
 }
 
+// Chat events: new handoffs / status changes go to the agent queue; messages go to the conversation room.
+function emitChatEvent(event, payload, conversation = null) {
+  if (!io || !payload) return;
+  if (event === 'chat_message') {
+    io.to(`chat_${payload.conversation_id}`).emit(event, payload);
+    // Let agents' list refresh previews even if they haven't opened the thread.
+    io.to('chat_agents').emit('chat_updated_hint', { conversation_id: payload.conversation_id });
+    return;
+  }
+  io.to('chat_agents').emit(event, payload);
+  if (payload.conversation_id) io.to(`chat_${payload.conversation_id}`).emit(event, payload);
+  if (payload.customer_id) io.to(`user_${payload.customer_id}`).emit(event, payload);
+}
+
 module.exports = {
   initSocket,
   getIO,
   emitOrderUpdated,
-  emitNewOrder
+  emitNewOrder,
+  emitChatEvent
 };

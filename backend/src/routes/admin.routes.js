@@ -3,6 +3,7 @@ const router = express.Router();
 const adminController = require('../controllers/admin.controller');
 const adminSubscriptionsController = require('../controllers/admin-subscriptions.controller');
 const authController = require('../controllers/auth.controller');
+const adminCommunityController = require('../controllers/admin-community.controller');
 const {
   authMiddleware,
   requireRole,
@@ -26,6 +27,12 @@ router.post('/orders/:id/notes', authMiddleware, requireRole(...ADMIN_ORDER_MANA
 router.get('/subscriptions', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminSubscriptionsController.getSubscriptions);
 router.get('/subscriptions/:id', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminSubscriptionsController.getSubscription);
 router.post('/subscriptions/:id/:action', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog, adminSubscriptionsController.runAction);
+
+// Community moderation (Admin CC, CSKH): reported / hidden posts.
+router.get('/community/reports', authMiddleware, requireRole('admin_cc', 'cskh'), adminCommunityController.listReportedPosts);
+router.post('/community/posts/:postId/hide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.hide);
+router.post('/community/posts/:postId/unhide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.unhide);
+router.post('/community/posts/:postId/dismiss', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.dismissReports);
 
 // ── DEV ONLY: Fix admin roles in DB ────────────────────────────────────
 // Gọi POST /api/admin/dev/fix-admin-roles để update role trong DB

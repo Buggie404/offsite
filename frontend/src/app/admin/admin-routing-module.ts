@@ -68,6 +68,23 @@ const routes: Routes = [
         data: { adminRoles: SALES_OPS_ROLES }
       },
 
+      // ── Services Operations ───────────────────────────────────────────────
+      {
+        path: 'chat',
+        loadComponent: () =>
+          import('./chat/pages/chat/chat.component').then((m) => m.AdminChatComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SERVICES_OPS_ROLES }
+      },
+
+      {
+        path: 'community-reports',
+        loadComponent: () =>
+          import('./community-reports/pages/community-reports/community-reports.component').then((m) => m.AdminCommunityReportsComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SERVICES_OPS_ROLES }
+      },
+
       // ── Error pages ───────────────────────────────────────────────────────
       {
         path: '403',

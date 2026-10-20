@@ -23,7 +23,22 @@ const postSchema = new mongoose.Schema({
   like_count: { type: Number, default: 0 },
   comment_count: { type: Number, default: 0 },
   share_count: { type: Number, default: 0 },
-  save_count: { type: Number, default: 0 }
+  save_count: { type: Number, default: 0 },
+  // Product.product_id values tagged on this post (max 3).
+  linked_products: {
+    type: [Number],
+    default: [],
+    validate: {
+      validator: arr => arr.length <= 3,
+      message: 'A post can link at most 3 products'
+    }
+  },
+  // 'hidden' posts are removed from public feeds; the owner still sees them with a banner.
+  status: { type: String, enum: ['visible', 'hidden'], default: 'visible' },
+  // Why/when/who hid it: 'manual' (admin) or 'auto_reports' (enough pending reports).
+  hidden_reason: { type: String, enum: ['manual', 'auto_reports', null], default: null },
+  hidden_at: { type: Date, default: null },
+  hidden_by: { type: String, default: null }
 }, {
   collection: 'Posts',
   timestamps: { createdAt: 'created_at', updatedAt: 'updatedAt' }

@@ -10,5 +10,6 @@ router.get('/post/:postId', commentsController.getCommentsByPostId);
 router.post('/post/:postId', authMiddleware, commentsController.createComment);
 router.delete('/:id', authMiddleware, commentsController.deleteComment);
 router.post('/:id/like', authMiddleware, commentsController.likeComment);
+router.post('/:id/report', authMiddleware, commentsController.reportComment);
 
 module.exports = router;

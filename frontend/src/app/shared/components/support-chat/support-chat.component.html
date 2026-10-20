@@ -1,0 +1,57 @@
+@if (isLoggedIn()) {
+  @if (open) {
+    <section class="sc-panel" role="dialog" aria-label="Customer support chat">
+      <header class="sc-head">
+        <div>
+          <strong>Offsite Support</strong>
+          <small>
+            @switch (conversation?.status) {
+              @case ('waiting') { Waiting for an agent… }
+              @case ('open') { An agent is with you }
+              @case ('closed') { Conversation ended }
+              @default { We usually reply within minutes }
+            }
+          </small>
+        </div>
+        <button type="button" class="sc-close" (click)="toggle()" aria-label="Close chat">×</button>
+      </header>
+
+      @if (!conversation) {
+        <div class="sc-start">
+          <p>Need help with an order, voucher or product?</p>
+          <button type="button" class="sc-btn" (click)="startChat()" [disabled]="loading">
+            {{ loading ? 'Connecting…' : 'Chat with support' }}
+          </button>
+        </div>
+      } @else {
+        <div class="sc-thread" #thread>
+          @for (m of messages; track m._id || $index) {
+            <div class="sc-bubble sc-bubble--{{ m.sender_type }}" [class.sc-bubble--me]="m.sender_type === 'customer'">
+              <p>{{ m.content }}</p>
+              <time>{{ m.created_at | date: 'HH:mm' }}</time>
+            </div>
+          }
+          @if (agentTyping) { <div class="sc-typing">Agent is typing…</div> }
+        </div>
+
+        @if (isClosed) {
+          <div class="sc-closed">
+            This conversation has ended.
+            <button type="button" class="sc-link" (click)="newChat()">Start a new chat</button>
+          </div>
+        } @else {
+          <footer class="sc-compose">
+            <textarea rows="1" [(ngModel)]="draft" (input)="onDraftInput()" (keydown)="onKey($event)" placeholder="Type a message…"></textarea>
+            <button type="button" class="sc-btn" (click)="send()" [disabled]="!draft.trim()">Send</button>
+          </footer>
+        }
+      }
+    </section>
+  }
+
+  <button type="button" class="sc-fab" (click)="toggle()" [attr.aria-expanded]="open" aria-label="Open support chat">
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  </button>
+}

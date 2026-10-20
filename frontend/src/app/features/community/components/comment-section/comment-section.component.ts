@@ -6,6 +6,8 @@ import { LucideEllipsis, LucideHeart, LucideSend } from '@lucide/angular';
 import { Comment } from '../../models/comment.model';
 import { CommunityService } from '../../services/community.service';
 import { AuthService } from '../../../../core/auth.service';
+import { ReportPostModalComponent, ReportPayload } from '../report-post-modal/report-post-modal.component';
+import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 interface CommentThread extends Comment {
@@ -15,7 +17,7 @@ interface CommentThread extends Comment {
 @Component({
   selector: 'app-comment-section',
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmationModalComponent, LucideEllipsis, LucideHeart, LucideSend],
+  imports: [CommonModule, FormsModule, ConfirmationModalComponent, ReportPostModalComponent, LucideEllipsis, LucideHeart, LucideSend],
   templateUrl: './comment-section.component.html',
   styleUrls: ['./comment-section.component.scss']
 })
@@ -24,6 +26,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
   private communityService = inject(CommunityService);
   private cdr = inject(ChangeDetectorRef);
   private authService = inject(AuthService);
+  private toast = inject(ToastService);
 
   @Input() postId!: string;
   @Output() commentCountChange = new EventEmitter<number>();
@@ -43,6 +46,8 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
   showCommentOptionsFor: string | null = null;
   commentToDelete: string | null = null;
   isConfirmDeleteModalOpen = false;
+  reportTarget: Comment | null = null;
+  reportSubmitting = false;
 
   private timeTickHandle?: ReturnType<typeof setInterval>;
 
@@ -196,6 +201,31 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
     } else {
       this.showCommentOptionsFor = commentId;
     }
+  }
+
+  openReportComment(comment: Comment): void {
+    this.showCommentOptionsFor = null;
+    this.reportTarget = comment;
+  }
+
+  closeReportComment(): void {
+    if (!this.reportSubmitting) this.reportTarget = null;
+  }
+
+  submitReportComment(payload: ReportPayload): void {
+    if (!this.reportTarget || this.reportSubmitting) return;
+    this.reportSubmitting = true;
+    this.communityService.reportComment(this.reportTarget.comment_id, payload.reason, payload.note).subscribe({
+      next: () => {
+        this.reportSubmitting = false;
+        this.reportTarget = null;
+        this.toast.success('Thanks for letting us know. We will review this comment.');
+      },
+      error: (err) => {
+        this.reportSubmitting = false;
+        this.toast.error(err?.error?.error || 'Failed to submit report. Please try again.');
+      }
+    });
   }
 
   promptDeleteComment(commentId: string): void {

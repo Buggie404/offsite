@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 
-import { Post } from '../../models/post.model';
+import { Post, PostProductCard, postProductLink } from '../../models/post.model';
 import { CommunityService } from '../../services/community.service';
 import { CommentSectionComponent } from '../../components/comment-section/comment-section.component';
 import { ShareModalComponent } from '../../components/share-modal/share-modal.component';
@@ -60,6 +60,19 @@ export class PostDetailComponent implements OnInit, OnDestroy {
 
   get isRecipe(): boolean {
     return this.post?.post_type === 'recipe' && !!this.post.recipe;
+  }
+
+  get productCards(): PostProductCard[] {
+    return (this.post?.products || []).slice(0, 3);
+  }
+
+  productLink(product: PostProductCard): string[] {
+    return postProductLink(product);
+  }
+
+  // Hidden posts are only served to their owner, who sees a notice banner.
+  get isHiddenPost(): boolean {
+    return this.post?.status === 'hidden';
   }
 
   get activeMedia() {

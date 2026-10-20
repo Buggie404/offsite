@@ -1,22 +1,22 @@
 import { Component, EventEmitter, Input, Output, HostListener, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { LucideChevronDown, LucidePlus, LucideUser } from '@lucide/angular';
+import { LucideChevronDown, LucidePlus, LucideUser, LucideUsers } from '@lucide/angular';
 
 @Component({
   selector: 'app-feed-toolbar',
   standalone: true,
-  imports: [CommonModule, LucidePlus, LucideUser, LucideChevronDown],
+  imports: [CommonModule, LucidePlus, LucideUser, LucideUsers, LucideChevronDown],
   templateUrl: './feed-toolbar.component.html',
   styleUrls: ['./feed-toolbar.component.scss']
 })
 export class FeedToolbarComponent {
 
-  @Input() activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '' = '';
+  @Input() activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '' = '';
   @Input() sort: 'created_at' | 'like_count' = 'created_at';
 
   @Output() createPost = new EventEmitter<void>();
   @Output() createRecipe = new EventEmitter<void>();
-  @Output() categoryChange = new EventEmitter<'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | ''>();
+  @Output() categoryChange = new EventEmitter<'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | ''>();
   @Output() sortChange = new EventEmitter<'created_at' | 'like_count'>();
 
   isDropdownOpen = false;
@@ -31,7 +31,7 @@ export class FeedToolbarComponent {
     this.createRecipe.emit();
   }
 
-  onFilterClick(value: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '') {
+  onFilterClick(value: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '') {
     if (this.activeCategory === value) return;
     this.categoryChange.emit(value);
   }

@@ -1,11 +1,14 @@
 <article class="community-card" (click)="onCardClick()">
 
   <header class="card-header">
-    <div class="author-avatar" [class.author-avatar--pink]="avatarTone === 'pink'">
-      <img *ngIf="post.author.avatar_url" [src]="post.author.avatar_url" [alt]="post.author.username">
-      <span *ngIf="!post.author.avatar_url">{{ initials }}</span>
-    </div>
-    <span class="author-name">&#64;{{ post.author.username }}</span>
+    <a class="author-link" [routerLink]="['/community/profile', post.user_id]" (click)="$event.stopPropagation()"
+       [attr.aria-label]="'View ' + post.author.username + ' profile'">
+      <div class="author-avatar" [class.author-avatar--pink]="avatarTone === 'pink'">
+        <img *ngIf="post.author.avatar_url" [src]="post.author.avatar_url" [alt]="post.author.username">
+        <span *ngIf="!post.author.avatar_url">{{ initials }}</span>
+      </div>
+      <span class="author-name">&#64;{{ post.author.username }}</span>
+    </a>
     <span class="chip chip--wheat" *ngIf="post.post_type === 'recipe'">Recipe</span>
     <span class="chip chip--sage" *ngIf="!(post.post_type === 'recipe' && post.base === 'RECIPE')">{{ post.base }}</span>
     <span class="header-spacer"></span>
@@ -41,6 +44,13 @@
             <path d="M8 5v14l11-7z"/>
           </svg>
         </div>
+      </div>
+      <div class="product-tags" *ngIf="productTags.length">
+        <a class="product-tag" *ngFor="let product of productTags"
+           [routerLink]="productLink(product)" (click)="$event.stopPropagation()">
+          <img *ngIf="product.image_url" [src]="product.image_url" [alt]="product.name">
+          <span>{{ product.name }}</span>
+        </a>
       </div>
     </ng-container>
     <ng-template #textOnly>

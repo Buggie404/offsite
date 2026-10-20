@@ -1,6 +1,8 @@
 const Comment = require('../models/Comment');
 const Post = require('../models/Post');
 const User = require('../models/User');
+const PostReport = require('../models/PostReport');
+const CommentReport = require('../models/CommentReport');
 const mongoose = require('mongoose');
 
 // Helper to resolve postId parameter to post_id string
@@ -331,7 +333,48 @@ async function likeComment(req, res) {
   }
 }
 
+async function reportComment(req, res) {
+  try {
+    const { id } = req.params;
+    const { reason, note = '' } = req.body || {};
+
+    if (!PostReport.REPORT_REASONS.includes(reason)) {
+      return res.status(400).json({ error: 'Invalid report reason' });
+    }
+    if (reason === 'other' && !String(note).trim()) {
+      return res.status(400).json({ error: 'A note is required when the reason is Other' });
+    }
+
+    const query = /^[0-9a-fA-F]{24}$/.test(id) ? { _id: id } : { comment_id: id };
+    const comment = await Comment.findOne(query);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    if (comment.user_id === req.user.user_id) {
+      return res.status(400).json({ error: 'You cannot report your own comment' });
+    }
+
+    try {
+      await CommentReport.create({
+        comment_id: comment.comment_id,
+        post_id: comment.post_id,
+        reporter_id: req.user.user_id,
+        reason,
+        note: String(note).trim().slice(0, 500)
+      });
+    } catch (err) {
+      if (err.code === 11000) return res.status(409).json({ error: 'You have already reported this comment' });
+      throw err;
+    }
+
+    res.status(201).json({ message: 'Report submitted' });
+  } catch (error) {
+    console.error('Error reporting comment:', error);
+    res.status(500).json({ error: 'Failed to submit report' });
+  }
+}
+
 module.exports = {
+  reportComment,
   getCommentsByPostId,
   createComment,
   deleteComment,

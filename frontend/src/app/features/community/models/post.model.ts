@@ -1,4 +1,5 @@
 import { Recipe } from '../../home/models/recipe.model';
+import { getProductDetailSlug } from '../../home/models/product.model';
 
 export interface PostAuthor {
   username: string;
@@ -9,6 +10,17 @@ export interface PostMedia {
   url: string;
   public_id: string;
   type: 'image' | 'video';
+}
+
+export interface PostProductCard {
+  product_id: number;
+  name: string;
+  slug?: string;
+  image_url: string | null;
+}
+
+export function postProductLink(p: PostProductCard): string[] {
+  return ['/products', getProductDetailSlug({ name: p.name, slug: p.slug, product_id: p.product_id })];
 }
 
 export interface Post {
@@ -34,6 +46,10 @@ export interface Post {
   updatedAt: string;
 
   recipe?: Recipe;
+
+  // Tagged products (max 3) resolved by the API, and visibility state.
+  products?: PostProductCard[];
+  status?: 'visible' | 'hidden';
 }
 
 export interface FeedResponse {

@@ -63,7 +63,7 @@ export class FeedComponent implements OnInit, OnDestroy {
   loading = false;
   hasMore = true;
 
-  activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '' = '';
+  activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '' = '';
   sort: 'created_at' | 'like_count' = 'created_at';
 
   showCreatePost = false;
@@ -193,7 +193,7 @@ export class FeedComponent implements OnInit, OnDestroy {
     this.loadFeed();
   }
 
-  onCategoryChange(category: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | ''): void {
+  onCategoryChange(category: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | ''): void {
     if (this.loading) return;
     this.activeCategory = category;
     this.page = 1;

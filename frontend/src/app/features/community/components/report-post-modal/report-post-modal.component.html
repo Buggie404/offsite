@@ -3,7 +3,7 @@
 
     <header class="modal-header">
       <div class="modal-heading">
-        <h3 class="modal-title" id="report-title">Report this post</h3>
+        <h3 class="modal-title" id="report-title">Report this {{ target }}</h3>
         <p class="modal-subtitle" *ngIf="authorUsername">
           &#64;{{ authorUsername }}<ng-container *ngIf="excerpt"> · “{{ excerpt }}”</ng-container>
         </p>

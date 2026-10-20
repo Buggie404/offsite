@@ -1,12 +1,13 @@
 import { Component, ElementRef, EventEmitter, HostListener, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideBookmark, LucideEllipsis, LucideFlag, LucideHeart, LucideMessageCircle, LucideShare2, LucideTrash2 } from '@lucide/angular';
-import { Post } from '../../models/post.model';
+import { RouterLink } from '@angular/router';
+import { Post, PostProductCard, postProductLink } from '../../models/post.model';
 
 @Component({
   selector: 'app-post-card',
   standalone: true,
-  imports: [CommonModule, LucideEllipsis, LucideFlag, LucideBookmark, LucideTrash2, LucideHeart, LucideMessageCircle, LucideShare2],
+  imports: [CommonModule, RouterLink, LucideEllipsis, LucideFlag, LucideBookmark, LucideTrash2, LucideHeart, LucideMessageCircle, LucideShare2],
   templateUrl: './post-card.component.html',
   styleUrls: ['./post-card.component.scss']
 })
@@ -32,6 +33,14 @@ export class PostCardComponent {
   get heroMedia(): any {
     if (!this.hasMedia) return null;
     return this.post.media[0];
+  }
+
+  get productTags(): PostProductCard[] {
+    return (this.post?.products || []).slice(0, 3);
+  }
+
+  productLink(product: PostProductCard): string[] {
+    return postProductLink(product);
   }
 
   get initials(): string {

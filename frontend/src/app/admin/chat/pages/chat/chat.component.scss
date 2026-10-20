@@ -1,0 +1,92 @@
+$border: #e6dfd6;
+$forest: var(--color-forest-green, #2f4a3a);
+$cream: #fffdf9;
+
+:host { display: block; }
+
+.chat-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  height: calc(100vh - 220px);
+  min-height: 460px;
+  border: 1px solid $border;
+  border-radius: 14px;
+  background: $cream;
+  overflow: hidden;
+}
+
+.chat-list { border-right: 1px solid $border; overflow-y: auto; }
+.chat-filters { display: flex; gap: 6px; padding: 10px; border-bottom: 1px solid $border; position: sticky; top: 0; background: $cream; }
+.chat-filter {
+  border: 1px solid $border; background: transparent; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+  &.active { background: $forest; color: #fff; border-color: $forest; }
+}
+
+.chat-item {
+  display: flex; gap: 10px; width: 100%; padding: 12px; border: 0; border-bottom: 1px solid $border;
+  background: transparent; text-align: left; cursor: pointer; align-items: center;
+  &:hover, &.active { background: #f4efe7; }
+  &__avatar {
+    width: 38px; height: 38px; border-radius: 50%; background: #dfe8da; display: grid; place-items: center;
+    font-size: 12px; font-weight: 700; flex-shrink: 0; overflow: hidden;
+    img { width: 100%; height: 100%; object-fit: cover; }
+  }
+  &__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  &__top { display: flex; justify-content: space-between; gap: 8px; time { font-size: 11px; color: #8b8378; } }
+  &__preview { font-size: 12px; color: #6f675d; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+}
+
+.status {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #eee;
+  &--waiting { background: #fbe9c8; color: #8a5a00; }
+  &--open { background: #dcebd9; color: #2f6b3a; }
+  &--closed { background: #ececec; color: #777; }
+}
+.unread { background: #c0392b; color: #fff; border-radius: 999px; font-size: 11px; min-width: 18px; text-align: center; padding: 1px 5px; }
+
+.chat-pane { display: flex; flex-direction: column; min-width: 0; }
+.chat-pane__head {
+  display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid $border;
+  small { display: block; color: #8b8378; font-size: 11px; }
+}
+.chat-pane__actions { display: flex; gap: 8px; }
+.tier { margin-left: 8px; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #e8efe3; color: $forest; }
+.chat-summary { padding: 10px 16px; background: #f6f1e7; font-size: 13px; border-bottom: 1px solid $border; }
+
+.chat-thread { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.bubble {
+  max-width: 70%; padding: 8px 12px; border-radius: 12px; background: #f1ece3; align-self: flex-start;
+  p { margin: 0; white-space: pre-wrap; word-break: break-word; }
+  time, small { display: block; font-size: 10px; color: #8b8378; margin-top: 2px; }
+  &--agent { align-self: flex-end; background: $forest; color: #fff; time { color: #cfdccf; } }
+  &--bot { background: #e9eef6; }
+  &--system { align-self: center; background: transparent; font-size: 12px; color: #8b8378; }
+}
+.typing { font-size: 12px; color: #8b8378; }
+
+.chat-compose {
+  display: flex; gap: 8px; padding: 12px; border-top: 1px solid $border;
+  textarea { flex: 1; resize: none; border: 1px solid $border; border-radius: 10px; padding: 8px 10px; font: inherit; }
+}
+.chat-empty { padding: 20px; color: #8b8378; font-size: 13px; &--center { margin: auto; } }
+
+@media (max-width: 900px) {
+  .chat-layout { grid-template-columns: 1fr; height: auto; }
+  .chat-list { max-height: 260px; border-right: 0; border-bottom: 1px solid $border; }
+}
+
+.page-header { margin-bottom: 20px; }
+.page-header__left h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-line-height);
+  margin: 0 0 6px;
+}
+.page-header__left p { font-size: var(--text-body-sm-size); color: var(--color-warm-brown); margin: 0; }
+
+.btn {
+  border: 1px solid $border; background: #fff; border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  &:disabled { opacity: .5; cursor: not-allowed; }
+}
+.btn-primary { background: $forest; color: #fff; border-color: $forest; }

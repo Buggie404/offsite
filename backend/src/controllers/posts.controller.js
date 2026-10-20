@@ -2,17 +2,80 @@ const Post = require('../models/Post');
 const User = require('../models/User');
 const Recipe = require('../models/Recipe');
 const PostReport = require('../models/PostReport');
+const Product = require('../models/Product');
+const Follow = require('../models/Follow');
+const { maybeAutoHide } = require('../services/post-moderation.service');
 const mongoose = require('mongoose');
+
+const MAX_LINKED_PRODUCTS = 3;
+
+// Resolve Post.linked_products (product_id numbers) into small cards for the UI.
+async function loadProductCards(posts) {
+  const ids = [...new Set(posts.flatMap(p => p.linked_products || []))];
+  if (ids.length === 0) return new Map();
+
+  const products = await Product.find(
+    { product_id: { $in: ids }, is_active: true },
+    'product_id name slug images'
+  ).lean();
+
+  return new Map(products.map(p => [p.product_id, {
+    product_id: p.product_id,
+    name: p.name,
+    slug: p.slug,
+    image_url: p.images?.[0]?.url || null
+  }]));
+}
+
+function cardsForPost(post, cardMap) {
+  return (post.linked_products || []).map(id => cardMap.get(id)).filter(Boolean);
+}
+
+// Accepts an array or a JSON string (the create form sends multipart fields).
+function parseLinkedProducts(raw) {
+  let list = raw;
+  if (typeof raw === 'string' && raw.trim()) {
+    try { list = JSON.parse(raw); } catch (e) { list = []; }
+  }
+  if (!Array.isArray(list)) return [];
+  const ids = list.map(Number).filter(Number.isInteger);
+  return [...new Set(ids)].slice(0, MAX_LINKED_PRODUCTS);
+}
 
 async function getAllPosts(req, res) {
   try {
-    const { page = 1, limit = 10, post_type, recipe_id, user_id, sort, base } = req.query;
+    const { page = 1, limit = 10, post_type, recipe_id, user_id, sort, base, following } = req.query;
 
     const query = {};
     if (post_type) query.post_type = post_type;
     if (recipe_id) query.recipe_id = recipe_id;
     if (user_id) query.user_id = user_id;
     if (base) query.base = base;
+
+    // Hide violating (hidden) posts and posts of suspended accounts from public feeds.
+    // A user browsing their own posts still sees everything they wrote.
+    const isOwnFeed = !!req.user && !!user_id && user_id === req.user.user_id;
+    if (!isOwnFeed) {
+      query.status = { $ne: 'hidden' };
+      const suspendedUsers = await User.find({ status: 'suspended' }, 'user_id').lean();
+      const suspendedIds = suspendedUsers.map(u => u.user_id);
+      if (suspendedIds.length > 0) {
+        if (user_id) {
+          if (suspendedIds.includes(user_id)) query.user_id = { $in: [] };
+        } else {
+          query.user_id = { $nin: suspendedIds };
+        }
+      }
+    }
+
+    // "Following" chip: only posts from accounts the signed-in user follows.
+    if (following === 'true') {
+      if (!req.user) return res.json({ data: [], total: 0, page: parseInt(page, 10), limit: parseInt(limit, 10) });
+      const rows = await Follow.find({ follower_id: req.user.user_id }, 'following_id').lean();
+      const followedIds = rows.map(r => r.following_id);
+      const blocked = query.user_id && query.user_id.$nin ? query.user_id.$nin : [];
+      query.user_id = { $in: followedIds.filter(id => !blocked.includes(id)) };
+    }
 
     const skipCount = (parseInt(page, 10) - 1) * parseInt(limit, 10);
     const limitCount = parseInt(limit, 10);
@@ -38,10 +101,13 @@ async function getAllPosts(req, res) {
       }
     }
 
+    const productCards = await loadProductCards(posts);
+
     const data = posts.map(p => ({
       ...p.toObject(),
       liked: likedPostIds.has(p.post_id),
-      saved: savedPostIds.has(p.post_id)
+      saved: savedPostIds.has(p.post_id),
+      products: cardsForPost(p, productCards)
     }));
 
     res.json({
@@ -87,7 +153,21 @@ async function getPostById(req, res) {
       recipeDetails = await Recipe.findOne({ recipe_id: post.recipe_id });
     }
 
-    res.json({ ...post.toObject(), liked, saved, recipe: recipeDetails });
+    const isOwner = !!req.user && req.user.user_id === post.user_id;
+    const isModerator = ['admin_cc', 'cskh'].includes(req.user?.role);
+    if (post.status === 'hidden' && !isOwner && !isModerator) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const productCards = await loadProductCards([post]);
+
+    res.json({
+      ...post.toObject(),
+      liked,
+      saved,
+      recipe: recipeDetails,
+      products: cardsForPost(post, productCards)
+    });
   } catch (error) {
     console.error('Error fetching post:', error);
     res.status(500).json({ error: 'Failed to retrieve post' });
@@ -109,8 +189,9 @@ function parseMediaField(rawMedia) {
 
 async function createPost(req, res) {
   try {
-    const { content, media: rawMedia, post_type = 'regular', recipe_id = null, base } = req.body;
+    const { content, media: rawMedia, post_type = 'regular', recipe_id = null, base, linked_products } = req.body;
     const media = parseMediaField(rawMedia);
+    const linkedProducts = parseLinkedProducts(linked_products);
 
     const user = await User.findById(req.user.user_id);
     if (!user) {
@@ -139,6 +220,7 @@ async function createPost(req, res) {
       media,
       recipe_id,
       base,
+      linked_products: linkedProducts,
       like_count: 0,
       comment_count: 0,
       share_count: 0,
@@ -184,7 +266,7 @@ async function createPost(req, res) {
 async function updatePost(req, res) {
   try {
     const { id } = req.params;
-    const { content, media: rawMedia, post_type, recipe_id, base } = req.body;
+    const { content, media: rawMedia, post_type, recipe_id, base, linked_products } = req.body;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
@@ -208,6 +290,7 @@ async function updatePost(req, res) {
     if (post_type !== undefined) post.post_type = post_type;
     if (recipe_id !== undefined) post.recipe_id = recipe_id;
     if (base !== undefined) post.base = base;
+    if (linked_products !== undefined) post.linked_products = parseLinkedProducts(linked_products);
 
     const updatedPost = await post.save();
     res.json({
@@ -472,6 +555,9 @@ async function reportPost(req, res) {
       }
       throw err;
     }
+
+    // Enough pending reports hide the post automatically; admins can unhide it later.
+    await maybeAutoHide(post.post_id);
 
     res.status(201).json({ message: 'Report submitted' });
   } catch (error) {

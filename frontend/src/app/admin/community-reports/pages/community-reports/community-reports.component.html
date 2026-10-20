@@ -1,0 +1,60 @@
+<header class="page-header">
+  <h1>Community reports</h1>
+  <p>Posts are hidden automatically after {{ threshold }} pending reports. You can also hide or restore any post manually.</p>
+</header>
+
+<div class="tabs">
+  <button type="button" class="tab" [class.active]="tab === 'pending'" (click)="tab = 'pending'">
+    Needs review <span class="count">{{ pendingCount }}</span>
+  </button>
+  <button type="button" class="tab" [class.active]="tab === 'hidden'" (click)="tab = 'hidden'">
+    Hidden <span class="count">{{ hiddenCount }}</span>
+  </button>
+</div>
+
+@if (loading) {
+  <p class="state">Loading…</p>
+} @else if (error) {
+  <p class="state state--error">{{ error }}</p>
+} @else if (!visibleRows.length) {
+  <p class="state">{{ tab === 'hidden' ? 'No hidden posts.' : 'No reported posts waiting for review.' }}</p>
+} @else {
+  <ul class="list">
+    @for (r of visibleRows; track r.post_id) {
+      <li class="item">
+        <div class="thumb">
+          @if (r.thumbnail) { <img [src]="r.thumbnail" alt=""> } @else { <span>Aa</span> }
+        </div>
+
+        <div class="body">
+          <div class="top">
+            <strong>&#64;{{ r.author?.username }}</strong>
+            <span class="pid">{{ r.post_id }}</span>
+            @if (r.status === 'hidden') {
+              <span class="pill pill--hidden">{{ r.hidden_reason === 'auto_reports' ? 'Auto-hidden' : 'Hidden by admin' }}</span>
+            }
+          </div>
+          <p class="content">{{ r.content || '(no text)' }}</p>
+          <p class="meta">
+            @if (r.pending_reports) {
+              <strong>{{ r.pending_reports }}</strong> pending · {{ reasonList(r) }}
+              @if (r.last_reported_at) { · last {{ r.last_reported_at | date: 'dd/MM HH:mm' }} }
+            } @else if (r.hidden_at) {
+              Hidden {{ r.hidden_at | date: 'dd/MM HH:mm' }}
+            }
+          </p>
+        </div>
+
+        <div class="actions">
+          <a class="btn" [routerLink]="['/community/post', r.post_id]" target="_blank">View</a>
+          @if (r.status === 'hidden') {
+            <button type="button" class="btn btn-primary" [disabled]="busyId === r.post_id" (click)="unhide(r)">Unhide</button>
+          } @else {
+            <button type="button" class="btn btn-danger" [disabled]="busyId === r.post_id" (click)="hide(r)">Hide</button>
+            <button type="button" class="btn" [disabled]="busyId === r.post_id" (click)="dismiss(r)">Dismiss</button>
+          }
+        </div>
+      </li>
+    }
+  </ul>
+}

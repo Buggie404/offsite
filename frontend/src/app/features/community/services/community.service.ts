@@ -13,6 +13,20 @@ export interface FeedResponse {
   limit: number;
 }
 
+export interface PublicProfile {
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  membership_tier: 'Seed' | 'Leaf' | 'Bloom' | 'Zen';
+  ritual_dna_completed: boolean;
+  joined_at: string;
+  post_count: number;
+  follower_count: number;
+  following_count: number;
+  is_following: boolean;
+  is_self: boolean;
+}
+
 export interface CommentsResponse {
   data: Comment[];
   total: number;
@@ -36,7 +50,7 @@ export class CommunityService {
     posts: [] as Post[],
     page: 1,
     hasMore: true,
-    activeCategory: '' as 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '',
+    activeCategory: '' as 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '',
     sort: 'created_at' as 'created_at' | 'like_count',
     scrollY: 0
   };
@@ -46,7 +60,7 @@ export class CommunityService {
   getFeed(
     page: number = 1,
     limit: number = 9,
-    activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '' = '',
+    activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '' = '',
     sort: 'created_at' | 'like_count' = 'created_at',
     userId?: string
   ): Observable<FeedResponse> {
@@ -55,6 +69,8 @@ export class CommunityService {
       url += `&base=${activeCategory}`;
     } else if (activeCategory === 'RECIPE') {
       url += `&post_type=recipe`;
+    } else if (activeCategory === 'FOLLOWING') {
+      url += `&following=true`;
     } else if (activeCategory === 'MY_POST' && userId) {
       url += `&user_id=${userId}`;
     }
@@ -98,6 +114,20 @@ export class CommunityService {
     );
   }
 
+  getPublicProfile(userId: string): Observable<PublicProfile> {
+    return this.http.get<PublicProfile>(`/api/profiles/${userId}`);
+  }
+
+  // ── Follow ──
+
+  toggleFollow(userId: string): Observable<{ following: boolean }> {
+    return this.http.post<{ following: boolean }>(`/api/follows/${userId}`, {});
+  }
+
+  getFollowingIds(): Observable<{ data: string[] }> {
+    return this.http.get<{ data: string[] }>('/api/follows/ids');
+  }
+
   // ── Comments ──
 
   getComments(postId: string, page: number = 1, limit: number = 50): Observable<CommentsResponse> {
@@ -120,6 +150,12 @@ export class CommunityService {
 
   deleteComment(id: string): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`${this.commentsApiUrl}/${id}`);
+  }
+
+  reportComment(id: string, reason: string, note: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(
+      `${this.commentsApiUrl}/${id}/report`, { reason, note }
+    );
   }
 
   likeComment(id: string, action: 'like' | 'unlike'): Observable<{ message: string; like_count: number }> {

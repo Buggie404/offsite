@@ -39,13 +39,23 @@
     <!-- ── Right: info ── -->
     <div class="info-column">
 
-      <div class="author-row">
-        <div class="author-avatar" [class.author-avatar--pink]="avatarTone(post.author.username) === 'pink'">
-          <img *ngIf="post.author.avatar_url" [src]="post.author.avatar_url" [alt]="post.author.username">
-          <span *ngIf="!post.author.avatar_url">{{ initials(post.author.username) }}</span>
+      <div class="hidden-banner" *ngIf="isHiddenPost && isPostAuthor" role="status">
+        <svg lucideFlag [size]="15"></svg>
+        <div>
+          <strong>This post is hidden</strong>
+          <span>It was removed from the community feed and only you can see it.</span>
         </div>
+      </div>
+
+      <div class="author-row">
+        <a class="author-link" [routerLink]="['/community/profile', post.user_id]" [attr.aria-label]="'View ' + post.author.username + ' profile'">
+          <div class="author-avatar" [class.author-avatar--pink]="avatarTone(post.author.username) === 'pink'">
+            <img *ngIf="post.author.avatar_url" [src]="post.author.avatar_url" [alt]="post.author.username">
+            <span *ngIf="!post.author.avatar_url">{{ initials(post.author.username) }}</span>
+          </div>
+        </a>
         <div class="author-meta">
-          <span class="author-name">&#64;{{ post.author.username }}</span>
+          <a class="author-name" [routerLink]="['/community/profile', post.user_id]">&#64;{{ post.author.username }}</a>
           <span class="post-meta">{{ post.created_at | date:'MMM d' }} · {{ post.base | titlecase }}</span>
         </div>
         <span class="row-spacer"></span>
@@ -153,7 +163,14 @@
         </button>
       </div>
 
-      <!-- "Products in this post" is hidden until posts carry product data. -->
+      <section class="products-block" *ngIf="productCards.length">
+        <span class="overline">Products in this post</span>
+        <a class="product-row" *ngFor="let product of productCards" [routerLink]="productLink(product)">
+          <img *ngIf="product.image_url" [src]="product.image_url" [alt]="product.name">
+          <span class="product-row__name">{{ product.name }}</span>
+          <svg lucideArrowRight [size]="14"></svg>
+        </a>
+      </section>
 
       <section class="comments-block">
         <span class="overline">Comments ({{ post.comment_count || 0 }})</span>

@@ -27,6 +27,10 @@
       <button type="button" class="filter" [class.active]="activeCategory === 'RECIPE'" (click)="onFilterClick('RECIPE')">
         Recipe
       </button>
+      <button type="button" class="filter" [class.active]="activeCategory === 'FOLLOWING'" (click)="onFilterClick('FOLLOWING')">
+        <svg lucideUsers [size]="13"></svg>
+        Following
+      </button>
       <button type="button" class="filter" [class.active]="activeCategory === 'MY_POST'" (click)="onFilterClick('MY_POST')">
         <svg lucideUser [size]="13"></svg>
         My profile

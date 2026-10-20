@@ -1,0 +1,82 @@
+<header class="page-header">
+  <div class="page-header__left">
+    <h1>Support chat</h1>
+    <p>{{ waitingCount }} waiting · conversations handed off from the chatbot appear here in real time.</p>
+  </div>
+</header>
+
+<div class="chat-layout">
+  <aside class="chat-list">
+    <div class="chat-filters">
+      @for (f of filters; track f.value) {
+        <button type="button" class="chat-filter" [class.active]="filter === f.value" (click)="filter = f.value">{{ f.label }}</button>
+      }
+    </div>
+
+    @for (c of visible; track c.conversation_id) {
+      <button type="button" class="chat-item" [class.active]="active?.conversation_id === c.conversation_id" (click)="select(c)">
+        <span class="chat-item__avatar">
+          @if (c.customer?.avatar_url) { <img [src]="c.customer?.avatar_url" [alt]="customerName(c)"> }
+          @else { {{ customerName(c).slice(0, 2).toUpperCase() }} }
+        </span>
+        <span class="chat-item__body">
+          <span class="chat-item__top">
+            <strong>{{ customerName(c) }}</strong>
+            <time>{{ c.last_message_at | date: 'HH:mm' }}</time>
+          </span>
+          <span class="chat-item__preview">{{ c.last_message_preview || 'No messages yet' }}</span>
+        </span>
+        <span class="chat-item__meta">
+          <span class="status status--{{ c.status }}">{{ c.status }}</span>
+          @if (c.unread_agent > 0) { <span class="unread">{{ c.unread_agent }}</span> }
+        </span>
+      </button>
+    } @empty {
+      <p class="chat-empty">No conversations.</p>
+    }
+  </aside>
+
+  <section class="chat-pane">
+    @if (active) {
+      <header class="chat-pane__head">
+        <div>
+          <strong>{{ customerName(active) }}</strong>
+          @if (active.customer?.membership_tier) { <span class="tier">{{ active.customer?.membership_tier }}</span> }
+          <small>{{ active.conversation_id }}</small>
+        </div>
+        <div class="chat-pane__actions">
+          @if (active.status === 'waiting') {
+            <button type="button" class="btn btn-primary" (click)="claim()">Take over</button>
+          }
+          @if (active.status !== 'closed') {
+            <button type="button" class="btn" (click)="closeChat()">Close</button>
+          }
+        </div>
+      </header>
+
+      @if (active.handoff_summary) {
+        <div class="chat-summary"><strong>Bot summary:</strong> {{ active.handoff_summary }}</div>
+      }
+
+      <div class="chat-thread" #thread>
+        @for (m of messages; track m._id || $index) {
+          <div class="bubble bubble--{{ m.sender_type }}">
+            @if (m.sender_type === 'bot') { <small>Chatbot</small> }
+            <p>{{ m.content }}</p>
+            <time>{{ m.created_at | date: 'HH:mm' }}</time>
+          </div>
+        }
+        @if (customerTyping) { <div class="typing">Customer is typing…</div> }
+      </div>
+
+      <footer class="chat-compose">
+        <textarea rows="2" [(ngModel)]="draft" (input)="onDraftInput()" (keydown)="onKey($event)"
+          [disabled]="!canReply"
+          [placeholder]="canReply ? 'Type a reply — Enter to send' : (active.status === 'closed' ? 'Conversation closed' : 'Take over this chat to reply')"></textarea>
+        <button type="button" class="btn btn-primary" (click)="send()" [disabled]="!canReply || !draft.trim()">Send</button>
+      </footer>
+    } @else {
+      <p class="chat-empty chat-empty--center">Select a conversation to start.</p>
+    }
+  </section>
+</div>
