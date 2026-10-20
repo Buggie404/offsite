@@ -1,0 +1,957 @@
+diff --git a/backend/src/controllers/post-products.controller.js b/backend/src/controllers/post-products.controller.js
+new file mode 100644
+index 0000000..df3f435
+--- /dev/null
++++ b/backend/src/controllers/post-products.controller.js
+@@ -0,0 +1,40 @@
++// backend/src/controllers/post-products.controller.js
++// Hai endpoint cho composer Create Post: tìm sản phẩm thủ công + gợi ý thẻ AI.
++const productTag = require('../services/product-tag.service');
++
++const SUGGEST_LIMIT = 6; // lấy dư để sau khi loại "exclude" vẫn còn đủ 3
++
++// GET /api/posts/product-search?q=matcha
++async function searchProducts(req, res) {
++  try {
++    const q = String(req.query.q || '').trim();
++    if (q.length < 2) return res.json({ data: [] });
++    const data = await productTag.searchProducts(q, 8);
++    res.json({ data });
++  } catch (err) {
++    console.error('searchProducts error:', err);
++    res.status(500).json({ error: 'Failed to search products' });
++  }
++}
++
++// POST /api/posts/product-suggestions  { content, base, exclude: number[] }
++async function suggestProducts(req, res) {
++  try {
++    const content = String(req.body.content || '').slice(0, 2000);
++    const base = ['COFFEE', 'MATCHA'].includes(req.body.base) ? req.body.base : null;
++    const exclude = new Set((Array.isArray(req.body.exclude) ? req.body.exclude : []).map(Number));
++
++    if (!content.trim() && !base) return res.json({ data: [] });
++
++    // Hàm này nằm trong product-tag.service.js (file kèm theo).
++    const raw = await productTag.suggestProductTags({ content, base, limit: SUGGEST_LIMIT + exclude.size });
++
++    const data = raw.filter(p => !exclude.has(p.product_id)).slice(0, 3);
++    res.json({ data });
++  } catch (err) {
++    console.error('suggestProducts error:', err);
++    res.status(500).json({ error: 'Failed to suggest products' });
++  }
++}
++
++module.exports = { searchProducts, suggestProducts };
+diff --git a/backend/src/routes/posts.routes.js b/backend/src/routes/posts.routes.js
+index 70f0f8f..476ea23 100644
+--- a/backend/src/routes/posts.routes.js
++++ b/backend/src/routes/posts.routes.js
+@@ -2,16 +2,19 @@ const express = require('express');
+ const router = express.Router();
+ const multer = require('multer');
+ const postsController = require('../controllers/posts.controller');
++const postProducts = require('../controllers/post-products.controller');
+ const { authMiddleware, optionalAuthMiddleware } = require('../middleware/auth.middleware');
+ 
+ 
+ const upload = multer();
+ 
+ // Public routes (optionalAuthMiddleware: biết user nếu có đăng nhập, nhưng không bắt buộc)
++router.get('/product-search', postProducts.searchProducts); // phải đứng trước '/:id'
+ router.get('/', optionalAuthMiddleware, postsController.getAllPosts);
+ router.get('/:id', optionalAuthMiddleware, postsController.getPostById);
+ 
+ // Protected routes
++router.post('/product-suggestions', authMiddleware, postProducts.suggestProducts);
+ router.post('/', authMiddleware, upload.none(), postsController.createPost);
+ router.put('/:id', authMiddleware, upload.none(), postsController.updatePost);
+ router.delete('/:id', authMiddleware, postsController.deletePost);
+diff --git a/backend/src/services/product-tag.service.js b/backend/src/services/product-tag.service.js
+new file mode 100644
+index 0000000..03e723e
+--- /dev/null
++++ b/backend/src/services/product-tag.service.js
+@@ -0,0 +1,147 @@
++// backend/src/services/product-tag.service.js
++// Tìm + gợi ý sản phẩm để gắn vào bài viết (tối đa 3). Gợi ý dựa trên keyword scoring, không gọi LLM.
++// Dùng đúng schema Product.js: giá/tồn kho nằm ở variants[], từ khoá ở product_tag + các block matcha/coffee/drinkware/tools.
++const Product = require('../models/Product');
++
++const MAX_TAGS = 3;
++const CATALOG_TTL_MS = 5 * 60 * 1000;
++const MIN_SCORE = 0.25; // dưới ngưỡng này coi như không liên quan
++
++const STOPWORDS = new Set([
++  'the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 'just', 'today', 'love', 'really',
++  'very', 'some', 'was', 'are', 'you', 'your', 'our', 'but', 'not', 'can', 'its', 'had', 'has',
++]);
++
++function escapeRegex(s) {
++  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
++}
++
++// bỏ dấu, lowercase, chỉ giữ chữ-số
++function normalize(s) {
++  return String(s || '')
++    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd')
++    .toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
++}
++
++function tokenize(s) {
++  return [...new Set(normalize(s).split(' ').filter(t => t.length >= 3 && !STOPWORDS.has(t)))];
++}
++
++// ── Product helpers ─────────────────────────────────────────────────────────
++const CATALOG_FIELDS = [
++  'product_id', 'name', 'slug', 'category', 'product_tag', 'images',
++  'variants.price', 'variants.stock', 'variants.is_default',
++  'matcha.product_grade', 'matcha.origin',
++  'coffee.roast_level', 'coffee.process_type', 'coffee.product_origin', 'coffee.tasting_notes',
++  'drinkware.ware_type', 'tools.tool_category', 'tools.tool_type',
++].join(' ');
++
++function sellableVariants(p) {
++  return (p.variants || []).filter(v => (v.stock ?? 0) > 0);
++}
++function inStock(p) {
++  return sellableVariants(p).length > 0;
++}
++function priceOf(p) {
++  const list = sellableVariants(p);
++  if (!list.length) return null;
++  const def = list.find(v => v.is_default);
++  const price = def ? def.price : Math.min(...list.map(v => v.price));
++  return typeof price === 'number' ? price : null;
++}
++function tagsOf(p) {
++  const out = [...(p.product_tag || [])];
++  const add = (o, keys) => keys.forEach(k => { if (o && o[k]) out.push(...[].concat(o[k]).map(String)); });
++  add(p.matcha, ['product_grade', 'origin']);
++  add(p.coffee, ['roast_level', 'process_type', 'product_origin', 'tasting_notes']);
++  add(p.drinkware, ['ware_type']);
++  add(p.tools, ['tool_category', 'tool_type']);
++  return out;
++}
++
++// Dạng thẻ trả về cho frontend (khớp interface ProductTag)
++function toTag(p, source, confidence) {
++  return {
++    product_id: p.product_id,
++    name: p.name,
++    image_url: p.images?.[0]?.url || null,
++    price: priceOf(p),
++    source,
++    confidence,
++  };
++}
++
++// ── Catalog cache ───────────────────────────────────────────────────────────
++let catalogCache = { at: 0, items: [] };
++
++async function loadCatalog() {
++  if (Date.now() - catalogCache.at < CATALOG_TTL_MS) return catalogCache.items;
++  const items = await Product.find({ is_active: true }, CATALOG_FIELDS).limit(2000).lean();
++  catalogCache = { at: Date.now(), items: items.filter(inStock) };
++  return catalogCache.items;
++}
++
++// ── Scoring ─────────────────────────────────────────────────────────────────
++function scoreProduct(p, contentNorm, contentTokens, base) {
++  let score = 0;
++  const nameNorm = normalize(p.name);
++
++  // tên sản phẩm xuất hiện nguyên văn trong bài
++  if (nameNorm.length >= 4 && contentNorm.includes(nameNorm)) score += 0.7;
++
++  // tỉ lệ token trong tên khớp với bài
++  const nameTokens = tokenize(p.name);
++  if (nameTokens.length) {
++    const hits = nameTokens.filter(t => contentTokens.includes(t)).length;
++    score += 0.4 * (hits / nameTokens.length);
++  }
++
++  // keyword từ product_tag / chi tiết sản phẩm
++  const tagHits = tagsOf(p).map(normalize).filter(t => t.length >= 3 && contentNorm.includes(t)).length;
++  score += Math.min(0.3, tagHits * 0.15);
++
++  // Post.base là MATCHA / COFFEE; Product.category là matcha / coffee / ...
++  if (base && p.category && normalize(p.category) === normalize(base)) score += 0.1;
++
++  return Math.min(1, score);
++}
++
++// ── Public API ──────────────────────────────────────────────────────────────
++
++// Tìm thủ công theo tên (ô search trong composer)
++async function searchProducts(q, limit = 8) {
++  const term = String(q || '').trim();
++  if (term.length < 2) return [];
++  const rows = await Product.find(
++    { is_active: true, name: { $regex: escapeRegex(term), $options: 'i' } },
++    CATALOG_FIELDS,
++  ).limit(limit * 3).lean();
++  return rows.filter(inStock).slice(0, limit).map(p => toTag(p, 'manual', null));
++}
++
++// Gợi ý theo nội dung bài. Hàm controller gọi: suggestProductTags({ content, base, limit })
++async function suggestProductTags({ content = '', base = null, limit = 6 } = {}) {
++  const contentNorm = normalize(content);
++  const contentTokens = tokenize(content);
++  if (!contentNorm && !base) return [];
++
++  const catalog = await loadCatalog();
++  return catalog
++    .map(p => ({ p, score: scoreProduct(p, contentNorm, contentTokens, base) }))
++    // chỉ có base mà không có nội dung -> điểm base (0.1) không đủ ngưỡng, nên không gợi bừa
++    .filter(x => x.score >= MIN_SCORE)
++    .sort((a, b) => b.score - a.score)
++    .slice(0, limit)
++    .map(x => toTag(x.p, 'ai', Math.round(x.score * 100) / 100));
++}
++
++// Chuẩn hoá danh sách id (từ client) thành thẻ hợp lệ, tối đa 3
++async function resolveProductTags(ids = []) {
++  const wanted = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter(Number.isInteger))].slice(0, MAX_TAGS);
++  if (!wanted.length) return [];
++  const rows = await Product.find({ product_id: { $in: wanted }, is_active: true }, CATALOG_FIELDS).lean();
++  const byId = new Map(rows.filter(inStock).map(p => [p.product_id, p]));
++  return wanted.map(id => byId.get(id)).filter(Boolean).map(p => toTag(p, 'manual', null));
++}
++
++module.exports = { searchProducts, suggestProductTags, resolveProductTags, MAX_TAGS };
+diff --git a/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.html b/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.html
+index 5b30d5b..2a46f55 100644
+--- a/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.html
++++ b/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.html
+@@ -108,6 +108,105 @@
+         </div>
+       </section>
+ 
++      <!-- PRODUCTS (gắn tối đa 3) -->
++      <section class="form-section">
++        <div class="section-label-row">
++          <span class="section-label">PRODUCTS</span>
++          <span class="section-divider"></span>
++          <span class="section-count">{{ selectedProducts.length }}/{{ maxProducts }}</span>
++        </div>
++
++        <div class="product-search" *ngIf="canAddMoreProducts">
++          <svg lucideSearch [size]="16" class="product-search__icon"></svg>
++          <input
++            class="tag-input product-search__input"
++            type="text"
++            placeholder="Search a product to tag..."
++            [ngModel]="productQuery"
++            (ngModelChange)="onProductQueryChange($event)"
++            name="productQuery"
++            autocomplete="off"
++          />
++        </div>
++
++        <div class="product-results" *ngIf="canAddMoreProducts && productQuery.trim().length >= 2">
++          <p class="product-hint" *ngIf="searching">Searching...</p>
++          <p class="product-hint" *ngIf="!searching && searchDone && !visibleSearchResults.length">No products found.</p>
++          <button type="button" class="product-option" *ngFor="let p of visibleSearchResults" (click)="addProduct(p)">
++            <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
++            <span class="product-option__name">{{ p.name }}</span>
++            <svg lucidePlus [size]="14"></svg>
++          </button>
++        </div>
++
++        <div class="tag-chip-row" *ngIf="selectedProducts.length">
++          <div class="tag-chip product-chip" *ngFor="let p of selectedProducts">
++            <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
++            <span>{{ p.name }}</span>
++            <button type="button" (click)="removeProduct(p)" aria-label="Remove product">
++              <svg lucideX [size]="12"></svg>
++            </button>
++          </div>
++        </div>
++      </section>
++
++      <!-- PREVIEW + gợi ý thẻ AI -->
++      <section class="form-section" *ngIf="showPreview">
++        <div class="section-label-row">
++          <span class="section-label">PREVIEW</span>
++          <span class="section-divider"></span>
++        </div>
++
++        <div class="post-preview">
++          <div class="post-preview__media">
++            <ng-container *ngIf="previewMedia; else previewText">
++              <img *ngIf="previewMedia.type === 'image'" [src]="previewMedia.url" alt="preview" />
++              <video *ngIf="previewMedia.type === 'video'" [src]="previewMedia.url" muted playsinline></video>
++            </ng-container>
++            <ng-template #previewText>
++              <p class="post-preview__text">{{ content }}</p>
++            </ng-template>
++
++            <!-- Thẻ sản phẩm nằm trên ảnh, giống feed -->
++            <div class="post-preview__tags" *ngIf="selectedProducts.length">
++              <span class="preview-tag" *ngFor="let p of selectedProducts">
++                <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
++                {{ p.name }}
++              </span>
++            </div>
++          </div>
++
++          <div class="ai-suggest">
++            <div class="ai-suggest__head">
++              <span class="ai-suggest__title"><svg lucideSparkles [size]="14"></svg> Suggested products</span>
++
++              <button type="button" class="ai-suggest__btn" *ngIf="!hasSuggested"
++                [disabled]="suggestLoading || !canSuggest" (click)="requestSuggestions(false)">
++                {{ suggestLoading ? 'Thinking...' : 'Suggest tags' }}
++              </button>
++
++              <button type="button" class="ai-suggest__btn" *ngIf="hasSuggested"
++                [disabled]="suggestLoading || regenLeft <= 0" (click)="requestSuggestions(true)">
++                <svg lucideRefreshCw [size]="13"></svg>
++                {{ suggestLoading ? 'Thinking...' : 'Suggest again (' + regenLeft + ' left)' }}
++              </button>
++            </div>
++
++            <p class="product-hint" *ngIf="suggestMessage">{{ suggestMessage }}</p>
++
++            <div class="ai-suggest__list" *ngIf="visibleSuggestions.length">
++              <button type="button" class="product-option" *ngFor="let p of visibleSuggestions"
++                [disabled]="!canAddMoreProducts" (click)="addProduct(p)">
++                <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
++                <span class="product-option__name">{{ p.name }}</span>
++                <span class="product-option__badge" *ngIf="p.confidence != null">{{ (p.confidence * 100) | number:'1.0-0' }}%</span>
++                <svg lucidePlus [size]="14"></svg>
++              </button>
++            </div>
++          </div>
++        </div>
++      </section>
++
+       <p class="form-error" *ngIf="errorMessage">{{ errorMessage }}</p>
+     </div>
+ 
+diff --git a/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.scss b/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.scss
+index 8a438db..47a0b56 100644
+--- a/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.scss
++++ b/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.scss
+@@ -546,4 +546,69 @@
+   &:hover {
+     background: rgba(186, 26, 26, 0.05);
+   }
+-}
+\ No newline at end of file
++}
++/* === Thêm vào CUỐI create-post-modal.component.scss ===
++   Màu dùng fallback; đổi sang biến/token của project nếu có. */
++
++.section-count {
++  margin-left: auto;
++  font-size: 11px;
++  letter-spacing: .08em;
++  color: var(--text-muted, #8a8a80);
++}
++
++.product-search {
++  position: relative;
++  &__icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); opacity: .5; pointer-events: none; }
++  &__input { padding-left: 38px; width: 100%; box-sizing: border-box; }
++}
++
++.product-results, .ai-suggest__list {
++  display: flex; flex-direction: column; gap: 6px; margin-top: 8px;
++  max-height: 220px; overflow-y: auto;
++}
++
++.product-hint { margin: 8px 0 0; font-size: 12px; color: var(--text-muted, #8a8a80); }
++
++.product-option {
++  display: flex; align-items: center; gap: 10px; width: 100%;
++  padding: 8px 12px; border-radius: 12px; cursor: pointer; text-align: left;
++  border: 1px solid var(--border, #e5e2d8); background: #fff; font: inherit;
++  transition: background .15s, border-color .15s;
++  img { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
++  &__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
++  &__badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #eef2e6; color: #5c6b45; }
++  &:hover:not(:disabled) { background: #f6f8f1; border-color: #b9c4a3; }
++  &:disabled { opacity: .45; cursor: not-allowed; }
++}
++
++.product-chip img { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
++
++.post-preview {
++  display: grid; gap: 14px;
++  &__media {
++    position: relative; border-radius: 16px; overflow: hidden; background: #f3f1ea;
++    aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center;
++    img, video { width: 100%; height: 100%; object-fit: cover; }
++  }
++  &__text { padding: 20px; margin: 0; font-size: 15px; line-height: 1.5; max-height: 100%; overflow: hidden; }
++  &__tags { position: absolute; left: 10px; bottom: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
++}
++
++.preview-tag {
++  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
++  padding: 4px 10px 4px 4px; border-radius: 999px; font-size: 12px;
++  background: rgba(255, 255, 255, .92); backdrop-filter: blur(6px); box-shadow: 0 1px 4px rgba(0, 0, 0, .15);
++  img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
++}
++
++.ai-suggest {
++  &__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
++  &__title { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
++  &__btn {
++    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
++    padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600;
++    border: 1px solid #b9c4a3; background: #f6f8f1; color: #4a5a35;
++    &:disabled { opacity: .5; cursor: not-allowed; }
++  }
++}
+diff --git a/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.ts b/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.ts
+index a7af831..e57888a 100644
+--- a/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.ts
++++ b/frontend/src/app/features/community/components/create-post-modal/create-post-modal.component.ts
+@@ -1,11 +1,17 @@
+-import { Component, EventEmitter, Output, inject } from '@angular/core';
++import { Component, DestroyRef, EventEmitter, HostListener, OnDestroy, Output, inject } from '@angular/core';
+ import { CommonModule } from '@angular/common';
+ import { FormsModule } from '@angular/forms';
+ import { Router } from '@angular/router';
+-import { LucideX, LucideImage, LucideTrash2 } from '@lucide/angular';
++import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
++import { Subject, of } from 'rxjs';
++import { catchError, debounceTime, distinctUntilChanged, switchMap, tap } from 'rxjs/operators';
++import {
++  LucideX, LucideImage, LucideTrash2, LucideSearch, LucideSparkles, LucideRefreshCw, LucidePlus
++} from '@lucide/angular';
+ 
+ import { CloudinaryService, CloudinaryUploadResult } from '../../services/cloudinary.service';
+ import { CommunityService } from '../../services/community.service';
++import { ProductTag } from '../../models/post.model';
+ 
+ // base chỉ có 2 giá trị hợp lệ theo Post model — gõ 1 trong 2 từ này vào ô Tags
+ // sẽ được nhận là "base" (tag phân loại bắt buộc), khác đi thì thành hashtag tự do
+@@ -25,14 +31,18 @@ interface MediaPreview {
+ @Component({
+   selector: 'app-create-post-modal',
+   standalone: true,
+-  imports: [CommonModule, FormsModule, LucideX, LucideImage, LucideTrash2],
++  imports: [
++    CommonModule, FormsModule,
++    LucideX, LucideImage, LucideTrash2, LucideSearch, LucideSparkles, LucideRefreshCw, LucidePlus
++  ],
+   templateUrl: './create-post-modal.component.html',
+   styleUrls: ['./create-post-modal.component.scss'],
+ })
+-export class CreatePostModalComponent {
++export class CreatePostModalComponent implements OnDestroy {
+   private cloudinary = inject(CloudinaryService);
+   private communityService = inject(CommunityService);
+   private router = inject(Router);
++  private destroyRef = inject(DestroyRef);
+ 
+   // Khớp với feed.component.html: (close)="closeCreatePost()"
+   @Output() close = new EventEmitter<void>();
+@@ -47,11 +57,71 @@ export class CreatePostModalComponent {
+   errorMessage = '';
+ 
+   readonly maxFiles = 4;
++  // Giới hạn dung lượng phía client (chỉnh theo preset Cloudinary của team nếu khác)
++  readonly maxImageMb = 10;
++  readonly maxVideoMb = 50;
+   readonly baseOptions: BaseValue[] = ['COFFEE', 'MATCHA'];
+ 
++  // ----- Gắn sản phẩm (tối đa 3) -----
++  readonly maxProducts = 3;
++  selectedProducts: ProductTag[] = [];
++  productQuery = '';
++  searchResults: ProductTag[] = [];
++  searching = false;
++  searchDone = false;
++  private query$ = new Subject<string>();
++
++  // ----- Gợi ý thẻ sản phẩm (AI) — "Gợi ý lại" tối đa 2 lần -----
++  readonly maxRegenerate = 2;
++  suggestions: ProductTag[] = [];
++  suggestLoading = false;
++  hasSuggested = false;
++  regenCount = 0;
++  suggestMessage = '';
++  private shownSuggestionIds = new Set<number>();
++
+   // ----- State modal Discard confirm -----
+   showDiscardConfirm = false;
+ 
++  constructor() {
++    // Tìm sản phẩm thủ công: debounce 300ms, huỷ request cũ khi gõ tiếp
++    this.query$
++      .pipe(
++        debounceTime(300),
++        distinctUntilChanged(),
++        tap(q => {
++          const ok = q.trim().length >= 2;
++          this.searching = ok;
++          this.searchDone = false;
++          if (!ok) this.searchResults = [];
++        }),
++        switchMap(q =>
++          q.trim().length < 2
++            ? of(null)
++            : this.communityService.searchProducts(q.trim()).pipe(catchError(() => of([] as ProductTag[]))),
++        ),
++        takeUntilDestroyed(this.destroyRef),
++      )
++      .subscribe(results => {
++        if (results) {
++          this.searchResults = results;
++          this.searchDone = true;
++        }
++        this.searching = false;
++      });
++  }
++
++  ngOnDestroy(): void {
++    this.previews.forEach(p => URL.revokeObjectURL(p.url));
++  }
++
++  // Esc: đang mở hộp discard thì quay lại soạn bài, ngược lại thử đóng modal
++  @HostListener('document:keydown.escape')
++  onEscape(): void {
++    if (this.showDiscardConfirm) this.onKeepEditing();
++    else this.onRequestClose();
++  }
++
+   // ================== Tags ==================
+ 
+   onTagInputKeydown(event: KeyboardEvent): void {
+@@ -111,10 +181,24 @@ export class CreatePostModalComponent {
+     if (!input.files || input.files.length === 0) return;
+ 
+     const incoming = Array.from(input.files);
+-    const room = this.maxFiles - this.files.length;
+-    const toAdd = incoming.slice(0, Math.max(room, 0));
++    const room = Math.max(this.maxFiles - this.files.length, 0);
++    const rejected: string[] = [];
++    const accepted: File[] = [];
++
++    for (const file of incoming) {
++      const isImage = file.type.startsWith('image/');
++      const isVideo = file.type.startsWith('video/');
++      const limitMb = isVideo ? this.maxVideoMb : this.maxImageMb;
++      if (!isImage && !isVideo) {
++        rejected.push(`${file.name} (unsupported type)`);
++      } else if (file.size > limitMb * 1024 * 1024) {
++        rejected.push(`${file.name} (over ${limitMb}MB)`);
++      } else {
++        accepted.push(file);
++      }
++    }
+ 
+-    for (const file of toAdd) {
++    for (const file of accepted.slice(0, room)) {
+       this.files.push(file);
+       this.previews.push({
+         url: URL.createObjectURL(file),
+@@ -122,6 +206,14 @@ export class CreatePostModalComponent {
+       });
+     }
+ 
++    if (rejected.length) {
++      this.errorMessage = `Skipped: ${rejected.join(', ')}`;
++    } else if (accepted.length > room) {
++      this.errorMessage = `You can add up to ${this.maxFiles} files.`;
++    } else {
++      this.errorMessage = '';
++    }
++
+     input.value = '';
+   }
+ 
+@@ -135,17 +227,131 @@ export class CreatePostModalComponent {
+     return this.files.length < this.maxFiles;
+   }
+ 
++  // ================== Gắn sản phẩm thủ công ==================
++
++  get canAddMoreProducts(): boolean {
++    return this.selectedProducts.length < this.maxProducts;
++  }
++
++  onProductQueryChange(value: string): void {
++    this.productQuery = value;
++    this.query$.next(value);
++  }
++
++  isProductSelected(p: ProductTag): boolean {
++    return this.selectedProducts.some(s => s.product_id === p.product_id);
++  }
++
++  addProduct(p: ProductTag): void {
++    if (this.isProductSelected(p)) return;
++    if (!this.canAddMoreProducts) {
++      this.errorMessage = `You can tag up to ${this.maxProducts} products.`;
++      return;
++    }
++    this.errorMessage = '';
++    this.selectedProducts.push(p);
++  }
++
++  removeProduct(p: ProductTag): void {
++    this.selectedProducts = this.selectedProducts.filter(s => s.product_id !== p.product_id);
++    this.errorMessage = '';
++  }
++
++  // Kết quả tìm kiếm, bỏ những cái đã chọn
++  get visibleSearchResults(): ProductTag[] {
++    return this.searchResults.filter(p => !this.isProductSelected(p));
++  }
++
++  // ================== Gợi ý thẻ sản phẩm (AI) ==================
++
++  get regenLeft(): number {
++    return this.maxRegenerate - this.regenCount;
++  }
++
++  get canSuggest(): boolean {
++    return !!this.content.trim() || !!this.selectedBase;
++  }
++
++  get visibleSuggestions(): ProductTag[] {
++    return this.suggestions.filter(p => !this.isProductSelected(p));
++  }
++
++  // content + hashtag — cùng định dạng sẽ gửi lên khi đăng
++  private get composedContent(): string {
++    const hashtags = this.tags.filter(t => !t.isBase).map(t => `#${t.label}`).join(' ');
++    const text = this.content.trim();
++    return hashtags ? `${text} ${hashtags}`.trim() : text;
++  }
++
++  requestSuggestions(isRegenerate = false): void {
++    if (this.suggestLoading) return;
++    if (isRegenerate && this.regenLeft <= 0) return;
++    if (!this.canSuggest) {
++      this.suggestMessage = 'Write something or pick coffee/matcha first.';
++      return;
++    }
++
++    this.suggestLoading = true;
++    this.suggestMessage = '';
++
++    // Loại những sản phẩm đã gợi ý/đã chọn để "Gợi ý lại" ra kết quả khác
++    const exclude = [
++      ...new Set([...this.shownSuggestionIds, ...this.selectedProducts.map(p => p.product_id)]),
++    ];
++
++    this.communityService
++      .suggestProducts({ content: this.composedContent, base: this.selectedBase, exclude })
++      .subscribe({
++        next: list => {
++          this.suggestLoading = false;
++          const fresh = list
++            .filter(p => !exclude.includes(p.product_id))
++            .slice(0, this.maxProducts);
++
++          if (fresh.length === 0) {
++            // Không còn gì mới: giữ nguyên kết quả cũ và KHÔNG tính vào lượt gợi ý lại
++            this.suggestMessage = this.hasSuggested
++              ? 'No other matches for this post.'
++              : 'No matching products found. Try adding more detail or search manually.';
++            this.hasSuggested = true;
++            return;
++          }
++
++          this.suggestions = fresh;
++          fresh.forEach(p => this.shownSuggestionIds.add(p.product_id));
++          if (isRegenerate) this.regenCount++;
++          this.hasSuggested = true;
++        },
++        error: () => {
++          this.suggestLoading = false;
++          this.suggestMessage = 'Could not load suggestions, please try again.';
++        },
++      });
++  }
++
++  // ================== Preview ==================
++
++  get showPreview(): boolean {
++    return !!this.content.trim() || this.previews.length > 0;
++  }
++
++  get previewMedia(): MediaPreview | null {
++    return this.previews[0] ?? null;
++  }
++
+   // ================== Đóng modal / Discard confirm ==================
+ 
+   get hasUnsavedContent(): boolean {
+     return (
+       this.content.trim().length > 0 ||
+       this.tags.length > 0 ||
+-      this.files.length > 0
++      this.files.length > 0 ||
++      this.selectedProducts.length > 0
+     );
+   }
+ 
+   onRequestClose(): void {
++    if (this.isSubmitting) return; // đang đăng thì không cho đóng
+     if (this.hasUnsavedContent) {
+       this.showDiscardConfirm = true;
+     } else {
+@@ -175,6 +381,15 @@ export class CreatePostModalComponent {
+     this.previews = [];
+     this.files = [];
+     this.errorMessage = '';
++    this.selectedProducts = [];
++    this.productQuery = '';
++    this.searchResults = [];
++    this.searchDone = false;
++    this.suggestions = [];
++    this.shownSuggestionIds.clear();
++    this.hasSuggested = false;
++    this.regenCount = 0;
++    this.suggestMessage = '';
+   }
+ 
+   // ================== Submit ==================
+@@ -182,6 +397,9 @@ export class CreatePostModalComponent {
+   submitPost(): void {
+     if (this.isSubmitting) return;
+ 
++    // Người dùng gõ "coffee"/"#icedcoffee" rồi bấm POST luôn mà chưa Enter -> vẫn nhận
++    this.addTagFromInput();
++
+     const baseTag = this.tags.find(t => t.isBase);
+     if (!baseTag) {
+       this.errorMessage = 'Please select a base tag (coffee or matcha).';
+@@ -196,18 +414,17 @@ export class CreatePostModalComponent {
+     this.isSubmitting = true;
+ 
+     // Nối hashtag tự do vào cuối content (khớp cách post-detail parse hashtag)
+-    const hashtags = this.tags
+-      .filter(t => !t.isBase)
+-      .map(t => `#${t.label}`)
+-      .join(' ');
+-    const finalContent = hashtags ? `${this.content.trim()} ${hashtags}`.trim() : this.content.trim();
++    const finalContent = this.composedContent;
+     const base = baseTag.label.toUpperCase() as BaseValue;
++    const linkedProducts = this.selectedProducts.slice(0, this.maxProducts).map(p => p.product_id);
+ 
+     const afterUpload = (media: CloudinaryUploadResult[]) => {
+       const formData = new FormData();
+       formData.append('content', finalContent);
+       formData.append('base', base);
+       formData.append('media', JSON.stringify(media));
++      // Backend: parseLinkedProducts() nhận JSON string, tối đa 3 id
++      formData.append('linked_products', JSON.stringify(linkedProducts));
+ 
+       this.communityService.createPost(formData).subscribe({
+         next: res => {
+@@ -219,9 +436,9 @@ export class CreatePostModalComponent {
+             this.router.navigate(['/community/post', postId]);
+           }
+         },
+-        error: () => {
++        error: err => {
+           this.isSubmitting = false;
+-          this.errorMessage = 'Failed to create post, please try again.';
++          this.errorMessage = err?.error?.error || 'Failed to create post, please try again.';
+         },
+       });
+     };
+@@ -238,4 +455,4 @@ export class CreatePostModalComponent {
+       afterUpload([]);
+     }
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/frontend/src/app/features/community/models/post.model.ts b/frontend/src/app/features/community/models/post.model.ts
+index 9f5583c..4c82a16 100644
+--- a/frontend/src/app/features/community/models/post.model.ts
++++ b/frontend/src/app/features/community/models/post.model.ts
+@@ -23,6 +23,15 @@ export function postProductLink(p: PostProductCard): string[] {
+   return ['/products', getProductDetailSlug({ name: p.name, slug: p.slug, product_id: p.product_id })];
+ }
+ 
++export interface ProductTag {
++  product_id: number;
++  name: string;
++  image_url: string | null;
++  price?: number | null;
++  source?: 'manual' | 'ai';
++  confidence?: number | null;
++}
++
+ export interface Post {
+   _id: string;
+   post_id: string;
+diff --git a/frontend/src/app/features/community/pages/post-detail/post-detail.component.html b/frontend/src/app/features/community/pages/post-detail/post-detail.component.html
+index a117d90..85b4e5f 100644
+--- a/frontend/src/app/features/community/pages/post-detail/post-detail.component.html
++++ b/frontend/src/app/features/community/pages/post-detail/post-detail.component.html
+@@ -19,7 +19,12 @@
+           <svg class="media-quote" viewBox="0 0 24 24" aria-hidden="true">
+             <path d="M9.6 6C6 7.2 3.6 10.2 3.6 14.4V19h6.6v-6H7c.2-2 1.5-3.6 3.4-4.2L9.6 6Zm10.2 0c-3.6 1.2-6 4.2-6 8.4V19h6.6v-6h-3.2c.2-2 1.5-3.6 3.4-4.2L19.8 6Z"/>
+           </svg>
+-          <p>{{ post.content }}</p>
++          <p>
++            <ng-container *ngFor="let part of postContentParts">
++              <span *ngIf="part.isTag" class="hashtag">{{ part.text }}</span>
++              <ng-container *ngIf="!part.isTag">{{ part.text }}</ng-container>
++            </ng-container>
++          </p>
+         </div>
+       </ng-template>
+ 
+@@ -39,11 +44,12 @@
+     <!-- ── Right: info ── -->
+     <div class="info-column">
+ 
+-      <div class="hidden-banner" *ngIf="isHiddenPost && isPostAuthor" role="status">
++      <div class="hidden-banner" *ngIf="isHiddenPost" role="status">
+         <svg lucideFlag [size]="15"></svg>
+         <div>
+           <strong>This post is hidden</strong>
+-          <span>It was removed from the community feed and only you can see it.</span>
++          <span *ngIf="isPostAuthor">It was removed from the community feed and only you can see it.</span>
++          <span *ngIf="!isPostAuthor">Hidden from the community feed. Visible to moderators only.</span>
+         </div>
+       </div>
+ 
+@@ -172,7 +178,7 @@
+         </a>
+       </section>
+ 
+-      <section class="comments-block">
++      <section class="comments-block" id="comments-section">
+         <span class="overline">Comments ({{ post.comment_count || 0 }})</span>
+         <app-comment-section [postId]="post.post_id" (commentCountChange)="onCommentCountChange($event)"></app-comment-section>
+       </section>
+diff --git a/frontend/src/app/features/community/pages/post-detail/post-detail.component.ts b/frontend/src/app/features/community/pages/post-detail/post-detail.component.ts
+index d03b5ab..c2aa4d2 100644
+--- a/frontend/src/app/features/community/pages/post-detail/post-detail.component.ts
++++ b/frontend/src/app/features/community/pages/post-detail/post-detail.component.ts
+@@ -1,4 +1,5 @@
+-import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, HostListener } from '@angular/core';
++import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, HostListener, DestroyRef } from '@angular/core';
++import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+ import { CommonModule } from '@angular/common';
+ import { FormsModule } from '@angular/forms';
+ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+@@ -35,6 +36,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
+   private cdr = inject(ChangeDetectorRef);
+   private authService = inject(AuthService);
+   private toast = inject(ToastService);
++  private destroyRef = inject(DestroyRef);
+ 
+   post: Post | null = null;
+   loading = true;
+@@ -159,13 +161,15 @@ export class PostDetailComponent implements OnInit, OnDestroy {
+   }
+ 
+   ngOnInit(): void {
+-    const id = this.route.snapshot.paramMap.get('id');
+-    if (!id) {
+-      this.error = 'Post not found.';
+-      this.loading = false;
+-      return;
+-    }
+-    this.loadPost(id);
++    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
++      const id = params.get('id');
++      if (!id) {
++        this.error = 'Post not found.';
++        this.loading = false;
++        return;
++      }
++      this.loadPost(id);
++    });
+     this.timeTickHandle = setInterval(() => this.cdr.markForCheck(), 30000);
+   }
+ 
+@@ -182,6 +186,8 @@ export class PostDetailComponent implements OnInit, OnDestroy {
+         this.postLiked = post.liked ?? false;
+         this.postSaved = post.saved ?? false;
+         this.postContentParts = this.parseContentTags(post.content);
++        this.activeMediaIndex = 0;
++        this.showPostOptions = false;
+         this.loading = false;
+         this.cdr.markForCheck();
+       },
+@@ -237,7 +243,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
+       error: (err) => {
+         console.error('Failed to delete post:', err);
+         this.loading = false;
+-        alert('Failed to delete this post. Please try again.');
++        this.toast.error(err?.error?.error || 'Failed to delete this post. Please try again.');
+         this.cdr.markForCheck();
+       }
+     });
+@@ -252,12 +258,15 @@ export class PostDetailComponent implements OnInit, OnDestroy {
+   // ── Like / Save post ──
+   likePost(): void {
+     if (!this.post) return;
+-    this.communityService.likePost(this.post.post_id).subscribe(res => {
+-      if (this.post) {
+-        this.post.like_count = res.like_count;
+-        this.postLiked = res.liked;
+-        this.cdr.markForCheck();
+-      }
++    this.communityService.likePost(this.post.post_id).subscribe({
++      next: res => {
++        if (this.post) {
++          this.post.like_count = res.like_count;
++          this.postLiked = res.liked;
++          this.cdr.markForCheck();
++        }
++      },
++      error: err => this.toast.error(err?.error?.error || 'Could not like this post. Please try again.')
+     });
+   }
+ 
+@@ -272,7 +281,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
+           this.cdr.markForCheck();
+         }
+       },
+-      error: (err) => console.error('Failed to save post:', err)
++      error: (err) => this.toast.error(err?.error?.error || 'Could not save this post. Please try again.')
+     });
+   }
+ 
+diff --git a/frontend/src/app/features/community/services/community.service.ts b/frontend/src/app/features/community/services/community.service.ts
+index d02784c..05fa87d 100644
+--- a/frontend/src/app/features/community/services/community.service.ts
++++ b/frontend/src/app/features/community/services/community.service.ts
+@@ -1,8 +1,8 @@
+ import { Injectable, inject } from '@angular/core';
+ import { HttpClient } from '@angular/common/http';
+-import { Observable } from 'rxjs';
++import { Observable, map } from 'rxjs';
+ 
+-import { Post } from '../models/post.model';
++import { Post, ProductTag } from '../models/post.model';
+ import { Comment } from '../models/comment.model';
+ import { Notification } from '../models/notification.model';
+ 
+@@ -86,6 +86,18 @@ export class CommunityService {
+     return this.http.post(this.apiUrl, data);
+   }
+   
++  searchProducts(q: string): Observable<ProductTag[]> {
++    return this.http
++      .get<{ data: ProductTag[] }>(`${this.apiUrl}/product-search`, { params: { q } })
++      .pipe(map(r => r.data));
++  }
++
++  suggestProducts(body: { content: string; base: string | null; exclude: number[] }): Observable<ProductTag[]> {
++    return this.http
++      .post<{ data: ProductTag[] }>(`${this.apiUrl}/product-suggestions`, body)
++      .pipe(map(r => r.data));
++  }
++
+   deletePost(id: string): Observable<{ message: string }> {
+     return this.http.delete<{ message: string }>(`${this.apiUrl}/${id}`);
+   }

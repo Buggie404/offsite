@@ -1,0 +1,282 @@
+diff --git a/backend/src/controllers/admin-community.controller.js b/backend/src/controllers/admin-community.controller.js
+index a675d02..62ef64d 100644
+--- a/backend/src/controllers/admin-community.controller.js
++++ b/backend/src/controllers/admin-community.controller.js
+@@ -1,6 +1,9 @@
+ const Post = require('../models/Post');
+ const PostReport = require('../models/PostReport');
++const Comment = require('../models/Comment');
++const CommentReport = require('../models/CommentReport');
+ const { AUTO_HIDE_THRESHOLD, hidePost, unhidePost } = require('../services/post-moderation.service');
++const { hideComment, unhideComment } = require('../services/comment-moderation.service');
+ 
+ const snap = (p) => p && ({ post_id: p.post_id, status: p.status, hidden_reason: p.hidden_reason });
+ 
+@@ -100,4 +103,87 @@ async function dismissReports(req, res) {
+   }
+ }
+ 
+-module.exports = { listReportedPosts, hide, unhide, dismissReports };
++const snapComment = (c) => c && ({ comment_id: c.comment_id, moderation_status: c.moderation_status, hidden_reason: c.hidden_reason });
++
++// GET /api/admin/community/comment-reports
++// Comments that have pending reports and/or are currently hidden, most reported first.
++async function listReportedComments(req, res) {
++  try {
++    const grouped = await CommentReport.aggregate([
++      { $match: { status: 'pending' } },
++      { $group: { _id: '$comment_id', count: { $sum: 1 }, reasons: { $push: '$reason' }, last_reported_at: { $max: '$created_at' } } }
++    ]);
++    const byComment = new Map(grouped.map(g => [g._id, g]));
++
++    const comments = await Comment.find({
++      $or: [{ comment_id: { $in: [...byComment.keys()] } }, { moderation_status: 'hidden' }]
++    }).lean();
++
++    const data = comments.map(c => {
++      const g = byComment.get(c.comment_id);
++      const reasonCounts = {};
++      (g?.reasons || []).forEach(r => { reasonCounts[r] = (reasonCounts[r] || 0) + 1; });
++      return {
++        comment_id: c.comment_id,
++        post_id: c.post_id,
++        user_id: c.user_id,
++        author: c.author,
++        content: c.content,
++        moderation_status: c.moderation_status || 'visible',
++        hidden_reason: c.hidden_reason || null,
++        hidden_at: c.hidden_at || null,
++        pending_reports: g?.count || 0,
++        reasons: reasonCounts,
++        last_reported_at: g?.last_reported_at || null
++      };
++    }).sort((a, b) => b.pending_reports - a.pending_reports);
++
++    res.json({ data });
++  } catch (error) {
++    console.error('Error listing reported comments:', error);
++    res.status(500).json({ error: 'Failed to load comment reports' });
++  }
++}
++
++// POST /api/admin/community/comments/:commentId/hide
++async function hideCommentAction(req, res) {
++  try {
++    const before = await Comment.findOne({ comment_id: req.params.commentId }).lean();
++    if (!before) return res.status(404).json({ error: 'Comment not found' });
++    if (before.moderation_status === 'hidden') return res.status(409).json({ error: 'Comment is already hidden' });
++
++    const comment = await hideComment(before.comment_id, { reason: 'manual', adminId: req.user.user_id });
++    await req.writeActivityLog({
++      actionType: 'community_comment_hide', targetEntity: 'comment', targetId: before.comment_id,
++      oldValue: snapComment(before), newValue: snapComment(comment)
++    });
++    res.json({ data: snapComment(comment) });
++  } catch (error) {
++    console.error('Error hiding comment:', error);
++    res.status(500).json({ error: 'Failed to hide comment' });
++  }
++}
++
++// POST /api/admin/community/comments/:commentId/unhide  (also dismisses pending reports)
++async function unhideCommentAction(req, res) {
++  try {
++    const before = await Comment.findOne({ comment_id: req.params.commentId }).lean();
++    if (!before) return res.status(404).json({ error: 'Comment not found' });
++    if (before.moderation_status !== 'hidden') return res.status(409).json({ error: 'Comment is not hidden' });
++
++    const comment = await unhideComment(before.comment_id);
++    await req.writeActivityLog({
++      actionType: 'community_comment_unhide', targetEntity: 'comment', targetId: before.comment_id,
++      oldValue: snapComment(before), newValue: snapComment(comment)
++    });
++    res.json({ data: snapComment(comment) });
++  } catch (error) {
++    console.error('Error unhiding comment:', error);
++    res.status(500).json({ error: 'Failed to unhide comment' });
++  }
++}
++
++module.exports = {
++  listReportedPosts, hide, unhide, dismissReports,
++  listReportedComments, hideComment: hideCommentAction, unhideComment: unhideCommentAction
++};
+diff --git a/backend/src/models/Comment.js b/backend/src/models/Comment.js
+index c9f59ce..dbfe760 100644
+--- a/backend/src/models/Comment.js
++++ b/backend/src/models/Comment.js
+@@ -15,7 +15,13 @@ const commentSchema = new mongoose.Schema({
+   content: { type: String, required: true },
+   reply_to_username: { type: String, default: null },
+   like_count: { type: Number, default: 0 },
+-  reply_count: { type: Number, default: 0 }
++  reply_count: { type: Number, default: 0 },
++  // 'hidden' comments are removed from the public thread (admin hide / unhide).
++  // Old documents have no value here, so always filter with { $ne: 'hidden' }.
++  moderation_status: { type: String, enum: ['visible', 'hidden'], default: 'visible' },
++  hidden_reason: { type: String, enum: ['manual', 'auto_reports', null], default: null },
++  hidden_at: { type: Date, default: null },
++  hidden_by: { type: String, default: null }
+ }, {
+   collection: 'Comments',
+   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
+diff --git a/backend/src/routes/admin.routes.js b/backend/src/routes/admin.routes.js
+index 9c581a0..68b6068 100644
+--- a/backend/src/routes/admin.routes.js
++++ b/backend/src/routes/admin.routes.js
+@@ -33,6 +33,9 @@ router.get('/community/reports', authMiddleware, requireRole('admin_cc', 'cskh')
+ router.post('/community/posts/:postId/hide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.hide);
+ router.post('/community/posts/:postId/unhide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.unhide);
+ router.post('/community/posts/:postId/dismiss', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.dismissReports);
++router.get('/community/comment-reports', authMiddleware, requireRole('admin_cc', 'cskh'), adminCommunityController.listReportedComments);
++router.post('/community/comments/:commentId/hide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.hideComment);
++router.post('/community/comments/:commentId/unhide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.unhideComment);
+ 
+ // ── DEV ONLY: Fix admin roles in DB ────────────────────────────────────
+ // Gọi POST /api/admin/dev/fix-admin-roles để update role trong DB
+diff --git a/backend/src/services/comment-moderation.service.js b/backend/src/services/comment-moderation.service.js
+new file mode 100644
+index 0000000..4571e45
+--- /dev/null
++++ b/backend/src/services/comment-moderation.service.js
+@@ -0,0 +1,26 @@
++const Comment = require('../models/Comment');
++const CommentReport = require('../models/CommentReport');
++
++// Public thread queries must use this filter (documents created before this field existed have no value).
++const VISIBLE_COMMENT_FILTER = { moderation_status: { $ne: 'hidden' } };
++
++async function hideComment(commentId, { reason = 'manual', adminId = null } = {}) {
++  return Comment.findOneAndUpdate(
++    { comment_id: commentId, moderation_status: { $ne: 'hidden' } },
++    { $set: { moderation_status: 'hidden', hidden_reason: reason, hidden_at: new Date(), hidden_by: adminId } },
++    { new: true }
++  );
++}
++
++// Unhiding also clears pending reports, otherwise the comment would look reported again.
++async function unhideComment(commentId) {
++  const comment = await Comment.findOneAndUpdate(
++    { comment_id: commentId, moderation_status: 'hidden' },
++    { $set: { moderation_status: 'visible', hidden_reason: null, hidden_at: null, hidden_by: null } },
++    { new: true }
++  );
++  if (comment) await CommentReport.updateMany({ comment_id: commentId, status: 'pending' }, { $set: { status: 'dismissed' } });
++  return comment;
++}
++
++module.exports = { VISIBLE_COMMENT_FILTER, hideComment, unhideComment };
+diff --git a/backend/src/services/product-tag.service.js b/backend/src/services/product-tag.service.js
+index bee6ddd..1674b01 100644
+--- a/backend/src/services/product-tag.service.js
++++ b/backend/src/services/product-tag.service.js
+@@ -33,27 +33,45 @@ function escapeRegex(s) {
+ }
+ 
+ // ── Product helpers ─────────────────────────────────────────────────────────
+-// ASSUMPTION: Product has product_id, name, slug, images[{url}], price, is_active.
+-// Stock and tags are read defensively because their field names are not confirmed:
+-// adjust stockOf() / tagsOf() if the real Product schema uses other names.
+-
+-function stockOf(p) {
+-  for (const key of ['stock', 'stock_quantity', 'quantity', 'inventory']) {
+-    if (typeof p[key] === 'number') return p[key];
+-  }
+-  return null; // unknown -> treated as in stock
++// Matches models/Product.js: price and stock live on variants[]; searchable
++// keywords live in product_tag plus the per-category detail blocks.
++
++// Only the fields these helpers read (keeps the catalog scan light).
++const CATALOG_FIELDS = [
++  'product_id', 'name', 'slug', 'category', 'product_tag', 'images',
++  'variants.price', 'variants.stock', 'variants.is_default',
++  'matcha.product_grade', 'matcha.origin',
++  'coffee.roast_level', 'coffee.process_type', 'coffee.product_origin', 'coffee.tasting_notes',
++  'drinkware.ware_type', 'drinkware.material',
++  'tools.tool_category', 'tools.tool_type'
++].join(' ');
++
++// A product is sellable when at least one variant still has stock
++// (same rule Product.js uses to clear is_new_arrival).
++function sellableVariants(p) {
++  return (p.variants || []).filter(v => (v.stock ?? 0) > 0);
+ }
+ 
+ function inStock(p) {
+-  const s = stockOf(p);
+-  return s === null || s > 0;
++  return sellableVariants(p).length > 0;
++}
++
++// Price snapshot: the default variant if it is in stock, else the cheapest in-stock variant.
++function priceOf(p) {
++  const list = sellableVariants(p);
++  if (!list.length) return null;
++  const def = list.find(v => v.is_default);
++  const price = def ? def.price : Math.min(...list.map(v => v.price));
++  return typeof price === 'number' ? price : null;
+ }
+ 
+ function tagsOf(p) {
+-  const out = [];
+-  for (const key of ['tags', 'ingredients', 'keywords']) {
+-    if (Array.isArray(p[key])) out.push(...p[key].map(String));
+-  }
++  const out = [...(p.product_tag || [])];
++  const d = (o, keys) => keys.forEach(k => { if (o && o[k]) out.push(...[].concat(o[k]).map(String)); });
++  d(p.matcha, ['product_grade', 'origin']);
++  d(p.coffee, ['roast_level', 'process_type', 'product_origin', 'tasting_notes']);
++  d(p.drinkware, ['ware_type', 'material']);
++  d(p.tools, ['tool_category', 'tool_type']);
+   return out;
+ }
+ 
+@@ -62,7 +80,7 @@ function toTag(p, source, confidence) {
+     product_id: p.product_id,
+     name: p.name,
+     image_url: p.images?.[0]?.url || null,
+-    price: typeof p.price === 'number' ? p.price : null, // snapshot at tag time
++    price: priceOf(p), // snapshot at tag time
+     source,
+     confidence
+   };
+@@ -74,7 +92,7 @@ let catalogCache = { at: 0, items: [] };
+ 
+ async function loadCatalog() {
+   if (Date.now() - catalogCache.at < CATALOG_TTL_MS) return catalogCache.items;
+-  const items = await Product.find({ is_active: true }).limit(2000).lean();
++  const items = await Product.find({ is_active: true }, CATALOG_FIELDS).limit(2000).lean();
+   catalogCache = { at: Date.now(), items: items.filter(inStock) };
+   return catalogCache.items;
+ }
+@@ -100,7 +118,8 @@ function scoreProduct(p, contentNorm, contentTokens, base) {
+   const tagHits = tagsOf(p).map(normalize).filter(t => t.length >= 3 && contentNorm.includes(t)).length;
+   score += Math.min(0.3, tagHits * 0.15);
+ 
+-  if (base && normalize([p.category, p.base, p.type].filter(Boolean).join(' ')).includes(normalize(base))) {
++  // Post.base is MATCHA / COFFEE; Product.category is matcha / coffee / ...
++  if (base && p.category && normalize(p.category) === normalize(base)) {
+     score += 0.1;
+   }
+ 
+@@ -133,8 +152,9 @@ async function searchProducts(q, limit = 8) {
+   const term = String(q || '').trim();
+   if (term.length < 2) return [];
+   const rows = await Product.find(
+-    { is_active: true, name: { $regex: escapeRegex(term), $options: 'i' } }
+-  ).limit(limit * 2).lean();
++    { is_active: true, name: { $regex: escapeRegex(term), $options: 'i' } },
++    CATALOG_FIELDS
++  ).limit(limit * 3).lean();
+   return rows.filter(inStock).slice(0, limit).map(p => toTag(p, 'manual', null));
+ }
+ 
+@@ -173,7 +193,7 @@ async function resolveProductTags(input) {
+   }
+   if (!wanted.length) return [];
+ 
+-  const rows = await Product.find({ product_id: { $in: wanted.map(w => w.id) }, is_active: true }).lean();
++  const rows = await Product.find({ product_id: { $in: wanted.map(w => w.id) }, is_active: true }, CATALOG_FIELDS).lean();
+   const byId = new Map(rows.filter(inStock).map(p => [p.product_id, p]));
+ 
+   return wanted

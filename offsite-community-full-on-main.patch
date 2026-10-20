@@ -1,0 +1,2866 @@
+diff --git a/backend/src/app.js b/backend/src/app.js
+index 8f1bd7c..85eba8b 100644
+--- a/backend/src/app.js
++++ b/backend/src/app.js
+@@ -87,6 +87,9 @@ app.use('/api/reviews', require('./routes/reviews.routes'));
+ app.use('/api/recipes', require('./routes/recipes.routes'));
+ app.use('/api/blogs', require('./routes/blogs.routes'));
+ app.use('/api/posts', require('./routes/posts.routes'));
++app.use('/api/follows', require('./routes/follows.routes'));
++app.use('/api/profiles', require('./routes/profiles.routes'));
++app.use('/api/chat', require('./routes/chat.routes'));
+ app.use('/api/comments', require('./routes/comments.routes'));
+ app.use('/api/notifications', require('./routes/notifications.routes'));
+ app.use('/api/loyalty', require('./routes/loyalty.routes'));
+diff --git a/backend/src/controllers/admin-community.controller.js b/backend/src/controllers/admin-community.controller.js
+new file mode 100644
+index 0000000..a675d02
+--- /dev/null
++++ b/backend/src/controllers/admin-community.controller.js
+@@ -0,0 +1,103 @@
++const Post = require('../models/Post');
++const PostReport = require('../models/PostReport');
++const { AUTO_HIDE_THRESHOLD, hidePost, unhidePost } = require('../services/post-moderation.service');
++
++const snap = (p) => p && ({ post_id: p.post_id, status: p.status, hidden_reason: p.hidden_reason });
++
++// GET /api/admin/community/reports
++// Posts that have pending reports and/or are currently hidden, most reported first.
++async function listReportedPosts(req, res) {
++  try {
++    const grouped = await PostReport.aggregate([
++      { $match: { status: 'pending' } },
++      { $group: { _id: '$post_id', count: { $sum: 1 }, reasons: { $push: '$reason' }, last_reported_at: { $max: '$created_at' } } }
++    ]);
++    const byPost = new Map(grouped.map(g => [g._id, g]));
++
++    const posts = await Post.find({
++      $or: [{ post_id: { $in: [...byPost.keys()] } }, { status: 'hidden' }]
++    }).lean();
++
++    const data = posts.map(p => {
++      const g = byPost.get(p.post_id);
++      const reasonCounts = {};
++      (g?.reasons || []).forEach(r => { reasonCounts[r] = (reasonCounts[r] || 0) + 1; });
++      return {
++        post_id: p.post_id,
++        user_id: p.user_id,
++        author: p.author,
++        content: p.content,
++        thumbnail: p.media?.[0]?.url || null,
++        status: p.status || 'visible',
++        hidden_reason: p.hidden_reason || null,
++        hidden_at: p.hidden_at || null,
++        pending_reports: g?.count || 0,
++        reasons: reasonCounts,
++        last_reported_at: g?.last_reported_at || null
++      };
++    }).sort((a, b) => b.pending_reports - a.pending_reports);
++
++    res.json({ data, auto_hide_threshold: AUTO_HIDE_THRESHOLD });
++  } catch (error) {
++    console.error('Error listing reported posts:', error);
++    res.status(500).json({ error: 'Failed to load reports' });
++  }
++}
++
++// POST /api/admin/community/posts/:postId/hide
++async function hide(req, res) {
++  try {
++    const before = await Post.findOne({ post_id: req.params.postId }).lean();
++    if (!before) return res.status(404).json({ error: 'Post not found' });
++    if (before.status === 'hidden') return res.status(409).json({ error: 'Post is already hidden' });
++
++    const post = await hidePost(before.post_id, { reason: 'manual', adminId: req.user.user_id });
++    await req.writeActivityLog({
++      actionType: 'community_post_hide', targetEntity: 'post', targetId: post.post_id,
++      oldValue: snap(before), newValue: snap(post)
++    });
++    res.json({ data: snap(post) });
++  } catch (error) {
++    console.error('Error hiding post:', error);
++    res.status(500).json({ error: 'Failed to hide post' });
++  }
++}
++
++// POST /api/admin/community/posts/:postId/unhide  (also dismisses pending reports)
++async function unhide(req, res) {
++  try {
++    const before = await Post.findOne({ post_id: req.params.postId }).lean();
++    if (!before) return res.status(404).json({ error: 'Post not found' });
++    if (before.status !== 'hidden') return res.status(409).json({ error: 'Post is not hidden' });
++
++    const post = await unhidePost(before.post_id);
++    await req.writeActivityLog({
++      actionType: 'community_post_unhide', targetEntity: 'post', targetId: before.post_id,
++      oldValue: snap(before), newValue: snap(post)
++    });
++    res.json({ data: snap(post) });
++  } catch (error) {
++    console.error('Error unhiding post:', error);
++    res.status(500).json({ error: 'Failed to unhide post' });
++  }
++}
++
++// POST /api/admin/community/posts/:postId/dismiss  (reports reviewed, post stays visible)
++async function dismissReports(req, res) {
++  try {
++    const post = await Post.findOne({ post_id: req.params.postId }).lean();
++    if (!post) return res.status(404).json({ error: 'Post not found' });
++
++    const result = await PostReport.updateMany({ post_id: post.post_id, status: 'pending' }, { $set: { status: 'dismissed' } });
++    await req.writeActivityLog({
++      actionType: 'community_reports_dismiss', targetEntity: 'post', targetId: post.post_id,
++      oldValue: { pending_reports: result.matchedCount }, newValue: { pending_reports: 0 }
++    });
++    res.json({ dismissed: result.modifiedCount });
++  } catch (error) {
++    console.error('Error dismissing reports:', error);
++    res.status(500).json({ error: 'Failed to dismiss reports' });
++  }
++}
++
++module.exports = { listReportedPosts, hide, unhide, dismissReports };
+diff --git a/backend/src/controllers/chat.controller.js b/backend/src/controllers/chat.controller.js
+new file mode 100644
+index 0000000..0ce88e3
+--- /dev/null
++++ b/backend/src/controllers/chat.controller.js
+@@ -0,0 +1,139 @@
++const ChatConversation = require('../models/ChatConversation');
++const ChatMessage = require('../models/ChatMessage');
++const User = require('../models/User');
++const { newConversationId, canAccessConversation, appendMessage } = require('../services/chat.service');
++const { emitChatEvent } = require('../services/socket.service');
++
++// POST /api/chat/handoff  (called by the Dify chatbot / Bao Nguyen's service)
++// Header: x-chat-secret = CHAT_HANDOFF_SECRET. Body: { customer_id, dify_conversation_id?, summary?, transcript?: [{role, content}] }
++async function handoffFromBot(req, res) {
++  try {
++    const secret = process.env.CHAT_HANDOFF_SECRET;
++    if (!secret || req.headers['x-chat-secret'] !== secret) {
++      return res.status(401).json({ error: 'Invalid handoff secret' });
++    }
++    const { customer_id, dify_conversation_id = null, summary = '', transcript = [] } = req.body || {};
++    const customer = await User.findOne({ user_id: customer_id }, 'user_id').lean();
++    if (!customer) return res.status(404).json({ error: 'Customer not found' });
++
++    let conversation = await ChatConversation.findOne({ customer_id, status: { $ne: 'closed' } });
++    if (!conversation) {
++      conversation = await ChatConversation.create({
++        conversation_id: newConversationId(), customer_id, status: 'waiting',
++        dify_conversation_id, handoff_summary: String(summary).slice(0, 1000)
++      });
++    }
++    // Carry over the bot transcript so the agent sees the context.
++    for (const turn of Array.isArray(transcript) ? transcript.slice(-30) : []) {
++      await appendMessage(conversation, {
++        sender_type: turn.role === 'user' ? 'customer' : 'bot', sender_id: null, content: turn.content
++      });
++    }
++    await ChatConversation.updateOne({ conversation_id: conversation.conversation_id }, { $set: { unread_agent: 0 } });
++    emitChatEvent('chat_handoff', conversation.toObject());
++    res.status(201).json({ conversation_id: conversation.conversation_id });
++  } catch (error) {
++    console.error('Chat handoff error:', error);
++    res.status(500).json({ error: 'Failed to hand off chat' });
++  }
++}
++
++// GET /api/chat/me  -> customer's active conversation (or null)
++async function getMyConversation(req, res) {
++  try {
++    const conversation = await ChatConversation.findOne({ customer_id: req.user.user_id, status: { $ne: 'closed' } }).lean();
++    res.json({ data: conversation || null });
++  } catch (error) {
++    res.status(500).json({ error: 'Failed to load conversation' });
++  }
++}
++
++// POST /api/chat/start  -> customer opens a conversation without the bot
++async function startConversation(req, res) {
++  try {
++    let conversation = await ChatConversation.findOne({ customer_id: req.user.user_id, status: { $ne: 'closed' } });
++    if (!conversation) {
++      conversation = await ChatConversation.create({
++        conversation_id: newConversationId(), customer_id: req.user.user_id, status: 'waiting'
++      });
++      emitChatEvent('chat_handoff', conversation.toObject());
++    }
++    res.status(201).json({ data: conversation });
++  } catch (error) {
++    res.status(500).json({ error: 'Failed to start conversation' });
++  }
++}
++
++// GET /api/chat/conversations  (cskh: assigned customers only; admin_cc: all)
++async function listConversations(req, res) {
++  try {
++    const query = {};
++    if (req.query.status) query.status = req.query.status;
++    if (req.user.role === 'cskh') {
++      const agent = await User.findOne({ user_id: req.user.user_id }, 'assigned_chat_customer_ids').lean();
++      query.customer_id = { $in: agent?.assigned_chat_customer_ids || [] };
++    }
++    const data = await ChatConversation.find(query).sort({ last_message_at: -1 }).limit(100).lean();
++    const users = await User.find({ user_id: { $in: data.map(c => c.customer_id) } }, 'user_id profile_name avatar_url membership_tier').lean();
++    const byId = new Map(users.map(u => [u.user_id, u]));
++    res.json({ data: data.map(c => ({ ...c, customer: byId.get(c.customer_id) || null })) });
++  } catch (error) {
++    res.status(500).json({ error: 'Failed to list conversations' });
++  }
++}
++
++// GET /api/chat/conversations/:id/messages
++async function getMessages(req, res) {
++  try {
++    const conversation = await ChatConversation.findOne({ conversation_id: req.params.id });
++    if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
++    if (!(await canAccessConversation(req.user, conversation))) {
++      return res.status(403).json({ error: 'Access denied' });
++    }
++    const messages = await ChatMessage.find({ conversation_id: conversation.conversation_id }).sort({ created_at: 1 }).limit(500).lean();
++    const isCustomer = conversation.customer_id === req.user.user_id;
++    await ChatConversation.updateOne({ conversation_id: conversation.conversation_id },
++      { $set: isCustomer ? { unread_customer: 0 } : { unread_agent: 0 } });
++    res.json({ data: messages });
++  } catch (error) {
++    res.status(500).json({ error: 'Failed to load messages' });
++  }
++}
++
++// PATCH /api/chat/conversations/:id/claim  (agent takes a waiting chat)
++async function claimConversation(req, res) {
++  try {
++    const conversation = await ChatConversation.findOne({ conversation_id: req.params.id });
++    if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
++    if (!(await canAccessConversation(req.user, conversation))) return res.status(403).json({ error: 'Access denied' });
++    if (conversation.agent_id && conversation.agent_id !== req.user.user_id) {
++      return res.status(409).json({ error: 'Already claimed by another agent' });
++    }
++    conversation.agent_id = req.user.user_id;
++    conversation.status = 'open';
++    await conversation.save();
++    const sys = await appendMessage(conversation, { sender_type: 'system', content: 'Một nhân viên CSKH đã tham gia cuộc trò chuyện.' });
++    emitChatEvent('chat_updated', conversation.toObject());
++    if (sys) emitChatEvent('chat_message', sys.toObject(), conversation);
++    res.json({ data: conversation });
++  } catch (error) {
++    res.status(500).json({ error: 'Failed to claim conversation' });
++  }
++}
++
++// PATCH /api/chat/conversations/:id/close
++async function closeConversation(req, res) {
++  try {
++    const conversation = await ChatConversation.findOne({ conversation_id: req.params.id });
++    if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
++    if (!(await canAccessConversation(req.user, conversation))) return res.status(403).json({ error: 'Access denied' });
++    conversation.status = 'closed';
++    await conversation.save();
++    emitChatEvent('chat_updated', conversation.toObject());
++    res.json({ data: conversation });
++  } catch (error) {
++    res.status(500).json({ error: 'Failed to close conversation' });
++  }
++}
++
++module.exports = { handoffFromBot, getMyConversation, startConversation, listConversations, getMessages, claimConversation, closeConversation };
+diff --git a/backend/src/controllers/comments.controller.js b/backend/src/controllers/comments.controller.js
+index d1c3c65..e837f31 100644
+--- a/backend/src/controllers/comments.controller.js
++++ b/backend/src/controllers/comments.controller.js
+@@ -1,6 +1,8 @@
+ const Comment = require('../models/Comment');
+ const Post = require('../models/Post');
+ const User = require('../models/User');
++const PostReport = require('../models/PostReport');
++const CommentReport = require('../models/CommentReport');
+ const mongoose = require('mongoose');
+ 
+ // Helper to resolve postId parameter to post_id string
+@@ -331,7 +333,48 @@ async function likeComment(req, res) {
+   }
+ }
+ 
++async function reportComment(req, res) {
++  try {
++    const { id } = req.params;
++    const { reason, note = '' } = req.body || {};
++
++    if (!PostReport.REPORT_REASONS.includes(reason)) {
++      return res.status(400).json({ error: 'Invalid report reason' });
++    }
++    if (reason === 'other' && !String(note).trim()) {
++      return res.status(400).json({ error: 'A note is required when the reason is Other' });
++    }
++
++    const query = /^[0-9a-fA-F]{24}$/.test(id) ? { _id: id } : { comment_id: id };
++    const comment = await Comment.findOne(query);
++    if (!comment) return res.status(404).json({ error: 'Comment not found' });
++
++    if (comment.user_id === req.user.user_id) {
++      return res.status(400).json({ error: 'You cannot report your own comment' });
++    }
++
++    try {
++      await CommentReport.create({
++        comment_id: comment.comment_id,
++        post_id: comment.post_id,
++        reporter_id: req.user.user_id,
++        reason,
++        note: String(note).trim().slice(0, 500)
++      });
++    } catch (err) {
++      if (err.code === 11000) return res.status(409).json({ error: 'You have already reported this comment' });
++      throw err;
++    }
++
++    res.status(201).json({ message: 'Report submitted' });
++  } catch (error) {
++    console.error('Error reporting comment:', error);
++    res.status(500).json({ error: 'Failed to submit report' });
++  }
++}
++
+ module.exports = {
++  reportComment,
+   getCommentsByPostId,
+   createComment,
+   deleteComment,
+diff --git a/backend/src/controllers/follows.controller.js b/backend/src/controllers/follows.controller.js
+new file mode 100644
+index 0000000..93bcc67
+--- /dev/null
++++ b/backend/src/controllers/follows.controller.js
+@@ -0,0 +1,38 @@
++const Follow = require('../models/Follow');
++const User = require('../models/User');
++
++// POST /api/follows/:userId  -> toggle follow
++async function toggleFollow(req, res) {
++  try {
++    const targetId = req.params.userId;
++    const me = req.user.user_id;
++    if (targetId === me) {
++      return res.status(400).json({ error: 'You cannot follow yourself' });
++    }
++    const target = await User.findOne({ user_id: targetId, status: 'active' }, 'user_id').lean();
++    if (!target) return res.status(404).json({ error: 'User not found' });
++
++    const existing = await Follow.findOneAndDelete({ follower_id: me, following_id: targetId });
++    if (existing) return res.json({ following: false });
++
++    await Follow.create({ follower_id: me, following_id: targetId });
++    res.status(201).json({ following: true });
++  } catch (error) {
++    if (error.code === 11000) return res.json({ following: true });
++    console.error('Error toggling follow:', error);
++    res.status(500).json({ error: 'Failed to update follow' });
++  }
++}
++
++// GET /api/follows/ids -> user_ids the current user follows
++async function getFollowingIds(req, res) {
++  try {
++    const rows = await Follow.find({ follower_id: req.user.user_id }, 'following_id').lean();
++    res.json({ data: rows.map(r => r.following_id) });
++  } catch (error) {
++    console.error('Error loading following:', error);
++    res.status(500).json({ error: 'Failed to load following' });
++  }
++}
++
++module.exports = { toggleFollow, getFollowingIds };
+diff --git a/backend/src/controllers/posts.controller.js b/backend/src/controllers/posts.controller.js
+index 2081475..e2349e4 100644
+--- a/backend/src/controllers/posts.controller.js
++++ b/backend/src/controllers/posts.controller.js
+@@ -2,11 +2,49 @@ const Post = require('../models/Post');
+ const User = require('../models/User');
+ const Recipe = require('../models/Recipe');
+ const PostReport = require('../models/PostReport');
++const Product = require('../models/Product');
++const Follow = require('../models/Follow');
++const { maybeAutoHide } = require('../services/post-moderation.service');
+ const mongoose = require('mongoose');
+ 
++const MAX_LINKED_PRODUCTS = 3;
++
++// Resolve Post.linked_products (product_id numbers) into small cards for the UI.
++async function loadProductCards(posts) {
++  const ids = [...new Set(posts.flatMap(p => p.linked_products || []))];
++  if (ids.length === 0) return new Map();
++
++  const products = await Product.find(
++    { product_id: { $in: ids }, is_active: true },
++    'product_id name slug images'
++  ).lean();
++
++  return new Map(products.map(p => [p.product_id, {
++    product_id: p.product_id,
++    name: p.name,
++    slug: p.slug,
++    image_url: p.images?.[0]?.url || null
++  }]));
++}
++
++function cardsForPost(post, cardMap) {
++  return (post.linked_products || []).map(id => cardMap.get(id)).filter(Boolean);
++}
++
++// Accepts an array or a JSON string (the create form sends multipart fields).
++function parseLinkedProducts(raw) {
++  let list = raw;
++  if (typeof raw === 'string' && raw.trim()) {
++    try { list = JSON.parse(raw); } catch (e) { list = []; }
++  }
++  if (!Array.isArray(list)) return [];
++  const ids = list.map(Number).filter(Number.isInteger);
++  return [...new Set(ids)].slice(0, MAX_LINKED_PRODUCTS);
++}
++
+ async function getAllPosts(req, res) {
+   try {
+-    const { page = 1, limit = 10, post_type, recipe_id, user_id, sort, base } = req.query;
++    const { page = 1, limit = 10, post_type, recipe_id, user_id, sort, base, following } = req.query;
+ 
+     const query = {};
+     if (post_type) query.post_type = post_type;
+@@ -14,6 +52,31 @@ async function getAllPosts(req, res) {
+     if (user_id) query.user_id = user_id;
+     if (base) query.base = base;
+ 
++    // Hide violating (hidden) posts and posts of suspended accounts from public feeds.
++    // A user browsing their own posts still sees everything they wrote.
++    const isOwnFeed = !!req.user && !!user_id && user_id === req.user.user_id;
++    if (!isOwnFeed) {
++      query.status = { $ne: 'hidden' };
++      const suspendedUsers = await User.find({ status: 'suspended' }, 'user_id').lean();
++      const suspendedIds = suspendedUsers.map(u => u.user_id);
++      if (suspendedIds.length > 0) {
++        if (user_id) {
++          if (suspendedIds.includes(user_id)) query.user_id = { $in: [] };
++        } else {
++          query.user_id = { $nin: suspendedIds };
++        }
++      }
++    }
++
++    // "Following" chip: only posts from accounts the signed-in user follows.
++    if (following === 'true') {
++      if (!req.user) return res.json({ data: [], total: 0, page: parseInt(page, 10), limit: parseInt(limit, 10) });
++      const rows = await Follow.find({ follower_id: req.user.user_id }, 'following_id').lean();
++      const followedIds = rows.map(r => r.following_id);
++      const blocked = query.user_id && query.user_id.$nin ? query.user_id.$nin : [];
++      query.user_id = { $in: followedIds.filter(id => !blocked.includes(id)) };
++    }
++
+     const skipCount = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+     const limitCount = parseInt(limit, 10);
+ 
+@@ -38,10 +101,13 @@ async function getAllPosts(req, res) {
+       }
+     }
+ 
++    const productCards = await loadProductCards(posts);
++
+     const data = posts.map(p => ({
+       ...p.toObject(),
+       liked: likedPostIds.has(p.post_id),
+-      saved: savedPostIds.has(p.post_id)
++      saved: savedPostIds.has(p.post_id),
++      products: cardsForPost(p, productCards)
+     }));
+ 
+     res.json({
+@@ -87,7 +153,21 @@ async function getPostById(req, res) {
+       recipeDetails = await Recipe.findOne({ recipe_id: post.recipe_id });
+     }
+ 
+-    res.json({ ...post.toObject(), liked, saved, recipe: recipeDetails });
++    const isOwner = !!req.user && req.user.user_id === post.user_id;
++    const isModerator = ['admin_cc', 'cskh'].includes(req.user?.role);
++    if (post.status === 'hidden' && !isOwner && !isModerator) {
++      return res.status(404).json({ error: 'Post not found' });
++    }
++
++    const productCards = await loadProductCards([post]);
++
++    res.json({
++      ...post.toObject(),
++      liked,
++      saved,
++      recipe: recipeDetails,
++      products: cardsForPost(post, productCards)
++    });
+   } catch (error) {
+     console.error('Error fetching post:', error);
+     res.status(500).json({ error: 'Failed to retrieve post' });
+@@ -109,8 +189,9 @@ function parseMediaField(rawMedia) {
+ 
+ async function createPost(req, res) {
+   try {
+-    const { content, media: rawMedia, post_type = 'regular', recipe_id = null, base } = req.body;
++    const { content, media: rawMedia, post_type = 'regular', recipe_id = null, base, linked_products } = req.body;
+     const media = parseMediaField(rawMedia);
++    const linkedProducts = parseLinkedProducts(linked_products);
+ 
+     const user = await User.findById(req.user.user_id);
+     if (!user) {
+@@ -139,6 +220,7 @@ async function createPost(req, res) {
+       media,
+       recipe_id,
+       base,
++      linked_products: linkedProducts,
+       like_count: 0,
+       comment_count: 0,
+       share_count: 0,
+@@ -184,7 +266,7 @@ async function createPost(req, res) {
+ async function updatePost(req, res) {
+   try {
+     const { id } = req.params;
+-    const { content, media: rawMedia, post_type, recipe_id, base } = req.body;
++    const { content, media: rawMedia, post_type, recipe_id, base, linked_products } = req.body;
+ 
+     let query = {};
+     if (mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id)) {
+@@ -208,6 +290,7 @@ async function updatePost(req, res) {
+     if (post_type !== undefined) post.post_type = post_type;
+     if (recipe_id !== undefined) post.recipe_id = recipe_id;
+     if (base !== undefined) post.base = base;
++    if (linked_products !== undefined) post.linked_products = parseLinkedProducts(linked_products);
+ 
+     const updatedPost = await post.save();
+     res.json({
+@@ -473,6 +556,9 @@ async function reportPost(req, res) {
+       throw err;
+     }
+ 
++    // Enough pending reports hide the post automatically; admins can unhide it later.
++    await maybeAutoHide(post.post_id);
++
+     res.status(201).json({ message: 'Report submitted' });
+   } catch (error) {
+     console.error('Error reporting post:', error);
+diff --git a/backend/src/controllers/profiles.controller.js b/backend/src/controllers/profiles.controller.js
+new file mode 100644
+index 0000000..d88ec95
+--- /dev/null
++++ b/backend/src/controllers/profiles.controller.js
+@@ -0,0 +1,42 @@
++const User = require('../models/User');
++const Post = require('../models/Post');
++const Follow = require('../models/Follow');
++
++// GET /api/profiles/:userId  – public, no email/phone/address. Suspended accounts are not shown.
++async function getPublicProfile(req, res) {
++  try {
++    const { userId } = req.params;
++    const user = await User.findOne(
++      { user_id: userId, status: 'active' },
++      'user_id community_name profile_name avatar_url membership_tier ritual_dna_quiz_completed createdAt'
++    ).lean();
++    if (!user) return res.status(404).json({ error: 'Profile not found' });
++
++    const isSelf = !!req.user && req.user.user_id === userId;
++    const [postCount, followerCount, followingCount, followRow] = await Promise.all([
++      Post.countDocuments({ user_id: userId, status: { $ne: 'hidden' } }),
++      Follow.countDocuments({ following_id: userId }),
++      Follow.countDocuments({ follower_id: userId }),
++      req.user && !isSelf ? Follow.exists({ follower_id: req.user.user_id, following_id: userId }) : null
++    ]);
++
++    res.json({
++      user_id: user.user_id,
++      username: user.community_name || user.profile_name,
++      avatar_url: user.avatar_url || null,
++      membership_tier: user.membership_tier || 'Seed',
++      ritual_dna_completed: !!user.ritual_dna_quiz_completed,
++      joined_at: user.createdAt,
++      post_count: postCount,
++      follower_count: followerCount,
++      following_count: followingCount,
++      is_following: !!followRow,
++      is_self: isSelf
++    });
++  } catch (error) {
++    console.error('Error loading public profile:', error);
++    res.status(500).json({ error: 'Failed to load profile' });
++  }
++}
++
++module.exports = { getPublicProfile };
+diff --git a/backend/src/models/ChatConversation.js b/backend/src/models/ChatConversation.js
+new file mode 100644
+index 0000000..e90d3c4
+--- /dev/null
++++ b/backend/src/models/ChatConversation.js
+@@ -0,0 +1,20 @@
++const mongoose = require('mongoose');
++
++const chatConversationSchema = new mongoose.Schema({
++  conversation_id: { type: String, required: true, unique: true },
++  customer_id: { type: String, required: true, index: true },
++  agent_id: { type: String, default: null },
++  // bot: still with the Dify chatbot, waiting: handed off & unclaimed, open: agent is chatting, closed
++  status: { type: String, enum: ['bot', 'waiting', 'open', 'closed'], default: 'waiting', index: true },
++  dify_conversation_id: { type: String, default: null },
++  handoff_summary: { type: String, default: '' },
++  last_message_preview: { type: String, default: '' },
++  last_message_at: { type: Date, default: Date.now },
++  unread_agent: { type: Number, default: 0 },
++  unread_customer: { type: Number, default: 0 }
++}, {
++  collection: 'ChatConversations',
++  timestamps: { createdAt: 'created_at', updatedAt: 'updatedAt' }
++});
++
++module.exports = mongoose.model('ChatConversation', chatConversationSchema);
+diff --git a/backend/src/models/ChatMessage.js b/backend/src/models/ChatMessage.js
+new file mode 100644
+index 0000000..a803e2d
+--- /dev/null
++++ b/backend/src/models/ChatMessage.js
+@@ -0,0 +1,15 @@
++const mongoose = require('mongoose');
++
++const chatMessageSchema = new mongoose.Schema({
++  conversation_id: { type: String, required: true, index: true },
++  sender_type: { type: String, enum: ['customer', 'agent', 'bot', 'system'], required: true },
++  sender_id: { type: String, default: null },
++  content: { type: String, required: true, maxlength: 4000 }
++}, {
++  collection: 'ChatMessages',
++  timestamps: { createdAt: 'created_at', updatedAt: false }
++});
++
++chatMessageSchema.index({ conversation_id: 1, created_at: 1 });
++
++module.exports = mongoose.model('ChatMessage', chatMessageSchema);
+diff --git a/backend/src/models/CommentReport.js b/backend/src/models/CommentReport.js
+new file mode 100644
+index 0000000..1da03e5
+--- /dev/null
++++ b/backend/src/models/CommentReport.js
+@@ -0,0 +1,19 @@
++const mongoose = require('mongoose');
++const { REPORT_REASONS } = require('./PostReport');
++
++const commentReportSchema = new mongoose.Schema({
++  comment_id: { type: String, required: true },
++  post_id: { type: String, required: true },
++  reporter_id: { type: String, required: true },
++  reason: { type: String, enum: REPORT_REASONS, required: true },
++  note: { type: String, default: '', maxlength: 500 },
++  status: { type: String, enum: ['pending', 'reviewed', 'dismissed'], default: 'pending' }
++}, {
++  collection: 'CommentReports',
++  timestamps: { createdAt: 'created_at', updatedAt: 'updatedAt' }
++});
++
++// One report per user per comment.
++commentReportSchema.index({ comment_id: 1, reporter_id: 1 }, { unique: true });
++
++module.exports = mongoose.model('CommentReport', commentReportSchema);
+diff --git a/backend/src/models/Follow.js b/backend/src/models/Follow.js
+new file mode 100644
+index 0000000..6d70608
+--- /dev/null
++++ b/backend/src/models/Follow.js
+@@ -0,0 +1,15 @@
++const mongoose = require('mongoose');
++
++// follower_id follows following_id (both are User.user_id).
++const followSchema = new mongoose.Schema({
++  follower_id: { type: String, required: true },
++  following_id: { type: String, required: true }
++}, {
++  collection: 'Follows',
++  timestamps: { createdAt: 'created_at', updatedAt: false }
++});
++
++followSchema.index({ follower_id: 1, following_id: 1 }, { unique: true });
++followSchema.index({ following_id: 1 });
++
++module.exports = mongoose.model('Follow', followSchema);
+diff --git a/backend/src/models/Post.js b/backend/src/models/Post.js
+index 32ab89e..e390964 100644
+--- a/backend/src/models/Post.js
++++ b/backend/src/models/Post.js
+@@ -23,7 +23,22 @@ const postSchema = new mongoose.Schema({
+   like_count: { type: Number, default: 0 },
+   comment_count: { type: Number, default: 0 },
+   share_count: { type: Number, default: 0 },
+-  save_count: { type: Number, default: 0 }
++  save_count: { type: Number, default: 0 },
++  // Product.product_id values tagged on this post (max 3).
++  linked_products: {
++    type: [Number],
++    default: [],
++    validate: {
++      validator: arr => arr.length <= 3,
++      message: 'A post can link at most 3 products'
++    }
++  },
++  // 'hidden' posts are removed from public feeds; the owner still sees them with a banner.
++  status: { type: String, enum: ['visible', 'hidden'], default: 'visible' },
++  // Why/when/who hid it: 'manual' (admin) or 'auto_reports' (enough pending reports).
++  hidden_reason: { type: String, enum: ['manual', 'auto_reports', null], default: null },
++  hidden_at: { type: Date, default: null },
++  hidden_by: { type: String, default: null }
+ }, {
+   collection: 'Posts',
+   timestamps: { createdAt: 'created_at', updatedAt: 'updatedAt' }
+diff --git a/backend/src/routes/admin.routes.js b/backend/src/routes/admin.routes.js
+index 14acdbe..77cc4ab 100644
+--- a/backend/src/routes/admin.routes.js
++++ b/backend/src/routes/admin.routes.js
+@@ -3,6 +3,7 @@ const router = express.Router();
+ const adminController = require('../controllers/admin.controller');
+ const adminSubscriptionsController = require('../controllers/admin-subscriptions.controller');
+ const authController = require('../controllers/auth.controller');
++const adminCommunityController = require('../controllers/admin-community.controller');
+ const {
+   authMiddleware,
+   requireRole,
+@@ -27,6 +28,12 @@ router.get('/subscriptions', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_R
+ router.get('/subscriptions/:id', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminSubscriptionsController.getSubscription);
+ router.post('/subscriptions/:id/:action', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog, adminSubscriptionsController.runAction);
+ 
++// Community moderation (Admin CC, CSKH): reported / hidden posts.
++router.get('/community/reports', authMiddleware, requireRole('admin_cc', 'cskh'), adminCommunityController.listReportedPosts);
++router.post('/community/posts/:postId/hide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.hide);
++router.post('/community/posts/:postId/unhide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.unhide);
++router.post('/community/posts/:postId/dismiss', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog, adminCommunityController.dismissReports);
++
+ // ── DEV ONLY: Fix admin roles in DB ────────────────────────────────────
+ // Gọi POST /api/admin/dev/fix-admin-roles để update role trong DB
+ // Xóa endpoint này sau khi chạy xong
+diff --git a/backend/src/routes/chat.routes.js b/backend/src/routes/chat.routes.js
+new file mode 100644
+index 0000000..e403ad5
+--- /dev/null
++++ b/backend/src/routes/chat.routes.js
+@@ -0,0 +1,21 @@
++const express = require('express');
++const router = express.Router();
++const chat = require('../controllers/chat.controller');
++const { authMiddleware, requireRole } = require('../middleware/auth.middleware');
++
++// Service-to-service (Dify chatbot) – protected by x-chat-secret, not JWT.
++router.post('/handoff', chat.handoffFromBot);
++
++// Customer
++router.get('/me', authMiddleware, chat.getMyConversation);
++router.post('/start', authMiddleware, chat.startConversation);
++
++// Shared (access is checked per conversation)
++router.get('/conversations/:id/messages', authMiddleware, chat.getMessages);
++
++// Agents
++router.get('/conversations', authMiddleware, requireRole('cskh', 'admin_cc'), chat.listConversations);
++router.patch('/conversations/:id/claim', authMiddleware, requireRole('cskh', 'admin_cc'), chat.claimConversation);
++router.patch('/conversations/:id/close', authMiddleware, chat.closeConversation);
++
++module.exports = router;
+diff --git a/backend/src/routes/comments.routes.js b/backend/src/routes/comments.routes.js
+index 4b05967..a0726e0 100644
+--- a/backend/src/routes/comments.routes.js
++++ b/backend/src/routes/comments.routes.js
+@@ -10,5 +10,6 @@ router.get('/post/:postId', commentsController.getCommentsByPostId);
+ router.post('/post/:postId', authMiddleware, commentsController.createComment);
+ router.delete('/:id', authMiddleware, commentsController.deleteComment);
+ router.post('/:id/like', authMiddleware, commentsController.likeComment);
++router.post('/:id/report', authMiddleware, commentsController.reportComment);
+ 
+ module.exports = router;
+diff --git a/backend/src/routes/follows.routes.js b/backend/src/routes/follows.routes.js
+new file mode 100644
+index 0000000..ef3a901
+--- /dev/null
++++ b/backend/src/routes/follows.routes.js
+@@ -0,0 +1,9 @@
++const express = require('express');
++const router = express.Router();
++const followsController = require('../controllers/follows.controller');
++const { authMiddleware } = require('../middleware/auth.middleware');
++
++router.get('/ids', authMiddleware, followsController.getFollowingIds);
++router.post('/:userId', authMiddleware, followsController.toggleFollow);
++
++module.exports = router;
+diff --git a/backend/src/routes/profiles.routes.js b/backend/src/routes/profiles.routes.js
+new file mode 100644
+index 0000000..1a062ab
+--- /dev/null
++++ b/backend/src/routes/profiles.routes.js
+@@ -0,0 +1,8 @@
++const express = require('express');
++const router = express.Router();
++const { getPublicProfile } = require('../controllers/profiles.controller');
++const { optionalAuthMiddleware } = require('../middleware/auth.middleware');
++
++router.get('/:userId', optionalAuthMiddleware, getPublicProfile);
++
++module.exports = router;
+diff --git a/backend/src/services/chat.service.js b/backend/src/services/chat.service.js
+new file mode 100644
+index 0000000..0948758
+--- /dev/null
++++ b/backend/src/services/chat.service.js
+@@ -0,0 +1,39 @@
++const crypto = require('crypto');
++const ChatConversation = require('../models/ChatConversation');
++const ChatMessage = require('../models/ChatMessage');
++const User = require('../models/User');
++
++const AGENT_ROLES = ['cskh', 'admin_cc'];
++
++function newConversationId() {
++  return `CHAT-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
++}
++
++// customer owns it; admin_cc sees all; cskh only assigned customers (read fresh from DB, not the JWT).
++async function canAccessConversation(authUser, conversation) {
++  if (!authUser || !conversation) return false;
++  if (conversation.customer_id === authUser.user_id) return true;
++  if (authUser.role === 'admin_cc') return true;
++  if (authUser.role === 'cskh') {
++    const agent = await User.findOne({ user_id: authUser.user_id }, 'assigned_chat_customer_ids').lean();
++    return (agent?.assigned_chat_customer_ids || []).includes(conversation.customer_id);
++  }
++  return false;
++}
++
++async function appendMessage(conversation, { sender_type, sender_id = null, content }) {
++  const text = String(content || '').trim().slice(0, 4000);
++  if (!text) return null;
++  const message = await ChatMessage.create({
++    conversation_id: conversation.conversation_id, sender_type, sender_id, content: text
++  });
++  const inc = sender_type === 'customer' ? { unread_agent: 1 }
++    : sender_type === 'agent' ? { unread_customer: 1 } : {};
++  await ChatConversation.updateOne(
++    { conversation_id: conversation.conversation_id },
++    { $set: { last_message_preview: text.slice(0, 120), last_message_at: new Date() }, $inc: inc }
++  );
++  return message;
++}
++
++module.exports = { AGENT_ROLES, newConversationId, canAccessConversation, appendMessage };
+diff --git a/backend/src/services/post-moderation.service.js b/backend/src/services/post-moderation.service.js
+new file mode 100644
+index 0000000..f8d7878
+--- /dev/null
++++ b/backend/src/services/post-moderation.service.js
+@@ -0,0 +1,33 @@
++const Post = require('../models/Post');
++const PostReport = require('../models/PostReport');
++
++// A post is auto-hidden once it has this many pending (unreviewed) reports.
++const AUTO_HIDE_THRESHOLD = Math.max(1, parseInt(process.env.POST_AUTO_HIDE_THRESHOLD, 10) || 5);
++
++async function hidePost(postId, { reason, adminId = null }) {
++  return Post.findOneAndUpdate(
++    { post_id: postId, status: { $ne: 'hidden' } },
++    { $set: { status: 'hidden', hidden_reason: reason, hidden_at: new Date(), hidden_by: adminId } },
++    { new: true }
++  );
++}
++
++// Unhiding also clears the pending reports, otherwise the next report would hide it again.
++async function unhidePost(postId) {
++  const post = await Post.findOneAndUpdate(
++    { post_id: postId, status: 'hidden' },
++    { $set: { status: 'visible', hidden_reason: null, hidden_at: null, hidden_by: null } },
++    { new: true }
++  );
++  if (post) await PostReport.updateMany({ post_id: postId, status: 'pending' }, { $set: { status: 'dismissed' } });
++  return post;
++}
++
++// Called after a new report is saved. Returns the post if it was just auto-hidden.
++async function maybeAutoHide(postId) {
++  const pending = await PostReport.countDocuments({ post_id: postId, status: 'pending' });
++  if (pending < AUTO_HIDE_THRESHOLD) return null;
++  return hidePost(postId, { reason: 'auto_reports' });
++}
++
++module.exports = { AUTO_HIDE_THRESHOLD, hidePost, unhidePost, maybeAutoHide };
+diff --git a/backend/src/services/socket.service.js b/backend/src/services/socket.service.js
+index a5511ab..d52aeb9 100644
+--- a/backend/src/services/socket.service.js
++++ b/backend/src/services/socket.service.js
+@@ -3,6 +3,8 @@ const { Server } = require('socket.io');
+ const jwt = require('jsonwebtoken');
+ const mongoose = require('mongoose');
+ const Order = require('../models/Order');
++const ChatConversation = require('../models/ChatConversation');
++const { AGENT_ROLES, canAccessConversation, appendMessage } = require('./chat.service');
+ const {
+   hasAdminRole,
+   ADMIN_ORDER_UNSCOPED_ROLES,
+@@ -83,6 +85,59 @@ function initSocket(server) {
+       console.log(`[Socket.IO] User ${socket.user.user_id} joined 'user_${data.user_id}' room.`);
+     });
+ 
++
++    // ── CSKH live chat ──
++    // Agents join the shared queue room to hear about new handoffs.
++    socket.on('join_chat_agents', () => {
++      if (!socket.user || !AGENT_ROLES.includes(socket.user.role)) {
++        socket.emit('error', { message: 'Unauthorized: CSKH privileges required.' });
++        return;
++      }
++      socket.join('chat_agents');
++    });
++
++    socket.on('join_chat', async (data) => {
++      try {
++        const conversation = data?.conversation_id &&
++          await ChatConversation.findOne({ conversation_id: data.conversation_id });
++        if (!conversation || !(await canAccessConversation(socket.user, conversation))) {
++          socket.emit('error', { message: 'Unauthorized access to chat.' });
++          return;
++        }
++        socket.join(`chat_${conversation.conversation_id}`);
++      } catch (err) {
++        console.error('[Socket.IO] join_chat error:', err);
++      }
++    });
++
++    socket.on('chat_message', async (data) => {
++      try {
++        const conversation = data?.conversation_id &&
++          await ChatConversation.findOne({ conversation_id: data.conversation_id });
++        if (!conversation || conversation.status === 'closed' ||
++            !(await canAccessConversation(socket.user, conversation))) {
++          socket.emit('error', { message: 'Cannot send to this chat.' });
++          return;
++        }
++        const isCustomer = conversation.customer_id === socket.user.user_id;
++        const message = await appendMessage(conversation, {
++          sender_type: isCustomer ? 'customer' : 'agent',
++          sender_id: socket.user.user_id,
++          content: data.content
++        });
++        if (message) emitChatEvent('chat_message', message.toObject(), conversation);
++      } catch (err) {
++        console.error('[Socket.IO] chat_message error:', err);
++      }
++    });
++
++    socket.on('chat_typing', (data) => {
++      if (!data?.conversation_id || !socket.rooms.has(`chat_${data.conversation_id}`)) return;
++      socket.to(`chat_${data.conversation_id}`).emit('chat_typing', {
++        conversation_id: data.conversation_id, user_id: socket.user?.user_id, typing: !!data.typing
++      });
++    });
++
+     // 3. Join Order Room - Requires user_id match OR guest session_id match OR role === 'admin'
+     socket.on('join_order', async (data) => {
+       if (!data || !data.order_id) return;
+@@ -193,9 +248,24 @@ function emitNewOrder(order) {
+   }
+ }
+ 
++// Chat events: new handoffs / status changes go to the agent queue; messages go to the conversation room.
++function emitChatEvent(event, payload, conversation = null) {
++  if (!io || !payload) return;
++  if (event === 'chat_message') {
++    io.to(`chat_${payload.conversation_id}`).emit(event, payload);
++    // Let agents' list refresh previews even if they haven't opened the thread.
++    io.to('chat_agents').emit('chat_updated_hint', { conversation_id: payload.conversation_id });
++    return;
++  }
++  io.to('chat_agents').emit(event, payload);
++  if (payload.conversation_id) io.to(`chat_${payload.conversation_id}`).emit(event, payload);
++  if (payload.customer_id) io.to(`user_${payload.customer_id}`).emit(event, payload);
++}
++
+ module.exports = {
+   initSocket,
+   getIO,
+   emitOrderUpdated,
+-  emitNewOrder
++  emitNewOrder,
++  emitChatEvent
+ };
+diff --git a/frontend/src/app/admin/admin-routing-module.ts b/frontend/src/app/admin/admin-routing-module.ts
+index 236e970..22e81b2 100644
+--- a/frontend/src/app/admin/admin-routing-module.ts
++++ b/frontend/src/app/admin/admin-routing-module.ts
+@@ -68,6 +68,23 @@ const routes: Routes = [
+         data: { adminRoles: SALES_OPS_ROLES }
+       },
+ 
++      // ── Services Operations ───────────────────────────────────────────────
++      {
++        path: 'chat',
++        loadComponent: () =>
++          import('./chat/pages/chat/chat.component').then((m) => m.AdminChatComponent),
++        canActivate: [adminRoleGuard],
++        data: { adminRoles: SERVICES_OPS_ROLES }
++      },
++
++      {
++        path: 'community-reports',
++        loadComponent: () =>
++          import('./community-reports/pages/community-reports/community-reports.component').then((m) => m.AdminCommunityReportsComponent),
++        canActivate: [adminRoleGuard],
++        data: { adminRoles: SERVICES_OPS_ROLES }
++      },
++
+       // ── Error pages ───────────────────────────────────────────────────────
+       {
+         path: '403',
+diff --git a/frontend/src/app/admin/chat/pages/chat/chat.component.html b/frontend/src/app/admin/chat/pages/chat/chat.component.html
+new file mode 100644
+index 0000000..c6f2fe2
+--- /dev/null
++++ b/frontend/src/app/admin/chat/pages/chat/chat.component.html
+@@ -0,0 +1,82 @@
++<header class="page-header">
++  <div class="page-header__left">
++    <h1>Support chat</h1>
++    <p>{{ waitingCount }} waiting · conversations handed off from the chatbot appear here in real time.</p>
++  </div>
++</header>
++
++<div class="chat-layout">
++  <aside class="chat-list">
++    <div class="chat-filters">
++      @for (f of filters; track f.value) {
++        <button type="button" class="chat-filter" [class.active]="filter === f.value" (click)="filter = f.value">{{ f.label }}</button>
++      }
++    </div>
++
++    @for (c of visible; track c.conversation_id) {
++      <button type="button" class="chat-item" [class.active]="active?.conversation_id === c.conversation_id" (click)="select(c)">
++        <span class="chat-item__avatar">
++          @if (c.customer?.avatar_url) { <img [src]="c.customer?.avatar_url" [alt]="customerName(c)"> }
++          @else { {{ customerName(c).slice(0, 2).toUpperCase() }} }
++        </span>
++        <span class="chat-item__body">
++          <span class="chat-item__top">
++            <strong>{{ customerName(c) }}</strong>
++            <time>{{ c.last_message_at | date: 'HH:mm' }}</time>
++          </span>
++          <span class="chat-item__preview">{{ c.last_message_preview || 'No messages yet' }}</span>
++        </span>
++        <span class="chat-item__meta">
++          <span class="status status--{{ c.status }}">{{ c.status }}</span>
++          @if (c.unread_agent > 0) { <span class="unread">{{ c.unread_agent }}</span> }
++        </span>
++      </button>
++    } @empty {
++      <p class="chat-empty">No conversations.</p>
++    }
++  </aside>
++
++  <section class="chat-pane">
++    @if (active) {
++      <header class="chat-pane__head">
++        <div>
++          <strong>{{ customerName(active) }}</strong>
++          @if (active.customer?.membership_tier) { <span class="tier">{{ active.customer?.membership_tier }}</span> }
++          <small>{{ active.conversation_id }}</small>
++        </div>
++        <div class="chat-pane__actions">
++          @if (active.status === 'waiting') {
++            <button type="button" class="btn btn-primary" (click)="claim()">Take over</button>
++          }
++          @if (active.status !== 'closed') {
++            <button type="button" class="btn" (click)="closeChat()">Close</button>
++          }
++        </div>
++      </header>
++
++      @if (active.handoff_summary) {
++        <div class="chat-summary"><strong>Bot summary:</strong> {{ active.handoff_summary }}</div>
++      }
++
++      <div class="chat-thread" #thread>
++        @for (m of messages; track m._id || $index) {
++          <div class="bubble bubble--{{ m.sender_type }}">
++            @if (m.sender_type === 'bot') { <small>Chatbot</small> }
++            <p>{{ m.content }}</p>
++            <time>{{ m.created_at | date: 'HH:mm' }}</time>
++          </div>
++        }
++        @if (customerTyping) { <div class="typing">Customer is typing…</div> }
++      </div>
++
++      <footer class="chat-compose">
++        <textarea rows="2" [(ngModel)]="draft" (input)="onDraftInput()" (keydown)="onKey($event)"
++          [disabled]="!canReply"
++          [placeholder]="canReply ? 'Type a reply — Enter to send' : (active.status === 'closed' ? 'Conversation closed' : 'Take over this chat to reply')"></textarea>
++        <button type="button" class="btn btn-primary" (click)="send()" [disabled]="!canReply || !draft.trim()">Send</button>
++      </footer>
++    } @else {
++      <p class="chat-empty chat-empty--center">Select a conversation to start.</p>
++    }
++  </section>
++</div>
+diff --git a/frontend/src/app/admin/chat/pages/chat/chat.component.scss b/frontend/src/app/admin/chat/pages/chat/chat.component.scss
+new file mode 100644
+index 0000000..074cba7
+--- /dev/null
++++ b/frontend/src/app/admin/chat/pages/chat/chat.component.scss
+@@ -0,0 +1,92 @@
++$border: #e6dfd6;
++$forest: var(--color-forest-green, #2f4a3a);
++$cream: #fffdf9;
++
++:host { display: block; }
++
++.chat-layout {
++  display: grid;
++  grid-template-columns: 340px 1fr;
++  height: calc(100vh - 220px);
++  min-height: 460px;
++  border: 1px solid $border;
++  border-radius: 14px;
++  background: $cream;
++  overflow: hidden;
++}
++
++.chat-list { border-right: 1px solid $border; overflow-y: auto; }
++.chat-filters { display: flex; gap: 6px; padding: 10px; border-bottom: 1px solid $border; position: sticky; top: 0; background: $cream; }
++.chat-filter {
++  border: 1px solid $border; background: transparent; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer;
++  &.active { background: $forest; color: #fff; border-color: $forest; }
++}
++
++.chat-item {
++  display: flex; gap: 10px; width: 100%; padding: 12px; border: 0; border-bottom: 1px solid $border;
++  background: transparent; text-align: left; cursor: pointer; align-items: center;
++  &:hover, &.active { background: #f4efe7; }
++  &__avatar {
++    width: 38px; height: 38px; border-radius: 50%; background: #dfe8da; display: grid; place-items: center;
++    font-size: 12px; font-weight: 700; flex-shrink: 0; overflow: hidden;
++    img { width: 100%; height: 100%; object-fit: cover; }
++  }
++  &__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
++  &__top { display: flex; justify-content: space-between; gap: 8px; time { font-size: 11px; color: #8b8378; } }
++  &__preview { font-size: 12px; color: #6f675d; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++  &__meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
++}
++
++.status {
++  font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #eee;
++  &--waiting { background: #fbe9c8; color: #8a5a00; }
++  &--open { background: #dcebd9; color: #2f6b3a; }
++  &--closed { background: #ececec; color: #777; }
++}
++.unread { background: #c0392b; color: #fff; border-radius: 999px; font-size: 11px; min-width: 18px; text-align: center; padding: 1px 5px; }
++
++.chat-pane { display: flex; flex-direction: column; min-width: 0; }
++.chat-pane__head {
++  display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid $border;
++  small { display: block; color: #8b8378; font-size: 11px; }
++}
++.chat-pane__actions { display: flex; gap: 8px; }
++.tier { margin-left: 8px; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #e8efe3; color: $forest; }
++.chat-summary { padding: 10px 16px; background: #f6f1e7; font-size: 13px; border-bottom: 1px solid $border; }
++
++.chat-thread { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
++.bubble {
++  max-width: 70%; padding: 8px 12px; border-radius: 12px; background: #f1ece3; align-self: flex-start;
++  p { margin: 0; white-space: pre-wrap; word-break: break-word; }
++  time, small { display: block; font-size: 10px; color: #8b8378; margin-top: 2px; }
++  &--agent { align-self: flex-end; background: $forest; color: #fff; time { color: #cfdccf; } }
++  &--bot { background: #e9eef6; }
++  &--system { align-self: center; background: transparent; font-size: 12px; color: #8b8378; }
++}
++.typing { font-size: 12px; color: #8b8378; }
++
++.chat-compose {
++  display: flex; gap: 8px; padding: 12px; border-top: 1px solid $border;
++  textarea { flex: 1; resize: none; border: 1px solid $border; border-radius: 10px; padding: 8px 10px; font: inherit; }
++}
++.chat-empty { padding: 20px; color: #8b8378; font-size: 13px; &--center { margin: auto; } }
++
++@media (max-width: 900px) {
++  .chat-layout { grid-template-columns: 1fr; height: auto; }
++  .chat-list { max-height: 260px; border-right: 0; border-bottom: 1px solid $border; }
++}
++
++.page-header { margin-bottom: 20px; }
++.page-header__left h1 {
++  font-family: var(--font-display);
++  font-size: var(--text-h2-size);
++  line-height: var(--text-h2-line-height);
++  margin: 0 0 6px;
++}
++.page-header__left p { font-size: var(--text-body-sm-size); color: var(--color-warm-brown); margin: 0; }
++
++.btn {
++  border: 1px solid $border; background: #fff; border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
++  &:disabled { opacity: .5; cursor: not-allowed; }
++}
++.btn-primary { background: $forest; color: #fff; border-color: $forest; }
+diff --git a/frontend/src/app/admin/chat/pages/chat/chat.component.ts b/frontend/src/app/admin/chat/pages/chat/chat.component.ts
+new file mode 100644
+index 0000000..4c42162
+--- /dev/null
++++ b/frontend/src/app/admin/chat/pages/chat/chat.component.ts
+@@ -0,0 +1,166 @@
++import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
++import { CommonModule, DatePipe } from '@angular/common';
++import { FormsModule } from '@angular/forms';
++import { Subscription } from 'rxjs';
++import { ChatConversation, ChatMessage, ChatService } from '../../../../core/services/chat.service';
++import { AuthService } from '../../../../core/auth.service';
++
++type StatusFilter = 'all' | 'waiting' | 'open' | 'closed';
++
++@Component({
++  selector: 'app-admin-chat',
++  standalone: true,
++  imports: [CommonModule, FormsModule, DatePipe],
++  templateUrl: './chat.component.html',
++  styleUrl: './chat.component.scss'
++})
++export class AdminChatComponent implements OnInit, OnDestroy {
++  private chat = inject(ChatService);
++  private auth = inject(AuthService);
++  private cdr = inject(ChangeDetectorRef);
++  private subs = new Subscription();
++
++  @ViewChild('thread') private thread?: ElementRef<HTMLElement>;
++
++  filters: { value: StatusFilter; label: string }[] = [
++    { value: 'all', label: 'All' },
++    { value: 'waiting', label: 'Waiting' },
++    { value: 'open', label: 'Open' },
++    { value: 'closed', label: 'Closed' }
++  ];
++  filter: StatusFilter = 'all';
++
++  conversations: ChatConversation[] = [];
++  active: ChatConversation | null = null;
++  messages: ChatMessage[] = [];
++  draft = '';
++  customerTyping = false;
++  private typingTimer: any = null;
++  private stopTypingTimer: any = null;
++
++  get myId(): string | undefined { return this.auth.currentUser()?.user_id; }
++
++  get visible(): ChatConversation[] {
++    return this.filter === 'all' ? this.conversations : this.conversations.filter(c => c.status === this.filter);
++  }
++
++  get waitingCount(): number { return this.conversations.filter(c => c.status === 'waiting').length; }
++
++  get canReply(): boolean {
++    return !!this.active && this.active.status === 'open' && this.active.agent_id === this.myId;
++  }
++
++  ngOnInit(): void {
++    this.chat.joinAgents();
++    this.loadList();
++
++    this.subs.add(this.chat.conversation$.subscribe(c => {
++      this.upsert(c);
++      if (this.active?.conversation_id === c.conversation_id) this.active = { ...this.active, ...c, customer: this.active.customer };
++      this.cdr.markForCheck();
++    }));
++
++    this.subs.add(this.chat.message$.subscribe(m => {
++      if (this.active?.conversation_id === m.conversation_id) {
++        this.messages = [...this.messages, m];
++        this.customerTyping = false;
++        this.scrollSoon();
++      }
++      this.loadList(); // refresh previews + unread counters
++    }));
++
++    this.subs.add(this.chat.listHint$.subscribe(() => this.loadList()));
++
++    this.subs.add(this.chat.typing$.subscribe(t => {
++      if (t.conversation_id !== this.active?.conversation_id || t.user_id === this.myId) return;
++      this.customerTyping = t.typing;
++      clearTimeout(this.typingTimer);
++      if (t.typing) this.typingTimer = setTimeout(() => { this.customerTyping = false; this.cdr.markForCheck(); }, 4000);
++      this.cdr.markForCheck();
++    }));
++  }
++
++  ngOnDestroy(): void {
++    this.subs.unsubscribe();
++    clearTimeout(this.typingTimer);
++    clearTimeout(this.stopTypingTimer);
++    this.chat.disconnect();
++  }
++
++  loadList(): void {
++    this.chat.list().subscribe({
++      next: res => {
++        this.conversations = res.data;
++        if (this.active) {
++          const fresh = res.data.find(c => c.conversation_id === this.active!.conversation_id);
++          if (fresh) this.active = fresh;
++        }
++        this.cdr.markForCheck();
++      }
++    });
++  }
++
++  private upsert(c: ChatConversation): void {
++    const i = this.conversations.findIndex(x => x.conversation_id === c.conversation_id);
++    if (i >= 0) this.conversations[i] = { ...this.conversations[i], ...c };
++    else this.loadList();
++  }
++
++  select(c: ChatConversation): void {
++    this.active = c;
++    this.messages = [];
++    this.customerTyping = false;
++    this.chat.joinConversation(c.conversation_id);
++    this.chat.messages(c.conversation_id).subscribe({
++      next: res => {
++        this.messages = res.data;
++        c.unread_agent = 0;
++        this.scrollSoon();
++        this.cdr.markForCheck();
++      }
++    });
++  }
++
++  claim(): void {
++    if (!this.active) return;
++    this.chat.claim(this.active.conversation_id).subscribe({
++      next: res => { this.active = { ...this.active!, ...res.data }; this.loadList(); },
++      error: err => alert(err?.error?.error || 'Could not claim this chat')
++    });
++  }
++
++  closeChat(): void {
++    if (!this.active || !confirm('Close this conversation?')) return;
++    this.chat.close(this.active.conversation_id).subscribe({
++      next: res => { this.active = { ...this.active!, ...res.data }; this.loadList(); }
++    });
++  }
++
++  onDraftInput(): void {
++    if (!this.active) return;
++    this.chat.typing(this.active.conversation_id, true);
++    clearTimeout(this.stopTypingTimer);
++    this.stopTypingTimer = setTimeout(() => this.chat.typing(this.active!.conversation_id, false), 2000);
++  }
++
++  send(): void {
++    const text = this.draft.trim();
++    if (!text || !this.canReply) return;
++    this.chat.send(this.active!.conversation_id, text);
++    this.chat.typing(this.active!.conversation_id, false);
++    this.draft = '';
++  }
++
++  onKey(e: KeyboardEvent): void {
++    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); }
++  }
++
++  customerName(c: ChatConversation): string { return c.customer?.profile_name || c.customer_id; }
++
++  private scrollSoon(): void {
++    setTimeout(() => {
++      const el = this.thread?.nativeElement;
++      if (el) el.scrollTop = el.scrollHeight;
++    }, 0);
++  }
++}
+diff --git a/frontend/src/app/admin/community-reports/pages/community-reports/community-reports.component.html b/frontend/src/app/admin/community-reports/pages/community-reports/community-reports.component.html
+new file mode 100644
+index 0000000..fdde1e8
+--- /dev/null
++++ b/frontend/src/app/admin/community-reports/pages/community-reports/community-reports.component.html
+@@ -0,0 +1,60 @@
++<header class="page-header">
++  <h1>Community reports</h1>
++  <p>Posts are hidden automatically after {{ threshold }} pending reports. You can also hide or restore any post manually.</p>
++</header>
++
++<div class="tabs">
++  <button type="button" class="tab" [class.active]="tab === 'pending'" (click)="tab = 'pending'">
++    Needs review <span class="count">{{ pendingCount }}</span>
++  </button>
++  <button type="button" class="tab" [class.active]="tab === 'hidden'" (click)="tab = 'hidden'">
++    Hidden <span class="count">{{ hiddenCount }}</span>
++  </button>
++</div>
++
++@if (loading) {
++  <p class="state">Loading…</p>
++} @else if (error) {
++  <p class="state state--error">{{ error }}</p>
++} @else if (!visibleRows.length) {
++  <p class="state">{{ tab === 'hidden' ? 'No hidden posts.' : 'No reported posts waiting for review.' }}</p>
++} @else {
++  <ul class="list">
++    @for (r of visibleRows; track r.post_id) {
++      <li class="item">
++        <div class="thumb">
++          @if (r.thumbnail) { <img [src]="r.thumbnail" alt=""> } @else { <span>Aa</span> }
++        </div>
++
++        <div class="body">
++          <div class="top">
++            <strong>&#64;{{ r.author?.username }}</strong>
++            <span class="pid">{{ r.post_id }}</span>
++            @if (r.status === 'hidden') {
++              <span class="pill pill--hidden">{{ r.hidden_reason === 'auto_reports' ? 'Auto-hidden' : 'Hidden by admin' }}</span>
++            }
++          </div>
++          <p class="content">{{ r.content || '(no text)' }}</p>
++          <p class="meta">
++            @if (r.pending_reports) {
++              <strong>{{ r.pending_reports }}</strong> pending · {{ reasonList(r) }}
++              @if (r.last_reported_at) { · last {{ r.last_reported_at | date: 'dd/MM HH:mm' }} }
++            } @else if (r.hidden_at) {
++              Hidden {{ r.hidden_at | date: 'dd/MM HH:mm' }}
++            }
++          </p>
++        </div>
++
++        <div class="actions">
++          <a class="btn" [routerLink]="['/community/post', r.post_id]" target="_blank">View</a>
++          @if (r.status === 'hidden') {
++            <button type="button" class="btn btn-primary" [disabled]="busyId === r.post_id" (click)="unhide(r)">Unhide</button>
++          } @else {
++            <button type="button" class="btn btn-danger" [disabled]="busyId === r.post_id" (click)="hide(r)">Hide</button>
++            <button type="button" class="btn" [disabled]="busyId === r.post_id" (click)="dismiss(r)">Dismiss</button>
++          }
++        </div>
++      </li>
++    }
++  </ul>
++}
+diff --git a/frontend/src/app/admin/community-reports/pages/community-reports/community-reports.component.scss b/frontend/src/app/admin/community-reports/pages/community-reports/community-reports.component.scss
+new file mode 100644
+index 0000000..4aeb25d
+--- /dev/null
++++ b/frontend/src/app/admin/community-reports/pages/community-reports/community-reports.component.scss
+@@ -0,0 +1,43 @@
++$border: #e6dfd6;
++$forest: var(--color-forest-green, #2f4a3a);
++
++:host { display: block; }
++
++.page-header { margin-bottom: 20px; }
++.page-header h1 { font-family: var(--font-display); font-size: var(--text-h2-size); line-height: var(--text-h2-line-height); margin: 0 0 6px; }
++.page-header p { font-size: var(--text-body-sm-size); color: var(--color-warm-brown); margin: 0; max-width: 560px; }
++
++.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
++.tab {
++  border: 1px solid $border; background: transparent; border-radius: 999px; padding: 6px 16px; font-size: 13px; cursor: pointer;
++  .count { margin-left: 6px; font-weight: 700; }
++  &.active { background: $forest; color: #fff; border-color: $forest; }
++}
++
++.state { text-align: center; color: #8b8378; padding: 40px 0; &--error { color: #b03a2e; } }
++
++.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
++.item { display: flex; gap: 14px; align-items: center; padding: 12px; border: 1px solid $border; border-radius: 12px; background: #fffdf9; }
++.thumb {
++  width: 64px; height: 64px; border-radius: 10px; background: #f1ece3; overflow: hidden; display: grid; place-items: center; flex-shrink: 0; color: #8b8378;
++  img { width: 100%; height: 100%; object-fit: cover; }
++}
++.body { flex: 1; min-width: 0; }
++.top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
++.pid { font-size: 11px; color: #8b8378; }
++.pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; &--hidden { background: #f6e7e4; color: #8a3b2f; } }
++.content { margin: 4px 0; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
++.meta { margin: 0; font-size: 12px; color: #6f675d; }
++
++.actions { display: flex; gap: 8px; flex-shrink: 0; }
++.btn {
++  border: 1px solid $border; background: #fff; color: inherit; border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none;
++  &:disabled { opacity: .5; cursor: wait; }
++}
++.btn-primary { background: $forest; color: #fff; border-color: $forest; }
++.btn-danger { background: #b03a2e; color: #fff; border-color: #b03a2e; }
++
++@media (max-width: 720px) {
++  .item { flex-wrap: wrap; }
++  .actions { width: 100%; }
++}
+diff --git a/frontend/src/app/admin/community-reports/pages/community-reports/community-reports.component.ts b/frontend/src/app/admin/community-reports/pages/community-reports/community-reports.component.ts
+new file mode 100644
+index 0000000..35f665f
+--- /dev/null
++++ b/frontend/src/app/admin/community-reports/pages/community-reports/community-reports.component.ts
+@@ -0,0 +1,106 @@
++import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
++import { CommonModule, DatePipe } from '@angular/common';
++import { HttpClient } from '@angular/common/http';
++import { RouterModule } from '@angular/router';
++
++interface ReportedPost {
++  post_id: string;
++  user_id: string;
++  author: { username: string; avatar_url: string | null };
++  content: string;
++  thumbnail: string | null;
++  status: 'visible' | 'hidden';
++  hidden_reason: 'manual' | 'auto_reports' | null;
++  hidden_at: string | null;
++  pending_reports: number;
++  reasons: Record<string, number>;
++  last_reported_at: string | null;
++}
++
++type Tab = 'pending' | 'hidden';
++
++@Component({
++  selector: 'app-admin-community-reports',
++  standalone: true,
++  imports: [CommonModule, DatePipe, RouterModule],
++  templateUrl: './community-reports.component.html',
++  styleUrl: './community-reports.component.scss'
++})
++export class AdminCommunityReportsComponent implements OnInit {
++  private http = inject(HttpClient);
++  private cdr = inject(ChangeDetectorRef);
++
++  private readonly api = '/api/admin/community';
++
++  rows: ReportedPost[] = [];
++  threshold = 5;
++  tab: Tab = 'pending';
++  loading = true;
++  busyId: string | null = null;
++  error = '';
++
++  readonly reasonLabels: Record<string, string> = {
++    spam: 'Spam', inappropriate: 'Inappropriate', off_topic: 'Off topic', misleading: 'Misleading', other: 'Other'
++  };
++
++  get visibleRows(): ReportedPost[] {
++    return this.tab === 'hidden'
++      ? this.rows.filter(r => r.status === 'hidden')
++      : this.rows.filter(r => r.status !== 'hidden' && r.pending_reports > 0);
++  }
++
++  get hiddenCount(): number { return this.rows.filter(r => r.status === 'hidden').length; }
++  get pendingCount(): number { return this.rows.filter(r => r.status !== 'hidden' && r.pending_reports > 0).length; }
++
++  ngOnInit(): void { this.load(); }
++
++  load(): void {
++    this.loading = true;
++    this.http.get<{ data: ReportedPost[]; auto_hide_threshold: number }>(`${this.api}/reports`).subscribe({
++      next: res => {
++        this.rows = res.data;
++        this.threshold = res.auto_hide_threshold;
++        this.loading = false;
++        this.cdr.markForCheck();
++      },
++      error: err => {
++        this.error = err?.error?.error || 'Could not load reports';
++        this.loading = false;
++        this.cdr.markForCheck();
++      }
++    });
++  }
++
++  reasonList(r: ReportedPost): string {
++    return Object.entries(r.reasons)
++      .sort((a, b) => b[1] - a[1])
++      .map(([k, n]) => `${this.reasonLabels[k] || k} ×${n}`)
++      .join(' · ');
++  }
++
++  hide(r: ReportedPost): void {
++    if (!confirm(`Hide this post by @${r.author?.username}? It disappears from the community feed.`)) return;
++    this.run(r, 'hide');
++  }
++
++  unhide(r: ReportedPost): void {
++    if (!confirm('Make this post visible again? Its pending reports will be dismissed.')) return;
++    this.run(r, 'unhide');
++  }
++
++  dismiss(r: ReportedPost): void {
++    this.run(r, 'dismiss');
++  }
++
++  private run(r: ReportedPost, action: 'hide' | 'unhide' | 'dismiss'): void {
++    this.busyId = r.post_id;
++    this.http.post(`${this.api}/posts/${r.post_id}/${action}`, {}).subscribe({
++      next: () => { this.busyId = null; this.load(); },
++      error: err => {
++        this.busyId = null;
++        alert(err?.error?.error || 'Action failed');
++        this.cdr.markForCheck();
++      }
++    });
++  }
++}
+diff --git a/frontend/src/app/app.html b/frontend/src/app/app.html
+index e2937b0..8a5cd1a 100644
+--- a/frontend/src/app/app.html
++++ b/frontend/src/app/app.html
+@@ -12,4 +12,5 @@
+   <app-footer></app-footer>
+   <app-auth-modal></app-auth-modal>
+   <app-auth-prompt-modal></app-auth-prompt-modal>
++  <app-support-chat></app-support-chat>
+ }
+diff --git a/frontend/src/app/app.ts b/frontend/src/app/app.ts
+index ff95246..84eef63 100644
+--- a/frontend/src/app/app.ts
++++ b/frontend/src/app/app.ts
+@@ -7,10 +7,11 @@ import { FooterComponent } from './shared/components/footer/footer.component';
+ import { AuthModalComponent } from './shared/components/auth-modal/auth-modal.component';
+ import { AuthPromptModalComponent } from './shared/components/auth-prompt-modal/auth-prompt-modal.component';
+ import { ToastComponent } from './shared/services/toast.component';
++import { SupportChatComponent } from './shared/components/support-chat/support-chat.component';
+ 
+ @Component({
+   selector: 'app-root',
+-  imports: [RouterOutlet, NavbarComponent, FooterComponent, AuthModalComponent, AuthPromptModalComponent, ToastComponent],
++  imports: [RouterOutlet, NavbarComponent, FooterComponent, AuthModalComponent, AuthPromptModalComponent, ToastComponent, SupportChatComponent],
+   templateUrl: './app.html',
+   styleUrl: './app.scss'
+ })
+diff --git a/frontend/src/app/core/services/chat.service.ts b/frontend/src/app/core/services/chat.service.ts
+new file mode 100644
+index 0000000..b6aba65
+--- /dev/null
++++ b/frontend/src/app/core/services/chat.service.ts
+@@ -0,0 +1,108 @@
++import { Injectable, inject, PLATFORM_ID } from '@angular/core';
++import { HttpClient } from '@angular/common/http';
++import { isPlatformBrowser } from '@angular/common';
++import { Observable, Subject } from 'rxjs';
++import { io, Socket } from 'socket.io-client';
++
++export interface ChatConversation {
++  conversation_id: string;
++  customer_id: string;
++  agent_id: string | null;
++  status: 'bot' | 'waiting' | 'open' | 'closed';
++  handoff_summary?: string;
++  last_message_preview: string;
++  last_message_at: string;
++  unread_agent: number;
++  unread_customer: number;
++  customer?: { user_id: string; profile_name: string; avatar_url: string | null; membership_tier: string } | null;
++}
++
++export interface ChatMessage {
++  _id?: string;
++  conversation_id: string;
++  sender_type: 'customer' | 'agent' | 'bot' | 'system';
++  sender_id: string | null;
++  content: string;
++  created_at: string;
++}
++
++export interface ChatTyping {
++  conversation_id: string;
++  user_id?: string;
++  typing: boolean;
++}
++
++@Injectable({ providedIn: 'root' })
++export class ChatService {
++  private http = inject(HttpClient);
++  private platformId = inject(PLATFORM_ID);
++  private socket: Socket | null = null;
++
++  private messageSubject = new Subject<ChatMessage>();
++  private conversationSubject = new Subject<ChatConversation>();
++  private typingSubject = new Subject<ChatTyping>();
++  private hintSubject = new Subject<string>();
++
++  readonly message$ = this.messageSubject.asObservable();
++  readonly conversation$ = this.conversationSubject.asObservable();
++  readonly typing$ = this.typingSubject.asObservable();
++  readonly listHint$ = this.hintSubject.asObservable();
++
++  private readonly api = '/api/chat';
++
++  // ── REST ──
++  getMine() { return this.http.get<{ data: ChatConversation | null }>(`${this.api}/me`); }
++  start() { return this.http.post<{ data: ChatConversation }>(`${this.api}/start`, {}); }
++  list(status?: string) {
++    return this.http.get<{ data: ChatConversation[] }>(`${this.api}/conversations${status ? '?status=' + status : ''}`);
++  }
++  messages(id: string) { return this.http.get<{ data: ChatMessage[] }>(`${this.api}/conversations/${id}/messages`); }
++  claim(id: string) { return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/claim`, {}); }
++  close(id: string) { return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/close`, {}); }
++
++  // ── Socket ──
++  connect(): void {
++    if (!isPlatformBrowser(this.platformId) || this.socket) return;
++    const { protocol, hostname, port, origin } = window.location;
++    const url = port === '4200' ? `${protocol}//${hostname}:5000` : origin;
++    this.socket = io(url, {
++      transports: ['websocket', 'polling'],
++      auth: { token: localStorage.getItem('token') },
++      reconnection: true
++    });
++    this.socket.on('chat_message', (m: ChatMessage) => this.messageSubject.next(m));
++    this.socket.on('chat_handoff', (c: ChatConversation) => this.conversationSubject.next(c));
++    this.socket.on('chat_updated', (c: ChatConversation) => this.conversationSubject.next(c));
++    this.socket.on('chat_typing', (t: ChatTyping) => this.typingSubject.next(t));
++    this.socket.on('chat_updated_hint', (h: { conversation_id: string }) => this.hintSubject.next(h.conversation_id));
++    // Re-join rooms after a reconnect.
++    this.socket.on('connect', () => this.rejoin());
++  }
++
++  private joined = new Set<string>();
++  private asAgent = false;
++
++  private rejoin(): void {
++    if (this.asAgent) this.socket?.emit('join_chat_agents');
++    this.joined.forEach(id => this.socket?.emit('join_chat', { conversation_id: id }));
++  }
++
++  joinAgents(): void { this.connect(); this.asAgent = true; this.socket?.emit('join_chat_agents'); }
++  joinConversation(id: string): void {
++    this.connect();
++    this.joined.add(id);
++    this.socket?.emit('join_chat', { conversation_id: id });
++  }
++  send(conversationId: string, content: string): void {
++    this.socket?.emit('chat_message', { conversation_id: conversationId, content });
++  }
++  typing(conversationId: string, typing: boolean): void {
++    this.socket?.emit('chat_typing', { conversation_id: conversationId, typing });
++  }
++  disconnect(): void {
++    this.socket?.disconnect();
++    this.socket = null;
++    this.joined.clear();
++    this.asAgent = false;
++  }
++}
+diff --git a/frontend/src/app/features/community/community-routing-module.ts b/frontend/src/app/features/community/community-routing-module.ts
+index 9834965..e5351da 100644
+--- a/frontend/src/app/features/community/community-routing-module.ts
++++ b/frontend/src/app/features/community/community-routing-module.ts
+@@ -6,6 +6,12 @@ const routes: Routes = [
+     path: '',
+     loadComponent: () => import('./pages/feed/feed.component').then(m => m.FeedComponent)
+   },
++  {
++    path: 'profile/:userId',
++    loadComponent: () =>
++      import('./pages/public-profile/public-profile.component')
++        .then(m => m.PublicProfileComponent)
++  },
+   {
+     path: 'post/:id',
+     loadComponent: () =>
+diff --git a/frontend/src/app/features/community/components/comment-section/comment-section.component.html b/frontend/src/app/features/community/components/comment-section/comment-section.component.html
+index dbba0b4..4d90dae 100644
+--- a/frontend/src/app/features/community/components/comment-section/comment-section.component.html
++++ b/frontend/src/app/features/community/components/comment-section/comment-section.component.html
+@@ -47,12 +47,13 @@
+         <span class="author-badge" *ngIf="comment.author.is_post_author">AUTHOR</span>
+         <span class="comment-time">{{ timeAgo(comment.created_at) }}</span>
+         
+-        <div class="comment-options" *ngIf="isCommentAuthor(comment.user_id)">
++        <div class="comment-options" *ngIf="currentUser">
+            <button type="button" class="options-trigger" (click)="toggleCommentOptions(comment.comment_id, $event)">
+              <svg lucideEllipsis [size]="16"></svg>
+            </button>
+            <div class="options-dropdown" *ngIf="showCommentOptionsFor === comment.comment_id">
+-             <button type="button" class="delete-action" (click)="promptDeleteComment(comment.comment_id)">Delete Comment</button>
++             <button type="button" class="delete-action" *ngIf="isCommentAuthor(comment.user_id)" (click)="promptDeleteComment(comment.comment_id)">Delete Comment</button>
++             <button type="button" class="delete-action" *ngIf="!isCommentAuthor(comment.user_id)" (click)="openReportComment(comment)">Report Comment</button>
+            </div>
+         </div>
+       </div>
+@@ -93,6 +94,16 @@
+   </div>
+ </ng-template>
+ 
++<app-report-post-modal
++  *ngIf="reportTarget"
++  target="comment"
++  [authorUsername]="reportTarget.author.username"
++  [postExcerpt]="reportTarget.content"
++  [submitting]="reportSubmitting"
++  (cancel)="closeReportComment()"
++  (submitReport)="submitReportComment($event)">
++</app-report-post-modal>
++
+ <app-confirmation-modal
+   *ngIf="isConfirmDeleteModalOpen"
+   [isOpen]="isConfirmDeleteModalOpen"
+diff --git a/frontend/src/app/features/community/components/comment-section/comment-section.component.ts b/frontend/src/app/features/community/components/comment-section/comment-section.component.ts
+index 7ff2af4..b600e51 100644
+--- a/frontend/src/app/features/community/components/comment-section/comment-section.component.ts
++++ b/frontend/src/app/features/community/components/comment-section/comment-section.component.ts
+@@ -6,6 +6,8 @@ import { LucideEllipsis, LucideHeart, LucideSend } from '@lucide/angular';
+ import { Comment } from '../../models/comment.model';
+ import { CommunityService } from '../../services/community.service';
+ import { AuthService } from '../../../../core/auth.service';
++import { ReportPostModalComponent, ReportPayload } from '../report-post-modal/report-post-modal.component';
++import { ToastService } from '../../../../shared/services/toast.service';
+ import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+ 
+ interface CommentThread extends Comment {
+@@ -15,7 +17,7 @@ interface CommentThread extends Comment {
+ @Component({
+   selector: 'app-comment-section',
+   standalone: true,
+-  imports: [CommonModule, FormsModule, ConfirmationModalComponent, LucideEllipsis, LucideHeart, LucideSend],
++  imports: [CommonModule, FormsModule, ConfirmationModalComponent, ReportPostModalComponent, LucideEllipsis, LucideHeart, LucideSend],
+   templateUrl: './comment-section.component.html',
+   styleUrls: ['./comment-section.component.scss']
+ })
+@@ -24,6 +26,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
+   private communityService = inject(CommunityService);
+   private cdr = inject(ChangeDetectorRef);
+   private authService = inject(AuthService);
++  private toast = inject(ToastService);
+ 
+   @Input() postId!: string;
+   @Output() commentCountChange = new EventEmitter<number>();
+@@ -43,6 +46,8 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
+   showCommentOptionsFor: string | null = null;
+   commentToDelete: string | null = null;
+   isConfirmDeleteModalOpen = false;
++  reportTarget: Comment | null = null;
++  reportSubmitting = false;
+ 
+   private timeTickHandle?: ReturnType<typeof setInterval>;
+ 
+@@ -198,6 +203,31 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
+     }
+   }
+ 
++  openReportComment(comment: Comment): void {
++    this.showCommentOptionsFor = null;
++    this.reportTarget = comment;
++  }
++
++  closeReportComment(): void {
++    if (!this.reportSubmitting) this.reportTarget = null;
++  }
++
++  submitReportComment(payload: ReportPayload): void {
++    if (!this.reportTarget || this.reportSubmitting) return;
++    this.reportSubmitting = true;
++    this.communityService.reportComment(this.reportTarget.comment_id, payload.reason, payload.note).subscribe({
++      next: () => {
++        this.reportSubmitting = false;
++        this.reportTarget = null;
++        this.toast.success('Thanks for letting us know. We will review this comment.');
++      },
++      error: (err) => {
++        this.reportSubmitting = false;
++        this.toast.error(err?.error?.error || 'Failed to submit report. Please try again.');
++      }
++    });
++  }
++
+   promptDeleteComment(commentId: string): void {
+     this.showCommentOptionsFor = null;
+     this.commentToDelete = commentId;
+diff --git a/frontend/src/app/features/community/components/feed-toolbar/feed-toolbar.component.html b/frontend/src/app/features/community/components/feed-toolbar/feed-toolbar.component.html
+index 799c3c4..13b70e0 100644
+--- a/frontend/src/app/features/community/components/feed-toolbar/feed-toolbar.component.html
++++ b/frontend/src/app/features/community/components/feed-toolbar/feed-toolbar.component.html
+@@ -27,6 +27,10 @@
+       <button type="button" class="filter" [class.active]="activeCategory === 'RECIPE'" (click)="onFilterClick('RECIPE')">
+         Recipe
+       </button>
++      <button type="button" class="filter" [class.active]="activeCategory === 'FOLLOWING'" (click)="onFilterClick('FOLLOWING')">
++        <svg lucideUsers [size]="13"></svg>
++        Following
++      </button>
+       <button type="button" class="filter" [class.active]="activeCategory === 'MY_POST'" (click)="onFilterClick('MY_POST')">
+         <svg lucideUser [size]="13"></svg>
+         My profile
+diff --git a/frontend/src/app/features/community/components/feed-toolbar/feed-toolbar.component.ts b/frontend/src/app/features/community/components/feed-toolbar/feed-toolbar.component.ts
+index 326827d..86a6327 100644
+--- a/frontend/src/app/features/community/components/feed-toolbar/feed-toolbar.component.ts
++++ b/frontend/src/app/features/community/components/feed-toolbar/feed-toolbar.component.ts
+@@ -1,22 +1,22 @@
+ import { Component, EventEmitter, Input, Output, HostListener, ElementRef } from '@angular/core';
+ import { CommonModule } from '@angular/common';
+-import { LucideChevronDown, LucidePlus, LucideUser } from '@lucide/angular';
++import { LucideChevronDown, LucidePlus, LucideUser, LucideUsers } from '@lucide/angular';
+ 
+ @Component({
+   selector: 'app-feed-toolbar',
+   standalone: true,
+-  imports: [CommonModule, LucidePlus, LucideUser, LucideChevronDown],
++  imports: [CommonModule, LucidePlus, LucideUser, LucideUsers, LucideChevronDown],
+   templateUrl: './feed-toolbar.component.html',
+   styleUrls: ['./feed-toolbar.component.scss']
+ })
+ export class FeedToolbarComponent {
+ 
+-  @Input() activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '' = '';
++  @Input() activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '' = '';
+   @Input() sort: 'created_at' | 'like_count' = 'created_at';
+ 
+   @Output() createPost = new EventEmitter<void>();
+   @Output() createRecipe = new EventEmitter<void>();
+-  @Output() categoryChange = new EventEmitter<'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | ''>();
++  @Output() categoryChange = new EventEmitter<'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | ''>();
+   @Output() sortChange = new EventEmitter<'created_at' | 'like_count'>();
+ 
+   isDropdownOpen = false;
+@@ -31,7 +31,7 @@ export class FeedToolbarComponent {
+     this.createRecipe.emit();
+   }
+ 
+-  onFilterClick(value: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '') {
++  onFilterClick(value: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '') {
+     if (this.activeCategory === value) return;
+     this.categoryChange.emit(value);
+   }
+diff --git a/frontend/src/app/features/community/components/post-card/post-card.component.html b/frontend/src/app/features/community/components/post-card/post-card.component.html
+index 4b137f1..e4f0be9 100644
+--- a/frontend/src/app/features/community/components/post-card/post-card.component.html
++++ b/frontend/src/app/features/community/components/post-card/post-card.component.html
+@@ -1,11 +1,14 @@
+ <article class="community-card" (click)="onCardClick()">
+ 
+   <header class="card-header">
+-    <div class="author-avatar" [class.author-avatar--pink]="avatarTone === 'pink'">
+-      <img *ngIf="post.author.avatar_url" [src]="post.author.avatar_url" [alt]="post.author.username">
+-      <span *ngIf="!post.author.avatar_url">{{ initials }}</span>
+-    </div>
+-    <span class="author-name">&#64;{{ post.author.username }}</span>
++    <a class="author-link" [routerLink]="['/community/profile', post.user_id]" (click)="$event.stopPropagation()"
++       [attr.aria-label]="'View ' + post.author.username + ' profile'">
++      <div class="author-avatar" [class.author-avatar--pink]="avatarTone === 'pink'">
++        <img *ngIf="post.author.avatar_url" [src]="post.author.avatar_url" [alt]="post.author.username">
++        <span *ngIf="!post.author.avatar_url">{{ initials }}</span>
++      </div>
++      <span class="author-name">&#64;{{ post.author.username }}</span>
++    </a>
+     <span class="chip chip--wheat" *ngIf="post.post_type === 'recipe'">Recipe</span>
+     <span class="chip chip--sage" *ngIf="!(post.post_type === 'recipe' && post.base === 'RECIPE')">{{ post.base }}</span>
+     <span class="header-spacer"></span>
+@@ -42,6 +45,13 @@
+           </svg>
+         </div>
+       </div>
++      <div class="product-tags" *ngIf="productTags.length">
++        <a class="product-tag" *ngFor="let product of productTags"
++           [routerLink]="productLink(product)" (click)="$event.stopPropagation()">
++          <img *ngIf="product.image_url" [src]="product.image_url" [alt]="product.name">
++          <span>{{ product.name }}</span>
++        </a>
++      </div>
+     </ng-container>
+     <ng-template #textOnly>
+       <svg class="media-quote" viewBox="0 0 24 24" aria-hidden="true">
+diff --git a/frontend/src/app/features/community/components/post-card/post-card.component.scss b/frontend/src/app/features/community/components/post-card/post-card.component.scss
+index 4ae6e3b..a326291 100644
+--- a/frontend/src/app/features/community/components/post-card/post-card.component.scss
++++ b/frontend/src/app/features/community/components/post-card/post-card.component.scss
+@@ -199,6 +199,53 @@ $placeholder: #ebe2dc;
+   }
+ }
+ 
++// Tagged products sit on the bottom edge of the image (max 3).
++.product-tags {
++  position: absolute;
++  left: 12px;
++  right: 12px;
++  bottom: 12px;
++  display: flex;
++  flex-wrap: wrap;
++  gap: 6px;
++  pointer-events: none;
++}
++
++.product-tag {
++  pointer-events: auto;
++  display: inline-flex;
++  align-items: center;
++  gap: 6px;
++  max-width: 100%;
++  padding: 4px 10px 4px 4px;
++  border-radius: 999px;
++  background: rgba(255, 253, 249, 0.92);
++  color: var(--color-forest-green);
++  font-size: 12px;
++  font-weight: 600;
++  text-decoration: none;
++  backdrop-filter: blur(4px);
++
++  img {
++    position: static;
++    width: 22px;
++    height: 22px;
++    border-radius: 50%;
++    object-fit: cover;
++    flex-shrink: 0;
++  }
++
++  span {
++    overflow: hidden;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++  }
++
++  &:hover {
++    background: #fff;
++  }
++}
++
+ // Text-only posts: a solid tinted tile (per base) so they read as a card of their own
+ // instead of dissolving into the cream page background.
+ .card-media--text {
+@@ -321,3 +368,14 @@ $placeholder: #ebe2dc;
+     fill: currentColor;
+   }
+ }
++
++.author-link {
++  display: inline-flex;
++  align-items: center;
++  gap: 8px;
++  min-width: 0;
++  color: inherit;
++  text-decoration: none;
++
++  &:hover .author-name { text-decoration: underline; }
++}
+diff --git a/frontend/src/app/features/community/components/post-card/post-card.component.ts b/frontend/src/app/features/community/components/post-card/post-card.component.ts
+index c997541..461494a 100644
+--- a/frontend/src/app/features/community/components/post-card/post-card.component.ts
++++ b/frontend/src/app/features/community/components/post-card/post-card.component.ts
+@@ -1,12 +1,13 @@
+ import { Component, ElementRef, EventEmitter, HostListener, Input, Output } from '@angular/core';
+ import { CommonModule } from '@angular/common';
+ import { LucideBookmark, LucideEllipsis, LucideFlag, LucideHeart, LucideMessageCircle, LucideShare2, LucideTrash2 } from '@lucide/angular';
+-import { Post } from '../../models/post.model';
++import { RouterLink } from '@angular/router';
++import { Post, PostProductCard, postProductLink } from '../../models/post.model';
+ 
+ @Component({
+   selector: 'app-post-card',
+   standalone: true,
+-  imports: [CommonModule, LucideEllipsis, LucideFlag, LucideBookmark, LucideTrash2, LucideHeart, LucideMessageCircle, LucideShare2],
++  imports: [CommonModule, RouterLink, LucideEllipsis, LucideFlag, LucideBookmark, LucideTrash2, LucideHeart, LucideMessageCircle, LucideShare2],
+   templateUrl: './post-card.component.html',
+   styleUrls: ['./post-card.component.scss']
+ })
+@@ -34,6 +35,14 @@ export class PostCardComponent {
+     return this.post.media[0];
+   }
+ 
++  get productTags(): PostProductCard[] {
++    return (this.post?.products || []).slice(0, 3);
++  }
++
++  productLink(product: PostProductCard): string[] {
++    return postProductLink(product);
++  }
++
+   get initials(): string {
+     const name = (this.post?.author?.username || '').replace(/[^a-zA-Z0-9]/g, '');
+     return name.slice(0, 2).toUpperCase();
+diff --git a/frontend/src/app/features/community/components/report-post-modal/report-post-modal.component.html b/frontend/src/app/features/community/components/report-post-modal/report-post-modal.component.html
+index d4b0ac9..8c5e979 100644
+--- a/frontend/src/app/features/community/components/report-post-modal/report-post-modal.component.html
++++ b/frontend/src/app/features/community/components/report-post-modal/report-post-modal.component.html
+@@ -3,7 +3,7 @@
+ 
+     <header class="modal-header">
+       <div class="modal-heading">
+-        <h3 class="modal-title" id="report-title">Report this post</h3>
++        <h3 class="modal-title" id="report-title">Report this {{ target }}</h3>
+         <p class="modal-subtitle" *ngIf="authorUsername">
+           &#64;{{ authorUsername }}<ng-container *ngIf="excerpt"> · “{{ excerpt }}”</ng-container>
+         </p>
+diff --git a/frontend/src/app/features/community/components/report-post-modal/report-post-modal.component.ts b/frontend/src/app/features/community/components/report-post-modal/report-post-modal.component.ts
+index 3f69cf0..743dbe5 100644
+--- a/frontend/src/app/features/community/components/report-post-modal/report-post-modal.component.ts
++++ b/frontend/src/app/features/community/components/report-post-modal/report-post-modal.component.ts
+@@ -19,6 +19,7 @@ export class ReportPostModalComponent {
+   @Input() authorUsername = '';
+   @Input() postExcerpt = '';
+   @Input() submitting = false;
++  @Input() target: 'post' | 'comment' = 'post';
+ 
+   @Output() cancel = new EventEmitter<void>();
+   @Output() submitReport = new EventEmitter<ReportPayload>();
+diff --git a/frontend/src/app/features/community/models/post.model.ts b/frontend/src/app/features/community/models/post.model.ts
+index 50dc06e..9f5583c 100644
+--- a/frontend/src/app/features/community/models/post.model.ts
++++ b/frontend/src/app/features/community/models/post.model.ts
+@@ -1,4 +1,5 @@
+ import { Recipe } from '../../home/models/recipe.model';
++import { getProductDetailSlug } from '../../home/models/product.model';
+ 
+ export interface PostAuthor {
+   username: string;
+@@ -11,6 +12,17 @@ export interface PostMedia {
+   type: 'image' | 'video';
+ }
+ 
++export interface PostProductCard {
++  product_id: number;
++  name: string;
++  slug?: string;
++  image_url: string | null;
++}
++
++export function postProductLink(p: PostProductCard): string[] {
++  return ['/products', getProductDetailSlug({ name: p.name, slug: p.slug, product_id: p.product_id })];
++}
++
+ export interface Post {
+   _id: string;
+   post_id: string;
+@@ -34,6 +46,10 @@ export interface Post {
+   updatedAt: string;
+ 
+   recipe?: Recipe;
++
++  // Tagged products (max 3) resolved by the API, and visibility state.
++  products?: PostProductCard[];
++  status?: 'visible' | 'hidden';
+ }
+ 
+ export interface FeedResponse {
+diff --git a/frontend/src/app/features/community/pages/feed/feed.component.ts b/frontend/src/app/features/community/pages/feed/feed.component.ts
+index 7766efa..6fbe8fe 100644
+--- a/frontend/src/app/features/community/pages/feed/feed.component.ts
++++ b/frontend/src/app/features/community/pages/feed/feed.component.ts
+@@ -63,7 +63,7 @@ export class FeedComponent implements OnInit, OnDestroy {
+   loading = false;
+   hasMore = true;
+ 
+-  activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '' = '';
++  activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '' = '';
+   sort: 'created_at' | 'like_count' = 'created_at';
+ 
+   showCreatePost = false;
+@@ -193,7 +193,7 @@ export class FeedComponent implements OnInit, OnDestroy {
+     this.loadFeed();
+   }
+ 
+-  onCategoryChange(category: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | ''): void {
++  onCategoryChange(category: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | ''): void {
+     if (this.loading) return;
+     this.activeCategory = category;
+     this.page = 1;
+diff --git a/frontend/src/app/features/community/pages/post-detail/post-detail.component.html b/frontend/src/app/features/community/pages/post-detail/post-detail.component.html
+index 5874adb..a117d90 100644
+--- a/frontend/src/app/features/community/pages/post-detail/post-detail.component.html
++++ b/frontend/src/app/features/community/pages/post-detail/post-detail.component.html
+@@ -39,13 +39,23 @@
+     <!-- ── Right: info ── -->
+     <div class="info-column">
+ 
+-      <div class="author-row">
+-        <div class="author-avatar" [class.author-avatar--pink]="avatarTone(post.author.username) === 'pink'">
+-          <img *ngIf="post.author.avatar_url" [src]="post.author.avatar_url" [alt]="post.author.username">
+-          <span *ngIf="!post.author.avatar_url">{{ initials(post.author.username) }}</span>
++      <div class="hidden-banner" *ngIf="isHiddenPost && isPostAuthor" role="status">
++        <svg lucideFlag [size]="15"></svg>
++        <div>
++          <strong>This post is hidden</strong>
++          <span>It was removed from the community feed and only you can see it.</span>
+         </div>
++      </div>
++
++      <div class="author-row">
++        <a class="author-link" [routerLink]="['/community/profile', post.user_id]" [attr.aria-label]="'View ' + post.author.username + ' profile'">
++          <div class="author-avatar" [class.author-avatar--pink]="avatarTone(post.author.username) === 'pink'">
++            <img *ngIf="post.author.avatar_url" [src]="post.author.avatar_url" [alt]="post.author.username">
++            <span *ngIf="!post.author.avatar_url">{{ initials(post.author.username) }}</span>
++          </div>
++        </a>
+         <div class="author-meta">
+-          <span class="author-name">&#64;{{ post.author.username }}</span>
++          <a class="author-name" [routerLink]="['/community/profile', post.user_id]">&#64;{{ post.author.username }}</a>
+           <span class="post-meta">{{ post.created_at | date:'MMM d' }} · {{ post.base | titlecase }}</span>
+         </div>
+         <span class="row-spacer"></span>
+@@ -153,7 +163,14 @@
+         </button>
+       </div>
+ 
+-      <!-- "Products in this post" is hidden until posts carry product data. -->
++      <section class="products-block" *ngIf="productCards.length">
++        <span class="overline">Products in this post</span>
++        <a class="product-row" *ngFor="let product of productCards" [routerLink]="productLink(product)">
++          <img *ngIf="product.image_url" [src]="product.image_url" [alt]="product.name">
++          <span class="product-row__name">{{ product.name }}</span>
++          <svg lucideArrowRight [size]="14"></svg>
++        </a>
++      </section>
+ 
+       <section class="comments-block">
+         <span class="overline">Comments ({{ post.comment_count || 0 }})</span>
+diff --git a/frontend/src/app/features/community/pages/post-detail/post-detail.component.scss b/frontend/src/app/features/community/pages/post-detail/post-detail.component.scss
+index 84b181b..14cabe8 100644
+--- a/frontend/src/app/features/community/pages/post-detail/post-detail.component.scss
++++ b/frontend/src/app/features/community/pages/post-detail/post-detail.component.scss
+@@ -529,6 +529,72 @@ $step-num: #7a5a1e;
+   }
+ }
+ 
++// ── Products in this post ──
++.products-block {
++  display: flex;
++  flex-direction: column;
++  gap: 10px;
++  padding: 16px 0;
++  border-bottom: 1px solid $border-default;
++}
++
++.product-row {
++  display: flex;
++  align-items: center;
++  gap: 12px;
++  padding: 8px 12px 8px 8px;
++  border: 1px solid $border-default;
++  border-radius: 12px;
++  background: #fffdf9;
++  color: var(--color-forest-green);
++  text-decoration: none;
++  transition: box-shadow 0.2s ease;
++
++  img {
++    width: 44px;
++    height: 44px;
++    border-radius: 8px;
++    object-fit: cover;
++    flex-shrink: 0;
++  }
++
++  &__name {
++    flex: 1;
++    min-width: 0;
++    font-weight: 600;
++    overflow: hidden;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++  }
++
++  &:hover {
++    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
++  }
++}
++
++// ── Hidden post notice (owner only) ──
++.hidden-banner {
++  display: flex;
++  align-items: flex-start;
++  gap: 10px;
++  margin-bottom: 14px;
++  padding: 12px 14px;
++  border-radius: 12px;
++  background: #f6e7e4;
++  color: #8a3b2f;
++  font-size: 13px;
++
++  strong,
++  span {
++    display: block;
++  }
++
++  svg {
++    margin-top: 2px;
++    flex-shrink: 0;
++  }
++}
++
+ // ── Comments ──
+ .comments-block {
+   display: flex;
+@@ -619,3 +685,16 @@ $step-num: #7a5a1e;
+     gap: 18px;
+   }
+ }
++
++.author-link {
++  display: inline-flex;
++  color: inherit;
++  text-decoration: none;
++}
++
++a.author-name {
++  color: inherit;
++  text-decoration: none;
++
++  &:hover { text-decoration: underline; }
++}
+diff --git a/frontend/src/app/features/community/pages/post-detail/post-detail.component.ts b/frontend/src/app/features/community/pages/post-detail/post-detail.component.ts
+index 106f9e2..d03b5ab 100644
+--- a/frontend/src/app/features/community/pages/post-detail/post-detail.component.ts
++++ b/frontend/src/app/features/community/pages/post-detail/post-detail.component.ts
+@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
+ import { FormsModule } from '@angular/forms';
+ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+ 
+-import { Post } from '../../models/post.model';
++import { Post, PostProductCard, postProductLink } from '../../models/post.model';
+ import { CommunityService } from '../../services/community.service';
+ import { CommentSectionComponent } from '../../components/comment-section/comment-section.component';
+ import { ShareModalComponent } from '../../components/share-modal/share-modal.component';
+@@ -62,6 +62,19 @@ export class PostDetailComponent implements OnInit, OnDestroy {
+     return this.post?.post_type === 'recipe' && !!this.post.recipe;
+   }
+ 
++  get productCards(): PostProductCard[] {
++    return (this.post?.products || []).slice(0, 3);
++  }
++
++  productLink(product: PostProductCard): string[] {
++    return postProductLink(product);
++  }
++
++  // Hidden posts are only served to their owner, who sees a notice banner.
++  get isHiddenPost(): boolean {
++    return this.post?.status === 'hidden';
++  }
++
+   get activeMedia() {
+     return this.mediaList[this.activeMediaIndex] ?? null;
+   }
+diff --git a/frontend/src/app/features/community/pages/public-profile/public-profile.component.html b/frontend/src/app/features/community/pages/public-profile/public-profile.component.html
+new file mode 100644
+index 0000000..d4d1b86
+--- /dev/null
++++ b/frontend/src/app/features/community/pages/public-profile/public-profile.component.html
+@@ -0,0 +1,52 @@
++<div class="profile-page">
++  <a class="back-link" routerLink="/community">← Back to community</a>
++
++  @if (loading) {
++    <p class="state">Loading profile…</p>
++  } @else if (notFound || !profile) {
++    <p class="state">This profile isn't available.</p>
++  } @else {
++    <header class="profile-head">
++      <div class="avatar">
++        @if (profile.avatar_url) { <img [src]="profile.avatar_url" [alt]="profile.username"> }
++        @else { <span>{{ initials(profile.username) }}</span> }
++      </div>
++
++      <div class="profile-info">
++        <h1>&#64;{{ profile.username }}</h1>
++        <div class="badges">
++          <span class="badge badge--tier" [attr.data-tier]="profile.membership_tier">{{ profile.membership_tier }}</span>
++          @if (profile.ritual_dna_completed) { <span class="badge badge--dna">Ritual DNA</span> }
++        </div>
++        <ul class="stats">
++          <li><strong>{{ profile.post_count }}</strong> posts</li>
++          <li><strong>{{ profile.follower_count }}</strong> followers</li>
++          <li><strong>{{ profile.following_count }}</strong> following</li>
++        </ul>
++      </div>
++
++      @if (!profile.is_self) {
++        <button type="button" class="follow-btn" [class.follow-btn--on]="profile.is_following"
++                [disabled]="followBusy" (click)="toggleFollow()">
++          {{ profile.is_following ? 'Following' : 'Follow' }}
++        </button>
++      }
++    </header>
++
++    @if (posts.length) {
++      <div class="post-grid">
++        @for (post of posts; track post.post_id) {
++          <a class="post-tile" [routerLink]="['/community/post', post.post_id]">
++            @if (post.media?.length) {
++              <img [src]="post.media[0].url" [alt]="post.content">
++            } @else {
++              <p>{{ post.content }}</p>
++            }
++          </a>
++        }
++      </div>
++    } @else {
++      <p class="state">No posts yet.</p>
++    }
++  }
++</div>
+diff --git a/frontend/src/app/features/community/pages/public-profile/public-profile.component.scss b/frontend/src/app/features/community/pages/public-profile/public-profile.component.scss
+new file mode 100644
+index 0000000..765c820
+--- /dev/null
++++ b/frontend/src/app/features/community/pages/public-profile/public-profile.component.scss
+@@ -0,0 +1,33 @@
++$border: #e6dfd6;
++$forest: var(--color-forest-green, #2f4a3a);
++
++.profile-page { max-width: 880px; margin: 0 auto; padding: 32px 20px 64px; }
++.back-link { display: inline-block; margin-bottom: 20px; color: $forest; text-decoration: none; font-size: 14px; }
++.state { text-align: center; color: #8b8378; padding: 40px 0; }
++
++.profile-head { display: flex; align-items: center; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid $border; flex-wrap: wrap; }
++.avatar {
++  width: 96px; height: 96px; border-radius: 50%; background: #dfe8da; overflow: hidden; display: grid; place-items: center;
++  font-size: 28px; font-weight: 700; color: $forest; flex-shrink: 0;
++  img { width: 100%; height: 100%; object-fit: cover; }
++}
++.profile-info { flex: 1; min-width: 200px; h1 { margin: 0 0 8px; font-size: 24px; } }
++.badges { display: flex; gap: 8px; margin-bottom: 10px; }
++.badge {
++  font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: #e8efe3; color: $forest;
++  &--dna { background: #f6e9d8; color: #8a5a1e; }
++}
++.stats { display: flex; gap: 20px; list-style: none; padding: 0; margin: 0; font-size: 14px; color: #6f675d; strong { color: #222; } }
++
++.follow-btn {
++  border: 1px solid $forest; background: $forest; color: #fff; border-radius: 999px; padding: 9px 24px; font-weight: 600; cursor: pointer;
++  &--on { background: transparent; color: $forest; }
++  &:disabled { opacity: .6; cursor: wait; }
++}
++
++.post-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 24px; }
++.post-tile {
++  aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: #f1ece3; display: block; color: inherit; text-decoration: none;
++  img { width: 100%; height: 100%; object-fit: cover; }
++  p { margin: 0; padding: 14px; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical; overflow: hidden; }
++}
+diff --git a/frontend/src/app/features/community/pages/public-profile/public-profile.component.ts b/frontend/src/app/features/community/pages/public-profile/public-profile.component.ts
+new file mode 100644
+index 0000000..058ed79
+--- /dev/null
++++ b/frontend/src/app/features/community/pages/public-profile/public-profile.component.ts
+@@ -0,0 +1,71 @@
++import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
++import { CommonModule } from '@angular/common';
++import { ActivatedRoute, RouterModule } from '@angular/router';
++import { CommunityService, PublicProfile } from '../../services/community.service';
++import { AuthService } from '../../../../core/auth.service';
++import { AuthModalService } from '../../../../core/auth-modal.service';
++import { Post } from '../../models/post.model';
++
++@Component({
++  selector: 'app-public-profile',
++  standalone: true,
++  imports: [CommonModule, RouterModule],
++  templateUrl: './public-profile.component.html',
++  styleUrl: './public-profile.component.scss'
++})
++export class PublicProfileComponent implements OnInit {
++  private route = inject(ActivatedRoute);
++  private community = inject(CommunityService);
++  private auth = inject(AuthService);
++  private authModal = inject(AuthModalService);
++  private cdr = inject(ChangeDetectorRef);
++
++  profile: PublicProfile | null = null;
++  posts: Post[] = [];
++  loading = true;
++  notFound = false;
++  followBusy = false;
++
++  ngOnInit(): void {
++    this.route.paramMap.subscribe(params => {
++      const id = params.get('userId');
++      if (id) this.load(id);
++    });
++  }
++
++  private load(userId: string): void {
++    this.loading = true;
++    this.notFound = false;
++    this.community.getPublicProfile(userId).subscribe({
++      next: p => {
++        this.profile = p;
++        this.loading = false;
++        this.cdr.markForCheck();
++        this.community.getFeed(1, 30, 'MY_POST', 'created_at', userId).subscribe(res => {
++          this.posts = res.data;
++          this.cdr.markForCheck();
++        });
++      },
++      error: () => { this.loading = false; this.notFound = true; this.cdr.markForCheck(); }
++    });
++  }
++
++  toggleFollow(): void {
++    if (!this.profile || this.followBusy) return;
++    if (!this.auth.isAuthenticated()) { this.authModal.open('login'); return; }
++    this.followBusy = true;
++    this.community.toggleFollow(this.profile.user_id).subscribe({
++      next: res => {
++        this.profile!.is_following = res.following;
++        this.profile!.follower_count += res.following ? 1 : -1;
++        this.followBusy = false;
++        this.cdr.markForCheck();
++      },
++      error: () => { this.followBusy = false; this.cdr.markForCheck(); }
++    });
++  }
++
++  initials(name: string): string {
++    return (name || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase();
++  }
++}
+diff --git a/frontend/src/app/features/community/services/community.service.ts b/frontend/src/app/features/community/services/community.service.ts
+index 258e66d..d02784c 100644
+--- a/frontend/src/app/features/community/services/community.service.ts
++++ b/frontend/src/app/features/community/services/community.service.ts
+@@ -13,6 +13,20 @@ export interface FeedResponse {
+   limit: number;
+ }
+ 
++export interface PublicProfile {
++  user_id: string;
++  username: string;
++  avatar_url: string | null;
++  membership_tier: 'Seed' | 'Leaf' | 'Bloom' | 'Zen';
++  ritual_dna_completed: boolean;
++  joined_at: string;
++  post_count: number;
++  follower_count: number;
++  following_count: number;
++  is_following: boolean;
++  is_self: boolean;
++}
++
+ export interface CommentsResponse {
+   data: Comment[];
+   total: number;
+@@ -36,7 +50,7 @@ export class CommunityService {
+     posts: [] as Post[],
+     page: 1,
+     hasMore: true,
+-    activeCategory: '' as 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '',
++    activeCategory: '' as 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '',
+     sort: 'created_at' as 'created_at' | 'like_count',
+     scrollY: 0
+   };
+@@ -46,7 +60,7 @@ export class CommunityService {
+   getFeed(
+     page: number = 1,
+     limit: number = 9,
+-    activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | '' = '',
++    activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '' = '',
+     sort: 'created_at' | 'like_count' = 'created_at',
+     userId?: string
+   ): Observable<FeedResponse> {
+@@ -55,6 +69,8 @@ export class CommunityService {
+       url += `&base=${activeCategory}`;
+     } else if (activeCategory === 'RECIPE') {
+       url += `&post_type=recipe`;
++    } else if (activeCategory === 'FOLLOWING') {
++      url += `&following=true`;
+     } else if (activeCategory === 'MY_POST' && userId) {
+       url += `&user_id=${userId}`;
+     }
+@@ -98,6 +114,20 @@ export class CommunityService {
+     );
+   }
+ 
++  getPublicProfile(userId: string): Observable<PublicProfile> {
++    return this.http.get<PublicProfile>(`/api/profiles/${userId}`);
++  }
++
++  // ── Follow ──
++
++  toggleFollow(userId: string): Observable<{ following: boolean }> {
++    return this.http.post<{ following: boolean }>(`/api/follows/${userId}`, {});
++  }
++
++  getFollowingIds(): Observable<{ data: string[] }> {
++    return this.http.get<{ data: string[] }>('/api/follows/ids');
++  }
++
+   // ── Comments ──
+ 
+   getComments(postId: string, page: number = 1, limit: number = 50): Observable<CommentsResponse> {
+@@ -122,6 +152,12 @@ export class CommunityService {
+     return this.http.delete<{ message: string }>(`${this.commentsApiUrl}/${id}`);
+   }
+ 
++  reportComment(id: string, reason: string, note: string): Observable<{ message: string }> {
++    return this.http.post<{ message: string }>(
++      `${this.commentsApiUrl}/${id}/report`, { reason, note }
++    );
++  }
++
+   likeComment(id: string, action: 'like' | 'unlike'): Observable<{ message: string; like_count: number }> {
+     return this.http.post<{ message: string; like_count: number }>(
+       `${this.commentsApiUrl}/${id}/like`,
+diff --git a/frontend/src/app/shared/components/support-chat/support-chat.component.html b/frontend/src/app/shared/components/support-chat/support-chat.component.html
+new file mode 100644
+index 0000000..48c5a2b
+--- /dev/null
++++ b/frontend/src/app/shared/components/support-chat/support-chat.component.html
+@@ -0,0 +1,57 @@
++@if (isLoggedIn()) {
++  @if (open) {
++    <section class="sc-panel" role="dialog" aria-label="Customer support chat">
++      <header class="sc-head">
++        <div>
++          <strong>Offsite Support</strong>
++          <small>
++            @switch (conversation?.status) {
++              @case ('waiting') { Waiting for an agent… }
++              @case ('open') { An agent is with you }
++              @case ('closed') { Conversation ended }
++              @default { We usually reply within minutes }
++            }
++          </small>
++        </div>
++        <button type="button" class="sc-close" (click)="toggle()" aria-label="Close chat">×</button>
++      </header>
++
++      @if (!conversation) {
++        <div class="sc-start">
++          <p>Need help with an order, voucher or product?</p>
++          <button type="button" class="sc-btn" (click)="startChat()" [disabled]="loading">
++            {{ loading ? 'Connecting…' : 'Chat with support' }}
++          </button>
++        </div>
++      } @else {
++        <div class="sc-thread" #thread>
++          @for (m of messages; track m._id || $index) {
++            <div class="sc-bubble sc-bubble--{{ m.sender_type }}" [class.sc-bubble--me]="m.sender_type === 'customer'">
++              <p>{{ m.content }}</p>
++              <time>{{ m.created_at | date: 'HH:mm' }}</time>
++            </div>
++          }
++          @if (agentTyping) { <div class="sc-typing">Agent is typing…</div> }
++        </div>
++
++        @if (isClosed) {
++          <div class="sc-closed">
++            This conversation has ended.
++            <button type="button" class="sc-link" (click)="newChat()">Start a new chat</button>
++          </div>
++        } @else {
++          <footer class="sc-compose">
++            <textarea rows="1" [(ngModel)]="draft" (input)="onDraftInput()" (keydown)="onKey($event)" placeholder="Type a message…"></textarea>
++            <button type="button" class="sc-btn" (click)="send()" [disabled]="!draft.trim()">Send</button>
++          </footer>
++        }
++      }
++    </section>
++  }
++
++  <button type="button" class="sc-fab" (click)="toggle()" [attr.aria-expanded]="open" aria-label="Open support chat">
++    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
++      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
++    </svg>
++  </button>
++}
+diff --git a/frontend/src/app/shared/components/support-chat/support-chat.component.scss b/frontend/src/app/shared/components/support-chat/support-chat.component.scss
+new file mode 100644
+index 0000000..b343fed
+--- /dev/null
++++ b/frontend/src/app/shared/components/support-chat/support-chat.component.scss
+@@ -0,0 +1,44 @@
++$forest: var(--color-forest-green, #2f4a3a);
++$border: #e6dfd6;
++
++.sc-fab {
++  position: fixed; right: 20px; bottom: 20px; z-index: 900; width: 54px; height: 54px; border-radius: 50%;
++  border: 0; background: $forest; color: #fff; display: grid; place-items: center; cursor: pointer;
++  box-shadow: 0 6px 18px rgba(0, 0, 0, .2);
++}
++
++.sc-panel {
++  position: fixed; right: 20px; bottom: 86px; z-index: 900; width: 340px; max-width: calc(100vw - 24px);
++  height: 460px; max-height: calc(100vh - 120px); display: flex; flex-direction: column;
++  background: #fffdf9; border: 1px solid $border; border-radius: 16px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); overflow: hidden;
++}
++
++.sc-head {
++  display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: $forest; color: #fff;
++  small { display: block; font-size: 11px; opacity: .85; }
++}
++.sc-close { background: transparent; border: 0; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; }
++
++.sc-start { margin: auto; text-align: center; padding: 20px; p { margin: 0 0 12px; font-size: 14px; } }
++
++.sc-thread { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
++.sc-bubble {
++  max-width: 80%; padding: 8px 12px; border-radius: 12px; background: #f1ece3; align-self: flex-start; font-size: 14px;
++  p { margin: 0; white-space: pre-wrap; word-break: break-word; }
++  time { display: block; font-size: 10px; color: #8b8378; margin-top: 2px; }
++  &--bot { background: #e9eef6; }
++  &--me { align-self: flex-end; background: $forest; color: #fff; time { color: #cfdccf; } }
++  &--system { align-self: center; background: transparent; font-size: 12px; color: #8b8378; }
++}
++.sc-typing { font-size: 12px; color: #8b8378; }
++
++.sc-compose {
++  display: flex; gap: 8px; padding: 10px; border-top: 1px solid $border;
++  textarea { flex: 1; resize: none; border: 1px solid $border; border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 14px; }
++}
++.sc-btn {
++  border: 0; background: $forest; color: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 600; cursor: pointer;
++  &:disabled { opacity: .5; cursor: not-allowed; }
++}
++.sc-closed { padding: 12px; text-align: center; font-size: 13px; border-top: 1px solid $border; }
++.sc-link { background: none; border: 0; color: $forest; font-weight: 600; text-decoration: underline; cursor: pointer; }
+diff --git a/frontend/src/app/shared/components/support-chat/support-chat.component.ts b/frontend/src/app/shared/components/support-chat/support-chat.component.ts
+new file mode 100644
+index 0000000..4c088f5
+--- /dev/null
++++ b/frontend/src/app/shared/components/support-chat/support-chat.component.ts
+@@ -0,0 +1,156 @@
++import { ChangeDetectorRef, Component, ElementRef, OnDestroy, ViewChild, effect, inject } from '@angular/core';
++import { CommonModule, DatePipe } from '@angular/common';
++import { FormsModule } from '@angular/forms';
++import { Subscription } from 'rxjs';
++import { ChatConversation, ChatMessage, ChatService } from '../../../core/services/chat.service';
++import { AuthService } from '../../../core/auth.service';
++
++@Component({
++  selector: 'app-support-chat',
++  standalone: true,
++  imports: [CommonModule, FormsModule, DatePipe],
++  templateUrl: './support-chat.component.html',
++  styleUrl: './support-chat.component.scss'
++})
++export class SupportChatComponent implements OnDestroy {
++  private chat = inject(ChatService);
++  private auth = inject(AuthService);
++  private cdr = inject(ChangeDetectorRef);
++  private subs = new Subscription();
++
++  @ViewChild('thread') private thread?: ElementRef<HTMLElement>;
++
++  isLoggedIn = this.auth.isAuthenticated;
++  open = false;
++  loading = false;
++  conversation: ChatConversation | null = null;
++  messages: ChatMessage[] = [];
++  draft = '';
++  agentTyping = false;
++  private typingTimer: any = null;
++  private stopTypingTimer: any = null;
++
++  constructor() {
++    // Drop the socket and local state on logout so the next user starts clean.
++    effect(() => {
++      if (!this.isLoggedIn()) {
++        this.chat.disconnect();
++        this.listening = false;
++        this.subs.unsubscribe();
++        this.subs = new Subscription();
++        this.open = false;
++        this.conversation = null;
++        this.messages = [];
++      }
++    });
++  }
++
++  get myId(): string | undefined { return this.auth.currentUser()?.user_id; }
++  get isClosed(): boolean { return this.conversation?.status === 'closed'; }
++
++  toggle(): void {
++    this.open = !this.open;
++    if (this.open && !this.conversation && !this.loading) this.load();
++  }
++
++  private load(): void {
++    this.loading = true;
++    this.chat.connect();
++    this.listen();
++    this.chat.getMine().subscribe({
++      next: res => {
++        this.loading = false;
++        if (res.data) this.attach(res.data);
++        this.cdr.markForCheck();
++      },
++      error: () => { this.loading = false; this.cdr.markForCheck(); }
++    });
++  }
++
++  private listening = false;
++  private listen(): void {
++    if (this.listening) return;
++    this.listening = true;
++    this.subs.add(this.chat.message$.subscribe(m => {
++      if (m.conversation_id !== this.conversation?.conversation_id) return;
++      this.messages = [...this.messages, m];
++      this.agentTyping = false;
++      this.scrollSoon();
++      this.cdr.markForCheck();
++    }));
++    this.subs.add(this.chat.conversation$.subscribe(c => {
++      if (c.customer_id !== this.myId) return;
++      if (!this.conversation || this.conversation.conversation_id === c.conversation_id) {
++        this.attach(c);
++        this.cdr.markForCheck();
++      }
++    }));
++    this.subs.add(this.chat.typing$.subscribe(t => {
++      if (t.conversation_id !== this.conversation?.conversation_id || t.user_id === this.myId) return;
++      this.agentTyping = t.typing;
++      clearTimeout(this.typingTimer);
++      if (t.typing) this.typingTimer = setTimeout(() => { this.agentTyping = false; this.cdr.markForCheck(); }, 4000);
++      this.cdr.markForCheck();
++    }));
++  }
++
++  private attach(c: ChatConversation): void {
++    const isNew = this.conversation?.conversation_id !== c.conversation_id;
++    this.conversation = c;
++    if (!isNew) return;
++    this.messages = [];
++    this.chat.joinConversation(c.conversation_id);
++    this.chat.messages(c.conversation_id).subscribe(res => {
++      this.messages = res.data;
++      this.scrollSoon();
++      this.cdr.markForCheck();
++    });
++  }
++
++  startChat(): void {
++    this.loading = true;
++    this.chat.start().subscribe({
++      next: res => { this.loading = false; this.attach(res.data); this.cdr.markForCheck(); },
++      error: () => { this.loading = false; this.cdr.markForCheck(); }
++    });
++  }
++
++  newChat(): void {
++    this.conversation = null;
++    this.messages = [];
++    this.startChat();
++  }
++
++  onDraftInput(): void {
++    if (!this.conversation) return;
++    this.chat.typing(this.conversation.conversation_id, true);
++    clearTimeout(this.stopTypingTimer);
++    this.stopTypingTimer = setTimeout(() => this.chat.typing(this.conversation!.conversation_id, false), 2000);
++  }
++
++  send(): void {
++    const text = this.draft.trim();
++    if (!text || !this.conversation || this.isClosed) return;
++    this.chat.send(this.conversation.conversation_id, text);
++    this.chat.typing(this.conversation.conversation_id, false);
++    this.draft = '';
++  }
++
++  onKey(e: KeyboardEvent): void {
++    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); }
++  }
++
++  ngOnDestroy(): void {
++    this.subs.unsubscribe();
++    clearTimeout(this.typingTimer);
++    clearTimeout(this.stopTypingTimer);
++    this.chat.disconnect();
++  }
++
++  private scrollSoon(): void {
++    setTimeout(() => {
++      const el = this.thread?.nativeElement;
++      if (el) el.scrollTop = el.scrollHeight;
++    }, 0);
++  }
++}
