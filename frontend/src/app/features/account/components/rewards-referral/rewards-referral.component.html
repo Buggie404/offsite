@@ -118,13 +118,10 @@
     </section>
 
     <section class="dashboard-card referral-section" aria-labelledby="referral-title">
-      <div class="card-heading referral-heading">
-        <div>
-          <h2 id="referral-title" class="card-eyebrow">INVITE FRIENDS</h2>
-          <p>Share your personal link with someone who loves discovering good things.</p>
-        </div>
-        <svg lucideUsers [size]="22" aria-hidden="true"></svg>
-      </div>
+      <h2 id="referral-title" class="card-eyebrow">INVITE FRIENDS</h2>
+      <p class="referral-desc">
+        You both get <strong>100 points</strong> when they sign up, and <strong>100 more</strong> after their first confirmed order.
+      </p>
 
       @if (dashboard()?.welcomeVoucherCode) {
         <p class="welcome-voucher-note">
@@ -132,18 +129,18 @@
         </p>
       }
 
-      <div class="referral-link-card">
-        <div class="referral-link-copy">
-          <span>YOUR PERSONAL REFERRAL LINK</span>
-          @if (activeReferralCode) {
-            <strong>{{ referralLink }}</strong>
-          } @else {
-            <strong class="referral-unavailable">Your referral link is not available yet.</strong>
-          }
+      <div class="referral-share-row">
+        <div class="referral-code-box" [class.referral-code-box--empty]="!activeReferralCode">
+          {{ activeReferralCode || 'Unavailable' }}
         </div>
-        <button class="copy-button" type="button" [disabled]="!activeReferralCode" (click)="copyReferralLink()">
-          <svg lucideCopy [size]="15" aria-hidden="true"></svg>
-          <span>Copy</span>
+        <button
+          class="referral-share-btn"
+          type="button"
+          [disabled]="!activeReferralCode"
+          (click)="openShareModal()"
+        >
+          <svg lucideShare2 [size]="12" aria-hidden="true"></svg>
+          <span>Share</span>
         </button>
       </div>
 
@@ -175,6 +172,17 @@
         </table>
       </div>
     </section>
+  }
+
+  @if (showShareModal()) {
+    <app-share-modal
+      [shareUrl]="referralLink"
+      [title]="'Invite friends'"
+      [linkLabel]="'Referral link'"
+      [tagline]="referralShareTagline"
+      [shareText]="referralShareMessage"
+      (close)="closeShareModal()"
+    />
   }
 
   @if (showTierInfo()) {

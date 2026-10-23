@@ -11,7 +11,10 @@ import { CommonModule } from '@angular/common';
 export class ShareModalComponent {
   // URL của post cần share — post-detail truyền vào (thường là window.location.href)
   @Input() shareUrl = '';
+  @Input() title = 'Share this post';
+  @Input() linkLabel = 'Story link';
   @Input() tagline = 'Crafting connections through every shared cup.';
+  @Input() shareText = '';
 
   @Output() close = new EventEmitter<void>();
 
@@ -25,27 +28,38 @@ export class ShareModalComponent {
     this.close.emit();
   }
 
+  private get composedShareText(): string {
+    if (this.shareText.trim()) return this.shareText.trim();
+    return `${this.tagline} ${this.shareUrl}`.trim();
+  }
+
   shareToFacebook(): void {
-    const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(this.shareUrl)}`;
+    const quote = this.composedShareText;
+    const url = quote
+      ? `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(this.shareUrl)}&quote=${encodeURIComponent(quote)}`
+      : `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(this.shareUrl)}`;
     window.open(url, '_blank', 'noopener,noreferrer,width=600,height=600');
   }
 
   shareToX(): void {
-    const url = `https://twitter.com/intent/tweet?url=${encodeURIComponent(this.shareUrl)}`;
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(this.composedShareText)}`;
     window.open(url, '_blank', 'noopener,noreferrer,width=600,height=600');
   }
 
   // WhatsApp cho share trực tiếp qua URL, hoạt động cả mobile (mở app) lẫn desktop (fallback WhatsApp Web)
   shareToWhatsApp(): void {
-    const text = `${this.tagline} ${this.shareUrl}`;
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    const url = `https://wa.me/?text=${encodeURIComponent(this.composedShareText)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   // "More" — mở share sheet gốc của hệ điều hành nếu hỗ trợ, không thì copy link
   shareMore(): void {
     if (navigator.share) {
-      navigator.share({ url: this.shareUrl }).catch(() => {});
+      navigator.share({
+        title: this.title,
+        text: this.composedShareText,
+        url: this.shareUrl
+      }).catch(() => {});
     } else {
       this.copyToClipboard();
     }

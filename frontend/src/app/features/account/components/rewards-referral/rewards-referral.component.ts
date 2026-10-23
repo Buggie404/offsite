@@ -1,7 +1,8 @@
 import { Component, EventEmitter, Input, OnInit, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { LucideCopy, LucideGift, LucideInfo, LucideUsers, LucideX } from '@lucide/angular';
+import { LucideGift, LucideInfo, LucideShare2, LucideX } from '@lucide/angular';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { ShareModalComponent } from '../../../community/components/share-modal/share-modal.component';
 import {
   LoyaltyDashboard,
   LoyaltyService
@@ -19,7 +20,7 @@ interface TierTheme {
 @Component({
   selector: 'app-rewards-referral',
   standalone: true,
-  imports: [CommonModule, LucideCopy, LucideGift, LucideInfo, LucideUsers, LucideX],
+  imports: [CommonModule, LucideGift, LucideInfo, LucideShare2, LucideX, ShareModalComponent],
   templateUrl: './rewards-referral.component.html',
   styleUrl: './rewards-referral.component.scss'
 })
@@ -35,7 +36,10 @@ export class RewardsReferralComponent implements OnInit {
   loading = signal(true);
   redeemingId = signal<string | null>(null);
   showTierInfo = signal(false);
+  showShareModal = signal(false);
   dashboard = signal<LoyaltyDashboard | null>(null);
+
+  readonly referralShareTagline = 'Join me on Offsite — slow rituals, specialty matcha and coffee.';
 
   readonly tierModalTiers: MembershipTier[] = ['Seed', 'Leaf', 'Bloom', 'Zen'];
 
@@ -86,6 +90,11 @@ export class RewardsReferralComponent implements OnInit {
   get referralLink(): string {
     const path = '/?ref=' + encodeURIComponent(this.activeReferralCode);
     return typeof window === 'undefined' ? path : new URL(path, window.location.origin).toString();
+  }
+
+  get referralShareMessage(): string {
+    if (!this.activeReferralCode) return '';
+    return `Join Offsite with my referral code ${this.activeReferralCode}. We both earn reward points when you sign up and complete your first order. ${this.referralLink}`;
   }
 
   get progressLabel(): string {
@@ -147,6 +156,18 @@ export class RewardsReferralComponent implements OnInit {
     this.showTierInfo.set(false);
   }
 
+  openShareModal(): void {
+    if (!this.activeReferralCode) {
+      this.toastService.error('Your referral code is not available yet.');
+      return;
+    }
+    this.showShareModal.set(true);
+  }
+
+  closeShareModal(): void {
+    this.showShareModal.set(false);
+  }
+
   async redeem(rewardId: string): Promise<void> {
     if (this.redeemingId()) return;
 
@@ -166,26 +187,6 @@ export class RewardsReferralComponent implements OnInit {
       this.toastService.error('Could not redeem this reward.');
     } finally {
       this.redeemingId.set(null);
-    }
-  }
-
-  async copyReferralLink(): Promise<void> {
-    if (!this.activeReferralCode) {
-      this.toastService.error('Your referral link is not available yet.');
-      return;
-    }
-
-    if (typeof navigator === 'undefined' || !navigator.clipboard) {
-      this.toastService.error('Clipboard access is unavailable in this browser.');
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(this.referralLink);
-      this.toastService.success('Referral link copied.');
-    } catch (error) {
-      console.error('Failed to copy referral link:', error);
-      this.toastService.error('Could not copy the referral link. Please try again.');
     }
   }
 

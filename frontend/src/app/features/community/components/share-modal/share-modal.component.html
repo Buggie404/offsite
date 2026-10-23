@@ -7,7 +7,7 @@
       </svg>
     </button>
 
-    <h2 class="share-title">Share this post</h2>
+    <h2 class="share-title">{{ title }}</h2>
 
     <!-- Share via social -->
     <div class="share-section">
@@ -58,7 +58,7 @@
 
     <!-- Story link -->
     <div class="share-section">
-      <p class="share-label share-label--left">Story link</p>
+      <p class="share-label share-label--left">{{ linkLabel }}</p>
 
       <div class="link-row">
         <input class="link-input" type="text" readonly [value]="shareUrl" (click)="copyToClipboard()" />

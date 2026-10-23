@@ -288,79 +288,77 @@ td {
   }
 }
 
-.referral-heading {
-  margin-bottom: 14px;
+.referral-desc {
+  margin: 8px 0 18px;
+  color: #4a4541;
+  font-size: 14px;
+  line-height: 1.55;
 
-  p {
-    margin: 6px 0 0;
-    color: #786e68;
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  svg {
-    flex: 0 0 auto;
-    color: #76653f;
+  strong {
+    font-weight: 700;
   }
 }
 
-.referral-link-card {
+.referral-share-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
-  border: 1px solid #e8e0da;
-  border-radius: 8px;
-  background: #fcf8f5;
+  gap: 12px;
+  width: 100%;
 }
 
-.referral-link-copy {
+.referral-code-box {
   display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 6px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  min-width: 120px;
+  padding: 0 16px;
+  border: 1px solid #d9d2cb;
+  border-radius: 6px;
+  background: #fff;
+  color: #1a1a1a;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 
-  span {
-    color: #796e68;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-  }
-
-  strong {
-    overflow: hidden;
-    color: #37312d;
-    font-family: var(--font-mono);
+  &--empty {
+    color: #9a918a;
+    font-style: italic;
+    font-family: var(--font-body);
     font-size: 12px;
-    font-weight: 400;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    letter-spacing: 0;
   }
 }
 
-.referral-unavailable {
-  font-style: italic;
-}
-
-.copy-button {
+.referral-share-btn {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 34px;
+  height: 40px;
   padding: 0 12px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--color-forest-green);
   color: #fff;
   cursor: pointer;
   font: 600 10px var(--font-body);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
 
   &:disabled {
     cursor: not-allowed;
-    opacity: 0.55;
+    opacity: 0.45;
+  }
+
+  &:not(:disabled):hover {
+    background: #2f4230;
   }
 }
 
@@ -518,8 +516,11 @@ td {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .referral-link-card {
-    align-items: stretch;
-    flex-direction: column;
+  .referral-share-row {
+    flex-wrap: wrap;
+  }
+
+  .referral-share-btn {
+    margin-left: auto;
   }
 }
