@@ -14,8 +14,6 @@ export interface AdminNavGroup {
 }
 
 // Nhóm quyền — chỉ dùng 3 role thực tế trong DB: admin_cc, cskh, qlsp
-const ALL_ADMIN_ROLES: readonly AdminRole[] = ['admin_cc', 'cskh', 'qlsp'];
-
 // Sales Operations: admin_cc + qlsp
 const SALES_OPS_ROLES: readonly AdminRole[] = ['admin_cc', 'qlsp'];
 
@@ -29,7 +27,9 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
   {
     label: '',
     items: [
-      { label: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard', roles: ALL_ADMIN_ROLES }
+      { label: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard', roles: SYSTEM_ROLES },
+      { label: 'Dashboard', path: '/admin/salesops-dashboard', icon: 'dashboard', roles: ['qlsp'] as const },
+      { label: 'Dashboard', path: '/admin/servicesops-dashboard', icon: 'dashboard', roles: ['cskh'] as const }
     ]
   },
   {
@@ -70,7 +70,7 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
 ];
 
 export const ADMIN_DEFAULT_ROUTES: Record<AdminRole, string> = {
-  admin_cc: '/admin/orders',
-  cskh:     '/admin/chat',
-  qlsp:     '/admin/orders',
+  admin_cc: '/admin/dashboard',
+  cskh:     '/admin/servicesops-dashboard',
+  qlsp:     '/admin/salesops-dashboard',
 };

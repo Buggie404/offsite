@@ -6,27 +6,13 @@ const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
 
 function getDateFromRange(dateRange) {
-  const now = new Date();
+  const days = { today: 1, '7': 7, '30': 30, '90': 90 }[dateRange] || 30;
   const from = new Date();
-
-  switch (dateRange) {
-    case 'today':
-      from.setHours(0, 0, 0, 0);
-      return from;
-    case '7':
-      from.setDate(now.getDate() - 7);
-      return from;
-    case '90':
-      from.setDate(now.getDate() - 90);
-      return from;
-    case 'custom':
-      from.setDate(now.getDate() - 30);
-      return from;
-    case '30':
-    default:
-      from.setDate(now.getDate() - 30);
-      return from;
-  }
+  from.setHours(0, 0, 0, 0);
+  // The selected calendar day is included, so a 30-day range starts 29 days
+  // ago. This matches the Dashboard filter and the label shown in the Orders UI.
+  from.setDate(from.getDate() - (days - 1));
+  return from;
 }
 
 function parseDateInput(value) {

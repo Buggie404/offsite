@@ -1,0 +1,10 @@
+<section class="services-dashboard" aria-label="Services-Ops dashboard">
+  <header class="page-header"><div class="page-header__left"><h1>Dashboard</h1><p>{{ greeting }}, Offsite Official · Services-Ops</p></div></header>
+  @if (loading) { <div class="skeleton"><span></span><span></span><span></span><span></span></div> }
+  @else if (!data) { <div class="state">{{ error || 'Dashboard data could not be loaded.' }} <button (click)="load()">Try again</button></div> }
+  @else {
+    @if (error) { <div class="error">{{ error }} <button (click)="load()">Try again</button></div> }
+    <div class="kpis"><article><span>Chats waiting</span><strong>{{ data.kpis.chats_waiting | number }}</strong></article><article><span>Reports to review</span><strong>{{ data.kpis.reports_to_review | number }}</strong></article><article><span>Restricted customers</span><strong>{{ data.kpis.restricted_customers | number }}</strong></article><article><span>Avg. first response</span><strong>{{ formatFirstResponse(data.kpis.avg_first_response_ms) }}</strong></article></div>
+    <article class="todo"><h2>To do today</h2><button (click)="navigate('/admin/chat', { status: 'waiting' })"><span>◧ Chats waiting</span><b>{{ data.todos.chats_waiting }}</b><i>›</i></button><button (click)="navigate('/admin/community-reports')"><span>⚑ Reports to review</span><b>{{ data.todos.reports_to_review }}</b><i>›</i></button><button (click)="navigate('/admin/recipes', { status: 'awaiting_approval' })"><span>♨ Recipes awaiting approval</span><b>{{ data.todos.recipes_awaiting_approval }}</b><i>›</i></button><button (click)="navigate('/admin/vouchers')"><span>▣ Support vouchers issued today</span><b>{{ data.todos.support_vouchers_issued_today }}</b><i>›</i></button></article>
+  }
+</section>

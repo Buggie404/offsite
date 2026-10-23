@@ -94,8 +94,8 @@ export class AdminAuthService {
   }
 
   getDefaultRoute(): string {
-    // Always go to dashboard after login, regardless of role
-    return '/admin/dashboard';
+    const role = this.getAdminRole();
+    return role ? ADMIN_DEFAULT_ROUTES[role] : '/admin/403';
   }
 
   private getActiveStorage(): Storage | null {

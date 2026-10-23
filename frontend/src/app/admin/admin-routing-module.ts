@@ -15,6 +15,8 @@ import { OrderDetailComponent } from './orders/pages/order-detail/order-detail.c
 const SALES_OPS_ROLES    = ['admin_cc', 'qlsp'] as const;
 const SERVICES_OPS_ROLES = ['admin_cc', 'cskh'] as const;
 const SYSTEM_ROLES       = ['admin_cc'] as const;
+const SALES_DASHBOARD_ROLES = ['admin_cc', 'qlsp'] as const;
+const SERVICES_DASHBOARD_ROLES = ['admin_cc', 'cskh'] as const;
 
 // One route for /subscriptions and /subscriptions/:id so opening the drawer keeps the list mounted.
 function subscriptionsMatcher(segments: UrlSegment[]): UrlMatchResult | null {
@@ -44,6 +46,27 @@ const routes: Routes = [
         pathMatch: 'full',
         canActivate: [adminHomeGuard],
         children: []
+      },
+      {
+        path: 'dashboard',
+        loadComponent: () =>
+          import('./dashboard/pages/dashboard/dashboard.component').then((m) => m.AdminDashboardComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SYSTEM_ROLES }
+      },
+      {
+        path: 'salesops-dashboard',
+        loadComponent: () =>
+          import('./sales-dashboard/pages/sales-dashboard/sales-dashboard.component').then((m) => m.SalesDashboardComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SALES_DASHBOARD_ROLES }
+      },
+      {
+        path: 'servicesops-dashboard',
+        loadComponent: () =>
+          import('./services-dashboard/pages/services-dashboard/services-dashboard.component').then((m) => m.ServicesDashboardComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SERVICES_DASHBOARD_ROLES }
       },
 
       // ── Sales Operations ──────────────────────────────────────────────────

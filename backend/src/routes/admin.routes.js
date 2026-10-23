@@ -4,6 +4,7 @@ const adminController = require('../controllers/admin.controller');
 const adminSubscriptionsController = require('../controllers/admin-subscriptions.controller');
 const authController = require('../controllers/auth.controller');
 const adminCommunityController = require('../controllers/admin-community.controller');
+const adminDashboardController = require('../controllers/admin-dashboard.controller');
 const {
   authMiddleware,
   requireRole,
@@ -15,6 +16,9 @@ const { adminActivityLog } = require('../middleware/adminActivityLog.middleware'
 router.post('/login', authController.adminLogin);
 
 router.get('/activity-logs', authMiddleware, requireRole('admin_cc'), adminController.getActivityLogs);
+router.get('/dashboard', authMiddleware, requireRole('admin_cc'), adminDashboardController.getDashboard);
+router.get('/sales-dashboard', authMiddleware, requireRole('admin_cc', 'qlsp'), adminDashboardController.getSalesDashboard);
+router.get('/services-dashboard', authMiddleware, requireRole('admin_cc', 'cskh'), adminDashboardController.getServicesDashboard);
 
 router.get('/orders', authMiddleware, adminActivityLog, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminController.getAllOrders);
 router.get('/orders/:id', authMiddleware, adminActivityLog, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminController.getOrderById);
