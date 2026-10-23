@@ -79,6 +79,7 @@ import { InlineValidator, FieldConfig } from '../../../../shared/utils/inline-va
 import { TIER_POINT_MULTIPLIER, UserAddress, UserPaymentMethod, UserProfile } from '../../../../shared/models/user.model';
 import { AddressModalComponent } from '../../../../shared/components/address-modal/address-modal.component';
 import { PaymentModalComponent } from '../../components/payment-modal/payment-modal.component';
+import { isMeaningfulVariantLabel } from '../../../../shared/utils/variant-label';
 
 const VIETNAM_BANK_LIST = ['Vietcombank','BIDV','Techcombank','VietinBank','Agribank','MB Bank','VPBank','ACB','Sacombank','TPBank','VIB','SHB','MSB','SeABank'];
 
@@ -116,6 +117,9 @@ const VIETNAM_BANK_LIST = ['Vietcombank','BIDV','Techcombank','VietinBank','Agri
   styleUrl: './checkout.component.scss'
 })
 export class CheckoutComponent implements OnInit, OnDestroy {
+  /** Hide empty / "Default" variant labels (products without real variants). */
+  readonly isMeaningfulVariantLabel = isMeaningfulVariantLabel;
+
   private checkoutService = inject(CheckoutService);
   authService = inject(AuthService);
   private router = inject(Router);
@@ -2223,6 +2227,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           last4: selectedCard.card_number.slice(-4),
           cardholder_name: selectedCard.cardholder_name
         };
+        // Ritual Box lines are billed to this exact saved card on every later cycle.
+        paymentPayload.payment_method_id = selectedCard._id;
       }
     }
 

@@ -60,7 +60,8 @@ const subscriptionSchema = new mongoose.Schema({
   },
 
   pricing_snapshot:  { type: pricingSnapshotSchema, required: true },
-  payment_method_id: { type: String, default: null },             // _id của Users.payment_methods[] dùng để auto-charge
+  // Required: the recurring part is always billed to a saved credit/debit card.
+  payment_method_id: { type: String, required: true },             // _id của Users.payment_methods[] dùng để auto-charge
   delivery_info:     { type: deliveryInfoSchema, required: true },
   shipping_method:   { type: String, enum: ['standard', 'express'], default: 'standard' },
 
@@ -88,6 +89,10 @@ const subscriptionSchema = new mongoose.Schema({
   last_failed_at:      { type: Date, default: null },
   next_retry_at:       { type: Date, default: null },             // thử lại sau 24h → 48h → 72h, rồi suspended
   last_charged_at:     { type: Date, default: null },
+  // Charge job bookkeeping: claim lease so overlapping runs never charge twice, and the
+  // next_charge_at that SUBSCRIPTION_UPCOMING was already sent for.
+  charge_locked_until:   { type: Date, default: null },
+  upcoming_notified_for: { type: Date, default: null },
   source_order_id:     { type: String, default: null },           // đơn checkout tạo ra subscription này
 
   // Tạm dừng: 1 tháng, 2 tháng, hoặc đến khi khách kích hoạt lại (resume_at = null).

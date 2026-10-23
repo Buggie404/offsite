@@ -138,6 +138,8 @@ const orderSchema = new mongoose.Schema({
 
   // ─── Subscription (only on orders created by the scheduler) ─
   subscription_id:    { type: String, default: null, index: true }, // ref: Subscriptions.subscription_id
+  // Checkout with Ritual Box lines: saved card (Users.payment_methods._id) the subscription is billed to.
+  subscription_payment_method_id: { type: String, default: null },
   subscription_cycle: { type: Number, default: null, min: 1 },      // lần giao thứ mấy của subscription
 
   // ─── Admin internal notes ─────────────────────────────────

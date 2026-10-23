@@ -22,14 +22,12 @@ export function getSubscriptionFrequencyLabel(days: SubscriptionFrequencyDays | 
   return SUBSCRIPTION_FREQUENCY_OPTIONS.find(option => option.days === days)?.label ?? '';
 }
 
-// Subscribe & Save is only offered for coffee & matcha flagged as subscribable.
+// Subscribe & Save is only offered for coffee & matcha flagged is_subscribable —
+// the same flag the backend checks when it prices a subscription line.
 export function isSubscriptionEligibleProduct(product: Partial<Product> | null | undefined): boolean {
   if (!product) return false;
-  const flags = product as any;
-  const enabled = flags.is_subscribable === true
-    || flags.is_subscription === true
-    || flags.is_subscribable === 'true'
-    || flags.is_subscription === 'true';
+  const flag = (product as any).is_subscribable;
+  const enabled = flag === true || flag === 'true';
   return (product.category === 'coffee' || product.category === 'matcha') && enabled;
 }
 

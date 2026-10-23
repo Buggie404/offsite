@@ -26,7 +26,12 @@ const notificationSchema = new mongoose.Schema({
       'REFUND_REJECTED',
       'SUBSCRIPTION_PAUSED',
       'SUBSCRIPTION_RESUMED',
-      'SUBSCRIPTION_CANCELLED'
+      'SUBSCRIPTION_CANCELLED',
+      'SUBSCRIPTION_UPCOMING',
+      'SUBSCRIPTION_PAYMENT_FAILED',
+      'SUBSCRIPTION_SUSPENDED',
+      'SUBSCRIPTION_OUT_OF_STOCK',
+      'SUBSCRIPTION_SKIPPED'
     ],
     required: true
   },

@@ -1206,3 +1206,11 @@
   line-height: 18px;
   color: var(--color-forest-green);
 }
+
+/* Return deadline shown once the order is delivered */
+.refund-window-note {
+  margin: 8px 0 0;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-warm-brown);
+}

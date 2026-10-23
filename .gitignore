@@ -30,3 +30,5 @@ frontend/.angular/
 # Build outputs
 dist/
 build/
+# Claude Code local config / worktrees
+.claude/

@@ -22,7 +22,7 @@ export interface UserPaymentMethod {
 export type MembershipTier = 'Seed' | 'Leaf' | 'Bloom' | 'Zen';
 
 // Keep in sync with TIER_MULTIPLIER in backend points.service.js.
-export const TIER_POINT_MULTIPLIER: Record<MembershipTier, number> = { Seed: 1, Leaf: 1.1, Bloom: 1.2, Zen: 1.5 };
+export const TIER_POINT_MULTIPLIER: Record<MembershipTier, number> = { Seed: 1, Leaf: 1.1, Bloom: 1.25, Zen: 1.5 };
 
 export const TIER_LIFETIME_THRESHOLDS: Record<MembershipTier, number> = {
   Seed: 0,

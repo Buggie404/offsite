@@ -316,8 +316,8 @@
                 <h3 class="item-name font-body">
                   <a [routerLink]="['/products', item.product_id]">{{ item.product_name }}</a>
                 </h3>
-                <span class="item-specs font-body">
-                  {{ item.variant_name || 'Default variant' }}
+                <span class="item-specs font-body" *ngIf="isMeaningfulVariantLabel(item.variant_name)">
+                  {{ item.variant_name }}
                 </span>
                 <span class="item-sub-tag" *ngIf="getSubscriptionLineLabel(item) as subLabel">
                   <svg lucideRepeat [size]="12"></svg>{{ subLabel }}
@@ -527,6 +527,7 @@
             REFUND/RETURN
           </button>
         </footer>
+        <p class="refund-window-note" *ngIf="config()?.showDeliveredActions && refundWindowNote() as note">{{ note }}</p>
 
         <!-- Action Buttons (Refund status) -->
         <footer class="page-actions-row" *ngIf="config()?.showRefundActions">

@@ -158,7 +158,7 @@
               </div>
               <div class="item-details">
                 <h3 class="item-name font-body">{{ item.product_name }}</h3>
-                <span class="item-variant">{{ item.variant_name }}</span>
+                <span class="item-variant" *ngIf="isMeaningfulVariantLabel(item.variant_name)">{{ item.variant_name }}</span>
                 <span class="item-sub-tag" *ngIf="getSubscriptionLineLabel(item) as subLabel">
                   <svg lucideRepeat [size]="12"></svg>{{ subLabel }}
                 </span>

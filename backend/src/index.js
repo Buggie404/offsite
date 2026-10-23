@@ -20,6 +20,8 @@ connectDB()
     });
     // Hourly: move pending purchase points to posted once the refund window ends.
     require('./services/points.service').startPointsPostingJob();
+    // Hourly (per minute with SUB_TIME_UNIT=minute): charge due Ritual Box subscriptions.
+    require('./services/subscription-charge.service').startSubscriptionChargeJob();
   })
   .catch((error) => {
     console.error('Failed to start server:', error.message);

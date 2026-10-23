@@ -40,6 +40,12 @@ async function findProduct(productId) {
   return null;
 }
 
+// Variant label worth showing: '' for products without real variants ("Default").
+function variantLabel(label) {
+  const text = String(label || '').trim();
+  return /^default( variant)?$/i.test(text) ? '' : text;
+}
+
 function pickImage(product, variant) {
   const sorted = imgs => [...(imgs || [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   return sorted(variant?.images)[0]?.url || sorted(product?.images)[0]?.url || null;
@@ -100,7 +106,7 @@ async function findReplacement(product, variant) {
     product_id: String(best.product._id),
     variant_id: best.variant.sku,
     name: best.product.name,
-    variant_label: best.variant.label || '',
+    variant_label: variantLabel(best.variant.label),
     image: pickImage(best.product, best.variant),
     price: best.variant.price,
     same_price: best.diff < 0.005
@@ -116,7 +122,7 @@ async function offeredReplacement(offer) {
     product_id: String(product._id),
     variant_id: variant.sku,
     name: product.name,
-    variant_label: variant.label || '',
+    variant_label: variantLabel(variant.label),
     image: pickImage(product, variant),
     price: variant.price,
     same_price: false
@@ -268,11 +274,15 @@ async function createSubscriptionsFromOrder(order) {
   const lines = (order.items || []).filter(it => it.purchase_type === 'subscription');
   if (!lines.length) return [];
 
+  // The card picked at checkout is stored on the order; a Ritual Box is never created without one.
   const user = await User.findOne({ user_id: order.user_id }).lean();
-  const last4 = order.payment?.card_info?.last4;
   const card = (user?.payment_methods || []).find(pm =>
-    pm.card_type !== 'NAPAS' && last4 && String(pm.card_number).replace(/\D/g, '').endsWith(last4)
+    String(pm._id) === String(order.subscription_payment_method_id) && pm.card_type !== 'NAPAS'
   );
+  if (!card) {
+    console.error(`Order ${order.order_id}: no saved card for its Ritual Box lines, subscriptions not created.`);
+    return [];
+  }
 
   const created = [];
   const now = new Date();
@@ -297,7 +307,7 @@ async function createSubscriptionsFromOrder(order) {
         subscribe_price: line.unit_price,
         discount_percent: 0
       },
-      payment_method_id: card ? String(card._id) : null,
+      payment_method_id: String(card._id),
       delivery_info: order.delivery_info?.toObject ? order.delivery_info.toObject() : order.delivery_info,
       shipping_method: order.shipping?.method || 'standard',
       last_charged_at: now,
@@ -316,7 +326,7 @@ async function shapeOrderSubscription(sub) {
   return {
     subscription_id: sub.subscription_id,
     product_name: product?.name || 'Unavailable product',
-    variant_label: variant?.label || '',
+    variant_label: variantLabel(variant?.label),
     image: pickImage(product, variant),
     quantity: sub.quantity,
     frequency_days: sub.frequency_days,
@@ -402,7 +412,7 @@ async function shapeSubscription(sub, paymentMethods, now) {
     variant_id: sub.variant_id,
     product_name: product?.name || 'Unavailable product',
     product_slug: product?.slug || null,
-    variant_label: variant?.label || '',
+    variant_label: variantLabel(variant?.label),
     image: pickImage(product, variant),
     quantity: sub.quantity,
     frequency_days: sub.frequency_days,
@@ -458,7 +468,7 @@ async function getRitualBox(userIdStr) {
     } else {
       const p = await findProduct(s.product_id);
       const v = (p?.variants || []).find(x => x.sku === s.variant_id);
-      nameBySub.set(s.subscription_id, [p?.name, v?.label].filter(Boolean).join(' ') || s.subscription_id);
+      nameBySub.set(s.subscription_id, [p?.name, variantLabel(v?.label)].filter(Boolean).join(' ') || s.subscription_id);
     }
   }
 
@@ -472,7 +482,7 @@ async function getRitualBox(userIdStr) {
     ...orders.map(o => ({
       date: o.created_at,
       box: o.items?.[0]
-        ? [o.items[0].product_name, o.items[0].variant_name].filter(Boolean).join(' ')
+        ? [o.items[0].product_name, variantLabel(o.items[0].variant_name)].filter(Boolean).join(' ')
         : nameBySub.get(o.subscription_id),
       order_id: o.order_id,
       amount: o.pricing?.total ?? null,
@@ -686,6 +696,7 @@ module.exports = {
   getOrderRitualBoxes,
   applyAction,
   chargeSubscription,
+  applyDueTransitions,
   isCardExpired,
   SubscriptionActionError,
   FREQUENCIES,

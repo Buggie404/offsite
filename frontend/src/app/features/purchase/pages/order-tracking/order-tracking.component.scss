@@ -862,3 +862,20 @@
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Return deadline shown once the order is delivered */
+.refund-window-note {
+  margin: 8px 0 0;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-warm-brown);
+}
+
+// The return-deadline note takes its own line under the action buttons.
+.card-actions-footer:has(.refund-window-note) {
+  flex-wrap: wrap;
+}
+
+.card-actions-footer .refund-window-note {
+  flex-basis: 100%;
+}

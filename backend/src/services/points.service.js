@@ -9,7 +9,7 @@ const Order = require('../models/Order');
 //   (added to Users.points) once the refund window has passed. A refund or
 //   hidden content reverses them. The balance may go negative and is made up
 //   by later credits. Tiers are never downgraded.
-const TIER_MULTIPLIER = { Seed: 1, Leaf: 1.1, Bloom: 1.2, Zen: 1.5 };
+const TIER_MULTIPLIER = { Seed: 1, Leaf: 1.1, Bloom: 1.25, Zen: 1.5 };
 
 // Refund/return requests are locked to 3 days after the order is delivered.
 // Purchase points stay pending for the same period; override only the points

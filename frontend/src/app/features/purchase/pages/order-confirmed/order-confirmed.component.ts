@@ -23,6 +23,7 @@ import { CheckoutService, CheckoutItem } from '../../services/checkout.service';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { CartService } from '../../services/cart.service';
 import { Product } from '../../../../shared/models/product.model';
+import { isMeaningfulVariantLabel } from '../../../../shared/utils/variant-label';
 
 @Component({
   selector: 'app-order-confirmed',
@@ -51,6 +52,9 @@ import { Product } from '../../../../shared/models/product.model';
   styleUrl: './order-confirmed.component.scss'
 })
 export class OrderConfirmedComponent implements OnInit {
+  /** Hide empty / "Default" variant labels (products without real variants). */
+  readonly isMeaningfulVariantLabel = isMeaningfulVariantLabel;
+
   private router = inject(Router);
   private checkoutService = inject(CheckoutService);
   private cartService = inject(CartService);

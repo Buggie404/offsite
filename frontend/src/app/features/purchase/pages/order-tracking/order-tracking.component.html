@@ -199,6 +199,7 @@
             *ngIf="canRequestRefund() || order().refund_request?.status === 'pending' || order().order_status === 'refund'">
             Refund/Return
           </button>
+          <p class="refund-window-note" *ngIf="refundWindowNote() as note">{{ note }}</p>
         </ng-container>
 
         <!-- Canceled Status Actions -->

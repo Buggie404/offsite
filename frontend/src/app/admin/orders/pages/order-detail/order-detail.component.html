@@ -85,7 +85,9 @@
               }
               <div class="line-item__info">
                 <p class="line-item__name">{{ item.product_name }}</p>
-                <p class="line-item__variant">{{ item.variant_name }}</p>
+                @if (isMeaningfulVariantLabel(item.variant_name)) {
+                  <p class="line-item__variant">{{ item.variant_name }}</p>
+                }
                 @if (getSubscriptionLineLabel(item); as subLabel) {
                   <span class="line-item__sub-tag"><svg lucideRepeat [size]="12"></svg>{{ subLabel }}</span>
                 }

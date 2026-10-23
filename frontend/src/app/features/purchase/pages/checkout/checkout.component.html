@@ -584,7 +584,7 @@
                     <svg lucideChevronDown [size]="12" class="variant-caret"></svg>
                   </div>
                   <ng-template #singleVariant>
-                    <div class="variant-static">
+                    <div class="variant-static" *ngIf="isMeaningfulVariantLabel(getVariant(item).label)">
                       {{ (getVariant(item).label || '').toUpperCase() }}
                     </div>
                   </ng-template>
@@ -651,7 +651,7 @@
                       </span>
                     </div>
 
-                    <label class="sub-field">
+                    <label class="sub-field" *ngIf="item.product.variants.length > 1 || isMeaningfulVariantLabel(getVariant(item).label)">
                       <span class="sub-field__label">Variant</span>
                       <span class="sub-select" *ngIf="item.product.variants.length > 1; else subSingleVariant">
                         <select [ngModel]="item.variantSku" (ngModelChange)="changeVariant(item, $event)"

@@ -147,6 +147,7 @@ async function createOrder(req, res) {
 
     // Subscribe & Save lines: signed-in customer, credit/debit card, server-side price.
     const subscriptionLines = items.filter(it => it.purchase_type === 'subscription');
+    let subscriptionPaymentMethodId = null;
     if (subscriptionLines.length) {
       const rejectSubscription = async (message) => {
         await cleanupSession(session);
@@ -236,10 +237,12 @@ async function createOrder(req, res) {
           return endsWithLast4 && brandMatches;
         });
 
+        let newlyAddedCard = null;
         if (!cardExists) {
           if (payment.full_card_info) {
             // Add the new card to user's payment methods
             userDoc.payment_methods.push(payment.full_card_info);
+            newlyAddedCard = userDoc.payment_methods[userDoc.payment_methods.length - 1];
             try {
               await userDoc.save(useTransaction ? { session } : undefined);
             } catch (saveErr) {
@@ -260,10 +263,37 @@ async function createOrder(req, res) {
           }
         }
 
+        // Ritual Box lines are charged automatically every cycle, so they need a saved
+        // credit/debit card: the one picked at checkout (payment_method_id) or the card
+        // saved in this request. Its id is stored on the order and copied to the subscription.
+        if (subscriptionLines.length) {
+          const requestedId = payment.payment_method_id ? String(payment.payment_method_id) : null;
+          const subCard = requestedId
+            ? userDoc.payment_methods.find(p => String(p._id) === requestedId)
+            : newlyAddedCard;
+          const subCardError = !subCard
+            ? 'Choose a saved Visa or Mastercard for your Ritual Box.'
+            : subCard.card_type === 'NAPAS'
+              ? 'Ritual Box subscriptions can only be paid by credit or debit card.'
+              : !String(subCard.card_number).endsWith(last4)
+                ? 'The card for your Ritual Box must be the card you pay with.'
+                : subscriptionService.isCardExpired(subCard.expire_date)
+                  ? 'This card has expired. Choose another card.'
+                  : null;
+          if (subCardError) {
+            await cleanupSession(session);
+            session = null;
+            useTransaction = false;
+            return res.status(400).json({ error: subCardError });
+          }
+          subscriptionPaymentMethodId = String(subCard._id);
+        }
+
         // Clean up before saving to Order
         if (payment.full_card_info) {
           delete payment.full_card_info;
         }
+        delete payment.payment_method_id;
       }
     }
 
@@ -351,6 +381,7 @@ async function createOrder(req, res) {
       delivery_info,
       shipping,
       payment,
+      subscription_payment_method_id: subscriptionPaymentMethodId,
       pricing: verifiedPricing,
       coupon: verifiedCoupon,
       order_status: 'pending', // defaults to pending initially for verification

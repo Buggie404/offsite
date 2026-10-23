@@ -49,7 +49,8 @@ interface StatusConfig {
   showRefundActions?: boolean;
 }
 
-import { isWithinRefundWindow } from '../../models/refund-window.model';
+import { getRefundDeadline, isWithinRefundWindow } from '../../models/refund-window.model';
+import { isMeaningfulVariantLabel } from '../../../../shared/utils/variant-label';
 
 @Component({
   selector: 'app-order-detail',
@@ -84,6 +85,9 @@ import { isWithinRefundWindow } from '../../models/refund-window.model';
   styleUrl: './order-detail.component.scss'
 })
 export class OrderDetailComponent implements OnInit, OnDestroy {
+  /** Hide empty / "Default" variant labels (products without real variants). */
+  readonly isMeaningfulVariantLabel = isMeaningfulVariantLabel;
+
   readonly getSubscriptionLineLabel = getSubscriptionLineLabel;
 
   /** "Then every 2 weeks · $X" for Ritual Boxes this order started. */
@@ -450,6 +454,24 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       return this.hasRefundTrackingMessage();
     }
     return style !== 'processing' && style !== 'shipping' && style !== 'delivered';
+  }
+
+  /**
+   * Shown once the order is delivered so customers know the return deadline up
+   * front, not only when the button disappears.
+   */
+  refundWindowNote(): string | null {
+    const ord = this.order();
+    if (!ord) return null;
+    const status = (ord.order_status || '').toLowerCase();
+    if (status !== 'delivered' && status !== 'refund_rejected') return null;
+    if (ord.refund_request?.status === 'pending') return null;
+    const deadline = getRefundDeadline(ord);
+    if (!deadline) return null;
+    const date = deadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return isWithinRefundWindow(ord)
+      ? `Returns and refunds accepted until ${date}.`
+      : `The return window closed on ${date}.`;
   }
 
   canRequestRefund(): boolean {

@@ -199,6 +199,11 @@
                   <svg *ngSwitchCase="'SUBSCRIPTION_PAUSED'"    lucideRepeat [size]="15"></svg>
                   <svg *ngSwitchCase="'SUBSCRIPTION_RESUMED'"   lucideRepeat [size]="15"></svg>
                   <svg *ngSwitchCase="'SUBSCRIPTION_CANCELLED'" lucideX      [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_UPCOMING'"       lucideRepeat [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_PAYMENT_FAILED'" lucideInfo   [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_SUSPENDED'"      lucideX      [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_OUT_OF_STOCK'"   lucideInfo   [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_SKIPPED'"        lucideArrowRight [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_CREATED'"    lucideArrowRight    [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_LIKED'"      lucideHeart         [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_COMMENTED'"  lucideMessageSquare [size]="15"></svg>
@@ -227,6 +232,11 @@
                       <span *ngSwitchCase="'SUBSCRIPTION_PAUSED'">Your Ritual Box <strong>{{ item.post_id }}</strong> has been paused{{ item.comment_content ? ': "' + item.comment_content + '"' : '.' }}</span>
                       <span *ngSwitchCase="'SUBSCRIPTION_RESUMED'">Your Ritual Box <strong>{{ item.post_id }}</strong> is active again{{ item.comment_content ? ': "' + item.comment_content + '"' : '.' }}</span>
                       <span *ngSwitchCase="'SUBSCRIPTION_CANCELLED'">Your Ritual Box <strong>{{ item.post_id }}</strong> has been cancelled{{ item.comment_content ? ': "' + item.comment_content + '"' : '.' }}</span>
+                      <span *ngSwitchCase="'SUBSCRIPTION_UPCOMING'">Your Ritual Box <strong>{{ item.post_id }}</strong> will be charged soon{{ item.comment_content ? ' (' + item.comment_content + ')' : '' }}. Changes made now apply from the following delivery.</span>
+                      <span *ngSwitchCase="'SUBSCRIPTION_PAYMENT_FAILED'">We couldn't charge your Ritual Box <strong>{{ item.post_id }}</strong>{{ item.comment_content ? ': ' + item.comment_content : '.' }} Update your card to continue.</span>
+                      <span *ngSwitchCase="'SUBSCRIPTION_SUSPENDED'">Your Ritual Box <strong>{{ item.post_id }}</strong> has been suspended{{ item.comment_content ? ': ' + item.comment_content : '.' }}</span>
+                      <span *ngSwitchCase="'SUBSCRIPTION_OUT_OF_STOCK'">An item in your Ritual Box <strong>{{ item.post_id }}</strong> is out of stock{{ item.comment_content ? '. ' + item.comment_content : '.' }}</span>
+                      <span *ngSwitchCase="'SUBSCRIPTION_SKIPPED'">A delivery of your Ritual Box <strong>{{ item.post_id }}</strong> was skipped{{ item.comment_content ? ': ' + item.comment_content : '.' }}</span>
                     </ng-container>
                   </span>
                 </p>
@@ -756,7 +766,7 @@
                 <svg lucideChevronDown [size]="12" class="variant-caret"></svg>
               </div>
               <ng-template #singleVariant>
-                <span class="variant-static-label">
+                <span class="variant-static-label" *ngIf="isMeaningfulVariantLabel(getVariant(item).label)">
                   {{ (getVariant(item).label || '').toUpperCase() }}
                 </span>
               </ng-template>

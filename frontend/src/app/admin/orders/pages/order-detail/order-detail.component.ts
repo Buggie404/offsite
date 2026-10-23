@@ -31,6 +31,7 @@ import {
   AdminOrderRitualBox,
   AdminOrderStatusUpdate
 } from '../../models/admin-order.model';
+import { isMeaningfulVariantLabel } from '../../../../shared/utils/variant-label';
 
 interface StatusOption {
   value: AdminOrderStatusUpdate;
@@ -65,6 +66,9 @@ interface TimelineStep {
   styleUrl: './order-detail.component.scss'
 })
 export class OrderDetailComponent implements OnInit {
+  /** Hide empty / "Default" variant labels (products without real variants). */
+  readonly isMeaningfulVariantLabel = isMeaningfulVariantLabel;
+
   readonly getSubscriptionLineLabel = getSubscriptionLineLabel;
 
   ritualBoxProduct(box: AdminOrderRitualBox): string {

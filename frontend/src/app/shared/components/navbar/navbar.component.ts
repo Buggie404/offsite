@@ -75,6 +75,7 @@ import {
   getCartItemLineTotal,
   isBundleCartItem
 } from '../../../features/purchase/models/bundle-cart.model';
+import { isMeaningfulVariantLabel } from '../../utils/variant-label';
 
 @Component({
   selector: 'app-navbar',
@@ -117,6 +118,9 @@ import {
   styleUrl: './navbar.component.scss'
 })
 export class NavbarComponent implements OnInit, OnDestroy {
+  /** Hide empty / "Default" variant labels (products without real variants). */
+  readonly isMeaningfulVariantLabel = isMeaningfulVariantLabel;
+
   private platformId = inject(PLATFORM_ID);
   private authService = inject(AuthService);
   private authModalService = inject(AuthModalService);
@@ -1152,6 +1156,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
       case 'SUBSCRIPTION_PAUSED':    return 'notif-icon--orange';
       case 'SUBSCRIPTION_RESUMED':   return 'notif-icon--green';
       case 'SUBSCRIPTION_CANCELLED': return 'notif-icon--red';
+      case 'SUBSCRIPTION_UPCOMING':       return 'notif-icon--sage';
+      case 'SUBSCRIPTION_PAYMENT_FAILED': return 'notif-icon--red';
+      case 'SUBSCRIPTION_SUSPENDED':      return 'notif-icon--red';
+      case 'SUBSCRIPTION_OUT_OF_STOCK':   return 'notif-icon--orange';
+      case 'SUBSCRIPTION_SKIPPED':        return 'notif-icon--gray';
       case 'POST_CREATED':     return 'notif-icon--green';
       case 'POST_LIKED':       return 'notif-icon--pink';
       case 'POST_COMMENTED':   return 'notif-icon--sage';
