@@ -30,7 +30,7 @@ router.post('/orders/:id/notes', authMiddleware, requireRole(...ADMIN_ORDER_MANA
 // Subscriptions (QLSP, Admin CC): list, detail, pause / reactivate / frequency / cancel / internal note.
 router.get('/subscriptions', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminSubscriptionsController.getSubscriptions);
 router.get('/subscriptions/:id', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminSubscriptionsController.getSubscription);
-router.post('/subscriptions/:id/:action', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminSubscriptionsController.runAction);
+router.post('/subscriptions/:id/:action', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog({ requireReasonForActions: ['pause', 'cancel'] }), adminSubscriptionsController.runAction);
 
 // Community moderation (Admin CC, CSKH): reported / hidden posts.
 router.get('/community/reports', authMiddleware, requireRole('admin_cc', 'cskh'), adminCommunityController.listReportedPosts);
@@ -41,7 +41,4 @@ router.get('/community/comment-reports', authMiddleware, requireRole('admin_cc',
 router.post('/community/comments/:commentId/hide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminCommunityController.hideComment);
 router.post('/community/comments/:commentId/unhide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminCommunityController.unhideComment);
 
-// ── DEV ONLY: Fix admin roles in DB ────────────────────────────────────
-// Gọi POST /api/admin/dev/fix-admin-roles để update role trong DB
-// Xóa endpoint này sau khi chạy xong
 module.exports = router;
