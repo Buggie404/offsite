@@ -417,11 +417,11 @@ async function updateOrderStatus(req, res) {
       }
     }
 
+    await order.save();
     const newValue = activitySnapshot(order);
     if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
       await req.writeActivityLog({ actionType: 'order.update-status', targetEntity: 'Orders', targetId: order.order_id, oldValue, newValue });
     }
-    await order.save();
     socketService.emitOrderUpdated(order, 'status_change');
 
     // Trigger ORDER_SHIPPING notification if registered customer and status is shipping
@@ -485,13 +485,6 @@ async function approveRefundRequest(req, res) {
       changed_by: adminId,
       note: 'Refund request approved by admin'
     });
-    await req.writeActivityLog({
-      actionType: 'refund.approve',
-      targetEntity: 'RefundRequests',
-      targetId: refundRequest.refund_request_id,
-      oldValue,
-      newValue: { status: refundRequest.status, admin_reason: refundRequest.admin_reason }
-    });
     await refundRequest.save();
 
     order._changedBy = adminId;
@@ -499,6 +492,13 @@ async function approveRefundRequest(req, res) {
     order.order_status = 'refund';
     order.payment_status = 'refunded';
     await order.save();
+    await req.writeActivityLog({
+      actionType: 'refund.approve',
+      targetEntity: 'RefundRequests',
+      targetId: refundRequest.refund_request_id,
+      oldValue,
+      newValue: { status: refundRequest.status, admin_reason: refundRequest.admin_reason }
+    });
     socketService.emitOrderUpdated(order, 'refund_approved');
 
     // Refunded order → take its purchase points back.
@@ -558,7 +558,7 @@ async function rejectRefundRequest(req, res) {
 
     const adminId = await getAdminActorId(req);
     const now = new Date();
-    const rejectionReason = String(reason).trim();
+    const rejectionReason = String(reason).trim().replace(/\s+/g, ' ').slice(0, 500);
     const oldValue = { status: refundRequest.status, admin_reason: refundRequest.admin_reason };
 
     refundRequest.status = 'rejected';
@@ -571,19 +571,20 @@ async function rejectRefundRequest(req, res) {
       changed_by: adminId,
       note: rejectionReason
     });
-    await req.writeActivityLog({
-      actionType: 'refund.reject',
-      targetEntity: 'RefundRequests',
-      targetId: refundRequest.refund_request_id,
-      oldValue,
-      newValue: { status: refundRequest.status, admin_reason: refundRequest.admin_reason }
-    });
     await refundRequest.save();
 
     order.order_status = 'refund_rejected';
     order._changedBy = adminId;
     order._statusChangeNote = `Refund rejected: ${rejectionReason}`;
     await order.save();
+    await req.writeActivityLog({
+      actionType: 'refund.reject',
+      targetEntity: 'RefundRequests',
+      targetId: refundRequest.refund_request_id,
+      oldValue,
+      newValue: { status: refundRequest.status, admin_reason: refundRequest.admin_reason },
+      reason: rejectionReason
+    });
     socketService.emitOrderUpdated(order, 'refund_rejected');
 
     // Trigger REFUND_REJECTED notification if registered customer
@@ -629,6 +630,7 @@ async function addInternalNote(req, res) {
     const adminId = await getAdminActorId(req);
     const oldValue = activitySnapshot(order);
     order.internal_notes = appendInternalNote(order.internal_notes, String(note).trim(), adminId);
+    await order.save();
     await req.writeActivityLog({
       actionType: 'order.add-internal-note',
       targetEntity: 'Orders',
@@ -636,7 +638,6 @@ async function addInternalNote(req, res) {
       oldValue,
       newValue: activitySnapshot(order)
     });
-    await order.save();
 
     const data = await buildOrderDetail(order);
     res.json({

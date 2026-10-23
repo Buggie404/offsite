@@ -9,6 +9,7 @@ const activityLogSchema = new mongoose.Schema({
   target_id: { type: String, required: true, index: true },
   old_value: { type: mongoose.Schema.Types.Mixed, default: null },
   new_value: { type: mongoose.Schema.Types.Mixed, default: null },
+  reason: { type: String, default: null, maxlength: 500 },
   created_at: { type: Date, default: Date.now, immutable: true }
 }, { collection: 'ActivityLogs', versionKey: false });
 

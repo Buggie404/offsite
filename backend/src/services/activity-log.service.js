@@ -6,7 +6,13 @@ function snapshot(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-async function writeActivityLog({ admin, actionType, targetEntity, targetId, oldValue = null, newValue = null }) {
+function normalizeReason(value) {
+  if (typeof value !== 'string') return null;
+  const reason = value.trim().replace(/\s+/g, ' ');
+  return reason ? reason.slice(0, 500) : null;
+}
+
+async function writeActivityLog({ admin, actionType, targetEntity, targetId, oldValue = null, newValue = null, reason = null }) {
   if (!admin?.user_id || !admin?.role) {
     throw new Error('An authenticated admin is required to write an activity log.');
   }
@@ -17,8 +23,9 @@ async function writeActivityLog({ admin, actionType, targetEntity, targetId, old
     target_entity: targetEntity,
     target_id: String(targetId),
     old_value: snapshot(oldValue),
-    new_value: snapshot(newValue)
+    new_value: snapshot(newValue),
+    reason: normalizeReason(reason)
   });
 }
 
-module.exports = { writeActivityLog };
+module.exports = { writeActivityLog, normalizeReason };
