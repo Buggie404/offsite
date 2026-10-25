@@ -464,6 +464,10 @@ async function shapeSubscription(sub, paymentMethods, now) {
           type: sub.admin_proposal.type,
           frequency_days: sub.admin_proposal.frequency_days || null,
           message: sub.admin_proposal.message || '',
+          // Next charge if accepted now — same rules as the 'frequency' / 'resume' actions.
+          next_charge_at: sub.admin_proposal.type === 'frequency'
+            ? (isLocked(sub, now) ? sub.next_charge_at : shiftedChargeAt(sub, sub.admin_proposal.frequency_days, now))
+            : now,
           expires_at: sub.admin_proposal.expires_at
         }
       : null,

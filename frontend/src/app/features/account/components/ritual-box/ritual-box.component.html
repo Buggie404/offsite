@@ -70,6 +70,8 @@
         <p class="rb-suggest__text">
           <strong>{{ proposalTitle(sub) }}</strong>
           <ng-container *ngIf="sub.admin_proposal!.message">{{ ' ' + sub.admin_proposal!.message }}</ng-container>
+          <ng-container *ngIf="sub.admin_proposal!.type === 'frequency'"> If you accept, your next delivery is {{ shortDate(sub.admin_proposal!.next_charge_at) }}.</ng-container>
+          <ng-container *ngIf="sub.admin_proposal!.type === 'resume'"> If you accept, your next box is charged and shipped right away.</ng-container>
           <span class="rb-suggest__sub">
             Nothing changes unless you accept by {{ shortDate(sub.admin_proposal!.expires_at) }}.
           </span>

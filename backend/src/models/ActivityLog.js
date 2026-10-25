@@ -10,6 +10,8 @@ const activityLogSchema = new mongoose.Schema({
   old_value: { type: mongoose.Schema.Types.Mixed, default: null },
   new_value: { type: mongoose.Schema.Types.Mixed, default: null },
   reason: { type: String, default: null, maxlength: 500 },
+  // Support ticket (customer chat) when staff act on the customer's request.
+  ticket_id: { type: String, default: null, maxlength: 100 },
   created_at: { type: Date, default: Date.now, immutable: true }
 }, { collection: 'ActivityLogs', versionKey: false });
 

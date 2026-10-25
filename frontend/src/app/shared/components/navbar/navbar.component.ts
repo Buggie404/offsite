@@ -619,6 +619,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Ritual Box notifications carry subscription_id / message; older ones stored them in post_id / comment_content. */
+  ritualBoxId(item: Notification): string {
+    return item.subscription_id || item.post_id || '';
+  }
+
+  ritualBoxMessage(item: Notification): string | null {
+    return item.message || item.comment_content || null;
+  }
+
   getNotificationTimeAgo(dateStr: string): string {
     if (!dateStr) return '';
     const date = new Date(dateStr);
@@ -1162,6 +1171,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       case 'SUBSCRIPTION_OUT_OF_STOCK':   return 'notif-icon--orange';
       case 'SUBSCRIPTION_SKIPPED':        return 'notif-icon--gray';
       case 'SUBSCRIPTION_PROPOSAL':       return 'notif-icon--sage';
+      case 'SUBSCRIPTION_PROPOSAL_WITHDRAWN': return 'notif-icon--gray';
       case 'POST_CREATED':     return 'notif-icon--green';
       case 'POST_LIKED':       return 'notif-icon--pink';
       case 'POST_COMMENTED':   return 'notif-icon--sage';
