@@ -82,7 +82,6 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
   signupPassword = '';
   signupConfirmPassword = '';
   signupReferralCode = '';
-  private referralNotFoundCode: string | null = null;
 
   // Touch states
   emailTouched = false;
@@ -176,7 +175,6 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
     this.signupPassword = '';
     this.signupConfirmPassword = '';
     this.signupReferralCode = '';
-    this.referralNotFoundCode = null;
     this.signupNameTouched = false;
     this.signupEmailTouched = false;
     this.signupPhoneTouched = false;
@@ -310,7 +308,6 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
   }
 
   onReferralCodeInput(): void {
-    if (this.referralNotFoundCode !== this.signupReferralCode.trim().toUpperCase()) this.referralNotFoundCode = null;
     this.signupValidator?.validateField('signup-referral-code');
   }
 
@@ -645,14 +642,12 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
         const submitEmail = this.signupEmail ? this.signupEmail.trim() : '';
         const submitPhone = this.signupPhone ? this.signupPhone.trim().replace(/\s+/g, '') : '';
         const referralInput = this.signupReferralCode.trim();
-        // Code không tồn tại đã báo lỗi 1 lần -> bấm Join Us lần nữa = bỏ qua mã
-        const skipReferral = !!referralInput && this.referralNotFoundCode === referralInput.toUpperCase();
         const response = await this.authService.register({
           name: this.signupName,
           email: submitEmail,
           phone: submitPhone,
           password: this.signupPassword,
-          referral_code: skipReferral ? undefined : (referralInput || undefined)
+          referral_code: referralInput || undefined
         });
 
         this.registrationId = response.registration_id;
@@ -698,7 +693,6 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
             }
           }, 50);
         } else if (errorCode === 'REFERRAL_NOT_FOUND' || errorCode === 'REFERRAL_INVALID_FORMAT') {
-          if (errorCode === 'REFERRAL_NOT_FOUND') this.referralNotFoundCode = this.signupReferralCode.trim().toUpperCase();
           this.signupValidator?.setErrorField('signup-referral-code', errorMessage);
           setTimeout(() => {
             const refEl = document.getElementById('signup-referral-code') as HTMLInputElement | null;

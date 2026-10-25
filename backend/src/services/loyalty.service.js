@@ -359,7 +359,7 @@ async function validateReferralCode(code) {
   const normalized = String(code).trim().toUpperCase();
   const referrer = await User.findOne({ referral_code: normalized }, { user_id: 1, profile_name: 1 }).lean();
   if (!referrer) {
-    return { ok: false, code: 'REFERRAL_NOT_FOUND', error: 'Referral code not found. Re-enter it, or click JOIN US again to continue without it.' };
+    return { ok: false, code: 'REFERRAL_NOT_FOUND', error: 'Referral code not found. Please enter a valid code, or clear this field to continue.' };
   }
 
   return { ok: true, referrerId: referrer.user_id };
