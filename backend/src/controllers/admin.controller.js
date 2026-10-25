@@ -3,6 +3,7 @@ const RefundRequest = require('../models/RefundRequest');
 const subscriptionService = require('../services/subscription.service');
 const ActivityLog = require('../models/ActivityLog');
 const { unsavedActivityLogCount } = require('../services/activity-log.service');
+const { parseInternalNotes, appendInternalNote } = require('../utils/internal-notes');
 const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
 
@@ -93,18 +94,20 @@ function enrichOrders(orders) {
   });
 }
 
-function filterBySearch(orders, search) {
-  if (!search) return orders;
-  const query = String(search).trim().toLowerCase();
-  if (!query) return orders;
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  return orders.filter((order) => {
-    return (
-      order.order_id?.toLowerCase().includes(query) ||
-      order.customer_name?.toLowerCase().includes(query) ||
-      order.customer_email?.toLowerCase().includes(query)
-    );
-  });
+// Search by order id, recipient name or email, in the query so paging stays in the database.
+function searchCondition(search) {
+  const query = String(search || '').trim();
+  if (!query) return null;
+  const pattern = { $regex: escapeRegex(query), $options: 'i' };
+  return {
+    $or: [
+      { order_id: pattern },
+      { 'delivery_info.recipient_name': pattern },
+      { $and: [{ 'delivery_info.email': pattern }, { 'delivery_info.email': { $ne: PLACEHOLDER_EMAIL } }] }
+    ]
+  };
 }
 
 async function getLatestRefundRequest(orderId) {
@@ -169,28 +172,6 @@ function findOrderQuery(id) {
 async function getAdminActorId(req) {
   // Prefer user_id already attached by auth middleware to avoid an extra DB round-trip
   return req.user?.user_id || req.user?.id || 'admin';
-}
-
-function parseInternalNotes(value) {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return value
-      ? [{ text: String(value), author: 'Admin', created_at: new Date().toISOString() }]
-      : [];
-  }
-}
-
-function appendInternalNote(value, note, author) {
-  const notes = parseInternalNotes(value);
-  notes.unshift({
-    text: note,
-    author: author || 'Admin',
-    created_at: new Date().toISOString()
-  });
-  return JSON.stringify(notes);
 }
 
 function activitySnapshot(order) {
@@ -325,20 +306,27 @@ async function getAllOrders(req, res) {
       filter.payment_status = payment_status;
     }
 
-    const [orders, stats] = await Promise.all([
-      Order.find(filter).sort({ created_at: -1 }).select('order_id user_id delivery_info created_at order_status pricing is_guest subscription_id items.purchase_type').lean(),
-      computeStats(createdAtFilter, orderScope)
-    ]);
-
-    const enriched = filterBySearch(enrichOrders(orders), search);
+    const searchFilter = searchCondition(search);
+    if (searchFilter) Object.assign(filter, searchFilter);
 
     const parsedLimit = Math.min(parseInt(limit, 10) || 50, 200);
     const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
     const skip = (parsedPage - 1) * parsedLimit;
-    const data = enriched.slice(skip, skip + parsedLimit);
+
+    const [orders, total, stats] = await Promise.all([
+      Order.find(filter)
+        .sort({ created_at: -1, _id: -1 })
+        .skip(skip)
+        .limit(parsedLimit)
+        .select('order_id user_id delivery_info created_at order_status pricing is_guest subscription_id items.purchase_type')
+        .lean(),
+      Order.countDocuments(filter),
+      computeStats(createdAtFilter, orderScope)
+    ]);
+    const data = enrichOrders(orders);
 
     res.json({
-      total: enriched.length,
+      total,
       page: parsedPage,
       limit: parsedLimit,
       stats,

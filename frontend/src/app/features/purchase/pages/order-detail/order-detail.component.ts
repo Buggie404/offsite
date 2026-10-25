@@ -49,7 +49,7 @@ interface StatusConfig {
   showRefundActions?: boolean;
 }
 
-import { getRefundDeadline, isWithinRefundWindow } from '../../models/refund-window.model';
+import { isWithinRefundWindow, getRefundWindowNote } from '../../models/refund-window.model';
 import { isMeaningfulVariantLabel } from '../../../../shared/utils/variant-label';
 
 @Component({
@@ -456,22 +456,8 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     return style !== 'processing' && style !== 'shipping' && style !== 'delivered';
   }
 
-  /**
-   * Shown once the order is delivered so customers know the return deadline up
-   * front, not only when the button disappears.
-   */
   refundWindowNote(): string | null {
-    const ord = this.order();
-    if (!ord) return null;
-    const status = (ord.order_status || '').toLowerCase();
-    if (status !== 'delivered' && status !== 'refund_rejected') return null;
-    if (ord.refund_request?.status === 'pending') return null;
-    const deadline = getRefundDeadline(ord);
-    if (!deadline) return null;
-    const date = deadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return isWithinRefundWindow(ord)
-      ? `Returns and refunds accepted until ${date}.`
-      : `The return window closed on ${date}.`;
+    return getRefundWindowNote(this.order());
   }
 
   canRequestRefund(): boolean {

@@ -42,7 +42,11 @@ export class OrdersListingComponent implements OnInit {
   orders: AdminOrderListItem[] = [];
   stats: AdminOrderStats = { total: 0, processing: 0, shipped: 0, needsAttention: 0 };
   loading = true;
+  loadingMore = false;
   error: string | null = null;
+  /** Orders matching the filters on the server; the table shows them a page at a time. */
+  totalOrders = 0;
+  private readonly pageSize = 50;
 
   activeStatus: AdminOrderStatusFilter = 'all';
   dateRange: AdminDateRange = '30';
@@ -87,15 +91,12 @@ export class OrdersListingComponent implements OnInit {
             this.error = null;
           }
 
+          // A silent refresh keeps the pages already loaded; a new filter starts at page 1.
+          const limit = options?.silent
+            ? Math.max(this.pageSize, Math.ceil(this.orders.length / this.pageSize) * this.pageSize)
+            : this.pageSize;
           return this.adminOrderService
-            .getOrders({
-              order_status: this.activeStatus,
-              search: this.search,
-              date_range: this.dateRange,
-              date_from: this.dateRange === 'custom' ? this.appliedCustomFrom : undefined,
-              date_to: this.dateRange === 'custom' ? this.appliedCustomTo : undefined,
-              limit: 100
-            })
+            .getOrders({ ...this.currentQuery(), page: 1, limit })
             .pipe(
               catchError(() => {
                 this.error = 'Failed to load orders. Please try again.';
@@ -109,6 +110,7 @@ export class OrdersListingComponent implements OnInit {
         if (response) {
           this.orders = response.data;
           this.stats = response.stats;
+          this.totalOrders = response.total;
         }
         this.loading = false;
         this.cdr.markForCheck();
@@ -303,6 +305,46 @@ export class OrdersListingComponent implements OnInit {
     if (status === 'pending_refund') return 'status-badge--pending-refund';
     if (status === 'refund_rejected') return 'status-badge--refund-rejected';
     return 'status-badge--processing';
+  }
+
+  private currentQuery() {
+    return {
+      order_status: this.activeStatus,
+      search: this.search,
+      date_range: this.dateRange,
+      date_from: this.dateRange === 'custom' ? this.appliedCustomFrom : undefined,
+      date_to: this.dateRange === 'custom' ? this.appliedCustomTo : undefined
+    };
+  }
+
+  get hasMoreOrders(): boolean {
+    return this.orders.length < this.totalOrders;
+  }
+
+  loadMore(): void {
+    if (this.loadingMore || !this.hasMoreOrders) return;
+    this.loadingMore = true;
+    const page = Math.floor(this.orders.length / this.pageSize) + 1;
+    this.adminOrderService
+      .getOrders({ ...this.currentQuery(), page, limit: this.pageSize })
+      .pipe(
+        catchError(() => {
+          this.error = 'Failed to load more orders. Please try again.';
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((response) => {
+        if (response) {
+          // New orders may have shifted the pages: skip rows already shown.
+          const shown = new Set(this.orders.map((o) => o.order_id));
+          this.orders = [...this.orders, ...response.data.filter((o) => !shown.has(o.order_id))];
+          this.totalOrders = response.total;
+          this.stats = response.stats;
+        }
+        this.loadingMore = false;
+        this.cdr.markForCheck();
+      });
   }
 
   exportOrders(): void {

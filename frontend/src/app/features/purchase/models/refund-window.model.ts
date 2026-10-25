@@ -19,3 +19,20 @@ export function isWithinRefundWindow(order: any, now: number = Date.now()): bool
   const deadline = getRefundDeadline(order);
   return !deadline || now <= deadline.getTime();
 }
+
+/**
+ * Shown once the order is delivered so customers know the return deadline up
+ * front, not only when the button disappears.
+ */
+export function getRefundWindowNote(order: any): string | null {
+  if (!order) return null;
+  const status = (order.order_status || '').toLowerCase();
+  if (status !== 'delivered' && status !== 'refund_rejected') return null;
+  if (order.refund_request?.status === 'pending') return null;
+  const deadline = getRefundDeadline(order);
+  if (!deadline) return null;
+  const date = deadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return isWithinRefundWindow(order)
+    ? `Returns and refunds accepted until ${date}.`
+    : `The return window closed on ${date}.`;
+}

@@ -186,5 +186,13 @@
         }
       </tbody>
     </table>
+    <div class="table-footer">
+      <span class="data-table__muted">Showing {{ orders.length | number }} of {{ totalOrders | number }} orders</span>
+      @if (hasMoreOrders) {
+        <button type="button" class="btn btn-outline" (click)="loadMore()" [disabled]="loadingMore">
+          {{ loadingMore ? 'Loading…' : 'Load more' }}
+        </button>
+      }
+    </div>
   </section>
 }

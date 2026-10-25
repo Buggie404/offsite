@@ -21,7 +21,7 @@ import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
-import { getRefundDeadline, isWithinRefundWindow } from '../../models/refund-window.model';
+import { isWithinRefundWindow, getRefundWindowNote } from '../../models/refund-window.model';
 
 @Component({
   selector: 'app-order-tracking',
@@ -386,22 +386,8 @@ export class OrderTrackingComponent implements OnInit {
     this.router.navigate([`/orders/${ord.order_id || ord._id}/return`], { state: { order: ord } });
   }
 
-  /**
-   * Shown once the order is delivered so customers know the return deadline up
-   * front, not only when the button disappears.
-   */
   refundWindowNote(): string | null {
-    const ord = this.order();
-    if (!ord) return null;
-    const status = (ord.order_status || '').toLowerCase();
-    if (status !== 'delivered' && status !== 'refund_rejected') return null;
-    if (ord.refund_request?.status === 'pending') return null;
-    const deadline = getRefundDeadline(ord);
-    if (!deadline) return null;
-    const date = deadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return isWithinRefundWindow(ord)
-      ? `Returns and refunds accepted until ${date}.`
-      : `The return window closed on ${date}.`;
+    return getRefundWindowNote(this.order());
   }
 
   canRequestRefund(): boolean {
