@@ -324,7 +324,7 @@
 
             <!-- Logged in: My Community Profile -->
             <li *ngIf="isLoggedIn()">
-              <button class="dropdown-item dropdown-item--icon-left" routerLink="/community" (click)="closeProfileDropdown(0)">
+              <button class="dropdown-item dropdown-item--icon-left" [routerLink]="myCommunityProfileLink()" (click)="closeProfileDropdown(0)">
                 <svg lucideLayoutGrid [size]="16" class="item-icon-left"></svg>
                 <span class="item-text">My Community Profile</span>
               </button>

@@ -1201,6 +1201,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return user?.profile_name || user?.name || user?.email || '';
   }
 
+  /** Link to the signed-in user's own community profile page. */
+  myCommunityProfileLink(): string[] {
+    const user = this.authService.currentUser() || this.authService.getUser();
+    return user?.user_id ? ['/community/profile', user.user_id] : ['/community'];
+  }
+
   /** Community handle without leading @ */
   getUserCommunityName(): string {
     const user = this.authService.currentUser() || this.authService.getUser();
