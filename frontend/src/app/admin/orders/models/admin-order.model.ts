@@ -15,7 +15,6 @@ export type AdminOrderStatusFilter =
   | 'processing'
   | 'shipping'
   | 'delivered'
-  | 'cancelled'
   | 'refund'
   | 'pending_refund'
   | 'refund_rejected';
