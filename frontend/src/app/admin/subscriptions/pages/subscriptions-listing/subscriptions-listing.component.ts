@@ -24,6 +24,7 @@ import {
   AdminSubscriptionAction,
   AdminSubscriptionDelivery,
   AdminSubscriptionDetail,
+  AdminSupportChat,
   AdminSubscriptionFilter,
   AdminSubscriptionRow,
   AdminSubscriptionStats,
@@ -256,6 +257,11 @@ export class SubscriptionsListingComponent implements OnInit {
   /** Acting on the customer's request needs the support ticket id as proof. */
   needsTicket(reason: string): boolean {
     return reason === CUSTOMER_REQUEST;
+  }
+
+  supportChatLabel(chat: AdminSupportChat): string {
+    const preview = chat.last_message_preview ? ` · “${chat.last_message_preview.slice(0, 40)}”` : '';
+    return `${chat.conversation_id} · ${chat.status} · ${this.shortDate(chat.last_message_at)}${preview}`;
   }
 
   get anyModalOpen(): boolean {

@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const RefundRequest = require('../models/RefundRequest');
 const subscriptionService = require('../services/subscription.service');
 const ActivityLog = require('../models/ActivityLog');
+const { unsavedActivityLogCount } = require('../services/activity-log.service');
 const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
 
@@ -662,7 +663,8 @@ async function getActivityLogs(req, res) {
       ActivityLog.countDocuments(filter),
       ActivityLog.find(filter).sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).lean()
     ]);
-    res.json({ total, page, limit, data });
+    // Logs whose write failed and are still waiting to be retried — the change itself was saved.
+    res.json({ total, page, limit, data, unsaved_count: unsavedActivityLogCount() });
   } catch (error) {
     console.error('Error fetching activity logs:', error);
     res.status(500).json({ error: 'Failed to retrieve activity logs.' });
