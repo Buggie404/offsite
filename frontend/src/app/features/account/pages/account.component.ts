@@ -1564,6 +1564,13 @@ export class AccountComponent implements OnInit, OnDestroy {
         }
 
         this.toastService.success(`${fieldType === 'email' ? 'Email' : 'Phone number'} verified successfully!`);
+        // Guest orders placed with this email / phone now belong to the account.
+        const linkedOrders = Array.isArray(res?.linked_guest_orders) ? res.linked_guest_orders.length : 0;
+        if (linkedOrders) {
+          this.toastService.success(
+            `We found ${linkedOrders} earlier order${linkedOrders > 1 ? 's' : ''} placed as a guest — now in your order history.`
+          );
+        }
         this.closeChangeModal();
       },
       error: (err) => {

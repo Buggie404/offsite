@@ -81,6 +81,14 @@
           }
         </tbody>
       </table>
+      <div class="list-footer">
+        <span class="list-footer__count">Showing {{ rows.length }} of {{ totalRows }} subscriptions</span>
+        @if (hasMoreRows) {
+          <button type="button" class="btn btn--outline" (click)="loadMore()" [disabled]="loadingMore">
+            {{ loadingMore ? 'Loading…' : 'Load more' }}
+          </button>
+        }
+      </div>
     }
   </section>
 

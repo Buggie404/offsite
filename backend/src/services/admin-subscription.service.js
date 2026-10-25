@@ -1,6 +1,8 @@
 const Subscription = require('../models/Subscription');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const Product = require('../models/Product');
+const mongoose = require('mongoose');
 const ChatConversation = require('../models/ChatConversation');
 const notificationService = require('./notification.service');
 const {
@@ -13,6 +15,7 @@ const {
   cardBrand,
   findReplacement,
   applyDueTransitions,
+  dueTransitionsQuery,
   orderHistoryStatus,
   shapePendingChanges
 } = require('./subscription.service');
@@ -104,10 +107,6 @@ function isOutOfStock(sub, variant) {
   return ['active', 'paused'].includes(sub.status) && (!variant || (variant.stock ?? 0) <= 0);
 }
 
-function needsAction(row) {
-  return row.out_of_stock && row.status === 'active' || NEEDS_ACTION_STATUSES.includes(row.status);
-}
-
 async function loadCustomers(userIds) {
   const users = await User.find({ user_id: { $in: [...new Set(userIds)] } })
     .select('user_id profile_name email payment_methods').lean();
@@ -133,8 +132,26 @@ async function loadSupportChats(userId, user) {
   }));
 }
 
-async function shapeRow(sub, user) {
-  const product = await findProduct(sub.product_id);
+// Same lookup as findProduct (Mongo _id first, then numeric product_id), for many ids in two queries.
+async function loadProducts(productIds) {
+  const ids = [...new Set(productIds.map(String))];
+  const objectIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id));
+  const numericIds = ids.filter(id => /^\d+$/.test(id)).map(Number);
+  const [byNumber, byObjectId] = await Promise.all([
+    numericIds.length ? Product.find({ product_id: { $in: numericIds } }).lean() : [],
+    objectIds.length ? Product.find({ _id: { $in: objectIds } }).lean() : []
+  ]);
+  const products = new Map();
+  for (const p of byNumber) products.set(String(p.product_id), p);
+  for (const p of byObjectId) products.set(String(p._id), p);
+  return products;
+}
+
+const variantOf = (product, variantId) => (product?.variants || []).find(v => v.sku === variantId) || null;
+
+// `product` is passed when the caller already loaded it (list page); otherwise it is looked up.
+async function shapeRow(sub, user, product) {
+  if (product === undefined) product = await findProduct(sub.product_id);
   const variant = (product?.variants || []).find(v => v.sku === sub.variant_id) || null;
   const name = user?.profile_name || sub.delivery_info?.recipient_name || sub.user_id;
   return {
@@ -155,46 +172,82 @@ async function shapeRow(sub, user) {
   };
 }
 
-function matchesSearch(row, query) {
-  if (!query) return true;
-  const q = query.toLowerCase();
-  const compactId = q.replace(/-/g, '');
-  return row.subscription_id.toLowerCase().includes(compactId)
-    || row.customer.name.toLowerCase().includes(q)
-    || (row.customer.email || '').toLowerCase().includes(q)
-    || row.box.toLowerCase().includes(q);
-}
+const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-function matchesFilter(row, filter) {
-  switch (filter) {
-    case 'active': return row.status === 'active';
-    case 'needs_action': return needsAction(row);
-    case 'paused': return row.status === 'paused';
-    case 'cancelled': return CLOSED_STATUSES.includes(row.status);
-    default: return true;
-  }
-}
-
-async function listSubscriptions({ filter = 'all', search = '' } = {}) {
-  const now = new Date();
-  const docs = await Subscription.find({}).sort({ created_at: -1 });
-  for (const doc of docs) await applyDueTransitions(doc, now);
-
-  const customers = await loadCustomers(docs.map(d => d.user_id));
-  const rows = await Promise.all(docs.map(d => shapeRow(d.toObject(), customers.get(d.user_id))));
-
-  const stats = {
-    active: rows.filter(r => r.status === 'active').length,
-    affected_by_stock: rows.filter(r => r.out_of_stock && r.status === 'active').length,
-    paused: rows.filter(r => r.status === 'paused').length,
-    needs_action: rows.filter(needsAction).length
-  };
-
+// Search by subscription id, customer name / email or product, as a query condition.
+async function searchCondition(search) {
   const query = String(search || '').trim();
+  if (!query) return null;
+  const pattern = { $regex: escapeRegex(query), $options: 'i' };
+  const compactId = query.replace(/-/g, '');
+  const [users, products] = await Promise.all([
+    User.find({ $or: [{ profile_name: pattern }, { email: pattern }] }, 'user_id').lean(),
+    Product.find({ $or: [{ name: pattern }, { 'variants.label': pattern }] }, '_id product_id').lean()
+  ]);
+  const productIds = products.flatMap(p => [String(p._id), String(p.product_id)]);
   return {
-    data: rows.filter(r => matchesFilter(r, filter) && matchesSearch(r, query)),
-    stats
+    $or: [
+      { subscription_id: { $regex: escapeRegex(compactId), $options: 'i' } },
+      { user_id: { $in: users.map(u => u.user_id) } },
+      { product_id: { $in: productIds } }
+    ]
   };
+}
+
+// Admin list: filters, search and paging run in the database. Only the stock check needs
+// products, so it is done once for active boxes (two product queries in total).
+async function listSubscriptions({ filter = 'all', search = '', page = 1, limit = 50 } = {}) {
+  const now = new Date();
+  const due = await Subscription.find(dueTransitionsQuery(now));
+  for (const doc of due) await applyDueTransitions(doc, now);
+
+  const activeBoxes = await Subscription.find({ status: 'active' }, 'subscription_id product_id variant_id status').lean();
+  const activeProducts = await loadProducts(activeBoxes.map(s => s.product_id));
+  const outOfStockIds = activeBoxes
+    .filter(s => isOutOfStock(s, variantOf(activeProducts.get(String(s.product_id)), s.variant_id)))
+    .map(s => s.subscription_id);
+
+  const counts = Object.fromEntries(
+    (await Subscription.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }])).map(c => [c._id, c.n])
+  );
+  const stats = {
+    active: counts.active || 0,
+    affected_by_stock: outOfStockIds.length,
+    paused: counts.paused || 0,
+    needs_action: outOfStockIds.length + NEEDS_ACTION_STATUSES.reduce((sum, s) => sum + (counts[s] || 0), 0)
+  };
+
+  const conditions = [];
+  switch (filter) {
+    case 'active': conditions.push({ status: 'active' }); break;
+    case 'paused': conditions.push({ status: 'paused' }); break;
+    case 'cancelled': conditions.push({ status: { $in: CLOSED_STATUSES } }); break;
+    case 'needs_action':
+      conditions.push({ $or: [{ status: { $in: NEEDS_ACTION_STATUSES } }, { subscription_id: { $in: outOfStockIds } }] });
+      break;
+    default: break;
+  }
+  const searchFilter = await searchCondition(search);
+  if (searchFilter) conditions.push(searchFilter);
+  const query = conditions.length ? { $and: conditions } : {};
+
+  const pageSize = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+  const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+  const [total, docs] = await Promise.all([
+    Subscription.countDocuments(query),
+    Subscription.find(query).sort({ created_at: -1, _id: -1 })
+      .skip((pageNumber - 1) * pageSize).limit(pageSize).lean()
+  ]);
+
+  const [customers, products] = await Promise.all([
+    loadCustomers(docs.map(d => d.user_id)),
+    loadProducts(docs.map(d => d.product_id))
+  ]);
+  const data = await Promise.all(docs.map(d =>
+    shapeRow(d, customers.get(d.user_id), products.get(String(d.product_id)) || null)
+  ));
+
+  return { data, stats, total, page: pageNumber, limit: pageSize };
 }
 
 async function getSubscriptionDetail(subscriptionId, role = null) {

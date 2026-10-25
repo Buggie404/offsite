@@ -62,7 +62,11 @@ export class SubscriptionsListingComponent implements OnInit {
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   private cdr = inject(ChangeDetectorRef);
-  private readonly listTrigger$ = new Subject<void>();
+  /** reset: a new filter / search starts at page 1; otherwise the pages already shown are reloaded. */
+  private readonly listTrigger$ = new Subject<{ reset?: boolean }>();
+  private readonly pageSize = 50;
+  totalRows = 0;
+  loadingMore = false;
 
   readonly frequencies = [
     { days: 7, label: 'Every week' },
@@ -126,9 +130,12 @@ export class SubscriptionsListingComponent implements OnInit {
   ngOnInit(): void {
     this.listTrigger$
       .pipe(
-        switchMap(() => {
+        switchMap((options) => {
           this.error = null;
-          return this.api.getSubscriptions(this.activeFilter, this.search).pipe(
+          const limit = options.reset
+            ? this.pageSize
+            : Math.max(this.pageSize, Math.ceil(this.rows.length / this.pageSize) * this.pageSize);
+          return this.api.getSubscriptions(this.activeFilter, this.search, 1, limit).pipe(
             catchError(() => {
               this.error = 'Failed to load subscriptions. Please try again.';
               return of(null);
@@ -141,6 +148,7 @@ export class SubscriptionsListingComponent implements OnInit {
         if (res) {
           this.rows = res.data;
           this.stats = res.stats;
+          this.totalRows = res.total;
         }
         this.loading = false;
         this.cdr.markForCheck();
@@ -155,7 +163,7 @@ export class SubscriptionsListingComponent implements OnInit {
         const changed = search !== this.search || filter !== this.activeFilter || this.loading;
         this.search = search;
         this.activeFilter = this.filters.some((f) => f.value === filter) ? filter : 'all';
-        if (changed) this.listTrigger$.next();
+        if (changed) this.listTrigger$.next({ reset: true });
 
         const id = params.get('id');
         if (id && id !== this.selectedId) this.loadDetail(id);
@@ -164,6 +172,34 @@ export class SubscriptionsListingComponent implements OnInit {
   }
 
   // ── List ────────────────────────────────────────────────────────────────
+
+  get hasMoreRows(): boolean {
+    return this.rows.length < this.totalRows;
+  }
+
+  loadMore(): void {
+    if (this.loadingMore || !this.hasMoreRows) return;
+    this.loadingMore = true;
+    const page = Math.floor(this.rows.length / this.pageSize) + 1;
+    this.api.getSubscriptions(this.activeFilter, this.search, page, this.pageSize)
+      .pipe(
+        catchError(() => {
+          this.error = 'Failed to load more subscriptions. Please try again.';
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((res) => {
+        if (res) {
+          const shown = new Set(this.rows.map((r) => r.subscription_id));
+          this.rows = [...this.rows, ...res.data.filter((r) => !shown.has(r.subscription_id))];
+          this.totalRows = res.total;
+          this.stats = res.stats;
+        }
+        this.loadingMore = false;
+        this.cdr.markForCheck();
+      });
+  }
 
   get subtitle(): string {
     return `${this.stats.active} active · ${this.stats.affected_by_stock} affected by stock · ${this.stats.paused} paused`;
@@ -244,7 +280,7 @@ export class SubscriptionsListingComponent implements OnInit {
         this.busy = false;
         this.setDetail(res.data);
         done?.();
-        if (action !== 'note') this.listTrigger$.next();
+        if (action !== 'note') this.listTrigger$.next({});
       },
       error: (err) => {
         this.busy = false;

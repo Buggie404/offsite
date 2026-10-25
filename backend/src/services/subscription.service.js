@@ -3,6 +3,8 @@ const Subscription = require('../models/Subscription');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const notificationService = require('./notification.service');
+const { appendInternalNote } = require('../utils/internal-notes');
 
 // Business rules: "Project Planning & Prep 2" — Subscription conventions.
 const FREQUENCIES = [7, 14, 30];
@@ -276,6 +278,28 @@ async function priceSubscriptionLine(productId, sku) {
   };
 }
 
+// The order was paid for its Subscribe & Save lines but no Ritual Box could start (card removed
+// or not a credit / debit card): tell the customer and leave a note on the order for CSKH.
+async function reportSubscriptionNotStarted(order) {
+  console.error(`Order ${order.order_id}: no saved card for its Ritual Box lines, subscriptions not created.`);
+  const note = 'Ritual Box not started: the card chosen at checkout is no longer saved (or is not a Visa / Mastercard). '
+    + 'Contact the customer to add a card and start the box, or refund the subscription lines.';
+  try {
+    const fresh = await Order.findOne({ order_id: order.order_id }, 'internal_notes').lean();
+    await Order.updateOne(
+      { order_id: order.order_id },
+      { $set: { internal_notes: appendInternalNote(fresh?.internal_notes, note, 'System') } }
+    );
+  } catch (err) {
+    console.error(`Order ${order.order_id}: could not add the Ritual Box note.`, err);
+  }
+  await notificationService.notifySubscription(
+    { user_id: order.user_id, subscription_id: null },
+    'SUBSCRIPTION_NOT_STARTED',
+    `Order ${order.order_id}: your Ritual Box couldn't start because the card you chose is no longer saved. Our team will contact you.`
+  );
+}
+
 // Start one subscription per 'subscription' line of a paid checkout order.
 // The order itself is the first delivery, so the next charge is one cycle out.
 // Idempotent: lines already turned into subscriptions for this order are skipped.
@@ -290,7 +314,7 @@ async function createSubscriptionsFromOrder(order) {
     String(pm._id) === String(order.subscription_payment_method_id) && pm.card_type !== 'NAPAS'
   );
   if (!card) {
-    console.error(`Order ${order.order_id}: no saved card for its Ritual Box lines, subscriptions not created.`);
+    await reportSubscriptionNotStarted(order);
     return [];
   }
 
@@ -368,6 +392,18 @@ async function getOrderRitualBoxes(order) {
 
 // Time-based transitions the charge job would also do; applied on read so the
 // screen is right even between job runs.
+// Subscriptions that applyDueTransitions would change at `now` — lets list pages update
+// only those instead of loading every subscription.
+function dueTransitionsQuery(now) {
+  return {
+    $or: [
+      { status: 'paused', resume_at: { $ne: null, $lte: now } },
+      { suggested_frequency_days: { $ne: null }, suggested_at: { $ne: null, $lte: addDays(now, -SUGGESTION_TTL_DAYS) } },
+      { 'admin_proposal.expires_at': { $lte: now } }
+    ]
+  };
+}
+
 async function applyDueTransitions(sub, now) {
   let dirty = false;
   // Tạm dừng hết hạn → tự về active, next_charge_at tính lại từ ngày tiếp tục.
@@ -757,6 +793,7 @@ module.exports = {
   cardBrand,
   findReplacement,
   applyDueTransitions,
+  dueTransitionsQuery,
   orderHistoryStatus,
   shapePendingChanges
 };
