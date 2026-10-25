@@ -4,6 +4,7 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const notificationService = require('./notification.service');
+const inventoryService = require('./inventory.service');
 const { appendInternalNote } = require('../utils/internal-notes');
 
 // Business rules: "Project Planning & Prep 2" — Subscription conventions.
@@ -216,11 +217,23 @@ async function chargeSubscription(sub, { now = new Date() } = {}) {
       currency: 'USD'
     },
     payment_status: 'paid',
+    stock_reserved: true,
     subscription_id: sub.subscription_id,
     subscription_cycle: cycle
   });
   order._statusChangeNote = `Subscription ${sub.subscription_id} charged (cycle ${cycle})`;
-  await order.save();
+
+  // The check above can race with checkouts; the atomic reservation is what counts.
+  const reservation = await inventoryService.reserveItems(order.items);
+  if (!reservation.ok) {
+    return { ok: false, reason: 'out_of_stock', message: 'This item is out of stock. Pick the replacement or skip this cycle.' };
+  }
+  try {
+    await order.save();
+  } catch (saveErr) {
+    await inventoryService.releaseItems(order.items);
+    throw saveErr;
+  }
 
   sub.last_charged_at = now;
   sub.next_charge_at = addDays(now, sub.frequency_days);
