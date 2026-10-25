@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -11,8 +11,11 @@ import { Post } from '../../models/post.model';
 import { ShareModalComponent } from '../../components/share-modal/share-modal.component';
 import { ReportPostModalComponent, ReportPayload } from '../../components/report-post-modal/report-post-modal.component';
 import { CloudinaryService } from '../../services/cloudinary.service';
+import { PostCardComponent } from '../../components/post-card/post-card.component';
+import { CreatePostModalComponent } from '../../components/create-post-modal/create-post-modal.component';
+import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
-@Component({ selector: 'app-public-profile', standalone: true, imports: [CommonModule, FormsModule, RouterModule, ShareModalComponent, ReportPostModalComponent], templateUrl: './public-profile.component.html', styleUrl: './public-profile.component.scss' })
+@Component({ selector: 'app-public-profile', standalone: true, imports: [CommonModule, FormsModule, RouterModule, ShareModalComponent, ReportPostModalComponent, PostCardComponent, CreatePostModalComponent, ConfirmationModalComponent], templateUrl: './public-profile.component.html', styleUrl: './public-profile.component.scss' })
 export class PublicProfileComponent implements OnInit {
   private route = inject(ActivatedRoute); private router = inject(Router); private community = inject(CommunityService);
   private auth = inject(AuthService); private authModal = inject(AuthModalService); private toast = inject(ToastService); private cdr = inject(ChangeDetectorRef);
@@ -21,6 +24,51 @@ export class PublicProfileComponent implements OnInit {
   activeTab: 'posts' | 'recipes' = 'posts'; menuOpen = false; shareOpen = false; reportOpen = false; reportSubmitting = false;
   editOpen = false; editSaving = false; editError = '';
   edit = { profile_name: '', community_name: '', email: '', phone: '', avatar_url: '' };
+
+  // ── Post cards (same card + actions as the All Stories feed) ──
+  currentUserId = computed<string | undefined>(() => this.auth.currentUser()?.user_id);
+  postShareOpen = false; postShareUrl = '';
+  reportingPostId: string | null = null; postReportSubmitting = false;
+  pendingDeletePost: Post | null = null;
+  editingPost: Post | null = null; editPostOpen = false;
+
+  get reportingPost(): Post | null { return this.reportingPostId ? this.posts.find(p => p.post_id === this.reportingPostId) || null : null; }
+  likePost(postId: string): void {
+    if (!this.auth.isAuthenticated()) { this.authModal.open('login'); return; }
+    this.community.likePost(postId).subscribe(res => { const p = this.posts.find(x => x.post_id === postId); if (p) { p.like_count = res.like_count; p.liked = res.liked; this.cdr.markForCheck(); } });
+  }
+  savePost(postId: string): void {
+    if (!this.auth.isAuthenticated()) { this.authModal.open('login'); return; }
+    this.community.savePost(postId).subscribe(res => { const p = this.posts.find(x => x.post_id === postId); if (p) { p.save_count = res.save_count; p.saved = res.saved; this.cdr.markForCheck(); } });
+  }
+  sharePost(postId: string): void {
+    this.postShareUrl = `${window.location.origin}/community/post/${postId}`; this.postShareOpen = true; this.cdr.markForCheck();
+    this.community.sharePost(postId).subscribe(res => { const p = this.posts.find(x => x.post_id === postId); if (p) { p.share_count = res.share_count; this.cdr.markForCheck(); } });
+  }
+  goToDetail(postId: string): void { void this.router.navigate(['/community/post', postId]); }
+  openReport(postId: string): void { if (!this.auth.isAuthenticated()) { this.authModal.open('login'); return; } this.reportingPostId = postId; }
+  submitPostReport(payload: ReportPayload): void {
+    const postId = this.reportingPostId; if (!postId || this.postReportSubmitting) return; this.postReportSubmitting = true;
+    this.community.reportPost(postId, payload.reason, payload.note).subscribe({
+      next: () => { this.postReportSubmitting = false; this.reportingPostId = null; this.toast.success('Thanks for letting us know. We will review this post.'); this.cdr.markForCheck(); },
+      error: error => { this.postReportSubmitting = false; this.reportingPostId = null; this.toast.error(error?.error?.error || 'Failed to submit report. Please try again.'); this.cdr.markForCheck(); }
+    });
+  }
+  promptDeletePost(postId: string): void { this.pendingDeletePost = this.posts.find(p => p.post_id === postId) || null; }
+  confirmDeletePost(): void {
+    const post = this.pendingDeletePost; if (!post) return; this.pendingDeletePost = null;
+    this.community.deletePost(post.post_id).subscribe({
+      next: () => {
+        this.posts = this.posts.filter(p => p.post_id !== post.post_id);
+        if (this.profile) { if (post.post_type === 'recipe') this.profile.recipe_count = Math.max(0, this.profile.recipe_count - 1); else this.profile.post_count = Math.max(0, this.profile.post_count - 1); }
+        this.cdr.markForCheck();
+      },
+      error: () => this.toast.error('Failed to delete this post. Please try again.')
+    });
+  }
+  openEdit(post: Post): void { this.editingPost = post; this.editPostOpen = true; }
+  closeEdit(): void { this.editPostOpen = false; this.editingPost = null; }
+  onPostEdited(postId: string): void { this.community.getPostById(postId).subscribe(updated => { this.posts = this.posts.map(p => (p.post_id === postId ? updated : p)); this.cdr.markForCheck(); }); }
 
   ngOnInit(): void { this.route.paramMap.subscribe(params => { const id = params.get('userId'); if (id) this.load(id); }); }
   get displayedPosts(): Post[] { return this.activeTab === 'recipes' ? this.posts.filter(post => post.post_type === 'recipe') : this.posts.filter(post => post.post_type !== 'recipe'); }

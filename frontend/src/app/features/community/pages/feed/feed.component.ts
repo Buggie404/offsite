@@ -192,6 +192,13 @@ export class FeedComponent implements OnInit, OnDestroy {
   }
 
   onCategoryChange(category: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | ''): void {
+    // "My profile" opens the user's own profile page instead of filtering the feed.
+    if (category === 'MY_POST') {
+      if (!this.isLoggedIn()) { this.openLoginModal(); return; }
+      const userId = this.authService.getUser()?.user_id;
+      if (userId) void this.router.navigate(['/community/profile', userId]);
+      return;
+    }
     if (this.loading) return;
     this.activeCategory = category;
     this.page = 1;

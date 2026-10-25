@@ -14,11 +14,15 @@
       </div>
     </header>
     <nav class="tabs" aria-label="Profile content"><button [class.active]="activeTab === 'posts'" (click)="activeTab = 'posts'">Posts ({{ profile.post_count }})</button><button [class.active]="activeTab === 'recipes'" (click)="activeTab = 'recipes'">Recipes ({{ profile.recipe_count }})</button></nav>
-    @if (displayedPosts.length) { <section class="post-grid">@for (post of displayedPosts; track post.post_id) { <a class="post-tile" [routerLink]="['/community/post', post.post_id]">@if (post.media?.length) { <img [src]="post.media[0].url" [alt]="post.content"> } @else { <p>{{ post.content }}</p> }<footer>♡ {{ post.like_count || 0 }} · ◯ {{ post.comment_count || 0 }}</footer></a> }</section> }
+    @if (displayedPosts.length) { <section class="community-grid">@for (post of displayedPosts; track post.post_id) { <app-post-card [post]="post" [isOwner]="!!post.user_id && post.user_id === currentUserId()" (like)="likePost($event)" (save)="savePost($event)" (share)="sharePost($event)" (openDetail)="goToDetail($event)" (delete)="promptDeletePost($event)" (report)="openReport($event)" (edit)="openEdit($event)"></app-post-card> }</section> }
     @else if (profile.is_self && profile.post_count === 0 && profile.recipe_count === 0) { <section class="empty-owner"><strong>Share your first post</strong><p>Your posts and recipes will appear here. Visitors see “No posts yet”.</p><button (click)="openCreatePost()">+ Create post</button></section> }
     @else { <p class="state">No {{ activeTab }} yet.</p> }
   }
 </main>
+@if (postShareOpen) { <app-share-modal [shareUrl]="postShareUrl" (close)="postShareOpen = false"></app-share-modal> }
+@if (reportingPost; as rp) { <app-report-post-modal [authorUsername]="rp.author.username" [postExcerpt]="rp.content" [submitting]="postReportSubmitting" (cancel)="reportingPostId = null" (submitReport)="submitPostReport($event)"></app-report-post-modal> }
+@if (pendingDeletePost; as dp) { <app-confirmation-modal [isOpen]="true" [title]="dp.post_type === 'recipe' ? 'Delete Recipe?' : 'Delete Post?'" [message]="dp.post_type === 'recipe' ? 'Are you sure you want to delete this recipe?' : 'Are you sure you want to delete this post?'" warningMessage="This action cannot be undone." confirmText="DELETE" cancelText="CANCEL" type="danger" (confirm)="confirmDeletePost()" (cancel)="pendingDeletePost = null"></app-confirmation-modal> }
+@if (editPostOpen) { <app-create-post-modal [post]="editingPost" (saved)="onPostEdited($event)" (close)="closeEdit()"></app-create-post-modal> }
 @if (shareOpen) { <app-share-modal [shareUrl]="shareUrl" title="Share this account" linkLabel="Profile link" [shareText]="profile ? '@' + profile.username : ''" (close)="shareOpen = false"></app-share-modal> }
 @if (reportOpen && profile) { <app-report-post-modal target="account" [authorUsername]="profile.username" [submitting]="reportSubmitting" (cancel)="reportOpen = false" (submitReport)="submitAccountReport($event)"></app-report-post-modal> }
 @if (editOpen) { <div class="edit-overlay" (click)="editOpen = false"><section class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="edit-title" (click)="$event.stopPropagation()"><button class="edit-close" (click)="editOpen = false" aria-label="Close">×</button><h2 id="edit-title">Edit Profile</h2>
