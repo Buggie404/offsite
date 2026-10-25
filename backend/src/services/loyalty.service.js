@@ -51,7 +51,7 @@ const REDEEM_REWARDS = [
   }
 ];
 
-const REFERRAL_CODE_REGEX = /^.+_[A-Z0-9]{8}$/;
+const REFERRAL_CODE_REGEX = /^[A-Z0-9]+_[A-Z0-9]{8}$/;
 
 async function resolveAppUserId(jwtUserId) {
   if (!jwtUserId) return null;
@@ -353,13 +353,13 @@ async function redeemReward(jwtUserId, rewardId) {
 
 async function validateReferralCode(code) {
   if (!code || !REFERRAL_CODE_REGEX.test(String(code).trim().toUpperCase())) {
-    return { ok: false, error: 'Invalid referral code format.' };
+    return { ok: false, code: 'REFERRAL_INVALID_FORMAT', error: 'Invalid format. Expected: NAME_8CHARS (e.g. JOHN_AB12CD34)' };
   }
 
   const normalized = String(code).trim().toUpperCase();
   const referrer = await User.findOne({ referral_code: normalized }, { user_id: 1, profile_name: 1 }).lean();
   if (!referrer) {
-    return { ok: false, error: 'Referral code not found.' };
+    return { ok: false, code: 'REFERRAL_NOT_FOUND', error: 'Referral code not found. Re-enter it, or click JOIN US again to continue without it.' };
   }
 
   return { ok: true, referrerId: referrer.user_id };

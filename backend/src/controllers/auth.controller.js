@@ -140,6 +140,15 @@ async function register(req, res) {
       }
     }
 
+    // Kiểm tra referral code (nếu có): sai format / không tồn tại -> báo lỗi inline
+    if (referral_code && String(referral_code).trim()) {
+      const loyaltyService = require('../services/loyalty.service');
+      const referralCheck = await loyaltyService.validateReferralCode(referral_code);
+      if (!referralCheck.ok) {
+        return res.status(400).json({ error: referralCheck.error, code: referralCheck.code });
+      }
+    }
+
     // Xóa yêu cầu đăng ký cũ nếu người dùng đăng ký lại
     await otpCollection.deleteMany({
       $or: [
