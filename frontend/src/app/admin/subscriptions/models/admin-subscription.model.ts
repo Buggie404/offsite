@@ -117,6 +117,15 @@ export interface AdminSubscriptionDetail extends AdminSubscriptionRow {
   paused_by: 'customer' | 'admin' | null;
   admin_proposal: AdminSubscriptionProposal | null;
   permissions: AdminSubscriptionPermissions;
+  /** The customer's support chats — the ticket staff cite when acting on the customer's request. */
+  support_chats: AdminSupportChat[];
+}
+
+export interface AdminSupportChat {
+  conversation_id: string;
+  status: 'bot' | 'waiting' | 'open' | 'closed';
+  last_message_preview: string;
+  last_message_at: string;
 }
 
 export interface AdminSubscriptionProposal {

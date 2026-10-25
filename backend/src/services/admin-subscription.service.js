@@ -114,6 +114,25 @@ async function loadCustomers(userIds) {
   return new Map(users.map(u => [u.user_id, u]));
 }
 
+// ChatConversations store the customer either as 'USR…' (AI handoff) or as the Mongo _id
+// from the customer's token (chat widget), so a ticket lookup matches both.
+async function customerChatIds(userId, user = null) {
+  const doc = user || await User.findOne({ user_id: userId }, '_id').lean();
+  return doc ? [userId, String(doc._id)] : [userId];
+}
+
+// Support chats staff can cite as the ticket when acting on the customer's request.
+async function loadSupportChats(userId, user) {
+  const chats = await ChatConversation.find({ customer_id: { $in: await customerChatIds(userId, user) } })
+    .sort({ last_message_at: -1 }).limit(20).lean();
+  return chats.map(c => ({
+    conversation_id: c.conversation_id,
+    status: c.status,
+    last_message_preview: c.last_message_preview || '',
+    last_message_at: c.last_message_at
+  }));
+}
+
 async function shapeRow(sub, user) {
   const product = await findProduct(sub.product_id);
   const variant = (product?.variants || []).find(v => v.sku === sub.variant_id) || null;
@@ -263,6 +282,7 @@ async function getSubscriptionDetail(subscriptionId, role = null) {
         }
       : null,
     permissions: permissionsFor(role, plain),
+    support_chats: await loadSupportChats(plain.user_id, user),
     internal_note: plain.internal_note?.text || '',
     internal_note_updated_at: plain.internal_note?.updated_at || null
   };
@@ -296,7 +316,9 @@ async function applyAdminAction(subscriptionId, action, payload, adminId, role) 
   const message = cleanText(payload.message);
   const ticketId = cleanText(payload.ticket_id, 100) || null;
   // The ticket is the customer's support chat — it must exist and belong to this box's owner.
-  if (ticketId && !(await ChatConversation.exists({ conversation_id: ticketId, customer_id: sub.user_id }))) {
+  if (ticketId && !(await ChatConversation.exists({
+    conversation_id: ticketId, customer_id: { $in: await customerChatIds(sub.user_id) }
+  }))) {
     throw new SubscriptionActionError('Ticket not found in this customer’s support chats.');
   }
   const requireReason = (allowed, reason, label) => {

@@ -147,7 +147,9 @@ const orderSchema = new mongoose.Schema({
 
   // ─── Key timestamps ──────────────────────────────────────
   delivered_at: { type: Date, default: null },
-  canceled_at:  { type: Date, default: null }
+  canceled_at:  { type: Date, default: null },
+  // Set when a guest order was moved to the account registered with the same verified email / phone.
+  linked_from_guest_at: { type: Date, default: null }
 }, {
   collection: 'Orders',
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

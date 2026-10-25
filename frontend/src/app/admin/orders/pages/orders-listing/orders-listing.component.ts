@@ -65,14 +65,18 @@ export class OrdersListingComponent implements OnInit {
     { value: 'delivered', label: 'Delivered' },
     { value: 'pending_refund', label: 'Pending Refund' },
     { value: 'refund', label: 'Refund' },
-    { value: 'refund_rejected', label: 'Refund Rejected' },
-    { value: 'cancelled', label: 'Cancelled' }
+    { value: 'refund_rejected', label: 'Refund Rejected' }
   ];
+
+  /** Unknown or removed filters (e.g. an old ?status=cancelled link) fall back to All. */
+  private toStatusFilter(value: unknown): AdminOrderStatusFilter {
+    return this.statusFilters.find(f => f.value === value)?.value ?? 'all';
+  }
 
   ngOnInit(): void {
     const initial = this.route.snapshot.queryParams;
     this.search = initial['search'] || '';
-    this.activeStatus = (initial['status'] as AdminOrderStatusFilter) || 'all';
+    this.activeStatus = this.toStatusFilter(initial['status']);
     this.dateRange = (initial['date'] as AdminDateRange) || '30';
 
     this.loadTrigger$
@@ -124,7 +128,7 @@ export class OrdersListingComponent implements OnInit {
 
     this.route.queryParams
       .pipe(
-        map((params) => (params['status'] as AdminOrderStatusFilter) || 'all'),
+        map((params) => this.toStatusFilter(params['status'])),
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef)
       )

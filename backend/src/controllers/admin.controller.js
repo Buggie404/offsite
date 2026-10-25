@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const RefundRequest = require('../models/RefundRequest');
 const subscriptionService = require('../services/subscription.service');
 const ActivityLog = require('../models/ActivityLog');
+const { unsavedActivityLogCount } = require('../services/activity-log.service');
 const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
 
@@ -42,8 +43,8 @@ function buildCreatedAtFilter(dateRange, dateFrom, dateTo) {
 }
 
 function mapStatusFilter(orderStatus) {
-  if (!orderStatus || orderStatus === 'all') return null;
-  if (orderStatus === 'cancelled') return 'canceled';
+  // Cancelled orders are left out of the admin listing entirely.
+  if (!orderStatus || orderStatus === 'all' || orderStatus === 'cancelled') return null;
   if (orderStatus === 'processing') return ['pending', 'processing'];
   if (orderStatus === 'pending_refund') return 'pending_refund';
   if (orderStatus === 'refund_rejected') return 'refund_rejected';
@@ -272,8 +273,11 @@ async function buildOrderDetail(order) {
   };
 }
 
+// Admin listing never shows cancelled orders (nothing left to do on them).
+const LISTED_STATUS = { $ne: 'canceled' };
+
 async function computeStats(createdAtFilter, orderScope = {}) {
-  const baseFilter = { ...orderScope, created_at: createdAtFilter };
+  const baseFilter = { ...orderScope, created_at: createdAtFilter, order_status: LISTED_STATUS };
 
   const [total, processing, shipped, needsAttention] = await Promise.all([
     Order.countDocuments(baseFilter),
@@ -281,7 +285,7 @@ async function computeStats(createdAtFilter, orderScope = {}) {
     Order.countDocuments({ ...baseFilter, order_status: 'shipping' }),
     Order.countDocuments({
       ...baseFilter,
-      order_status: { $in: ['canceled', 'refund', 'pending_refund', 'refund_rejected'] }
+      order_status: { $in: ['refund', 'pending_refund', 'refund_rejected'] }
     })
   ]);
 
@@ -308,7 +312,8 @@ async function getAllOrders(req, res) {
       : {};
     const filter = {
       ...orderScope,
-      created_at: createdAtFilter
+      created_at: createdAtFilter,
+      order_status: LISTED_STATUS
     };
 
     const statusFilter = mapStatusFilter(order_status);
@@ -662,7 +667,8 @@ async function getActivityLogs(req, res) {
       ActivityLog.countDocuments(filter),
       ActivityLog.find(filter).sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).lean()
     ]);
-    res.json({ total, page, limit, data });
+    // Logs whose write failed and are still waiting to be retried — the change itself was saved.
+    res.json({ total, page, limit, data, unsaved_count: unsavedActivityLogCount() });
   } catch (error) {
     console.error('Error fetching activity logs:', error);
     res.status(500).json({ error: 'Failed to retrieve activity logs.' });

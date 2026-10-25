@@ -291,6 +291,18 @@ async function verifyRegistrationOtp(req, res) {
       console.error('Referral registration reward failed:', referralErr);
     }
 
+    // Kế thừa đơn vãng lai: only the contact the OTP was sent to is verified
+    // (email when given, otherwise phone — see register()).
+    let linkedGuestOrders = [];
+    try {
+      const { linkGuestOrders } = require('../services/guest-order-link.service');
+      linkedGuestOrders = await linkGuestOrders(newUser.user_id, pending.email
+        ? { email: pending.email }
+        : { phone: pending.phone });
+    } catch (linkErr) {
+      console.error('Linking guest orders failed:', linkErr);
+    }
+
     const token = jwt.sign(
       { user_id: result.insertedId, email: newUser.email || '', role: newUser.role },
       ACCESS_SECRET,
@@ -300,6 +312,7 @@ async function verifyRegistrationOtp(req, res) {
     res.status(201).json({
       message: 'Xác thực thành công.',
       token,
+      linked_guest_orders: linkedGuestOrders,
       user: {
         _id: result.insertedId,
         user_id: newUser.user_id,

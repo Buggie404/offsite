@@ -1063,7 +1063,9 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
 
     try {
-      await this.authService.verifyRegistrationOtp(this.registrationId, this.otpValue);
+      const response = await this.authService.verifyRegistrationOtp(this.registrationId, this.otpValue);
+      // Guest orders placed with the verified email / phone now belong to this account.
+      const linkedOrders = Array.isArray(response?.linked_guest_orders) ? response.linked_guest_orders.length : 0;
 
       this.clearOtpCountdown();
       this.closeAuthModal();
@@ -1071,7 +1073,9 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
       const isOnHomepage = this.router.url === '/';
       this.successModalConfig = {
         title: 'Signed Up Successfully',
-        subtitle: 'Welcome to Offsite!',
+        subtitle: linkedOrders
+          ? `Welcome to Offsite! We found ${linkedOrders} earlier order${linkedOrders > 1 ? 's' : ''} you placed as a guest — ${linkedOrders > 1 ? 'they are' : 'it is'} now in your order history.`
+          : 'Welcome to Offsite!',
         primaryBtn: 'CONTINUE',
         ...(isOnHomepage ? {} : { secondaryBtn: 'BACK TO HOMEPAGE' })
       };
