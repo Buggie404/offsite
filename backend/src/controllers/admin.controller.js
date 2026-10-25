@@ -485,6 +485,8 @@ async function approveRefundRequest(req, res) {
     order.order_status = 'refund';
     order.payment_status = 'refunded';
     await order.save();
+    // Put the refunded quantities back on the shelf (every refundable order had its stock taken).
+    await require('../services/inventory.service').releaseItems(refundRequest.refund_item);
     await req.writeActivityLog({
       actionType: 'refund.approve',
       targetEntity: 'RefundRequests',

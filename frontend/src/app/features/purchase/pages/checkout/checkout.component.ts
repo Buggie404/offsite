@@ -63,6 +63,7 @@ import {
   bundleComponentHasVariantOptions,
   expandBundleForBackendItems,
   getBundleComponentDisplayName,
+  getBundleComponentVariant,
   getBundleComponentImage,
   getBundleComponentInStockVariants,
   getBundleComponentLineQuantity,
@@ -136,6 +137,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   items = this.cartService.checkoutSummaryItems;
   expandedKitKeys = new Set<string>();
   summaryItemErrors = signal<Record<string, string>>({});
+  /** 409 OUT_OF_STOCK per line; shown until that line's quantity or variant changes. */
+  stockErrors = signal<Record<string, { message: string; signature: string }>>({});
   complements = signal<Product[]>([]);
   allVouchers = signal<Voucher[]>([]);
   loading = signal(true);
@@ -1841,7 +1844,37 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   getSummaryItemError(item: CheckoutItem): string | null {
     const key = this.getCheckoutItemKey(item);
-    return this.summaryItemErrors()[key] || null;
+    const stockError = this.stockErrors()[key];
+    return this.summaryItemErrors()[key]
+      || (stockError && stockError.signature === this.getStockSignature(item) ? stockError.message : null);
+  }
+
+  private getStockSignature(item: CheckoutItem): string {
+    const skus = item.bundle
+      ? item.bundle.components.map((c: BundleComponentSelection) => getBundleComponentVariant(c.product, c.variantSku)?.sku).join(',')
+      : this.getVariant(item).sku;
+    return `${item.quantity}|${skus}`;
+  }
+
+  /** Puts the server's OUT_OF_STOCK lines (product + variant) on the checkout items holding them. */
+  private showStockErrors(lines: { product_id: string; variant_id: string; product_name: string; available: number }[]): boolean {
+    const errors: Record<string, { message: string; signature: string }> = {};
+    for (const item of this.items()) {
+      const parts: { productId: string; sku?: string }[] = item.bundle
+        ? item.bundle.components.map((c: BundleComponentSelection) => ({ productId: c.product._id, sku: getBundleComponentVariant(c.product, c.variantSku)?.sku }))
+        : [{ productId: item.product._id, sku: this.getVariant(item).sku }];
+      const messages = lines
+        .filter(line => parts.some(p => String(p.productId) === String(line.product_id) && p.sku === line.variant_id))
+        .map(line => {
+          const left = line.available > 0 ? `Only ${line.available} left in stock.` : 'Out of stock.';
+          return item.bundle ? `${line.product_name}: ${left}` : left;
+        });
+      if (messages.length) {
+        errors[this.getCheckoutItemKey(item)] = { message: messages.join(' '), signature: this.getStockSignature(item) };
+      }
+    }
+    this.stockErrors.set(errors);
+    return Object.keys(errors).length > 0;
   }
 
   onQtyKeydown(event: KeyboardEvent): void {
@@ -2136,12 +2169,13 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
 
 
-    const backendItems = this.items().flatMap((it) => {
+    const backendItems = this.items().flatMap((it): object[] => {
       if (isBundleCartItem(it)) {
+        // bundle_key lets the server apply the bundle discount to these lines.
         return expandBundleForBackendItems({
           quantity: it.quantity,
           bundle: it.bundle
-        });
+        }).map(line => ({ ...line, bundle_key: it.bundle!.bundleKey }));
       }
 
       const variant = this.getVariant(it);
@@ -2307,6 +2341,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       }
     } catch (err: any) {
       console.error('Failed to submit order:', err);
+      if (err.status === 409 && err.error?.code === 'OUT_OF_STOCK' && this.showStockErrors(err.error.items || [])) {
+        return;
+      }
       const errMsg = err.error?.error || 'Failed to place order. Please try again.';
       alert(errMsg);
       if (typeof errMsg === 'string' && (errMsg.toLowerCase().includes('mã giảm giá') || errMsg.toLowerCase().includes('voucher') || errMsg.toLowerCase().includes('coupon'))) {

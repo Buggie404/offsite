@@ -7,9 +7,41 @@ const socketService = require('../services/socket.service');
 const voucherService = require('../services/voucher.service');
 const subscriptionService = require('../services/subscription.service');
 const pointsService = require('../services/points.service');
+const inventoryService = require('../services/inventory.service');
 const { hasAdminRole, isAdminRole, ADMIN_ORDER_VIEW_ROLES } = require('../middleware/auth.middleware');
 
 const REFUND_REASONS = ['Damaged item', 'Wrong item', 'Size/color mismatch', 'Other'];
+// Build-your-bundle discount, same as BUNDLE_DISCOUNT_RATE in the frontend bundle-cart.model.ts.
+const BUNDLE_DISCOUNT_RATE = 0.2;
+
+const round2 = n => Math.round(n * 100) / 100;
+
+// Order items require a non-empty image; products normally have one.
+function pickOrderImage(product, variant) {
+  const image = variant.images?.[0] || product.images?.[0] || {};
+  return { url: image.url || 'none', public_id: image.public_id || 'none' };
+}
+
+// 409 body the Checkout shows next to each line that lacks stock.
+function outOfStockResponse(lines) {
+  return {
+    error: 'Some items in your order are out of stock.',
+    code: 'OUT_OF_STOCK',
+    items: lines
+  };
+}
+
+function outOfStockLine(product, line) {
+  const variant = (product?.variants || []).find(v => v.sku === line.variant_id);
+  return {
+    product_id: line.product_id,
+    variant_id: line.variant_id,
+    product_name: product?.name || '',
+    variant_name: variant?.label || 'Default',
+    requested: line.quantity,
+    available: Math.max(0, variant?.stock ?? 0)
+  };
+}
 
 function normalizeEvidenceList(evidence) {
   if (!Array.isArray(evidence)) {
@@ -104,6 +136,7 @@ async function createOrder(req, res) {
   let session = null;
   let useTransaction = false;
   let appliedVoucherId = null;
+  let reservedItems = null;
 
   try {
     session = await mongoose.startSession();
@@ -145,16 +178,70 @@ async function createOrder(req, res) {
       return res.status(400).json({ error: 'session_id is required for guest checkout.' });
     }
 
+    const rejectOrder = async (status, body) => {
+      await cleanupSession(session);
+      session = null;
+      useTransaction = false;
+      return res.status(status).json(body);
+    };
+    const rejectSubscription = message => rejectOrder(400, { error: message });
+
+    // Every line is rebuilt from the Product: names, image and price never come from the client.
+    const productCache = new Map();
+    const bundleQuantities = new Map();
+    const orderItems = [];
+    for (const line of items) {
+      const quantity = Number(line.quantity);
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        return rejectOrder(400, { error: `Invalid quantity for ${line.product_name || 'an item'}.` });
+      }
+      const productKey = String(line.product_id);
+      if (!productCache.has(productKey)) {
+        productCache.set(productKey, await inventoryService.findProduct(productKey));
+      }
+      const product = productCache.get(productKey);
+      const variant = (product?.variants || []).find(v => v.sku === line.variant_id);
+      if (!product || product.is_active === false || !variant) {
+        return rejectOrder(400, { error: `${product?.name || line.product_name || 'This product'} is no longer available.` });
+      }
+
+      const isSubscription = line.purchase_type === 'subscription';
+      // Build-your-bundle component lines share a bundle_key and get the bundle discount.
+      const bundleKey = !isSubscription && typeof line.bundle_key === 'string' && line.bundle_key ? line.bundle_key : null;
+      if (bundleKey) bundleQuantities.set(bundleKey, (bundleQuantities.get(bundleKey) || 0) + quantity);
+      const unitPrice = bundleKey ? round2(variant.price * (1 - BUNDLE_DISCOUNT_RATE)) : variant.price;
+
+      orderItems.push({
+        product_id: productKey,
+        variant_id: variant.sku,
+        product_name: product.name,
+        variant_name: variant.label || 'Default',
+        image: pickOrderImage(product, variant),
+        unit_price: unitPrice,
+        quantity,
+        subtotal: round2(unitPrice * quantity),
+        purchase_type: isSubscription ? 'subscription' : 'one_time',
+        subscription_frequency_days: isSubscription
+          ? ([7, 14, 30].includes(Number(line.subscription_frequency_days)) ? Number(line.subscription_frequency_days) : 14)
+          : null
+      });
+    }
+    // Bundles are packs of 2 or 3, so a single discounted line is not a bundle.
+    if ([...bundleQuantities.values()].some(qty => qty < 2)) {
+      return rejectOrder(400, { error: 'This bundle is incomplete. Please rebuild it.' });
+    }
+
+    const shortages = inventoryService.groupLines(orderItems)
+      .map(line => outOfStockLine(productCache.get(line.product_id), line))
+      .filter(line => line.available < line.requested);
+    if (shortages.length) {
+      return rejectOrder(409, outOfStockResponse(shortages));
+    }
+
     // Subscribe & Save lines: signed-in customer, credit/debit card, server-side price.
-    const subscriptionLines = items.filter(it => it.purchase_type === 'subscription');
+    const subscriptionLines = orderItems.filter(it => it.purchase_type === 'subscription');
     let subscriptionPaymentMethodId = null;
     if (subscriptionLines.length) {
-      const rejectSubscription = async (message) => {
-        await cleanupSession(session);
-        session = null;
-        useTransaction = false;
-        return res.status(400).json({ error: message });
-      };
       if (is_guest) {
         return rejectSubscription('Sign in to start a Ritual Box subscription.');
       }
@@ -172,10 +259,7 @@ async function createOrder(req, res) {
         // price only applies to boxes the charge job bills later, so cancelling
         // before the next charge never keeps a discount.
         line.unit_price = price.original_price;
-        line.subtotal = Math.round(price.original_price * line.quantity * 100) / 100;
-        line.subscription_frequency_days = [7, 14, 30].includes(Number(line.subscription_frequency_days))
-          ? Number(line.subscription_frequency_days)
-          : 14;
+        line.subtotal = round2(price.original_price * line.quantity);
       }
     }
 
@@ -301,7 +385,7 @@ async function createOrder(req, res) {
     let verifiedPricing = { ...pricing };
     let verifiedCoupon = null;
 
-    const serverSubtotal = items.reduce((sum, item) => sum + (Number(item.unit_price) || 0) * (Number(item.quantity) || 0), 0);
+    const serverSubtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
     const serverShippingCost = shipping.method === 'express' ? 15 : 0;
     let calculatedDiscount = 0;
 
@@ -377,7 +461,8 @@ async function createOrder(req, res) {
       user_id,
       session_id: session_id || null,
       is_guest,
-      items,
+      items: orderItems,
+      stock_reserved: true,
       delivery_info,
       shipping,
       payment,
@@ -387,6 +472,31 @@ async function createOrder(req, res) {
       order_status: 'pending', // defaults to pending initially for verification
       payment_status: 'pending' // defaults to pending initially
     };
+
+    // Take the stock last, inside the transaction when there is one, so every
+    // earlier rejection leaves the inventory untouched.
+    let reservation;
+    try {
+      reservation = await inventoryService.reserveItems(orderItems, useTransaction ? session : null);
+    } catch (reserveErr) {
+      if (useTransaction && isTransactionNotSupportedError(reserveErr)) {
+        await cleanupSession(session);
+        session = null;
+        useTransaction = false;
+        reservation = await inventoryService.reserveItems(orderItems, null);
+      } else {
+        throw reserveErr;
+      }
+    }
+    if (!reservation.ok) {
+      // Sold out since the check above. Without a transaction the voucher use is given back by hand.
+      if (!useTransaction && appliedVoucherId) {
+        await Voucher.updateOne({ _id: appliedVoucherId }, { $inc: { used_count: -1 } });
+      }
+      const fresh = await inventoryService.findProduct(reservation.failed.product_id);
+      return rejectOrder(409, outOfStockResponse([outOfStockLine(fresh, reservation.failed)]));
+    }
+    reservedItems = orderItems;
 
     // Instantiate and save Order (pre-save hook generates order_id & updates order_status)
     const newOrder = new Order(orderData);
@@ -399,6 +509,13 @@ async function createOrder(req, res) {
           await cleanupSession(session);
           session = null;
           useTransaction = false;
+          // The aborted transaction also undid the stock reservation, so take it again.
+          const retry = await inventoryService.reserveItems(orderItems, null);
+          if (!retry.ok) {
+            reservedItems = null;
+            const fresh = await inventoryService.findProduct(retry.failed.product_id);
+            return res.status(409).json(outOfStockResponse([outOfStockLine(fresh, retry.failed)]));
+          }
           await newOrder.save();
         } else {
           throw saveCommitErr;
@@ -411,6 +528,9 @@ async function createOrder(req, res) {
     } else {
       await newOrder.save();
     }
+    // Saved: later errors must not give back the stock or the voucher use.
+    reservedItems = null;
+    appliedVoucherId = null;
 
     // Trigger ORDER_PLACED notification if registered customer
     if (!is_guest && user_id) {
@@ -439,11 +559,16 @@ async function createOrder(req, res) {
       await cleanupSession(session);
       session = null;
       useTransaction = false;
-    } else if (appliedVoucherId) {
-      try {
-        await Voucher.updateOne({ _id: appliedVoucherId }, { $inc: { used_count: -1 } });
-      } catch (rollbackErr) {
-        console.error('Error rolling back voucher used_count:', rollbackErr);
+    } else {
+      if (appliedVoucherId) {
+        try {
+          await Voucher.updateOne({ _id: appliedVoucherId }, { $inc: { used_count: -1 } });
+        } catch (rollbackErr) {
+          console.error('Error rolling back voucher used_count:', rollbackErr);
+        }
+      }
+      if (reservedItems) {
+        await inventoryService.releaseItems(reservedItems);
       }
     }
     console.error('Error creating order:', error);
@@ -1195,7 +1320,11 @@ async function deleteOrder(req, res) {
       return res.status(400).json({ error: 'Only pending orders can be deleted/discarded.' });
     }
 
-    await Order.deleteOne({ _id: order._id });
+    // Conditional delete so a concurrent discard can't put the stock back twice.
+    const deleted = await Order.findOneAndDelete({ _id: order._id, order_status: 'pending' });
+    if (deleted?.stock_reserved) {
+      await inventoryService.releaseItems(deleted.items);
+    }
 
     res.json({
       message: 'Order deleted successfully'

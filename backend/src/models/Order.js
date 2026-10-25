@@ -141,6 +141,9 @@ const orderSchema = new mongoose.Schema({
   // Checkout with Ritual Box lines: saved card (Users.payment_methods._id) the subscription is billed to.
   subscription_payment_method_id: { type: String, default: null },
   subscription_cycle: { type: Number, default: null, min: 1 },      // lần giao thứ mấy của subscription
+  // true: stock was reserved when the order was placed (inventory.service), so the
+  // status hooks below don't subtract it again and put it back on any cancel.
+  stock_reserved: { type: Boolean, default: false },
 
   // ─── Admin internal notes ─────────────────────────────────
   internal_notes: { type: String, default: "" },
@@ -253,14 +256,16 @@ orderSchema.pre('save', async function(next) {
 
     // Transition from confirmed/processing/shipping/delivered/etc. (statuses where stock was subtracted) to canceled -> add back stock
     const wasStockSubtracted = (status) => ['processing', 'shipping', 'delivered', 'pending_refund', 'refund_rejected'].includes(status);
-    const isCanceled = (newStatus === 'canceled') && wasStockSubtracted(originalStatus);
+    const isCanceled = (newStatus === 'canceled') && (this.stock_reserved
+      ? !this.isNew && !['canceled', 'refund'].includes(originalStatus) // refund approval restocks on its own
+      : wasStockSubtracted(originalStatus));
 
     // Transition from not delivered to delivered -> increment total_sold_quantity
     const isDelivered = (newStatus === 'delivered') && (this.isNew || originalStatus !== 'delivered');
 
     const Product = require('./Product');
 
-    if (isConfirmed) {
+    if (isConfirmed && !this.stock_reserved) {
       for (const item of this.items) {
         await Product.updateOne(
           { _id: item.product_id, 'variants.sku': item.variant_id },
@@ -269,6 +274,8 @@ orderSchema.pre('save', async function(next) {
           }
         );
       }
+    } else if (isCanceled && this.stock_reserved) {
+      await require('../services/inventory.service').releaseItems(this.items);
     } else if (isCanceled) {
       for (const item of this.items) {
         await Product.updateOne(
