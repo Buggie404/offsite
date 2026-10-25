@@ -60,7 +60,11 @@
           <ng-container *ngIf="config()?.bannerStyle === 'processing'">
             Take a deep breath and relax. Your daily ritual upgrade will be on its way to your doorstep very soon.
           </ng-container>
-          <ng-container *ngIf="config()?.bannerStyle === 'shipping'">
+          <ng-container *ngIf="isDeliveryFailed()">
+            We couldn't deliver your package{{ deliveryFailedReason() ? ': ' + deliveryFailedReason() : '' }}.
+            Our team will contact you to arrange another delivery attempt.
+          </ng-container>
+          <ng-container *ngIf="config()?.bannerStyle === 'shipping' && !isDeliveryFailed()">
             Good news! Your package has been handed over to the carrier and is currently in transit to you.
           </ng-container>
           <ng-container *ngIf="config()?.bannerStyle === 'delivered'">

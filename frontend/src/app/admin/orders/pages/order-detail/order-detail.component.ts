@@ -13,7 +13,9 @@ import {
   LucideX,
   LucideUndo2,
   LucideRepeat,
-  LucideInfo
+  LucideInfo,
+  LucidePackageX,
+  LucideTruck
 } from '@lucide/angular';
 import { OrderTypeBadgeComponent } from '../../../../shared/components/order-type-badge/order-type-badge.component';
 import { getFrequencyLabel, getSubscriptionLineLabel } from '../../../../shared/utils/order-type';
@@ -28,6 +30,7 @@ import {
   AdminOrderRefundItem,
   AdminOrderRefundRequest,
   AdminOrderStatus,
+  AdminOrderStatusHistoryEntry,
   AdminOrderRitualBox,
   AdminOrderStatusUpdate
 } from '../../models/admin-order.model';
@@ -36,6 +39,10 @@ import { isMeaningfulVariantLabel } from '../../../../shared/utils/variant-label
 interface StatusOption {
   value: AdminOrderStatusUpdate;
   label: string;
+  hint: string;
+  /** Asks for a reason first; it goes to the order history, the customer and the activity log. */
+  requiresReason?: boolean;
+  danger?: boolean;
 }
 
 interface TimelineStep {
@@ -60,7 +67,9 @@ interface TimelineStep {
     LucideCheck,
     LucideX,
     LucideUndo2,
-    LucideInfo
+    LucideInfo,
+    LucidePackageX,
+    LucideTruck
   ],
   templateUrl: './order-detail.component.html',
   styleUrl: './order-detail.component.scss'
@@ -127,6 +136,17 @@ export class OrderDetailComponent implements OnInit {
   previewEvidenceType: 'image' | 'video' | null = null;
   rejectReason = '';
   rejectModalError: string | null = null;
+
+  /** Status change waiting on a reason (delivery failed / cancel a failed delivery). */
+  reasonStatusOption: StatusOption | null = null;
+  statusReason = '';
+  statusReasonError: string | null = null;
+
+  showOutOfStockModal = false;
+  outOfStockSelection = new Set<string>();
+  outOfStockReason = '';
+  outOfStockError: string | null = null;
+  outOfStockSaving = false;
   private statusMessageTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit(): void {
@@ -179,11 +199,41 @@ export class OrderDetailComponent implements OnInit {
   get statusOptions(): StatusOption[] {
     if (!this.order) return [];
 
-    if (this.order.order_status === 'processing' || this.order.order_status === 'pending') {
-      return [{ value: 'shipping', label: 'Shipping' }];
+    switch (this.order.order_status) {
+      case 'pending':
+      case 'processing':
+        return [{
+          value: 'shipping',
+          label: 'Shipping',
+          hint: 'Mark this order as shipped. The customer can view updates on Order Tracking after entering their order number.'
+        }];
+      case 'shipping':
+        return [{
+          value: 'delivery_failed',
+          label: 'Delivery failed',
+          hint: 'The carrier could not deliver. The customer is notified with your reason.',
+          requiresReason: true
+        }];
+      case 'delivery_failed':
+        return [
+          {
+            value: 'shipping',
+            label: 'Ship again',
+            hint: 'Send the order out for another delivery attempt.'
+          },
+          {
+            value: 'canceled',
+            label: 'Cancel order',
+            hint: this.order.payment_status === 'paid'
+              ? 'Cancel and refund the full payment. Stock goes back on the shelf.'
+              : 'Cancel the order. Stock goes back on the shelf.',
+            requiresReason: true,
+            danger: true
+          }
+        ];
+      default:
+        return [];
     }
-
-    return [];
   }
 
   get canManageOrders(): boolean {
@@ -202,8 +252,6 @@ export class OrderDetailComponent implements OnInit {
     const status = this.order.order_status;
 
     switch (status) {
-      case 'shipping':
-        return 'This order is already marked as Shipping.';
       case 'delivered':
         return 'This order has already been delivered.';
       case 'pending_refund':
@@ -249,8 +297,8 @@ export class OrderDetailComponent implements OnInit {
       !!this.order.delivered_at;
 
     const isShipping =
-      status === 'shipping' || reachedDelivered;
-    const isProcessed = ['processing', 'shipping', 'delivered', 'refund', 'canceled', 'pending_refund', 'refund_rejected'].includes(status);
+      status === 'shipping' || status === 'delivery_failed' || reachedDelivered;
+    const isProcessed = ['processing', 'shipping', 'delivery_failed', 'delivered', 'refund', 'canceled', 'pending_refund', 'refund_rejected'].includes(status);
 
     return [
       {
@@ -283,8 +331,28 @@ export class OrderDetailComponent implements OnInit {
       this.showRefundProcessing ||
       this.showRefunded ||
       this.showRefundRejected ||
+      this.deliveryFailures.length > 0 ||
       this.showCanceled
     );
+  }
+
+  /** Every failed delivery attempt, newest first (a redelivered order keeps its history). */
+  get deliveryFailures(): AdminOrderStatusHistoryEntry[] {
+    return [...(this.order?.status_history || [])].filter((h) => h.status === 'delivery_failed').reverse();
+  }
+
+  /** Why the order was cancelled, when it was cancelled by staff or the system with a note. */
+  get cancelNote(): string | null {
+    const entry = [...(this.order?.status_history || [])].reverse().find((h) => h.status === 'canceled');
+    return entry?.note || null;
+  }
+
+  get outOfStockItems(): AdminOrderLineItem[] {
+    return (this.order?.items || []).filter((item) => item.out_of_stock);
+  }
+
+  get canReportOutOfStock(): boolean {
+    return this.canManageOrders && this.order?.order_status === 'processing';
   }
 
   get showRefundProcessing(): boolean {
@@ -351,7 +419,35 @@ export class OrderDetailComponent implements OnInit {
     });
   }
 
-  saveStatus(): void {
+  chooseStatus(option: StatusOption): void {
+    if (!this.canManageOrders || !this.order || this.statusSaving) return;
+    if (option.requiresReason) {
+      this.reasonStatusOption = option;
+      this.statusReason = '';
+      this.statusReasonError = null;
+      return;
+    }
+    this.saveStatus(option);
+  }
+
+  closeStatusReasonModal(): void {
+    this.reasonStatusOption = null;
+    this.statusReason = '';
+    this.statusReasonError = null;
+  }
+
+  submitStatusReason(): void {
+    const option = this.reasonStatusOption;
+    if (!option) return;
+    const reason = this.statusReason.trim();
+    if (!reason) {
+      this.statusReasonError = 'Please enter a reason.';
+      return;
+    }
+    this.saveStatus(option, reason);
+  }
+
+  saveStatus(option: StatusOption, reason?: string): void {
     if (!this.canManageOrders || !this.order || this.statusSaving || !this.canUpdateStatus) return;
 
     this.statusSaving = true;
@@ -359,21 +455,79 @@ export class OrderDetailComponent implements OnInit {
     this.statusMessage = null;
 
     this.adminOrderService
-      .updateOrderStatus(this.order.order_id, this.selectedStatus, 'Status updated by admin')
+      .updateOrderStatus(this.order.order_id, option.value, 'Status updated by admin', reason)
       .subscribe({
         next: (response) => {
           this.order = response.data;
           this.selectedStatus = this.statusOptions[0]?.value || 'processing';
           this.statusSaving = false;
-          if (response.data.order_status === 'shipping') {
-            this.showTransientStatusMessage('Status updated to Shipping.');
-          }
+          this.closeStatusReasonModal();
+          this.showTransientStatusMessage(`Status updated to ${this.statusLabel(response.data.order_status)}.`);
           this.adminRefresh.refreshNotifications();
           this.cdr.markForCheck();
         },
         error: (err) => {
-          this.actionError = err.error?.error || 'Failed to update order status.';
+          const message = err.error?.error || 'Failed to update order status.';
+          if (this.reasonStatusOption) {
+            this.statusReasonError = message;
+          } else {
+            this.actionError = message;
+          }
           this.statusSaving = false;
+          this.cdr.markForCheck();
+        }
+      });
+  }
+
+  lineKey(item: { product_id: string; variant_id: string }): string {
+    return `${item.product_id}:${item.variant_id}`;
+  }
+
+  openOutOfStockModal(): void {
+    if (!this.canReportOutOfStock) return;
+    this.outOfStockSelection = new Set();
+    this.outOfStockReason = '';
+    this.outOfStockError = null;
+    this.showOutOfStockModal = true;
+  }
+
+  closeOutOfStockModal(): void {
+    this.showOutOfStockModal = false;
+    this.outOfStockError = null;
+  }
+
+  toggleOutOfStockLine(item: AdminOrderLineItem, checked: boolean): void {
+    const key = this.lineKey(item);
+    if (checked) this.outOfStockSelection.add(key);
+    else this.outOfStockSelection.delete(key);
+    this.outOfStockError = null;
+  }
+
+  submitOutOfStock(): void {
+    if (!this.order || this.outOfStockSaving) return;
+    const items = this.order.items
+      .filter((item) => this.outOfStockSelection.has(this.lineKey(item)))
+      .map((item) => ({ product_id: item.product_id, variant_id: item.variant_id }));
+    if (!items.length) {
+      this.outOfStockError = 'Select at least one line that is out of stock.';
+      return;
+    }
+
+    this.outOfStockSaving = true;
+    this.adminOrderService
+      .markOutOfStock(this.order.order_id, items, this.outOfStockReason.trim() || undefined)
+      .subscribe({
+        next: (response) => {
+          this.order = response.data;
+          this.outOfStockSaving = false;
+          this.showOutOfStockModal = false;
+          this.showTransientStatusMessage('Order cancelled: items out of stock. The customer has been notified.');
+          this.adminRefresh.refreshNotifications();
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.outOfStockError = err.error?.error || 'Failed to update the order.';
+          this.outOfStockSaving = false;
           this.cdr.markForCheck();
         }
       });
@@ -407,6 +561,14 @@ export class OrderDetailComponent implements OnInit {
 
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
+    if (this.reasonStatusOption) {
+      this.closeStatusReasonModal();
+      return;
+    }
+    if (this.showOutOfStockModal) {
+      this.closeOutOfStockModal();
+      return;
+    }
     if (this.showApproveConfirmModal) {
       this.closeApproveConfirmModal();
       return;
@@ -708,6 +870,7 @@ export class OrderDetailComponent implements OnInit {
       pending: 'Processing',
       processing: 'Processing',
       shipping: 'Shipping',
+      delivery_failed: 'Delivery Failed',
       delivered: 'Delivered',
       canceled: 'Cancelled',
       refund: 'Refund',
@@ -720,6 +883,7 @@ export class OrderDetailComponent implements OnInit {
   statusClass(status: string): string {
     if (status === 'pending' || status === 'processing') return 'status-badge--processing';
     if (status === 'shipping') return 'status-badge--shipping';
+    if (status === 'delivery_failed') return 'status-badge--delivery-failed';
     if (status === 'delivered') return 'status-badge--delivered';
     if (status === 'canceled') return 'status-badge--cancelled';
     if (status === 'refund') return 'status-badge--refund';

@@ -398,6 +398,11 @@
   color: var(--status-shipping-text);
 }
 
+.status-badge--delivery-failed {
+  background: rgba(214, 108, 46, 0.14);
+  color: #a2470f;
+}
+
 .status-badge--delivered {
   background: var(--status-delivered-bg);
   color: var(--status-delivered-text);

@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { LucideDownload, LucideEye, LucideChevronDown, LucideCalendar } from '@lucide/angular';
 import { Subject, catchError, distinctUntilChanged, interval, map, of, switchMap } from 'rxjs';
 import { AdminOrderService } from '../../services/admin-order.service';
@@ -12,6 +12,7 @@ import {
   AdminOrderListItem,
   AdminOrderStats,
   AdminOrderStatusFilter,
+  AdminOrderTypeFilter,
   AdminOrdersResponse
 } from '../../models/admin-order.model';
 
@@ -34,6 +35,7 @@ export class OrdersListingComponent implements OnInit {
   private adminRefresh = inject(AdminRefreshService);
   private orderSocketService = inject(OrderSocketService);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   private cdr = inject(ChangeDetectorRef);
   private readonly loadTrigger$ = new Subject<{ silent?: boolean }>();
@@ -49,6 +51,7 @@ export class OrdersListingComponent implements OnInit {
   private readonly pageSize = 50;
 
   activeStatus: AdminOrderStatusFilter = 'all';
+  orderType: AdminOrderTypeFilter = 'all';
   dateRange: AdminDateRange = '30';
   search = '';
 
@@ -66,11 +69,23 @@ export class OrdersListingComponent implements OnInit {
     { value: 'all', label: 'All' },
     { value: 'processing', label: 'Processing' },
     { value: 'shipping', label: 'Shipping' },
+    { value: 'delivery_failed', label: 'Delivery Failed' },
     { value: 'delivered', label: 'Delivered' },
     { value: 'pending_refund', label: 'Pending Refund' },
     { value: 'refund', label: 'Refund' },
     { value: 'refund_rejected', label: 'Refund Rejected' }
   ];
+
+  readonly orderTypeOptions: { value: AdminOrderTypeFilter; label: string }[] = [
+    { value: 'all', label: 'All types' },
+    { value: 'one_time', label: ORDER_TYPE_LABEL.one_time },
+    { value: 'subscription', label: ORDER_TYPE_LABEL.subscription },
+    { value: 'mixed', label: ORDER_TYPE_LABEL.mixed }
+  ];
+
+  private toOrderTypeFilter(value: unknown): AdminOrderTypeFilter {
+    return this.orderTypeOptions.find(o => o.value === value)?.value ?? 'all';
+  }
 
   /** Unknown or removed filters (e.g. an old ?status=cancelled link) fall back to All. */
   private toStatusFilter(value: unknown): AdminOrderStatusFilter {
@@ -81,6 +96,7 @@ export class OrdersListingComponent implements OnInit {
     const initial = this.route.snapshot.queryParams;
     this.search = initial['search'] || '';
     this.activeStatus = this.toStatusFilter(initial['status']);
+    this.orderType = this.toOrderTypeFilter(initial['type']);
     this.dateRange = (initial['date'] as AdminDateRange) || '30';
 
     this.loadTrigger$
@@ -140,6 +156,18 @@ export class OrdersListingComponent implements OnInit {
         this.loadTrigger$.next({});
       });
 
+    this.route.queryParams
+      .pipe(
+        map((params) => this.toOrderTypeFilter(params['type'])),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((type) => {
+        if (type === this.orderType) return;
+        this.orderType = type;
+        this.loadTrigger$.next({});
+      });
+
     this.adminRefresh.onOrdersListRefresh$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.loadTrigger$.next({ silent: true }));
@@ -164,6 +192,20 @@ export class OrdersListingComponent implements OnInit {
     if (this.activeStatus === status) return;
     this.activeStatus = status;
     this.loadTrigger$.next({});
+  }
+
+  /** Kept in ?type= so the filtered list can be reloaded or shared. */
+  setOrderType(value: string): void {
+    const next = this.toOrderTypeFilter(value);
+    if (next === this.orderType) return;
+    this.orderType = next;
+    this.loadTrigger$.next({});
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { type: next === 'all' ? null : next },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
   }
 
   onDateChange(value: string): void {
@@ -287,6 +329,7 @@ export class OrdersListingComponent implements OnInit {
       pending: 'Processing',
       processing: 'Processing',
       shipping: 'Shipping',
+      delivery_failed: 'Delivery Failed',
       delivered: 'Delivered',
       canceled: 'Cancelled',
       refund: 'Refund',
@@ -299,6 +342,7 @@ export class OrdersListingComponent implements OnInit {
   statusClass(status: string): string {
     if (status === 'pending' || status === 'processing') return 'status-badge--processing';
     if (status === 'shipping') return 'status-badge--shipping';
+    if (status === 'delivery_failed') return 'status-badge--delivery-failed';
     if (status === 'delivered') return 'status-badge--delivered';
     if (status === 'canceled') return 'status-badge--cancelled';
     if (status === 'refund') return 'status-badge--refund';
@@ -310,6 +354,7 @@ export class OrdersListingComponent implements OnInit {
   private currentQuery() {
     return {
       order_status: this.activeStatus,
+      order_type: this.orderType,
       search: this.search,
       date_range: this.dateRange,
       date_from: this.dateRange === 'custom' ? this.appliedCustomFrom : undefined,

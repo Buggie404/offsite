@@ -258,6 +258,7 @@ export class RitualBoxComponent implements OnInit {
       case 'cancelled_by_admin': return { label: 'Cancelled by Offsite', tone: 'danger' };
       case 'refund': return { label: 'Refund', tone: 'warning' };
       case 'shipping': return { label: 'Shipping', tone: 'info' };
+      case 'delivery_failed': return { label: 'Delivery failed', tone: 'warning' };
       default: return { label: 'Processing', tone: 'info' };
     }
   }

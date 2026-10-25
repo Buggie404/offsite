@@ -571,6 +571,7 @@ export class SubscriptionsListingComponent implements OnInit {
     switch (result) {
       case 'delivered': return { label: 'Delivered', tone: 'success' };
       case 'shipping': return { label: 'Shipping', tone: 'info' };
+      case 'delivery_failed': return { label: 'Delivery failed', tone: 'warning' };
       case 'refund': return { label: 'Refund', tone: 'warning' };
       case 'cancelled': return { label: 'Cancelled', tone: 'danger' };
       case 'failed': return { label: 'Failed', tone: 'danger' };

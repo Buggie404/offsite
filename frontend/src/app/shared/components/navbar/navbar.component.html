@@ -193,6 +193,8 @@
                   <svg *ngSwitchCase="'ORDER_PLACED'"    lucidePackage       [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_SHIPPING'"  lucideTruck         [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_CANCELED'"  lucideX             [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_DELIVERY_FAILED'" lucideTruck   [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_CANCELED_BY_STORE'" lucideX     [size]="15"></svg>
                   <svg *ngSwitchCase="'REFUND_REQUESTED'" lucideRefreshCw    [size]="15"></svg>
                   <svg *ngSwitchCase="'REFUND_APPROVED'" lucideCheckCheck    [size]="15"></svg>
                   <svg *ngSwitchCase="'REFUND_REJECTED'" lucideX             [size]="15"></svg>
@@ -207,6 +209,7 @@
                   <svg *ngSwitchCase="'SUBSCRIPTION_PROPOSAL'"       lucideRepeat [size]="15"></svg>
                   <svg *ngSwitchCase="'SUBSCRIPTION_PROPOSAL_WITHDRAWN'" lucideX  [size]="15"></svg>
                   <svg *ngSwitchCase="'SUBSCRIPTION_NOT_STARTED'"    lucideInfo   [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_ADJUSTED'"       lucideRepeat [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_CREATED'"    lucideArrowRight    [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_LIKED'"      lucideHeart         [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_COMMENTED'"  lucideMessageSquare [size]="15"></svg>
@@ -229,6 +232,8 @@
                       <span *ngSwitchCase="'ORDER_PLACED'">Your order <strong>{{ item.post_id }}</strong> has been successfully placed.</span>
                       <span *ngSwitchCase="'ORDER_SHIPPING'">Your order <strong>{{ item.post_id }}</strong> is being shipped (estimated delivery: {{ item.comment_content }}).</span>
                       <span *ngSwitchCase="'ORDER_CANCELED'">Your order <strong>{{ item.post_id }}</strong> has been canceled (due to payment pending for more than 24h).</span>
+                      <span *ngSwitchCase="'ORDER_DELIVERY_FAILED'">We couldn't deliver your order <strong>{{ item.post_id }}</strong>{{ item.comment_content ? ': ' + item.comment_content : '' }}. We'll contact you to arrange another attempt.</span>
+                      <span *ngSwitchCase="'ORDER_CANCELED_BY_STORE'">Your order <strong>{{ item.post_id }}</strong> has been canceled{{ item.comment_content ? ': ' + item.comment_content : '' }}.</span>
                       <span *ngSwitchCase="'REFUND_REQUESTED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been submitted.</span>
                       <span *ngSwitchCase="'REFUND_APPROVED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been approved.</span>
                       <span *ngSwitchCase="'REFUND_REJECTED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been rejected: "{{ item.comment_content }}"</span>
@@ -243,6 +248,7 @@
                       <span *ngSwitchCase="'SUBSCRIPTION_PROPOSAL_WITHDRAWN'">We withdrew our suggested change to your Ritual Box <strong>{{ ritualBoxId(item) }}</strong>{{ ritualBoxMessage(item) ? ': ' + ritualBoxMessage(item) : '.' }} Your box stays as it is.</span>
                       <span *ngSwitchCase="'SUBSCRIPTION_NOT_STARTED'">{{ ritualBoxMessage(item) || "Your Ritual Box couldn't start. Our team will contact you." }}</span>
                       <span *ngSwitchCase="'SUBSCRIPTION_SKIPPED'">A delivery of your Ritual Box <strong>{{ ritualBoxId(item) }}</strong> was skipped{{ ritualBoxMessage(item) ? ': ' + ritualBoxMessage(item) : '.' }}</span>
+                      <span *ngSwitchCase="'SUBSCRIPTION_ADJUSTED'">{{ ritualBoxMessage(item) || 'You bought an item from your Ritual Box separately. Get your next box sooner?' }} Nothing changes unless you confirm in Account › Ritual Box.</span>
                     </ng-container>
                   </span>
                 </p>

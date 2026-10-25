@@ -30,7 +30,7 @@
   <article class="stat-card stat-card--attention">
     <p class="stat-card__label">Needs Attention</p>
     <p class="stat-card__value">{{ stats.needsAttention | number }}</p>
-    <p class="stat-card__meta">Issues or refunds</p>
+    <p class="stat-card__meta">Failed deliveries or refunds</p>
   </article>
 </section>
 
@@ -47,6 +47,23 @@
         {{ filter.label }}
       </button>
     }
+  </div>
+
+  <div class="filter-bar__group filter-bar__group--type">
+    <span class="filter-label">Order type</span>
+    <div class="select-wrap select-wrap--filter">
+      <select
+        class="filter-select"
+        aria-label="Filter by order type"
+        [value]="orderType"
+        (change)="setOrderType($any($event.target).value)"
+      >
+        @for (option of orderTypeOptions; track option.value) {
+          <option [value]="option.value" [selected]="option.value === orderType">{{ option.label }}</option>
+        }
+      </select>
+      <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+    </div>
   </div>
 
   <div class="filter-bar__group filter-bar__group--date">

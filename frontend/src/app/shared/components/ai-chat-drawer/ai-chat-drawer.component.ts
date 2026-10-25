@@ -184,6 +184,7 @@ export class AiChatDrawerComponent {
       pending: 'Pending',
       processing: 'Processing',
       shipping: 'Shipping',
+      delivery_failed: 'Delivery failed',
       delivered: 'Delivered',
       canceled: 'Canceled',
       cancelled: 'Canceled',

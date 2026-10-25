@@ -1822,6 +1822,14 @@
         background-color: #8e44ad;
       }
     }
+    &.status--delivery-failed {
+      background-color: rgba(214, 108, 46, 0.14);
+      color: #a2470f;
+
+      .status-dot {
+        background-color: #d66c2e;
+      }
+    }
   }
 
   /* Card Inner Body (Cream separated area) */

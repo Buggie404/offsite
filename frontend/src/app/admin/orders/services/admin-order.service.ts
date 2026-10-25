@@ -22,6 +22,9 @@ export class AdminOrderService {
     if (query.order_status && query.order_status !== 'all') {
       params = params.set('order_status', query.order_status);
     }
+    if (query.order_type && query.order_type !== 'all') {
+      params = params.set('order_type', query.order_type);
+    }
     if (query.search?.trim()) {
       params = params.set('search', query.search.trim());
     }
@@ -49,11 +52,24 @@ export class AdminOrderService {
   updateOrderStatus(
     orderId: string,
     status: AdminOrderStatusUpdate,
-    note?: string
+    note?: string,
+    reason?: string
   ): Observable<{ message: string; data: AdminOrderDetail }> {
     return this.http.put<{ message: string; data: AdminOrderDetail }>(
       `${this.baseUrl}/${encodeURIComponent(orderId)}/status`,
-      { status, note }
+      { status, note, reason }
+    );
+  }
+
+  /** Lines that can't be fulfilled: the whole order is cancelled (and refunded if paid). */
+  markOutOfStock(
+    orderId: string,
+    items: { product_id: string; variant_id: string }[],
+    reason?: string
+  ): Observable<{ message: string; data: AdminOrderDetail }> {
+    return this.http.post<{ message: string; data: AdminOrderDetail }>(
+      `${this.baseUrl}/${encodeURIComponent(orderId)}/out-of-stock`,
+      { items, reason }
     );
   }
 

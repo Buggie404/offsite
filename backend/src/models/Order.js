@@ -16,7 +16,10 @@ const orderItemSchema = new mongoose.Schema({
   review_id:   { type: String, default: null },  // "RV7XXXX"
   // Subscribe & Save: a 'subscription' line starts a Ritual Box once the card payment succeeds.
   purchase_type:               { type: String, enum: ['one_time', 'subscription'], default: 'one_time' },
-  subscription_frequency_days: { type: Number, enum: [7, 14, 30, null], default: null }
+  subscription_frequency_days: { type: Number, enum: [7, 14, 30, null], default: null },
+  // Marked by QLSP / Admin CC when the line can't be fulfilled after the order was placed.
+  // The order is then cancelled (and refunded if paid); this line's stock isn't put back.
+  out_of_stock: { type: Boolean, default: false }
 }, { _id: false });
 
 const deliveryInfoSchema = new mongoose.Schema({
@@ -119,7 +122,8 @@ const orderSchema = new mongoose.Schema({
   // ─── Status ───────────────────────────────────────────────
   order_status: {
     type: String,
-    enum: ["pending", "processing", "shipping", "delivered", "canceled", "refund", "pending_refund", "refund_rejected"],
+    // delivery_failed: the carrier couldn't deliver; admin ships again or cancels (refunding if paid).
+    enum: ["pending", "processing", "shipping", "delivery_failed", "delivered", "canceled", "refund", "pending_refund", "refund_rejected"],
     default: "processing",
     index: true
   },
@@ -255,7 +259,9 @@ orderSchema.pre('save', async function(next) {
       (newStatus === 'shipping' && originalStatus === 'pending');
 
     // Transition from confirmed/processing/shipping/delivered/etc. (statuses where stock was subtracted) to canceled -> add back stock
-    const wasStockSubtracted = (status) => ['processing', 'shipping', 'delivered', 'pending_refund', 'refund_rejected'].includes(status);
+    const wasStockSubtracted = (status) => ['processing', 'shipping', 'delivery_failed', 'delivered', 'pending_refund', 'refund_rejected'].includes(status);
+    // Lines marked out of stock after ordering aren't on the shelf, so they aren't put back.
+    const restockable = this.items.filter(item => !item.out_of_stock);
     const isCanceled = (newStatus === 'canceled') && (this.stock_reserved
       ? !this.isNew && !['canceled', 'refund'].includes(originalStatus) // refund approval restocks on its own
       : wasStockSubtracted(originalStatus));
@@ -275,9 +281,9 @@ orderSchema.pre('save', async function(next) {
         );
       }
     } else if (isCanceled && this.stock_reserved) {
-      await require('../services/inventory.service').releaseItems(this.items);
+      await require('../services/inventory.service').releaseItems(restockable);
     } else if (isCanceled) {
-      for (const item of this.items) {
+      for (const item of restockable) {
         await Product.updateOne(
           { _id: item.product_id, 'variants.sku': item.variant_id },
           {

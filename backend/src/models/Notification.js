@@ -21,6 +21,8 @@ const notificationSchema = new mongoose.Schema({
       'ORDER_PLACED',
       'ORDER_SHIPPING',
       'ORDER_CANCELED',
+      'ORDER_DELIVERY_FAILED',
+      'ORDER_CANCELED_BY_STORE',
       'REFUND_REQUESTED',
       'REFUND_APPROVED',
       'REFUND_REJECTED',
@@ -34,7 +36,8 @@ const notificationSchema = new mongoose.Schema({
       'SUBSCRIPTION_SKIPPED',
       'SUBSCRIPTION_PROPOSAL',
       'SUBSCRIPTION_PROPOSAL_WITHDRAWN',
-      'SUBSCRIPTION_NOT_STARTED'
+      'SUBSCRIPTION_NOT_STARTED',
+      'SUBSCRIPTION_ADJUSTED'
     ],
     required: true
   },
