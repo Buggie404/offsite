@@ -62,9 +62,11 @@ export class CommunityService {
     limit: number = 9,
     activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '' = '',
     sort: 'created_at' | 'like_count' = 'created_at',
-    userId?: string
+    userId?: string,
+    all = false
   ): Observable<FeedResponse> {
     let url = `${this.apiUrl}?page=${page}&limit=${limit}`;
+    if (all) url += '&all=true';
     if (activeCategory === 'COFFEE' || activeCategory === 'MATCHA') {
       url += `&base=${activeCategory}`;
     } else if (activeCategory === 'RECIPE') {

@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, computed, effect, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { Subject, switchMap, startWith } from 'rxjs';
+import { Subject, switchMap } from 'rxjs';
 
 import { Post } from '../../models/post.model';
 import { CommunityService } from '../../services/community.service';
@@ -116,32 +116,19 @@ export class FeedComponent implements OnInit, OnDestroy {
     this.updateFooterVisibility();
 
     this.fetch$.pipe(
-      startWith(undefined),
       switchMap(() => {
         const userId = this.activeCategory === 'MY_POST' ? this.authService.getUser()?.user_id : undefined;
-        return this.communityService.getFeed(this.page, this.limit, this.activeCategory, this.sort, userId);
+        return this.communityService.getFeed(1, 9, this.activeCategory, this.sort, userId, true);
       })
     ).subscribe({
       next: (res) => {
-        // Enforce a minimum 1-second loading delay to show the loading state nicely
-        setTimeout(() => {
-          if (this.page === 1) {
-            this.posts = res.data;
-          } else {
-            this.posts.push(...res.data);
-          }
-          this.hasMore = res.data.length === this.limit;
-          this.cdr.markForCheck();
-
-          // Allow scroll to trigger next page only after layout has settled
-          setTimeout(() => {
-            this.loading = false;
-            this.cdr.markForCheck();
-            this.updateFooterVisibility();
-            this.checkScroll();
-            this.updateScrollParallax();
-          }, 200);
-        }, 1000);
+        this.posts = res.data;
+        this.page = 1;
+        this.hasMore = false;
+        this.loading = false;
+        this.cdr.markForCheck();
+        this.updateFooterVisibility();
+        this.updateScrollParallax();
       },
       error: () => {
         this.loading = false;
@@ -168,8 +155,7 @@ export class FeedComponent implements OnInit, OnDestroy {
       }, 50);
 
     } else {
-      this.loading = true;
-      this.fetch$.next();
+      this.loadFeed();
     }
   }
 
@@ -192,6 +178,10 @@ export class FeedComponent implements OnInit, OnDestroy {
     if (!this.hasMore || this.loading) return;
     this.page++;
     this.loadFeed();
+  }
+
+  trackByPost(_index: number, post: Post): string {
+    return post.post_id;
   }
 
   onCategoryChange(category: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | ''): void {
