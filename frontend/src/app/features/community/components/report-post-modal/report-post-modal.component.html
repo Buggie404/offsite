@@ -28,12 +28,12 @@
         <label class="note-label" for="report-note">{{ noteRequired ? 'Add a note (required)' : 'Add a note (optional)' }}</label>
         <textarea id="report-note" class="note" maxlength="500" [class.note--required]="noteRequired && !note.trim()"
           [attr.aria-required]="noteRequired"
-          [placeholder]="noteRequired ? 'Please tell us what is wrong with this post' : 'Tell us a bit more about the problem'"
+          [placeholder]="noteRequired ? 'Please tell us what is wrong' : 'Tell us a bit more about the problem'"
           [(ngModel)]="note"></textarea>
         <span class="note-error" *ngIf="noteRequired && !note.trim()">A note is required when you choose Other.</span>
       </div>
 
-      <p class="modal-hint">The post stays visible until a moderator reviews it.</p>
+      <p class="modal-hint">The {{ target }} stays visible until a moderator reviews it.</p>
     </div>
 
     <footer class="modal-footer">

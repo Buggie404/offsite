@@ -1,52 +1,28 @@
-<div class="profile-page">
-  <a class="back-link" routerLink="/community">← Back to community</a>
-
-  @if (loading) {
-    <p class="state">Loading profile…</p>
-  } @else if (notFound || !profile) {
-    <p class="state">This profile isn't available.</p>
-  } @else {
+<main class="profile-page">
+  <a class="back-link" routerLink="/community">← Community</a>
+  @if (loading) { <p class="state">Loading profile…</p> }
+  @else if (notFound || !profile) { <p class="state">This profile isn't available.</p> }
+  @else {
     <header class="profile-head">
-      <div class="avatar">
-        @if (profile.avatar_url) { <img [src]="profile.avatar_url" [alt]="profile.username"> }
-        @else { <span>{{ initials(profile.username) }}</span> }
+      <div class="avatar">@if (profile.avatar_url) { <img [src]="profile.avatar_url" [alt]="profile.username"> } @else { <span>{{ initials(profile.username) }}</span> }</div>
+      <div class="profile-info"><div class="identity"><h1>@{{ profile.username }}</h1><span class="badge badge--tier">{{ profile.membership_tier }}</span>@if (profile.ritual_dna_completed) { <span class="badge badge--dna">Zen purist</span> }</div>
+        <p class="owner-note" *ngIf="profile.is_self">Your public profile · only community info is shown</p>
+        <ul class="stats"><li><strong>{{ profile.post_count }}</strong><small>Posts</small></li><li><strong>{{ profile.recipe_count }}</strong><small>Recipes</small></li><li><strong>{{ profile.follower_count }}</strong><small>Followers</small></li><li><strong>{{ profile.following_count }}</strong><small>Following</small></li></ul>
       </div>
-
-      <div class="profile-info">
-        <h1>&#64;{{ profile.username }}</h1>
-        <div class="badges">
-          <span class="badge badge--tier" [attr.data-tier]="profile.membership_tier">{{ profile.membership_tier }}</span>
-          @if (profile.ritual_dna_completed) { <span class="badge badge--dna">Ritual DNA</span> }
-        </div>
-        <ul class="stats">
-          <li><strong>{{ profile.post_count }}</strong> posts</li>
-          <li><strong>{{ profile.follower_count }}</strong> followers</li>
-          <li><strong>{{ profile.following_count }}</strong> following</li>
-        </ul>
+      <div class="actions">@if (profile.is_self) { <button class="edit-btn" (click)="editProfile()">Edit profile</button> } @else { <button class="follow-btn" [class.follow-btn--on]="profile.is_following" [disabled]="followBusy" (click)="toggleFollow()">{{ profile.is_following ? 'Following' : 'Follow' }}</button> }
+        <div class="menu-wrap"><button class="more-btn" (click)="menuOpen = !menuOpen" aria-label="Profile actions">•••</button>@if (menuOpen) { <div class="menu">@if (!profile.is_self) { <button (click)="menuOpen = false; reportOpen = true">Report account</button> }<button (click)="menuOpen = false; shareOpen = true">Share account</button></div> }</div>
       </div>
-
-      @if (!profile.is_self) {
-        <button type="button" class="follow-btn" [class.follow-btn--on]="profile.is_following"
-                [disabled]="followBusy" (click)="toggleFollow()">
-          {{ profile.is_following ? 'Following' : 'Follow' }}
-        </button>
-      }
     </header>
-
-    @if (posts.length) {
-      <div class="post-grid">
-        @for (post of posts; track post.post_id) {
-          <a class="post-tile" [routerLink]="['/community/post', post.post_id]">
-            @if (post.media?.length) {
-              <img [src]="post.media[0].url" [alt]="post.content">
-            } @else {
-              <p>{{ post.content }}</p>
-            }
-          </a>
-        }
-      </div>
-    } @else {
-      <p class="state">No posts yet.</p>
-    }
+    <nav class="tabs" aria-label="Profile content"><button [class.active]="activeTab === 'posts'" (click)="activeTab = 'posts'">Posts ({{ profile.post_count }})</button><button [class.active]="activeTab === 'recipes'" (click)="activeTab = 'recipes'">Recipes ({{ profile.recipe_count }})</button></nav>
+    @if (displayedPosts.length) { <section class="post-grid">@for (post of displayedPosts; track post.post_id) { <a class="post-tile" [routerLink]="['/community/post', post.post_id]">@if (post.media?.length) { <img [src]="post.media[0].url" [alt]="post.content"> } @else { <p>{{ post.content }}</p> }<footer>♡ {{ post.like_count || 0 }} · ◯ {{ post.comment_count || 0 }}</footer></a> }</section> }
+    @else if (profile.is_self && profile.post_count === 0 && profile.recipe_count === 0) { <section class="empty-owner"><strong>Share your first post</strong><p>Your posts and recipes will appear here. Visitors see “No posts yet”.</p><button (click)="openCreatePost()">+ Create post</button></section> }
+    @else { <p class="state">No {{ activeTab }} yet.</p> }
   }
-</div>
+</main>
+@if (shareOpen) { <app-share-modal [shareUrl]="shareUrl" title="Share this account" linkLabel="Profile link" [shareText]="profile ? '@' + profile.username : ''" (close)="shareOpen = false"></app-share-modal> }
+@if (reportOpen && profile) { <app-report-post-modal target="account" [authorUsername]="profile.username" [submitting]="reportSubmitting" (cancel)="reportOpen = false" (submitReport)="submitAccountReport($event)"></app-report-post-modal> }
+@if (editOpen) { <div class="edit-overlay" (click)="editOpen = false"><section class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="edit-title" (click)="$event.stopPropagation()"><button class="edit-close" (click)="editOpen = false" aria-label="Close">×</button><h2 id="edit-title">Edit Profile</h2>
+  <div class="edit-avatar">@if (edit.avatar_url) { <img [src]="edit.avatar_url" alt="Your avatar"> } @else { <span>{{ initials(edit.community_name || edit.profile_name) }}</span> }</div><input #avatarInput type="file" accept="image/*" hidden (change)="onAvatarSelected($event)"><div class="photo-actions"><button class="photo-upload" (click)="avatarInput.click()">↥ Upload photo</button><button class="photo-remove" (click)="edit.avatar_url = ''">♧ Remove photo</button></div>
+  <label>Name<input [(ngModel)]="edit.profile_name" maxlength="80"></label><label>Community name<input [(ngModel)]="edit.community_name" maxlength="80"></label><label>Email<div class="readonly"><span>{{ edit.email || 'Not provided' }}</span><button type="button" (click)="editOpen = false; editProfile()">Change</button></div></label><label>Phone<div class="readonly"><span>{{ edit.phone || 'Not provided' }}</span><button type="button" (click)="editOpen = false; editProfile()">Change</button></div></label>
+  @if (editError) { <p class="edit-error">{{ editError }}</p> }<footer><button class="cancel" (click)="editOpen = false">Cancel</button><button class="save" [disabled]="editSaving || !edit.profile_name.trim() || !edit.community_name.trim()" (click)="saveProfile()">{{ editSaving ? 'Saving…' : 'Save changes' }}</button></footer>
+</section></div> }

@@ -21,6 +21,7 @@ export interface PublicProfile {
   ritual_dna_completed: boolean;
   joined_at: string;
   post_count: number;
+  recipe_count: number;
   follower_count: number;
   following_count: number;
   is_following: boolean;
@@ -135,6 +136,10 @@ export class CommunityService {
 
   getPublicProfile(userId: string): Observable<PublicProfile> {
     return this.http.get<PublicProfile>(`/api/profiles/${userId}`);
+  }
+
+  reportAccount(userId: string, reason: string, note: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`/api/profiles/${userId}/report`, { reason, note });
   }
 
   // ── Follow ──

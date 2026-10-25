@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, computed, effect, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subject, switchMap, startWith } from 'rxjs';
 
 import { Post } from '../../models/post.model';
@@ -50,6 +50,7 @@ export class FeedComponent implements OnInit, OnDestroy {
   private communityService = inject(CommunityService);
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private authService = inject(AuthService);
   private authModalService = inject(AuthModalService);
   private toast = inject(ToastService);
@@ -104,6 +105,12 @@ export class FeedComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.route.queryParamMap.subscribe(params => {
+      if (params.get('create') === 'post') {
+        setTimeout(() => this.openCreatePost());
+        void this.router.navigate([], { relativeTo: this.route, queryParams: { create: null }, queryParamsHandling: 'merge', replaceUrl: true });
+      }
+    });
     if (typeof window !== 'undefined') {
       this.isScrollTimelineSupported =
         typeof CSS !== 'undefined' &&

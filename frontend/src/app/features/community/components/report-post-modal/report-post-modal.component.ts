@@ -19,7 +19,7 @@ export class ReportPostModalComponent {
   @Input() authorUsername = '';
   @Input() postExcerpt = '';
   @Input() submitting = false;
-  @Input() target: 'post' | 'comment' = 'post';
+  @Input() target: 'post' | 'comment' | 'account' = 'post';
 
   @Output() cancel = new EventEmitter<void>();
   @Output() submitReport = new EventEmitter<ReportPayload>();

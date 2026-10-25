@@ -1,11 +1,17 @@
 const Follow = require('../models/Follow');
 const User = require('../models/User');
 
+async function currentCommunityUserId(req) {
+  const tokenId = String(req.user?.user_id || '');
+  const user = await User.findById(tokenId, 'user_id').lean().catch(() => null);
+  return user?.user_id || tokenId;
+}
+
 // POST /api/follows/:userId  -> toggle follow
 async function toggleFollow(req, res) {
   try {
     const targetId = req.params.userId;
-    const me = req.user.user_id;
+    const me = await currentCommunityUserId(req);
     if (targetId === me) {
       return res.status(400).json({ error: 'You cannot follow yourself' });
     }
@@ -27,7 +33,7 @@ async function toggleFollow(req, res) {
 // GET /api/follows/ids -> user_ids the current user follows
 async function getFollowingIds(req, res) {
   try {
-    const rows = await Follow.find({ follower_id: req.user.user_id }, 'following_id').lean();
+    const rows = await Follow.find({ follower_id: await currentCommunityUserId(req) }, 'following_id').lean();
     res.json({ data: rows.map(r => r.following_id) });
   } catch (error) {
     console.error('Error loading following:', error);
