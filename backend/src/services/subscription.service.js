@@ -20,6 +20,12 @@ const DAY_MS = 24 * HOUR_MS;
 const addDays = (date, days) => new Date(new Date(date).getTime() + days * DAY_MS);
 const round2 = n => Math.round(n * 100) / 100;
 
+// A shorter frequency moves the next charge earlier, but never closer than the 48h notice window.
+const shiftedChargeAt = (sub, days, now) => new Date(Math.max(
+  now.getTime() + LOCK_WINDOW_HOURS * HOUR_MS,
+  addDays(sub.next_charge_at, days - sub.frequency_days).getTime()
+));
+
 class SubscriptionActionError extends Error {
   constructor(message, status = 400) {
     super(message);
@@ -168,7 +174,9 @@ async function chargeSubscription(sub, { now = new Date() } = {}) {
   const unitPrice = sub.pricing_snapshot.subscribe_price;
   const subtotal = round2(unitPrice * sub.quantity);
   const shippingCost = sub.shipping_method === 'express' ? 15 : 0;
-  const cycle = (await Order.countDocuments({ subscription_id: sub.subscription_id })) + 1;
+  // The checkout order that started the box is delivery #1, so job orders count on from #2.
+  const firstBoxOrders = sub.source_order_id && await Order.exists({ order_id: sub.source_order_id }) ? 1 : 0;
+  const cycle = firstBoxOrders + (await Order.countDocuments({ subscription_id: sub.subscription_id })) + 1;
   // Order items require a non-empty image; products normally have one.
   const image = variant.images?.[0] || product.images?.[0] || {};
 
@@ -179,7 +187,8 @@ async function chargeSubscription(sub, { now = new Date() } = {}) {
       product_id: sub.product_id,
       variant_id: sub.variant_id,
       product_name: product.name,
-      variant_name: variant.label || '',
+      // Order items require a variant name; unlabeled variants use 'Default' like checkout (hidden in the UI).
+      variant_name: variant.label || 'Default',
       image: { url: image.url || 'none', public_id: image.public_id || 'none' },
       unit_price: unitPrice,
       quantity: sub.quantity,
@@ -245,6 +254,7 @@ function applyPendingAfterCharge(sub, now) {
     sub.status = 'paused';
     sub.pause_option = p.pause_option;
     sub.resume_at = PAUSE_OPTIONS[p.pause_option] ? addDays(now, PAUSE_OPTIONS[p.pause_option]) : null;
+    sub.paused_by = p.pause_by || 'customer';
   }
   sub.pending_changes = {};
 }
@@ -373,6 +383,15 @@ async function applyDueTransitions(sub, now) {
     sub.suggested_at = null;
     dirty = true;
   }
+  // Staff proposal not answered within 3 days → it lapses and nothing changes.
+  if (sub.admin_proposal && sub.admin_proposal.expires_at <= now) {
+    sub.admin_messages.push({
+      action: 'proposal_expired', reason: sub.admin_proposal.type, sent_by: 'system', sent_at: now,
+      ticket_id: sub.admin_proposal.ticket_id || null
+    });
+    sub.admin_proposal = null;
+    dirty = true;
+  }
   if (dirty) await sub.save();
 }
 
@@ -398,10 +417,7 @@ async function shapeSubscription(sub, paymentMethods, now) {
   const suggestion = sub.suggested_frequency_days
     ? {
         frequency_days: sub.suggested_frequency_days,
-        next_charge_at: new Date(Math.max(
-          now.getTime(),
-          addDays(sub.next_charge_at, sub.suggested_frequency_days - sub.frequency_days).getTime()
-        )),
+        next_charge_at: shiftedChargeAt(sub, sub.suggested_frequency_days, now),
         expires_at: addDays(sub.suggested_at || now, SUGGESTION_TTL_DAYS)
       }
     : null;
@@ -442,6 +458,16 @@ async function shapeSubscription(sub, paymentMethods, now) {
       ? (hasOffer ? await offeredReplacement(sub.replacement_offer) : await findReplacement(product, variant))
       : null,
     suggestion,
+    // Change proposed by staff; nothing happens until the customer accepts.
+    admin_proposal: sub.admin_proposal
+      ? {
+          type: sub.admin_proposal.type,
+          frequency_days: sub.admin_proposal.frequency_days || null,
+          message: sub.admin_proposal.message || '',
+          expires_at: sub.admin_proposal.expires_at
+        }
+      : null,
+    paused_by: sub.paused_by || null,
     created_at: sub.created_at
   };
 }
@@ -526,6 +552,23 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
   const locked = isLocked(sub, now);
   if (!sub.pending_changes) sub.pending_changes = {};
 
+  // Staff proposals: accepting runs the proposed change as the customer's own action; declining drops it.
+  if (action === 'accept_proposal' || action === 'decline_proposal') {
+    const proposal = sub.admin_proposal;
+    if (!proposal) throw new SubscriptionActionError('This proposal is no longer available.');
+    sub.admin_proposal = null;
+    sub.admin_messages.push({
+      action: action === 'accept_proposal' ? 'proposal_accepted' : 'proposal_declined',
+      reason: proposal.type, sent_by: userIdStr, sent_at: now, ticket_id: proposal.ticket_id || null
+    });
+    if (action === 'decline_proposal') {
+      await sub.save();
+      return getRitualBox(userIdStr);
+    }
+    action = proposal.type === 'frequency' ? 'frequency' : 'resume';
+    payload = { frequency_days: proposal.frequency_days };
+  }
+
   // A failed / suspended subscription can only get a new card (charged right away) or be cancelled.
   const FAILED_ACTIONS = ['payment_method', 'reactivate', 'cancel'];
   if (['payment_failed', 'suspended'].includes(sub.status) && !FAILED_ACTIONS.includes(action)) {
@@ -557,10 +600,12 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
       if (!(option in PAUSE_OPTIONS)) throw new SubscriptionActionError('Choose how long to pause.');
       if (locked) {
         sub.pending_changes.pause_option = option;
+        sub.pending_changes.pause_by = 'customer';
       } else {
         sub.status = 'paused';
         sub.pause_option = option;
         sub.resume_at = PAUSE_OPTIONS[option] ? addDays(now, PAUSE_OPTIONS[option]) : null;
+        sub.paused_by = 'customer';
         sub.pending_changes.skip = false;
       }
       break;
@@ -582,8 +627,7 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
         sub.pending_changes.frequency_days = days === sub.frequency_days ? null : days;
       } else {
         if (sub.status === 'active') {
-          const shifted = addDays(sub.next_charge_at, days - sub.frequency_days);
-          sub.next_charge_at = shifted < now ? now : shifted;
+          sub.next_charge_at = shiftedChargeAt(sub, days, now);
         }
         sub.frequency_days = days;
         sub.pending_changes.frequency_days = null;
@@ -657,8 +701,7 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
       const days = sub.suggested_frequency_days;
       if (!days) throw new SubscriptionActionError('This suggestion has expired.');
       if (sub.status === 'active') {
-        const earlier = addDays(sub.next_charge_at, days - sub.frequency_days);
-        sub.next_charge_at = earlier < now ? now : earlier;
+        sub.next_charge_at = shiftedChargeAt(sub, days, now);
       }
       sub.suggested_frequency_days = null;
       sub.suggested_at = null;

@@ -39,7 +39,7 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
       { label: 'Products',      path: '/admin/products',      icon: 'products',      roles: SALES_OPS_ROLES },
       { label: 'Customers',     path: '/admin/customers',     icon: 'customers',     roles: SALES_OPS_ROLES },
       { label: 'Vouchers',      path: '/admin/vouchers',      icon: 'vouchers',      roles: SALES_OPS_ROLES },
-      { label: 'Subscriptions', path: '/admin/subscriptions', icon: 'subscriptions', roles: SALES_OPS_ROLES }
+      { label: 'Subscriptions', path: '/admin/subscriptions', icon: 'subscriptions', roles: ['admin_cc', 'qlsp', 'cskh'] }
     ]
   },
   {

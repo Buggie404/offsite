@@ -20,6 +20,8 @@ export type SubscriptionAction =
   | 'use_replacement'
   | 'accept_adjustment'
   | 'dismiss_adjustment'
+  | 'accept_proposal'
+  | 'decline_proposal'
   | 'cancel';
 
 export interface RitualCard {
@@ -78,6 +80,15 @@ export interface RitualSubscription {
   replacement: RitualReplacement | null;
   /** Smart adjustment: bring the next box forward one step (30 → 14 → 7) if confirmed. */
   suggestion: { frequency_days: number; next_charge_at: string; expires_at: string } | null;
+  /** Change suggested by Offsite staff; nothing happens unless the customer accepts it. */
+  admin_proposal: {
+    type: 'frequency' | 'resume';
+    frequency_days: number | null;
+    message: string;
+    expires_at: string;
+  } | null;
+  /** Who paused the box — 'admin' when staff paused it (e.g. out of stock). */
+  paused_by: 'customer' | 'admin' | null;
 }
 
 export interface RitualHistoryRow {

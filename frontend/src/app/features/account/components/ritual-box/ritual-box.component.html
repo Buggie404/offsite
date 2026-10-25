@@ -64,6 +64,22 @@
         <button type="button" class="rb-btn rb-btn--danger" (click)="openCardFromBanner($event, sub)">Update card</button>
       </div>
 
+      <!-- ─── Change proposed by Offsite staff: applies only if the customer accepts ─── -->
+      <div class="rb-suggest" *ngFor="let sub of proposalSubs()">
+        <svg lucideRepeat [size]="18" class="rb-suggest__icon"></svg>
+        <p class="rb-suggest__text">
+          <strong>{{ proposalTitle(sub) }}</strong>
+          <ng-container *ngIf="sub.admin_proposal!.message">{{ ' ' + sub.admin_proposal!.message }}</ng-container>
+          <span class="rb-suggest__sub">
+            Nothing changes unless you accept by {{ shortDate(sub.admin_proposal!.expires_at) }}.
+          </span>
+        </p>
+        <div class="rb-suggest__actions">
+          <button type="button" class="rb-btn rb-btn--primary" (click)="run(sub, 'accept_proposal')">Accept</button>
+          <button type="button" class="rb-btn" (click)="run(sub, 'decline_proposal')">Decline</button>
+        </div>
+      </div>
+
       <!-- ─── Smart adjustment (SUBSCRIPTION_ADJUSTED) ───────── -->
       <div class="rb-suggest" *ngFor="let sub of suggestionSubs()">
         <svg lucideSparkles [size]="18" class="rb-suggest__icon"></svg>
@@ -227,6 +243,9 @@
 
         <p class="rb-card__hint" *ngIf="sub.status === 'active' && !sub.can_skip">
           You’ve skipped 2 deliveries in a row. To take a longer break, pause or cancel instead.
+        </p>
+        <p class="rb-card__notice" *ngIf="actionNotice()?.id === sub.subscription_id" role="status">
+          {{ actionNotice()?.message }}
         </p>
         <p class="rb-card__error" *ngIf="actionError()?.id === sub.subscription_id" role="alert">
           {{ actionError()?.message }}

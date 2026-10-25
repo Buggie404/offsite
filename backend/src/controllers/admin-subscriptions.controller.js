@@ -2,12 +2,15 @@ const adminSubscriptionService = require('../services/admin-subscription.service
 const { SubscriptionActionError } = require('../services/subscription.service');
 
 const FILTERS = ['all', 'active', 'needs_action', 'paused', 'cancelled'];
-const ACTIONS = ['pause', 'reactivate', 'frequency', 'cancel', 'note'];
+// Staff can't charge a card or change the schedule directly: no 'reactivate' / 'frequency'.
+const ACTIONS = ['pause', 'skip', 'unpause', 'propose', 'withdraw_proposal', 'cancel', 'note'];
 
 const ACTIVITY_TYPES = {
   pause: 'SUBSCRIPTION_PAUSED',
-  reactivate: 'SUBSCRIPTION_REACTIVATED',
-  frequency: 'SUBSCRIPTION_FREQUENCY_CHANGED',
+  skip: 'SUBSCRIPTION_SKIPPED',
+  unpause: 'SUBSCRIPTION_RESUMED',
+  propose: 'SUBSCRIPTION_PROPOSAL_SENT',
+  withdraw_proposal: 'SUBSCRIPTION_PROPOSAL_WITHDRAWN',
   cancel: 'SUBSCRIPTION_CANCELLED',
   note: 'SUBSCRIPTION_NOTE_UPDATED'
 };
@@ -30,6 +33,8 @@ function activitySnapshot(sub) {
     resume_at: sub.resume_at,
     cancel_reason: sub.cancel_reason,
     replacement_offer: sub.replacement_offer,
+    admin_proposal: sub.admin_proposal || null,
+    skipped_deliveries: (sub.skipped_deliveries || []).length,
     internal_note: sub.internal_note?.text ?? ''
   };
 }
@@ -48,7 +53,7 @@ async function getSubscriptions(req, res) {
 // GET /api/admin/subscriptions/:id
 async function getSubscription(req, res) {
   try {
-    const data = await adminSubscriptionService.getSubscriptionDetail(req.params.id);
+    const data = await adminSubscriptionService.getSubscriptionDetail(req.params.id, req.user.role);
     res.json({ data });
   } catch (error) {
     sendError(res, error, 'Failed to load subscription.');
@@ -60,15 +65,18 @@ async function runAction(req, res) {
   const { id, action } = req.params;
   if (!ACTIONS.includes(action)) return res.status(404).json({ error: 'Unknown action.' });
   try {
-    const { before, after } = await adminSubscriptionService.applyAdminAction(id, action, req.body || {}, String(req.user.user_id));
+    const { before, after } = await adminSubscriptionService.applyAdminAction(
+      id, action, req.body || {}, String(req.user.user_id), req.user.role
+    );
+    const ticketId = typeof req.body?.ticket_id === 'string' ? req.body.ticket_id.trim().slice(0, 100) : '';
     await req.writeActivityLog({
       actionType: ACTIVITY_TYPES[action],
       targetEntity: 'subscription',
       targetId: id,
       oldValue: activitySnapshot(before),
-      newValue: activitySnapshot(after)
+      newValue: { ...activitySnapshot(after), ticket_id: ticketId || null }
     });
-    const data = await adminSubscriptionService.getSubscriptionDetail(id);
+    const data = await adminSubscriptionService.getSubscriptionDetail(id, req.user.role);
     res.json({ data });
   } catch (error) {
     sendError(res, error, 'Failed to update subscription.');

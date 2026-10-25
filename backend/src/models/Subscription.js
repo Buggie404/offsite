@@ -20,11 +20,33 @@ const deliveryInfoSchema = new mongoose.Schema({
 }, { _id: false });
 
 const adminMessageSchema = new mongoose.Schema({
-  action:  { type: String, enum: ['pause', 'cancel', 'resume', 'reactivate', 'frequency'], required: true },
+  action: {
+    type: String,
+    enum: [
+      'pause', 'cancel', 'resume', 'reactivate', 'frequency', 'skip', 'unpause',
+      'propose', 'withdraw_proposal', 'proposal_accepted', 'proposal_declined', 'proposal_expired'
+    ],
+    required: true
+  },
   reason:  { type: String, default: null },
   message: { type: String, default: '' },
+  // Support ticket / conversation id when staff act on the customer's request.
+  ticket_id: { type: String, default: null },
   sent_by: { type: String, required: true },                      // user_id của admin
   sent_at: { type: Date, default: Date.now }
+}, { _id: false });
+
+// Staff can only PROPOSE changes that affect what or when the customer is charged;
+// the customer accepts or declines in Account › Ritual Box. Expires after 3 days.
+const adminProposalSchema = new mongoose.Schema({
+  type:           { type: String, enum: ['frequency', 'resume'], required: true },
+  frequency_days: { type: Number, enum: [7, 14, 30, null], default: null },
+  reason:         { type: String, default: null },
+  message:        { type: String, default: '' },
+  ticket_id:      { type: String, default: null },
+  proposed_by:    { type: String, required: true },
+  proposed_at:    { type: Date, default: Date.now },
+  expires_at:     { type: Date, required: true }
 }, { _id: false });
 
 const replacementOfferSchema = new mongoose.Schema({
@@ -75,6 +97,7 @@ const subscriptionSchema = new mongoose.Schema({
     frequency_days: { type: Number, enum: [7, 14, 30, null], default: null },
     skip:           { type: Boolean, default: false },
     pause_option:   { type: String, enum: ['1_month', '2_months', 'until_reactivated', null], default: null },
+    pause_by:       { type: String, enum: ['customer', 'admin', null], default: null },
     // Admin huỷ "sau lần giao kế tiếp": chu kỳ sắp tới vẫn charge & giao, rồi chuyển cancelled_by_admin.
     cancel:         { type: pendingCancelSchema, default: null }
   },
@@ -99,6 +122,8 @@ const subscriptionSchema = new mongoose.Schema({
   pause_option: { type: String, enum: ['1_month', '2_months', 'until_reactivated', null], default: null },
   paused_at:    { type: Date, default: null },
   resume_at:    { type: Date, default: null },
+  // Who paused: staff may lift only a pause they placed; a customer's own pause needs the customer.
+  paused_by:    { type: String, enum: ['customer', 'admin', null], default: null },
 
   cancelled_at:  { type: Date, default: null },
   cancel_reason: { type: String, default: null },                 // tuỳ chọn với khách, bắt buộc với cancelled_by_admin
@@ -108,6 +133,7 @@ const subscriptionSchema = new mongoose.Schema({
   admin_messages: { type: [adminMessageSchema], default: [] },
   // Admin tạm dừng vì hết hàng có thể đề nghị sản phẩm thay thế; khách chấp nhận trong Ritual Box.
   replacement_offer: { type: replacementOfferSchema, default: null },
+  admin_proposal:    { type: adminProposalSchema, default: null },
   internal_note: {
     text:       { type: String, default: '' },
     updated_by: { type: String, default: null },
@@ -148,6 +174,7 @@ subscriptionSchema.pre('validate', async function(next) {
       this.paused_at = null;
       this.resume_at = null;
       this.pause_option = null;
+      this.paused_by = null;
     }
     if (['cancelled', 'cancelled_by_admin'].includes(this.status) && !this.cancelled_at) {
       this.cancelled_at = new Date();

@@ -9,7 +9,9 @@ import {
   LucideChevronDown,
   LucidePause,
   LucidePlay,
+  LucideRepeat,
   LucideSearch,
+  LucideSkipForward,
   LucideX
 } from '@lucide/angular';
 import { Subject, catchError, combineLatest, of, switchMap } from 'rxjs';
@@ -18,6 +20,8 @@ import {
   AdminCancelEffective,
   AdminPauseAffects,
   AdminPauseOption,
+  AdminProposalType,
+  AdminSubscriptionAction,
   AdminSubscriptionDelivery,
   AdminSubscriptionDetail,
   AdminSubscriptionFilter,
@@ -28,8 +32,7 @@ import {
 
 type ChipTone = 'success' | 'danger' | 'info' | 'warning';
 
-const PAUSE_REASONS = ['Item out of stock', 'Payment problem', 'Customer asked us', 'Other'] as const;
-const CANCEL_REASONS = ['Product discontinued', 'Repeated payment failure', 'Customer asked us', 'Other'] as const;
+const CUSTOMER_REQUEST = 'Customer asked us';
 
 /** Admin 1.6.1 Subscriptions — list + detail drawer, pause / cancel modals. */
 @Component({
@@ -44,7 +47,9 @@ const CANCEL_REASONS = ['Product discontinued', 'Repeated payment failure', 'Cus
     LucideChevronDown,
     LucidePause,
     LucidePlay,
+    LucideRepeat,
     LucideSearch,
+    LucideSkipForward,
     LucideX
   ],
   templateUrl: './subscriptions-listing.component.html',
@@ -58,8 +63,6 @@ export class SubscriptionsListingComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
   private readonly listTrigger$ = new Subject<void>();
 
-  readonly pauseReasons = PAUSE_REASONS;
-  readonly cancelReasons = CANCEL_REASONS;
   readonly frequencies = [
     { days: 7, label: 'Every week' },
     { days: 14, label: 'Every 2 weeks' },
@@ -92,7 +95,8 @@ export class SubscriptionsListingComponent implements OnInit {
 
   // Pause modal
   showPauseModal = false;
-  pauseReason: string = PAUSE_REASONS[0];
+  pauseReason = '';
+  pauseTicket = '';
   pauseOption: AdminPauseOption = 'until_reactivated';
   pauseAffects: AdminPauseAffects = 'next';
   offerReplacement = true;
@@ -100,9 +104,23 @@ export class SubscriptionsListingComponent implements OnInit {
 
   // Cancel modal
   showCancelModal = false;
-  cancelReason: string = CANCEL_REASONS[0];
+  cancelReason = '';
+  cancelTicket = '';
   cancelMessage = '';
   cancelEffective: AdminCancelEffective = 'now';
+
+  // Skip modal
+  showSkipModal = false;
+  skipReason = '';
+  skipTicket = '';
+  skipMessage = '';
+
+  // Proposal modal — schedule changes go to the customer for approval
+  showProposeModal = false;
+  proposeType: AdminProposalType = 'frequency';
+  proposeFrequency = 14;
+  proposeTicket = '';
+  proposeMessage = '';
 
   ngOnInit(): void {
     this.listTrigger$
@@ -216,7 +234,7 @@ export class SubscriptionsListingComponent implements OnInit {
     return this.detail?.customer.name.split(/\s+/).pop() || 'customer';
   }
 
-  private run(action: 'pause' | 'reactivate' | 'frequency' | 'cancel' | 'note', payload: Record<string, unknown>, done?: () => void): void {
+  private run(action: AdminSubscriptionAction, payload: Record<string, unknown>, done?: () => void): void {
     if (!this.detail || this.busy) return;
     this.busy = true;
     this.actionError = null;
@@ -235,12 +253,107 @@ export class SubscriptionsListingComponent implements OnInit {
     });
   }
 
-  changeFrequency(days: string | number): void {
-    this.run('frequency', { frequency_days: Number(days) });
+  /** Acting on the customer's request needs the support ticket id as proof. */
+  needsTicket(reason: string): boolean {
+    return reason === CUSTOMER_REQUEST;
   }
 
-  reactivate(): void {
-    this.run('reactivate', {});
+  get anyModalOpen(): boolean {
+    return this.showPauseModal || this.showCancelModal || this.showSkipModal || this.showProposeModal;
+  }
+
+  /** Lift a pause staff placed — the next charge stays on its date and is at least 48h away. */
+  unpause(): void {
+    if (!this.detail) return;
+    this.run('unpause', {
+      message: `Hi ${this.firstName}, your ${this.detail.product_name} Ritual Box is back on. Your next delivery is scheduled as before — we’ll remind you before it’s charged.`
+    });
+  }
+
+  withdrawProposal(): void {
+    this.run('withdraw_proposal', {});
+  }
+
+  // ── Skip modal ──────────────────────────────────────────────────────────
+
+  openSkipModal(): void {
+    const d = this.detail;
+    if (!d) return;
+    this.skipReason = d.permissions.skip_reasons[0] || '';
+    this.skipTicket = '';
+    this.skipMessage = this.skipTemplate();
+    this.actionError = null;
+    this.showSkipModal = true;
+  }
+
+  onSkipReasonChange(reason: string): void {
+    this.skipReason = reason;
+    this.skipMessage = this.skipTemplate();
+  }
+
+  private skipTemplate(): string {
+    const d = this.detail;
+    if (!d) return '';
+    const delivery = this.shortDate(d.upcoming_delivery_at);
+    return this.skipReason === 'Item out of stock'
+      ? `Hi ${this.firstName}, ${d.product_name} is out of stock for your ${delivery} box, so we skipped it — you won’t be charged for it.`
+      : `Hi ${this.firstName}, as requested we skipped your ${delivery} delivery. You won’t be charged for it.`;
+  }
+
+  confirmSkip(): void {
+    this.run(
+      'skip',
+      { reason: this.skipReason, ticket_id: this.skipTicket, message: this.skipMessage },
+      () => (this.showSkipModal = false)
+    );
+  }
+
+  // ── Proposal modal ──────────────────────────────────────────────────────
+
+  openProposeModal(type: AdminProposalType): void {
+    const d = this.detail;
+    if (!d) return;
+    this.proposeType = type;
+    this.proposeFrequency = this.frequencies.find((f) => f.days !== d.frequency_days)?.days ?? 14;
+    this.proposeTicket = '';
+    this.proposeMessage = this.proposeTemplate();
+    this.actionError = null;
+    this.showProposeModal = true;
+  }
+
+  onProposeFrequencyChange(days: number | string): void {
+    this.proposeFrequency = Number(days);
+    this.proposeMessage = this.proposeTemplate();
+  }
+
+  private proposeTemplate(): string {
+    const d = this.detail;
+    if (!d) return '';
+    if (this.proposeType === 'resume') {
+      return `Hi ${this.firstName}, would you like to start your ${d.product_name} Ritual Box again? Accept below and we’ll schedule your next delivery.`;
+    }
+    const label = this.frequencies.find((f) => f.days === this.proposeFrequency)?.label.toLowerCase() || '';
+    return `Hi ${this.firstName}, would ${label} suit you better for your ${d.product_name} box? Nothing changes unless you accept.`;
+  }
+
+  confirmPropose(): void {
+    this.run(
+      'propose',
+      {
+        type: this.proposeType,
+        frequency_days: this.proposeType === 'frequency' ? this.proposeFrequency : null,
+        ticket_id: this.proposeTicket,
+        message: this.proposeMessage
+      },
+      () => (this.showProposeModal = false)
+    );
+  }
+
+  proposalLabel(d: AdminSubscriptionDetail): string {
+    const p = d.admin_proposal;
+    if (!p) return '';
+    const what = p.type === 'frequency' ? `${this.frequencyShort(p.frequency_days ?? d.frequency_days).toLowerCase()}` : 'resume';
+    return `Proposed ${what} · waiting for customer until ${this.shortDate(p.expires_at)}`;
   }
 
   saveNote(): void {
@@ -252,7 +365,8 @@ export class SubscriptionsListingComponent implements OnInit {
 
   openPauseModal(): void {
     if (!this.detail) return;
-    this.pauseReason = this.detail.out_of_stock ? 'Item out of stock' : 'Customer asked us';
+    this.pauseReason = this.detail.permissions.pause_reasons[0] || '';
+    this.pauseTicket = '';
     this.pauseOption = 'until_reactivated';
     this.pauseAffects = 'next';
     this.offerReplacement = !!this.detail.replacement && this.pauseReason === 'Item out of stock';
@@ -299,8 +413,6 @@ export class SubscriptionsListingComponent implements OnInit {
           ? `${base} Would you like ${rep.name} (${rep.same_price ? 'similar pick, same price' : 'similar pick'}) instead?`
           : base;
       }
-      case 'Payment problem':
-        return `Hi ${this.firstName}, we couldn’t charge your card for the ${delivery} box, so we paused your Ritual Box. Update your card to continue.`;
       case 'Customer asked us':
         return `Hi ${this.firstName}, as requested we paused your ${d.product_name} Ritual Box. Nothing is charged while it’s paused.`;
       default:
@@ -313,6 +425,7 @@ export class SubscriptionsListingComponent implements OnInit {
       'pause',
       {
         reason: this.pauseReason,
+        ticket_id: this.pauseTicket,
         pause_option: this.pauseOption,
         affects: this.pauseAffects,
         offer_replacement: this.offerReplacement && this.canOfferReplacement,
@@ -326,7 +439,8 @@ export class SubscriptionsListingComponent implements OnInit {
 
   openCancelModal(): void {
     if (!this.detail) return;
-    this.cancelReason = CANCEL_REASONS[0];
+    this.cancelReason = this.detail.permissions.cancel_reasons[0] || '';
+    this.cancelTicket = '';
     this.cancelEffective = 'now';
     this.cancelMessage = this.cancelTemplate();
     this.actionError = null;
@@ -360,6 +474,8 @@ export class SubscriptionsListingComponent implements OnInit {
         return `We couldn’t charge your card after several tries, so we’ve cancelled this Ritual Box. You can start a new one any time.`;
       case 'Customer asked us':
         return `As requested, we’ve cancelled your ${name} Ritual Box. No further charges will be made.`;
+      case 'Policy violation':
+        return `We’ve cancelled your ${name} Ritual Box because it doesn’t meet our Subscribe & Save policy: `;
       default:
         return `We’ve cancelled your ${name} Ritual Box. No further charges will be made.`;
     }
@@ -368,16 +484,18 @@ export class SubscriptionsListingComponent implements OnInit {
   confirmCancel(): void {
     this.run(
       'cancel',
-      { reason: this.cancelReason, message: this.cancelMessage, effective: this.cancelEffective },
+      { reason: this.cancelReason, ticket_id: this.cancelTicket, message: this.cancelMessage, effective: this.cancelEffective },
       () => (this.showCancelModal = false)
     );
   }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    if (this.showPauseModal || this.showCancelModal) {
+    if (this.anyModalOpen) {
       this.showPauseModal = false;
       this.showCancelModal = false;
+      this.showSkipModal = false;
+      this.showProposeModal = false;
     }
   }
 
@@ -422,6 +540,14 @@ export class SubscriptionsListingComponent implements OnInit {
     switch (action) {
       case 'pause': return 'Paused';
       case 'cancel': return 'Cancelled';
+      case 'skip': return 'Skipped a delivery';
+      case 'unpause': return 'Resumed by staff';
+      case 'propose': return 'Proposal sent';
+      case 'withdraw_proposal': return 'Proposal withdrawn';
+      case 'proposal_accepted': return 'Customer accepted';
+      case 'proposal_declined': return 'Customer declined';
+      case 'proposal_expired': return 'Proposal expired';
+      case 'frequency': return 'Frequency changed';
       default: return 'Reactivated';
     }
   }

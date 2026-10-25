@@ -31,7 +31,8 @@ const notificationSchema = new mongoose.Schema({
       'SUBSCRIPTION_PAYMENT_FAILED',
       'SUBSCRIPTION_SUSPENDED',
       'SUBSCRIPTION_OUT_OF_STOCK',
-      'SUBSCRIPTION_SKIPPED'
+      'SUBSCRIPTION_SKIPPED',
+      'SUBSCRIPTION_PROPOSAL'
     ],
     required: true
   },

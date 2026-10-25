@@ -8,7 +8,17 @@ export type AdminSubscriptionStatus =
 
 export type AdminSubscriptionFilter = 'all' | 'active' | 'needs_action' | 'paused' | 'cancelled';
 
-export type AdminSubscriptionAction = 'pause' | 'reactivate' | 'frequency' | 'cancel' | 'note';
+/** Staff can't charge a card or change the schedule directly — only propose it. */
+export type AdminSubscriptionAction =
+  | 'pause'
+  | 'skip'
+  | 'unpause'
+  | 'propose'
+  | 'withdraw_proposal'
+  | 'cancel'
+  | 'note';
+
+export type AdminProposalType = 'frequency' | 'resume';
 
 export type AdminPauseOption = '1_month' | '2_months' | 'until_reactivated';
 
@@ -71,9 +81,12 @@ export interface AdminSubscriptionDelivery {
 }
 
 export interface AdminSubscriptionMessage {
-  action: 'pause' | 'cancel' | 'resume' | 'reactivate' | 'frequency';
+  action:
+    | 'pause' | 'cancel' | 'resume' | 'reactivate' | 'frequency' | 'skip' | 'unpause'
+    | 'propose' | 'withdraw_proposal' | 'proposal_accepted' | 'proposal_declined' | 'proposal_expired';
   reason: string | null;
   message: string;
+  ticket_id?: string | null;
   sent_by: string;
   sent_at: string;
 }
@@ -101,4 +114,34 @@ export interface AdminSubscriptionDetail extends AdminSubscriptionRow {
   messages: AdminSubscriptionMessage[];
   internal_note: string;
   internal_note_updated_at: string | null;
+  paused_by: 'customer' | 'admin' | null;
+  admin_proposal: AdminSubscriptionProposal | null;
+  permissions: AdminSubscriptionPermissions;
+}
+
+export interface AdminSubscriptionProposal {
+  type: AdminProposalType;
+  frequency_days: number | null;
+  reason: string | null;
+  message: string;
+  ticket_id: string | null;
+  proposed_at: string;
+  expires_at: string;
+}
+
+/** What the signed-in staff member may do on this box (from the server's role rules). */
+export interface AdminSubscriptionPermissions {
+  role: string | null;
+  pause: boolean;
+  skip: boolean;
+  unpause: boolean;
+  cancel: boolean;
+  propose_frequency: boolean;
+  propose_resume: boolean;
+  withdraw_proposal: boolean;
+  note: boolean;
+  pause_reasons: string[];
+  skip_reasons: string[];
+  cancel_reasons: string[];
+  ticket_required_for: string[];
 }

@@ -95,6 +95,7 @@ export class RitualBoxComponent implements OnInit {
   readonly openMenu = signal<Menu>(null);
   readonly busyId = signal<string | null>(null);
   readonly actionError = signal<{ id: string; message: string } | null>(null);
+  readonly actionNotice = signal<{ id: string; message: string } | null>(null);
   readonly cancelTarget = signal<RitualSubscription | null>(null);
   cancelReason = '';
 
@@ -129,9 +130,22 @@ export class RitualBoxComponent implements OnInit {
     if (this.busyId()) return;
     this.openMenu.set(null);
     this.actionError.set(null);
+    this.actionNotice.set(null);
     this.busyId.set(sub.subscription_id);
+    const reschedules = action === 'frequency' || action === 'accept_adjustment'
+      || (action === 'accept_proposal' && sub.admin_proposal?.type === 'frequency');
     this.box.act(sub.subscription_id, action, payload).subscribe({
-      next: () => this.busyId.set(null),
+      next: data => {
+        this.busyId.set(null);
+        // Show where the next delivery landed (never sooner than 48h after the change).
+        const updated = data.subscriptions.find(s => s.subscription_id === sub.subscription_id);
+        if (reschedules && updated?.status === 'active' && !updated.pending_changes?.frequency_days) {
+          this.actionNotice.set({
+            id: sub.subscription_id,
+            message: `Done. Your next delivery is now ${this.shortDate(updated.next_charge_at)}.`,
+          });
+        }
+      },
       error: err => {
         this.busyId.set(null);
         this.actionError.set({
@@ -264,6 +278,18 @@ export class RitualBoxComponent implements OnInit {
 
   outOfStockSubs(): RitualSubscription[] {
     return (this.box.data()?.subscriptions ?? []).filter(s => s.out_of_stock);
+  }
+
+  proposalSubs(): RitualSubscription[] {
+    return (this.box.data()?.subscriptions ?? []).filter(s => !!s.admin_proposal);
+  }
+
+  proposalTitle(sub: RitualSubscription): string {
+    const p = sub.admin_proposal;
+    if (!p) return '';
+    return p.type === 'frequency'
+      ? `Offsite suggests delivering your ${sub.product_name} box ${this.frequencyLabel(p.frequency_days ?? sub.frequency_days).toLowerCase()}.`
+      : `Offsite suggests resuming your ${sub.product_name} box.`;
   }
 
   suggestionSubs(): RitualSubscription[] {

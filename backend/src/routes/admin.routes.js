@@ -28,9 +28,11 @@ router.post('/orders/:id/refund/reject', authMiddleware, requireRole(...ADMIN_OR
 router.post('/orders/:id/notes', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.addInternalNote);
 
 // Subscriptions (QLSP, Admin CC): list, detail, pause / reactivate / frequency / cancel / internal note.
-router.get('/subscriptions', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminSubscriptionsController.getSubscriptions);
-router.get('/subscriptions/:id', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminSubscriptionsController.getSubscription);
-router.post('/subscriptions/:id/:action', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog({ requireReasonForActions: ['pause', 'cancel'] }), adminSubscriptionsController.runAction);
+// Ritual Box: CSKH can view (and keep notes); what each role may do is enforced per action
+// in admin-subscription.service (ROLE_RULES).
+router.get('/subscriptions', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminSubscriptionsController.getSubscriptions);
+router.get('/subscriptions/:id', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminSubscriptionsController.getSubscription);
+router.post('/subscriptions/:id/:action', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminActivityLog({ requireReasonForActions: ['pause', 'skip', 'cancel'] }), adminSubscriptionsController.runAction);
 
 // Community moderation (Admin CC, CSKH): reported / hidden posts.
 router.get('/community/reports', authMiddleware, requireRole('admin_cc', 'cskh'), adminCommunityController.listReportedPosts);

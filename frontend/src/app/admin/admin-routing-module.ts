@@ -13,6 +13,8 @@ import { OrderDetailComponent } from './orders/pages/order-detail/order-detail.c
 
 // Chỉ dùng 3 role thực tế trong DB
 const SALES_OPS_ROLES    = ['admin_cc', 'qlsp'] as const;
+// Ritual Box: CSKH can view (read-only + notes); actions are limited per role on the server.
+const SUBSCRIPTION_VIEW_ROLES = ['admin_cc', 'qlsp', 'cskh'] as const;
 const SERVICES_OPS_ROLES = ['admin_cc', 'cskh'] as const;
 const SYSTEM_ROLES       = ['admin_cc'] as const;
 const SALES_DASHBOARD_ROLES = ['admin_cc', 'qlsp'] as const;
@@ -88,7 +90,7 @@ const routes: Routes = [
         loadComponent: () =>
           import('./subscriptions/pages/subscriptions-listing/subscriptions-listing.component').then((m) => m.SubscriptionsListingComponent),
         canActivate: [adminRoleGuard],
-        data: { adminRoles: SALES_OPS_ROLES }
+        data: { adminRoles: SUBSCRIPTION_VIEW_ROLES }
       },
 
       // ── Services Operations ───────────────────────────────────────────────

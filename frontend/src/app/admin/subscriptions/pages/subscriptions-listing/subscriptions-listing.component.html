@@ -120,26 +120,56 @@
           }
 
           @if (!isClosed) {
+            @let perm = detail.permissions;
             <div class="drawer__actions">
-              @if (detail.status === 'active') {
+              @if (perm.pause) {
                 <button type="button" class="btn btn--dark" [disabled]="busy" (click)="openPauseModal()">
                   <svg lucidePause aria-hidden="true" [size]="14"></svg>
                   Pause
                 </button>
-              } @else {
-                <button type="button" class="btn btn--dark" [disabled]="busy" (click)="reactivate()">
-                  <svg lucidePlay aria-hidden="true" [size]="14"></svg>
-                  {{ detail.status === 'paused' ? 'Resume' : 'Reactivate' }}
+              }
+              @if (perm.skip) {
+                <button type="button" class="btn btn--outline" [disabled]="busy" (click)="openSkipModal()">
+                  <svg lucideSkipForward aria-hidden="true" [size]="14"></svg>
+                  Skip next delivery
                 </button>
               }
-              <button type="button" class="btn btn--danger-outline" [disabled]="busy" (click)="openCancelModal()">
-                <svg lucideX aria-hidden="true" [size]="14"></svg>
-                Cancel subscription
-              </button>
+              @if (perm.unpause) {
+                <button type="button" class="btn btn--dark" [disabled]="busy" (click)="unpause()">
+                  <svg lucidePlay aria-hidden="true" [size]="14"></svg>
+                  Lift staff pause
+                </button>
+              }
+              @if (perm.propose_resume) {
+                <button type="button" class="btn btn--outline" [disabled]="busy" (click)="openProposeModal('resume')">
+                  <svg lucidePlay aria-hidden="true" [size]="14"></svg>
+                  Propose resuming
+                </button>
+              }
+              @if (perm.cancel) {
+                <button type="button" class="btn btn--danger-outline" [disabled]="busy" (click)="openCancelModal()">
+                  <svg lucideX aria-hidden="true" [size]="14"></svg>
+                  Cancel subscription
+                </button>
+              }
             </div>
+            @if (detail.status === 'paused' && detail.paused_by === 'customer') {
+              <p class="muted">The customer paused this box. Only they can resume it — you can send a proposal.</p>
+            }
+            @if (detail.status === 'payment_failed' || detail.status === 'suspended') {
+              <p class="muted">Staff can’t charge the card. The customer updates their card in Ritual Box to continue.</p>
+            }
+            @if (detail.admin_proposal) {
+              <div class="proposal-row">
+                <span class="chip chip--info">{{ proposalLabel(detail) }}</span>
+                @if (perm.withdraw_proposal) {
+                  <button type="button" class="link-button" [disabled]="busy" (click)="withdrawProposal()">Withdraw</button>
+                }
+              </div>
+            }
           }
 
-          @if (actionError && !showPauseModal && !showCancelModal) {
+          @if (actionError && !anyModalOpen) {
             <p class="form-error" role="alert">{{ actionError }}</p>
           }
 
@@ -168,26 +198,14 @@
           <div class="kv">
             <span class="kv__label">Every</span>
             <span class="kv__value kv__value--inline">
-              @if (isClosed) {
-                {{ frequencyShort(detail.frequency_days) }}
-              } @else {
-                <span class="inline-select">
-                  <select
-                    class="inline-select__control"
-                    aria-label="Delivery frequency"
-                    [ngModel]="detail.frequency_days"
-                    [disabled]="busy"
-                    (ngModelChange)="changeFrequency($event)"
-                  >
-                    @for (f of frequencies; track f.days) {
-                      <option [ngValue]="f.days">{{ frequencyShort(f.days) }}</option>
-                    }
-                  </select>
-                  <svg lucideChevronDown class="inline-select__icon" aria-hidden="true" [size]="14"></svg>
-                </span>
-              }
+              {{ frequencyShort(detail.frequency_days) }}
               @if (detail.next_charge_at) {
                 · next {{ shortDate(detail.next_charge_at) }}
+              }
+              @if (!isClosed && detail.permissions.propose_frequency) {
+                <button type="button" class="link-button" [disabled]="busy" (click)="openProposeModal('frequency')">
+                  Propose change
+                </button>
               }
             </span>
           </div>
@@ -233,7 +251,7 @@
             <ul class="messages">
               @for (m of detail.messages; track m.sent_at) {
                 <li class="messages__item">
-                  <span class="messages__meta">{{ messageLabel(m.action) }} · {{ shortDate(m.sent_at) }}{{ m.reason ? ' · ' + m.reason : '' }}</span>
+                  <span class="messages__meta">{{ messageLabel(m.action) }} · {{ shortDate(m.sent_at) }}{{ m.reason ? ' · ' + m.reason : '' }}{{ m.ticket_id ? ' · ticket ' + m.ticket_id : '' }}</span>
                   @if (m.message) {
                     <span class="messages__text">{{ m.message }}</span>
                   }
@@ -241,9 +259,10 @@
               }
             </ul>
           } @else {
-            <p class="muted">No messages yet. Messages are sent when you pause or cancel.</p>
+            <p class="muted">No messages yet. Messages are sent when staff pause, skip, propose or cancel.</p>
           }
 
+          @if (detail.permissions.note) {
           <label class="overline" for="sub-internal-note">Internal note · staff only</label>
           <textarea
             id="sub-internal-note"
@@ -256,6 +275,7 @@
           ></textarea>
           @if (noteSaved) {
             <p class="muted muted--saved"><svg lucideCheck aria-hidden="true" [size]="12"></svg> Note saved</p>
+          }
           }
         </div>
       } @else if (actionError) {
@@ -278,7 +298,7 @@
       <div class="modal__body">
         <p class="overline">Reason (sent to customer)</p>
         <div class="radio-group" role="radiogroup">
-          @for (reason of pauseReasons; track reason) {
+          @for (reason of detail.permissions.pause_reasons; track reason) {
             <label class="radio">
               <input type="radio" name="pause-reason" [value]="reason" [checked]="pauseReason === reason" (change)="onPauseReasonChange(reason)" />
               <span class="radio__dot" aria-hidden="true"></span>
@@ -286,6 +306,13 @@
             </label>
           }
         </div>
+
+        @if (needsTicket(pauseReason)) {
+          <label class="field">
+            <span class="overline">Support ticket id (required)</span>
+            <input class="input" type="text" placeholder="e.g. CS-2048" [(ngModel)]="pauseTicket" />
+          </label>
+        }
 
         <div class="field-row">
           <label class="field">
@@ -302,7 +329,7 @@
             <span class="overline">Pause until</span>
             <span class="select">
               <select class="select__control" [(ngModel)]="pauseOption">
-                <option value="until_reactivated">Resumed by staff</option>
+                <option value="until_reactivated">Until resumed</option>
                 <option value="1_month">1 month</option>
                 <option value="2_months">2 months</option>
               </select>
@@ -311,7 +338,7 @@
           </label>
         </div>
 
-        @if (canOfferReplacement && detail.replacement; as rep) {
+        @if (canOfferReplacement && pauseReason === 'Item out of stock' && detail.replacement; as rep) {
           <div class="offer">
             <label class="checkbox">
               <input type="checkbox" [checked]="offerReplacement" (change)="onOfferReplacementChange($any($event.target).checked)" />
@@ -385,7 +412,7 @@
 
         <p class="overline">Reason (sent to customer)</p>
         <div class="radio-group" role="radiogroup">
-          @for (reason of cancelReasons; track reason) {
+          @for (reason of detail.permissions.cancel_reasons; track reason) {
             <label class="radio">
               <input type="radio" name="cancel-reason" [value]="reason" [checked]="cancelReason === reason" (change)="onCancelReasonChange(reason)" />
               <span class="radio__dot" aria-hidden="true"></span>
@@ -394,8 +421,15 @@
           }
         </div>
 
+        @if (needsTicket(cancelReason)) {
+          <label class="field">
+            <span class="overline">Support ticket id (required)</span>
+            <input class="input" type="text" placeholder="e.g. CS-2048" [(ngModel)]="cancelTicket" />
+          </label>
+        }
+
         <label class="field">
-          <span class="overline">Message to customer</span>
+          <span class="overline">Message to customer{{ cancelReason === 'Policy violation' ? ' (explain the violation)' : '' }}</span>
           <textarea class="textarea" rows="3" [(ngModel)]="cancelMessage"></textarea>
         </label>
 
@@ -418,6 +452,102 @@
       <div class="modal__footer">
         <button type="button" class="btn btn--outline" (click)="showCancelModal = false">Keep</button>
         <button type="button" class="btn btn--danger" [disabled]="busy" (click)="confirmCancel()">Cancel subscription</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Skip modal: no charge for the upcoming delivery -->
+@if (showSkipModal && detail) {
+  <div class="modal-backdrop" (click)="showSkipModal = false">
+    <div class="modal modal--narrow" role="dialog" aria-modal="true" aria-labelledby="skip-title" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 id="skip-title" class="modal__title">Skip the {{ shortDate(detail.upcoming_delivery_at) }} delivery?</h2>
+        <button type="button" class="icon-button" (click)="showSkipModal = false" aria-label="Close">
+          <svg lucideX aria-hidden="true" [size]="18"></svg>
+        </button>
+      </div>
+      <div class="modal__body">
+        <p class="overline">Reason (sent to customer)</p>
+        <div class="radio-group" role="radiogroup">
+          @for (reason of detail.permissions.skip_reasons; track reason) {
+            <label class="radio">
+              <input type="radio" name="skip-reason" [value]="reason" [checked]="skipReason === reason" (change)="onSkipReasonChange(reason)" />
+              <span class="radio__dot" aria-hidden="true"></span>
+              {{ reason }}
+            </label>
+          }
+        </div>
+        @if (needsTicket(skipReason)) {
+          <label class="field">
+            <span class="overline">Support ticket id (required)</span>
+            <input class="input" type="text" placeholder="e.g. CS-2048" [(ngModel)]="skipTicket" />
+          </label>
+        }
+        <label class="field">
+          <span class="overline">Message to {{ firstName }}</span>
+          <textarea class="textarea" rows="3" [(ngModel)]="skipMessage"></textarea>
+        </label>
+        <p class="muted">Nothing is charged for this delivery. The next one is {{ shortDate(detail.following_delivery_at) }}.</p>
+        @if (actionError) {
+          <p class="form-error" role="alert">{{ actionError }}</p>
+        }
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn--outline" (click)="showSkipModal = false">Keep</button>
+        <button type="button" class="btn btn--dark" [disabled]="busy" (click)="confirmSkip()">Skip &amp; send</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Proposal modal: schedule changes need the customer's approval -->
+@if (showProposeModal && detail) {
+  <div class="modal-backdrop" (click)="showProposeModal = false">
+    <div class="modal modal--narrow" role="dialog" aria-modal="true" aria-labelledby="propose-title" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 id="propose-title" class="modal__title">
+          {{ proposeType === 'frequency' ? 'Propose a new frequency' : 'Propose resuming' }}
+        </h2>
+        <button type="button" class="icon-button" (click)="showProposeModal = false" aria-label="Close">
+          <svg lucideX aria-hidden="true" [size]="18"></svg>
+        </button>
+      </div>
+      <div class="modal__body">
+        <div class="alert alert--info">
+          <svg lucideRepeat class="alert__icon" aria-hidden="true" [size]="16"></svg>
+          <p>The customer accepts or declines in Ritual Box. Nothing changes until they accept; the proposal expires after 3 days.</p>
+        </div>
+        @if (proposeType === 'frequency') {
+          <label class="field">
+            <span class="overline">New frequency</span>
+            <span class="select">
+              <select class="select__control" [ngModel]="proposeFrequency" (ngModelChange)="onProposeFrequencyChange($event)">
+                @for (f of frequencies; track f.days) {
+                  @if (f.days !== detail.frequency_days) {
+                    <option [ngValue]="f.days">{{ f.label }}</option>
+                  }
+                }
+              </select>
+              <svg lucideChevronDown class="select__icon" aria-hidden="true" [size]="16"></svg>
+            </span>
+          </label>
+        }
+        <label class="field">
+          <span class="overline">Support ticket id (optional)</span>
+          <input class="input" type="text" placeholder="e.g. CS-2048" [(ngModel)]="proposeTicket" />
+        </label>
+        <label class="field">
+          <span class="overline">Message to {{ firstName }}</span>
+          <textarea class="textarea" rows="3" [(ngModel)]="proposeMessage"></textarea>
+        </label>
+        @if (actionError) {
+          <p class="form-error" role="alert">{{ actionError }}</p>
+        }
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn--outline" (click)="showProposeModal = false">Cancel</button>
+        <button type="button" class="btn btn--dark" [disabled]="busy" (click)="confirmPropose()">Send proposal</button>
       </div>
     </div>
   </div>
