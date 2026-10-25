@@ -22,17 +22,7 @@ const addUnits = (date, units) => new Date(new Date(date).getTime() + units * TI
 const addDays = (date, days) => new Date(new Date(date).getTime() + days * DAY_MS);
 
 async function notify(sub, type, message) {
-  try {
-    await notificationService.createNotification({
-      recipient_id: sub.user_id,
-      sender: null,
-      type,
-      post_id: sub.subscription_id,
-      comment_content: message ? String(message).slice(0, 500) : null
-    });
-  } catch (err) {
-    console.error(`Error creating ${type} notification:`, err);
-  }
+  await notificationService.notifySubscription(sub, type, message);
 }
 
 function formatChargeDate(date) {

@@ -9,8 +9,13 @@ export interface Notification {
   notification_id: string;
   recipient_id: string;
   sender: NotificationSender | null;
-  type: 'POST_CREATED' | 'POST_LIKED' | 'POST_COMMENTED' | 'COMMENT_REPLIED' | 'COMMENT_LIKED' | 'ORDER_PLACED' | 'ORDER_SHIPPING' | 'ORDER_CANCELED' | 'REFUND_REQUESTED' | 'REFUND_APPROVED' | 'REFUND_REJECTED' | 'SUBSCRIPTION_PAUSED' | 'SUBSCRIPTION_RESUMED' | 'SUBSCRIPTION_CANCELLED';
-  post_id: string;
+  type: 'POST_CREATED' | 'POST_LIKED' | 'POST_COMMENTED' | 'COMMENT_REPLIED' | 'COMMENT_LIKED' | 'ORDER_PLACED' | 'ORDER_SHIPPING' | 'ORDER_CANCELED' | 'REFUND_REQUESTED' | 'REFUND_APPROVED' | 'REFUND_REJECTED'
+    | 'SUBSCRIPTION_PAUSED' | 'SUBSCRIPTION_RESUMED' | 'SUBSCRIPTION_CANCELLED' | 'SUBSCRIPTION_UPCOMING' | 'SUBSCRIPTION_PAYMENT_FAILED'
+    | 'SUBSCRIPTION_SUSPENDED' | 'SUBSCRIPTION_OUT_OF_STOCK' | 'SUBSCRIPTION_SKIPPED' | 'SUBSCRIPTION_PROPOSAL' | 'SUBSCRIPTION_PROPOSAL_WITHDRAWN';
+  /** Post / order id; null for Ritual Box notifications (older ones stored the subscription id here). */
+  post_id: string | null;
+  subscription_id?: string | null;
+  message?: string | null;
   comment_id?: string | null;
   comment_content?: string | null;
   is_read: boolean;

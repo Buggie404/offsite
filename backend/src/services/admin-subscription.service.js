@@ -269,17 +269,7 @@ async function getSubscriptionDetail(subscriptionId, role = null) {
 }
 
 async function notifyCustomer(sub, type, message) {
-  try {
-    await notificationService.createNotification({
-      recipient_id: sub.user_id,
-      sender: null,
-      type,
-      post_id: sub.subscription_id,
-      comment_content: message ? String(message).slice(0, 500) : null
-    });
-  } catch (err) {
-    console.error(`Error creating ${type} notification:`, err);
-  }
+  await notificationService.notifySubscription(sub, type, message);
 }
 
 function cleanText(value, max = 1000) {
@@ -365,7 +355,8 @@ async function applyAdminAction(subscriptionId, action, payload, adminId, role) 
       break;
     }
 
-    // Protective: skips the upcoming delivery without charging.
+    // Protective: skips the upcoming delivery without charging. Staff skips are not limited and
+    // don't count toward the customer's 2-consecutive-skips limit (consecutive_skips is untouched).
     case 'skip': {
       if (sub.status !== 'active') throw new SubscriptionActionError('Only active subscriptions have a delivery to skip.');
       const reason = cleanText(payload.reason, 200);

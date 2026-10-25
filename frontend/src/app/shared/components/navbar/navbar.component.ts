@@ -619,6 +619,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Ritual Box notifications carry subscription_id / message; older ones stored them in post_id / comment_content. */
+  ritualBoxId(item: Notification): string {
+    return item.subscription_id || item.post_id || '';
+  }
+
+  ritualBoxMessage(item: Notification): string | null {
+    return item.message || item.comment_content || null;
+  }
+
   getNotificationTimeAgo(dateStr: string): string {
     if (!dateStr) return '';
     const date = new Date(dateStr);

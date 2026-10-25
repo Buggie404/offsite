@@ -17,7 +17,9 @@ async function createNotification(data) {
       recipient_id: data.recipient_id,
       sender: data.sender || null,
       type: data.type,
-      post_id: data.post_id,
+      post_id: data.post_id || null,
+      subscription_id: data.subscription_id || null,
+      message: data.message || null,
       comment_id: data.comment_id || null,
       comment_content: data.comment_content || null,
       is_read: false
@@ -27,6 +29,21 @@ async function createNotification(data) {
   } catch (error) {
     console.error('Error in createNotification service:', error);
     throw error;
+  }
+}
+
+// Ritual Box notifications: never fail the caller's action.
+async function notifySubscription(sub, type, message) {
+  try {
+    await createNotification({
+      recipient_id: sub.user_id,
+      sender: null,
+      type,
+      subscription_id: sub.subscription_id,
+      message: message ? String(message).slice(0, 500) : null
+    });
+  } catch (err) {
+    console.error(`Error creating ${type} notification:`, err);
   }
 }
 
@@ -86,6 +103,7 @@ async function deleteAllNotificationsForUser(recipient_id) {
 
 module.exports = {
   createNotification,
+  notifySubscription,
   getNotificationsForUser,
   markAsRead,
   markAllAsRead,

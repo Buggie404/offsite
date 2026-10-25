@@ -67,7 +67,8 @@ async function runAction(req, res) {
       targetEntity: 'Subscriptions',
       targetId: id,
       oldValue: activitySnapshot(before),
-      newValue: { ...activitySnapshot(after), ticket_id: ticketId || null }
+      newValue: activitySnapshot(after),
+      ticketId: ticketId || null
     });
     const data = await adminSubscriptionService.getSubscriptionDetail(id, req.user.role);
     res.json({ data });
