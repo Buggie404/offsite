@@ -15,8 +15,13 @@ export class AdminSubscriptionService {
   private http = inject(HttpClient);
   private readonly baseUrl = '/api/admin/subscriptions';
 
-  getSubscriptions(status: AdminSubscriptionFilter, search = ''): Observable<AdminSubscriptionsResponse> {
-    let params = new HttpParams();
+  getSubscriptions(
+    status: AdminSubscriptionFilter,
+    search = '',
+    page = 1,
+    limit = 50
+  ): Observable<AdminSubscriptionsResponse> {
+    let params = new HttpParams().set('page', String(page)).set('limit', String(limit));
     if (status !== 'all') params = params.set('status', status);
     if (search.trim()) params = params.set('search', search.trim());
     return this.http.get<AdminSubscriptionsResponse>(this.baseUrl, { params });

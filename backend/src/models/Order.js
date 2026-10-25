@@ -298,4 +298,7 @@ orderSchema.pre('save', async function(next) {
   next();
 });
 
+// Admin Orders listing: newest first within a date range, paged in the database.
+orderSchema.index({ created_at: -1 });
+
 module.exports = mongoose.model('Order', orderSchema);

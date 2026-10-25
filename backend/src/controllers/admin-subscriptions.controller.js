@@ -36,7 +36,9 @@ function activitySnapshot(sub) {
 async function getSubscriptions(req, res) {
   try {
     const filter = FILTERS.includes(req.query.status) ? req.query.status : 'all';
-    const result = await adminSubscriptionService.listSubscriptions({ filter, search: req.query.search });
+    const result = await adminSubscriptionService.listSubscriptions({
+      filter, search: req.query.search, page: req.query.page, limit: req.query.limit
+    });
     res.json(result);
   } catch (error) {
     sendError(res, error, 'Failed to load subscriptions.');

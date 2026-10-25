@@ -61,6 +61,10 @@ export interface AdminSubscriptionStats {
 export interface AdminSubscriptionsResponse {
   data: AdminSubscriptionRow[];
   stats: AdminSubscriptionStats;
+  /** Rows matching the filter / search; `data` is one page of them. */
+  total: number;
+  page: number;
+  limit: number;
 }
 
 export interface AdminSubscriptionReplacement {

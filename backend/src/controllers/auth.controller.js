@@ -1297,9 +1297,23 @@ async function verifyProfileOtp(req, res) {
     // Xóa OTP
     await otpCollection.deleteOne({ _id: pending._id });
 
+    // Kế thừa đơn vãng lai: the OTP proves this account owns the email / phone, so guest
+    // orders placed with it move to the account (the profile itself is saved separately).
+    let linkedGuestOrders = [];
+    try {
+      const account = await userCollection.findOne({ _id: userId }, { projection: { user_id: 1 } });
+      if (account?.user_id && (type === 'email' || type === 'phone')) {
+        const { linkGuestOrders } = require('../services/guest-order-link.service');
+        linkedGuestOrders = await linkGuestOrders(account.user_id, { [type]: normalizedValue });
+      }
+    } catch (linkErr) {
+      console.error('Linking guest orders failed:', linkErr);
+    }
+
     res.status(200).json({
       message: 'Verification successful.',
-      success: true
+      success: true,
+      linked_guest_orders: linkedGuestOrders
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
