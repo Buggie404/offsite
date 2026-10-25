@@ -193,6 +193,8 @@
                   <svg *ngSwitchCase="'ORDER_PLACED'"    lucidePackage       [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_SHIPPING'"  lucideTruck         [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_CANCELED'"  lucideX             [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_DELIVERY_FAILED'" lucideTruck   [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_CANCELED_BY_STORE'" lucideX     [size]="15"></svg>
                   <svg *ngSwitchCase="'REFUND_REQUESTED'" lucideRefreshCw    [size]="15"></svg>
                   <svg *ngSwitchCase="'REFUND_APPROVED'" lucideCheckCheck    [size]="15"></svg>
                   <svg *ngSwitchCase="'REFUND_REJECTED'" lucideX             [size]="15"></svg>
@@ -230,6 +232,8 @@
                       <span *ngSwitchCase="'ORDER_PLACED'">Your order <strong>{{ item.post_id }}</strong> has been successfully placed.</span>
                       <span *ngSwitchCase="'ORDER_SHIPPING'">Your order <strong>{{ item.post_id }}</strong> is being shipped (estimated delivery: {{ item.comment_content }}).</span>
                       <span *ngSwitchCase="'ORDER_CANCELED'">Your order <strong>{{ item.post_id }}</strong> has been canceled (due to payment pending for more than 24h).</span>
+                      <span *ngSwitchCase="'ORDER_DELIVERY_FAILED'">We couldn't deliver your order <strong>{{ item.post_id }}</strong>{{ item.comment_content ? ': ' + item.comment_content : '' }}. We'll contact you to arrange another attempt.</span>
+                      <span *ngSwitchCase="'ORDER_CANCELED_BY_STORE'">Your order <strong>{{ item.post_id }}</strong> has been canceled{{ item.comment_content ? ': ' + item.comment_content : '' }}.</span>
                       <span *ngSwitchCase="'REFUND_REQUESTED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been submitted.</span>
                       <span *ngSwitchCase="'REFUND_APPROVED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been approved.</span>
                       <span *ngSwitchCase="'REFUND_REJECTED'">Your refund request for order <strong>{{ item.post_id }}</strong> has been rejected: "{{ item.comment_content }}"</span>

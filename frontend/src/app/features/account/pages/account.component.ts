@@ -470,7 +470,8 @@ export class AccountComponent implements OnInit, OnDestroy {
           return s === 'refund' || s === 'pending_refund' || s === 'refund_rejected';
         });
       } else {
-        list = list.filter(o => (o.order_status || '').toLowerCase() === filter);
+        // A failed delivery is still in the shipping stage (it is sent again or cancelled).
+        list = list.filter(o => this.orderTab(o.order_status) === filter);
       }
     }
 
@@ -1910,7 +1911,12 @@ export class AccountComponent implements OnInit, OnDestroy {
         return os === 'refund' || os === 'pending_refund' || os === 'refund_rejected';
       }).length;
     }
-    return this.orders().filter(o => (o.order_status || '').toLowerCase() === s).length;
+    return this.orders().filter(o => this.orderTab(o.order_status) === s).length;
+  }
+
+  private orderTab(status: string): string {
+    const s = (status || '').toLowerCase();
+    return s === 'delivery_failed' ? 'shipping' : s;
   }
 
   formatOrderDate(dateStr: string): string {
@@ -1928,6 +1934,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (st === 'pending') return 'status--pending';
     if (st === 'processing') return 'status--processing';
     if (st === 'shipping') return 'status--shipping';
+    if (st === 'delivery_failed') return 'status--delivery-failed';
     if (st === 'delivered') return 'status--delivered';
     if (st === 'canceled' || st === 'cancelled') return 'status--canceled';
     if (st === 'refund') return 'status--refund';
@@ -1941,6 +1948,7 @@ export class AccountComponent implements OnInit, OnDestroy {
       pending: 'PENDING',
       processing: 'PROCESSING',
       shipping: 'SHIPPING',
+      delivery_failed: 'DELIVERY FAILED',
       delivered: 'DELIVERED',
       canceled: 'CANCELED',
       cancelled: 'CANCELED',
@@ -1997,7 +2005,7 @@ export class AccountComponent implements OnInit, OnDestroy {
       this.router.navigate(['/checkout/canceled'], { state: { order: ord } });
     } else if (status === 'processing') {
       this.router.navigate(['/checkout/processing'], { state: { order: ord } });
-    } else if (status === 'shipping') {
+    } else if (status === 'shipping' || status === 'delivery_failed') {
       this.router.navigate(['/checkout/shipping'], { state: { order: ord } });
     } else if (status === 'delivered') {
       this.router.navigate(['/checkout/delivered'], { state: { order: ord } });

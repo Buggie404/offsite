@@ -21,6 +21,8 @@ const notificationSchema = new mongoose.Schema({
       'ORDER_PLACED',
       'ORDER_SHIPPING',
       'ORDER_CANCELED',
+      'ORDER_DELIVERY_FAILED',
+      'ORDER_CANCELED_BY_STORE',
       'REFUND_REQUESTED',
       'REFUND_APPROVED',
       'REFUND_REJECTED',

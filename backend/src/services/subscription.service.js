@@ -143,6 +143,7 @@ function orderHistoryStatus(order) {
   switch (order.order_status) {
     case 'delivered': return 'delivered';
     case 'shipping': return 'shipping';
+    case 'delivery_failed': return 'delivery_failed';
     case 'canceled': return 'cancelled';
     case 'refund':
     case 'pending_refund':

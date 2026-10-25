@@ -422,6 +422,7 @@ export class OrderTrackingComponent implements OnInit {
     if (st === 'pending') return 'status--pending';
     if (st === 'processing') return 'status--processing';
     if (st === 'shipping') return 'status--shipping';
+    if (st === 'delivery_failed') return 'status--delivery-failed';
     if (st === 'delivered') return 'status--delivered';
     if (st === 'canceled' || st === 'cancelled') return 'status--canceled';
     if (st === 'refund') return 'status--refund';
@@ -435,6 +436,7 @@ export class OrderTrackingComponent implements OnInit {
       pending: 'PENDING',
       processing: 'PROCESSING',
       shipping: 'SHIPPING',
+      delivery_failed: 'DELIVERY FAILED',
       delivered: 'DELIVERED',
       canceled: 'CANCELED',
       cancelled: 'CANCELED',
@@ -480,7 +482,7 @@ export class OrderTrackingComponent implements OnInit {
       this.router.navigate(['/checkout/canceled'], { state: { order: ord } });
     } else if (status === 'processing') {
       this.router.navigate(['/checkout/processing'], { state: { order: ord } });
-    } else if (status === 'shipping') {
+    } else if (status === 'shipping' || status === 'delivery_failed') {
       this.router.navigate(['/checkout/shipping'], { state: { order: ord } });
     } else if (status === 'delivered') {
       if (ord.refund_request?.status === 'pending') {

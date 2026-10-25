@@ -2,7 +2,8 @@ const Order = require('../models/Order');
 const RefundRequest = require('../models/RefundRequest');
 const subscriptionService = require('../services/subscription.service');
 const ActivityLog = require('../models/ActivityLog');
-const { unsavedActivityLogCount } = require('../services/activity-log.service');
+const { unsavedActivityLogCount, normalizeReason } = require('../services/activity-log.service');
+const notificationService = require('../services/notification.service');
 const { parseInternalNotes, appendInternalNote } = require('../utils/internal-notes');
 const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
@@ -49,6 +50,7 @@ function mapStatusFilter(orderStatus) {
   if (orderStatus === 'processing') return ['pending', 'processing'];
   if (orderStatus === 'pending_refund') return 'pending_refund';
   if (orderStatus === 'refund_rejected') return 'refund_rejected';
+  if (orderStatus === 'delivery_failed') return 'delivery_failed';
   return orderStatus;
 }
 
@@ -94,20 +96,57 @@ function enrichOrders(orders) {
   });
 }
 
+// The same rule as getOrderType, as a MongoDB filter, so the listing can page by type.
+// purchase_type may be missing on older lines; { $ne: 'subscription' } counts those as one-time.
+const NOT_SUBSCRIPTION_LINE = { purchase_type: { $ne: 'subscription' } };
+const ORDER_TYPE_FILTERS = {
+  subscription: {
+    $or: [
+      { subscription_id: { $ne: null } },
+      { 'items.0': { $exists: true }, items: { $not: { $elemMatch: NOT_SUBSCRIPTION_LINE } } }
+    ]
+  },
+  one_time: { subscription_id: null, 'items.purchase_type': { $ne: 'subscription' } },
+  mixed: {
+    subscription_id: null,
+    $and: [
+      { items: { $elemMatch: { purchase_type: 'subscription' } } },
+      { items: { $elemMatch: NOT_SUBSCRIPTION_LINE } }
+    ]
+  }
+};
+
+function orderTypeCondition(orderType) {
+  return ORDER_TYPE_FILTERS[orderType] || null;
+}
+
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Search by order id, recipient name or email, in the query so paging stays in the database.
+// Phone search: "0901234567", "090 123 4567" and "+84 901 234 567" are the same number.
+// Mobiles are stored as typed, so the pattern also allows separators and either prefix.
+function phonePattern(query) {
+  if (!/^[+\d\s().-]+$/.test(query)) return null;
+  const digits = query.replace(/\D/g, '').replace(/^84(?=\d{9}$)/, '0');
+  if (digits.length < 3) return null;
+  const local = digits.startsWith('0') ? digits.slice(1) : digits;
+  const body = local.split('').join('[\\s().-]*');
+  const prefix = digits.startsWith('0') ? '(?:0|\\+?84)[\\s().-]*' : '';
+  return { $regex: prefix + body };
+}
+
+// Search by order id, recipient name, email or mobile, in the query so paging stays in the database.
 function searchCondition(search) {
   const query = String(search || '').trim();
   if (!query) return null;
   const pattern = { $regex: escapeRegex(query), $options: 'i' };
-  return {
-    $or: [
-      { order_id: pattern },
-      { 'delivery_info.recipient_name': pattern },
-      { $and: [{ 'delivery_info.email': pattern }, { 'delivery_info.email': { $ne: PLACEHOLDER_EMAIL } }] }
-    ]
-  };
+  const conditions = [
+    { order_id: pattern },
+    { 'delivery_info.recipient_name': pattern },
+    { $and: [{ 'delivery_info.email': pattern }, { 'delivery_info.email': { $ne: PLACEHOLDER_EMAIL } }] }
+  ];
+  const mobile = phonePattern(query);
+  if (mobile) conditions.push({ 'delivery_info.mobile': mobile });
+  return { $or: conditions };
 }
 
 async function getLatestRefundRequest(orderId) {
@@ -234,7 +273,8 @@ async function buildOrderDetail(order) {
       unit_price: item.unit_price,
       subtotal: item.subtotal,
       purchase_type: item.purchase_type || 'one_time',
-      subscription_frequency_days: item.subscription_frequency_days ?? null
+      subscription_frequency_days: item.subscription_frequency_days ?? null,
+      out_of_stock: !!item.out_of_stock
     })),
     subscription_id: order.subscription_id || null,
     subscription_cycle: order.subscription_cycle || null,
@@ -257,8 +297,9 @@ async function buildOrderDetail(order) {
 // Admin listing never shows cancelled orders (nothing left to do on them).
 const LISTED_STATUS = { $ne: 'canceled' };
 
-async function computeStats(createdAtFilter, orderScope = {}) {
+async function computeStats(createdAtFilter, orderScope = {}, typeFilter = null) {
   const baseFilter = { ...orderScope, created_at: createdAtFilter, order_status: LISTED_STATUS };
+  if (typeFilter) baseFilter.$and = [typeFilter];
 
   const [total, processing, shipped, needsAttention] = await Promise.all([
     Order.countDocuments(baseFilter),
@@ -266,7 +307,7 @@ async function computeStats(createdAtFilter, orderScope = {}) {
     Order.countDocuments({ ...baseFilter, order_status: 'shipping' }),
     Order.countDocuments({
       ...baseFilter,
-      order_status: { $in: ['refund', 'pending_refund', 'refund_rejected'] }
+      order_status: { $in: ['refund', 'pending_refund', 'refund_rejected', 'delivery_failed'] }
     })
   ]);
 
@@ -279,6 +320,7 @@ async function getAllOrders(req, res) {
     const {
       order_status,
       payment_status,
+      order_type,
       search,
       date_range = '30',
       date_from,
@@ -306,8 +348,11 @@ async function getAllOrders(req, res) {
       filter.payment_status = payment_status;
     }
 
+    // Type and search both use $or, so each goes in its own $and clause.
+    const typeFilter = orderTypeCondition(order_type);
     const searchFilter = searchCondition(search);
-    if (searchFilter) Object.assign(filter, searchFilter);
+    const clauses = [typeFilter, searchFilter].filter(Boolean);
+    if (clauses.length) filter.$and = clauses;
 
     const parsedLimit = Math.min(parseInt(limit, 10) || 50, 200);
     const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
@@ -321,7 +366,7 @@ async function getAllOrders(req, res) {
         .select('order_id user_id delivery_info created_at order_status pricing is_guest subscription_id items.purchase_type')
         .lean(),
       Order.countDocuments(filter),
-      computeStats(createdAtFilter, orderScope)
+      computeStats(createdAtFilter, orderScope, typeFilter)
     ]);
     const data = enrichOrders(orders);
 
@@ -362,11 +407,42 @@ async function getOrderById(req, res) {
   }
 }
 
+// Status changes an admin may make. Delivered / cancelled-by-customer / refunds have their own flows.
+// A failed delivery is either sent out again or cancelled (refunded when already paid).
+const ADMIN_STATUS_TRANSITIONS = {
+  pending: ['shipping'],
+  processing: ['shipping'],
+  shipping: ['delivery_failed'],
+  delivery_failed: ['shipping', 'canceled']
+};
+// Kept in the order history, the customer notification and the activity log.
+const STATUSES_REQUIRING_REASON = ['delivery_failed', 'canceled'];
+
+// Route guard: adminActivityLog requires a reason only for these target statuses.
+const statusChangeRequiresReason = (req) => STATUSES_REQUIRING_REASON.includes(req.body?.status);
+
+// Registered customers only (guests have no notification inbox).
+async function notifyCustomer(order, type, detail) {
+  if (!order.user_id) return;
+  try {
+    await notificationService.createNotification({
+      recipient_id: order.user_id,
+      sender: null,
+      type,
+      post_id: order.order_id,
+      comment_content: detail || null
+    });
+  } catch (notifError) {
+    console.error(`Error creating ${type} notification:`, notifError);
+  }
+}
+
 // Admin - Update Order Status & Info (PUT /api/admin/orders/:id/status)
 async function updateOrderStatus(req, res) {
   try {
     const { id } = req.params;
     const { status, tracking_number, payment_status, note } = req.body;
+    const reason = normalizeReason(req.body.reason);
 
     const order = await Order.findOne(findOrderQuery(id));
     if (!order) {
@@ -378,21 +454,24 @@ async function updateOrderStatus(req, res) {
     const currentStatus = order.order_status;
 
     if (status && status !== currentStatus) {
-      const allowedTransitions = {
-        pending: ['shipping'],
-        processing: ['shipping']
-      };
-
-      const allowed = allowedTransitions[currentStatus] || [];
+      const allowed = ADMIN_STATUS_TRANSITIONS[currentStatus] || [];
       if (!allowed.includes(status)) {
         return res.status(400).json({
           error: `Admin cannot change order status from ${currentStatus} to ${status}. Customers must confirm delivery or cancellation. Refunds require approving a refund request.`
         });
       }
+      // The route already rejects these without a reason; this guards direct callers.
+      if (STATUSES_REQUIRING_REASON.includes(status) && !reason) {
+        return res.status(400).json({ error: 'A valid reason is required.' });
+      }
 
       order._changedBy = adminId;
-      order._statusChangeNote = note || `Order status updated to ${status} by admin.`;
+      order._statusChangeNote = reason || note || `Order status updated to ${status} by admin.`;
       order.order_status = status;
+      if (status === 'canceled') {
+        order.canceled_at = new Date();
+        if (order.payment_status === 'paid') order.payment_status = 'refunded';
+      }
     } else if (note) {
       order._changedBy = adminId;
       order._statusChangeNote = note;
@@ -417,7 +496,14 @@ async function updateOrderStatus(req, res) {
     }
     socketService.emitOrderUpdated(order, 'status_change');
 
+    if (status === 'delivery_failed') {
+      await notifyCustomer(order, 'ORDER_DELIVERY_FAILED', reason);
+    } else if (status === 'canceled') {
+      await notifyCustomer(order, 'ORDER_CANCELED_BY_STORE', reason);
+    }
+
     // Trigger ORDER_SHIPPING notification if registered customer and status is shipping
+    // (also when a failed delivery is sent out again).
     if (status === 'shipping' && order.user_id) {
       try {
         const expectedDate = new Date();
@@ -609,6 +695,79 @@ async function rejectRefundRequest(req, res) {
   }
 }
 
+// Admin - Lines out of stock after the order was placed (POST /api/admin/orders/:id/out-of-stock)
+// Orders have no partial refund yet, so marking any line cancels the whole order and refunds it
+// when paid. Marked lines aren't put back in stock (see the Order save hook).
+async function markItemsOutOfStock(req, res) {
+  try {
+    const requested = Array.isArray(req.body.items) ? req.body.items : [];
+    if (!requested.length) {
+      return res.status(400).json({ error: 'Select at least one line that is out of stock.' });
+    }
+
+    const order = await Order.findOne(findOrderQuery(req.params.id));
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+    if (order.order_status !== 'processing') {
+      return res.status(409).json({
+        error: `Lines can only be marked out of stock while the order is processing (it is ${order.order_status}).`,
+        code: 'INVALID_ORDER_STATE',
+        order_status: order.order_status
+      });
+    }
+
+    const lines = requested.map((sel) => order.items.find(
+      (item) => item.product_id === String(sel?.product_id) && item.variant_id === String(sel?.variant_id)
+    ));
+    if (lines.some((line) => !line)) {
+      return res.status(400).json({ error: 'One or more selected lines are not in this order.' });
+    }
+
+    const adminId = await getAdminActorId(req);
+    const oldValue = activitySnapshot(order);
+    const names = [...new Set(lines)].map((line) =>
+      [line.product_name, isNamedVariant(line.variant_name) ? `(${line.variant_name})` : null].filter(Boolean).join(' ')
+    );
+    const reason = normalizeReason(req.body.reason) || `Out of stock: ${names.join(', ')}`;
+    const wasPaid = order.payment_status === 'paid';
+
+    lines.forEach((line) => { line.out_of_stock = true; });
+    order.order_status = 'canceled';
+    order.canceled_at = new Date();
+    if (wasPaid) order.payment_status = 'refunded';
+    order._changedBy = adminId;
+    order._statusChangeNote = `Cancelled by store — ${reason}`;
+    order.internal_notes = appendInternalNote(
+      order.internal_notes,
+      `Out of stock after ordering: ${names.join(', ')}. Order cancelled${wasPaid ? ' and refunded in full' : ''}.`
+        + (req.body.reason ? ` Reason: ${reason}` : ''),
+      adminId
+    );
+    await order.save();
+
+    await req.writeActivityLog({
+      actionType: 'order.mark-out-of-stock',
+      targetEntity: 'Orders',
+      targetId: order.order_id,
+      oldValue,
+      newValue: { ...activitySnapshot(order), out_of_stock_items: lines.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id })) },
+      reason
+    });
+    socketService.emitOrderUpdated(order, 'status_change');
+    await notifyCustomer(order, 'ORDER_CANCELED_BY_STORE', `${names.join(', ')} ${names.length > 1 ? 'are' : 'is'} out of stock`
+      + (wasPaid ? '. Your payment will be refunded in full.' : '.'));
+
+    const data = await buildOrderDetail(order);
+    res.json({ message: 'Order cancelled: items out of stock', data });
+  } catch (error) {
+    console.error('Error marking items out of stock:', error);
+    res.status(500).json({ error: error.message || 'Failed to mark items out of stock.' });
+  }
+}
+
+const isNamedVariant = (name) => !!name && !/^default$/i.test(String(name).trim());
+
 // Admin - Add internal note (POST /api/admin/orders/:id/notes)
 async function addInternalNote(req, res) {
   try {
@@ -672,5 +831,7 @@ module.exports = {
   approveRefundRequest,
   rejectRefundRequest,
   addInternalNote,
-  getActivityLogs
+  markItemsOutOfStock,
+  getActivityLogs,
+  statusChangeRequiresReason
 };

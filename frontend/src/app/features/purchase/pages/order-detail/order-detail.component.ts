@@ -266,6 +266,18 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       };
     }
 
+    // Still with the carrier side of the flow: the store ships again or cancels.
+    if (status === 'delivery_failed') {
+      return {
+        ...this.configMap.shipping,
+        bannerLabel: 'DELIVERY FAILED',
+        bannerTitle: 'Delivery Attempt Failed',
+        trackingDotClass: 'warning-dot',
+        showShippingActions: false,
+        chargeText: ord.payment?.method === 'cod' ? 'Pending Payment (COD)' : 'Paid'
+      };
+    }
+
     if (status === 'delivered') {
       const base = this.configMap.delivered;
       return {
@@ -388,7 +400,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       targetPath = '/checkout/canceled';
     } else if (status === 'processing') {
       targetPath = '/checkout/processing';
-    } else if (status === 'shipping') {
+    } else if (status === 'shipping' || status === 'delivery_failed') {
       targetPath = '/checkout/shipping';
     } else if (status === 'delivered') {
       if (ord.refund_request?.status === 'pending') {
@@ -849,14 +861,27 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     this.router.navigate([`/orders/${ord.order_id || ord._id}/return`], { state: { order: ord } });
   }
 
+  isDeliveryFailed(): boolean {
+    return (this.order()?.order_status || '').toLowerCase() === 'delivery_failed';
+  }
+
+  /** From the status endpoint, or the order history when the order came from the account list. */
+  deliveryFailedReason(): string | null {
+    const ord = this.order();
+    if (!ord) return null;
+    if (ord.delivery_failed_reason) return ord.delivery_failed_reason;
+    const entry = [...(ord.status_history || [])].reverse().find((h: any) => h.status === 'delivery_failed');
+    return entry?.note || null;
+  }
+
   isStepCompleted(stepNum: number): boolean {
     const status = (this.order()?.order_status || this.order()?.status || '').toLowerCase();
     const deliveredGroup = ['delivered', 'refund', 'pending_refund', 'refund_rejected'];
     if (stepNum === 1) {
-      return status === 'processing' || status === 'shipping' || deliveredGroup.includes(status);
+      return status === 'processing' || status === 'shipping' || status === 'delivery_failed' || deliveredGroup.includes(status);
     }
     if (stepNum === 2) {
-      return status === 'shipping' || deliveredGroup.includes(status);
+      return status === 'shipping' || status === 'delivery_failed' || deliveredGroup.includes(status);
     }
     if (stepNum === 3) {
       return deliveredGroup.includes(status) || !!this.order()?.delivered_at;
@@ -873,7 +898,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       return status === 'processing';
     }
     if (stepNum === 3) {
-      return status === 'shipping';
+      return status === 'shipping' || status === 'delivery_failed';
     }
     if (stepNum === 4) {
       return status === 'delivered';

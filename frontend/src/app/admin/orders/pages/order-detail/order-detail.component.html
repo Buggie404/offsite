@@ -74,7 +74,15 @@
   <div class="detail-layout">
     <div class="detail-main">
       <section class="detail-card">
-        <h2 class="detail-card__title">Line Items</h2>
+        <div class="detail-card__header">
+          <h2 class="detail-card__title">Line Items</h2>
+          @if (canReportOutOfStock) {
+            <button type="button" class="btn btn-secondary btn-sm" (click)="openOutOfStockModal()">
+              <svg lucidePackageX aria-hidden="true" [size]="15"></svg>
+              Report out of stock
+            </button>
+          }
+        </div>
         <div class="line-items">
           @for (item of order.items; track item.product_id + item.variant_name) {
             <div class="line-item">
@@ -90,6 +98,9 @@
                 }
                 @if (getSubscriptionLineLabel(item); as subLabel) {
                   <span class="line-item__sub-tag"><svg lucideRepeat [size]="12"></svg>{{ subLabel }}</span>
+                }
+                @if (item.out_of_stock) {
+                  <span class="line-item__oos-tag"><svg lucidePackageX [size]="12"></svg>Out of stock</span>
                 }
               </div>
               <span class="line-item__qty">× {{ item.quantity }}</span>
@@ -225,6 +236,22 @@
                 <div>
                   <strong>Order canceled</strong>
                   <p>Order was canceled on {{ formatDateTime(order.canceled_at) }}</p>
+                  @if (cancelNote) {
+                    <p>{{ cancelNote }}</p>
+                  }
+                  @if (order.payment_status === 'refunded' && !order.refund_request) {
+                    <p>Payment refunded in full.</p>
+                  }
+                </div>
+              </div>
+            }
+
+            @for (failure of deliveryFailures; track failure.changed_at) {
+              <div class="timeline__alert timeline__alert--delivery-failed">
+                <svg lucideTruck aria-hidden="true" [size]="18"></svg>
+                <div>
+                  <strong>Delivery failed</strong>
+                  <p>{{ formatDateTime(failure.changed_at) }}{{ failure.note ? ' · ' + failure.note : '' }}</p>
                 </div>
               </div>
             }
@@ -282,24 +309,23 @@
           </p>
           <div class="field">
             <span class="field-label">Next status</span>
-            @if (nextStatusOption; as nextStatus) {
-              <div class="status-target" role="status" [attr.aria-label]="'Next status: ' + nextStatus.label">
-                <span class="status-badge status-badge--shipping status-target__badge">{{ nextStatus.label }}</span>
-                <p class="status-target__hint">
-                  Mark this order as shipped. The customer can view updates on Order Tracking after entering their order number.
-                </p>
-              </div>
-            }
           </div>
-          <button
-            type="button"
-            class="btn btn-primary btn-block"
-            (click)="saveStatus()"
-            [disabled]="statusSaving"
-          >
-            <svg lucideSave aria-hidden="true" [size]="16"></svg>
-            Save status
-          </button>
+          @for (option of statusOptions; track option.value) {
+            <div class="status-target" role="group" [attr.aria-label]="'Next status: ' + option.label">
+              <span class="status-badge status-target__badge" [ngClass]="statusClass(option.value)">{{ option.label }}</span>
+              <p class="status-target__hint">{{ option.hint }}</p>
+              <button
+                type="button"
+                class="btn btn-primary btn-block"
+                [class.btn-primary--danger]="option.danger"
+                (click)="chooseStatus(option)"
+                [disabled]="statusSaving"
+              >
+                <svg lucideSave aria-hidden="true" [size]="16"></svg>
+                {{ option.requiresReason ? option.label + '…' : 'Save status' }}
+              </button>
+            </div>
+          }
         } @else {
           @if (statusUpdateDisabledReason; as disabledReason) {
             <p class="field-hint field-hint--spaced">{{ disabledReason }}</p>
@@ -664,6 +690,122 @@
           >
             <svg lucideUndo2 aria-hidden="true" [size]="16"></svg>
             Send rejection
+          </button>
+        </footer>
+      </div>
+    </div>
+  }
+
+  @if (reasonStatusOption; as option) {
+    <div class="modal-backdrop" (click)="closeStatusReasonModal()">
+      <div
+        class="modal-card modal-card--reject"
+        role="dialog"
+        aria-labelledby="status-reason-title"
+        aria-modal="true"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="modal-card__header">
+          <h2 id="status-reason-title" class="modal-card__title">{{ option.label }}</h2>
+          <button type="button" class="modal-card__close" (click)="closeStatusReasonModal()" aria-label="Close">
+            <svg lucideX [size]="18"></svg>
+          </button>
+        </header>
+
+        <div class="modal-card__body">
+          <p class="field-hint">{{ option.hint }} The reason is shown to the customer and kept in the activity log.</p>
+          <label class="field-label" for="status-reason">Reason</label>
+          <textarea
+            id="status-reason"
+            class="field-textarea"
+            [class.field-textarea--error]="statusReasonError"
+            [placeholder]="option.value === 'delivery_failed' ? 'e.g. Customer unreachable, wrong address…' : 'e.g. Customer unreachable after two attempts…'"
+            [value]="statusReason"
+            (input)="statusReason = $any($event.target).value; statusReasonError = null"
+          ></textarea>
+          @if (statusReasonError) {
+            <p class="modal-field-error" role="alert">{{ statusReasonError }}</p>
+          }
+        </div>
+
+        <footer class="modal-card__footer">
+          <button type="button" class="btn btn-secondary" (click)="closeStatusReasonModal()">Back</button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            [class.btn-primary--danger]="option.danger"
+            (click)="submitStatusReason()"
+            [disabled]="statusSaving"
+          >
+            {{ option.label }}
+          </button>
+        </footer>
+      </div>
+    </div>
+  }
+
+  @if (showOutOfStockModal) {
+    <div class="modal-backdrop" (click)="closeOutOfStockModal()">
+      <div
+        class="modal-card modal-card--reject"
+        role="dialog"
+        aria-labelledby="oos-modal-title"
+        aria-modal="true"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="modal-card__header">
+          <h2 id="oos-modal-title" class="modal-card__title">Report out of stock</h2>
+          <button type="button" class="modal-card__close" (click)="closeOutOfStockModal()" aria-label="Close">
+            <svg lucideX [size]="18"></svg>
+          </button>
+        </header>
+
+        <div class="modal-card__body">
+          <p class="field-hint">
+            Partial refunds aren't supported yet, so the whole order is cancelled{{ order.payment_status === 'paid' ? ' and refunded in full' : '' }}.
+            The customer is notified and an internal note is added. Lines you mark aren't put back in stock.
+          </p>
+          <div class="oos-lines">
+            @for (item of order.items; track lineKey(item)) {
+              <label class="oos-line">
+                <input
+                  type="checkbox"
+                  [checked]="outOfStockSelection.has(lineKey(item))"
+                  (change)="toggleOutOfStockLine(item, $any($event.target).checked)"
+                />
+                <span>
+                  {{ item.product_name }}
+                  @if (isMeaningfulVariantLabel(item.variant_name)) {
+                    <span class="oos-line__variant">{{ item.variant_name }}</span>
+                  }
+                </span>
+                <span class="oos-line__qty">× {{ item.quantity }}</span>
+              </label>
+            }
+          </div>
+          <label class="field-label" for="oos-reason">Note for the customer (optional)</label>
+          <textarea
+            id="oos-reason"
+            class="field-textarea"
+            placeholder="e.g. Supplier delay until next month"
+            [value]="outOfStockReason"
+            (input)="outOfStockReason = $any($event.target).value"
+          ></textarea>
+          @if (outOfStockError) {
+            <p class="modal-field-error" role="alert">{{ outOfStockError }}</p>
+          }
+        </div>
+
+        <footer class="modal-card__footer">
+          <button type="button" class="btn btn-secondary" (click)="closeOutOfStockModal()">Back</button>
+          <button
+            type="button"
+            class="btn btn-primary btn-primary--danger"
+            (click)="submitOutOfStock()"
+            [disabled]="outOfStockSaving"
+          >
+            <svg lucidePackageX aria-hidden="true" [size]="16"></svg>
+            Cancel order{{ order.payment_status === 'paid' ? ' & refund' : '' }}
           </button>
         </footer>
       </div>

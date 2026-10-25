@@ -101,6 +101,7 @@ export interface RitualHistoryRow {
   status:
     | 'processing'
     | 'shipping'
+    | 'delivery_failed'
     | 'delivered'
     | 'skipped'
     | 'failed'

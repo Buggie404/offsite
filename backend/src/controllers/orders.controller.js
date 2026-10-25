@@ -1086,6 +1086,10 @@ async function getOrderStatus(req, res) {
       delivered_at: order.delivered_at,
       canceled_at: order.canceled_at,
       updated_at: order.updated_at,
+      // Shown to the customer while a failed delivery waits on another attempt.
+      delivery_failed_reason: order.order_status === 'delivery_failed'
+        ? [...(order.status_history || [])].reverse().find(h => h.status === 'delivery_failed')?.note || null
+        : null,
       refund_request: formatRefundRequestForClient(refundRequest)
     });
   } catch (error) {

@@ -81,7 +81,7 @@ export interface AdminSubscriptionReplacement {
 export interface AdminSubscriptionDelivery {
   date: string;
   order_id: string;
-  result: 'processing' | 'shipping' | 'delivered' | 'cancelled' | 'refund' | 'failed';
+  result: 'processing' | 'shipping' | 'delivery_failed' | 'delivered' | 'cancelled' | 'refund' | 'failed';
 }
 
 export interface AdminSubscriptionMessage {

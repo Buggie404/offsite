@@ -319,7 +319,7 @@ async function getSubscriptionDetail(subscriptionId, role = null) {
     deliveries,
     // Orders already charged keep shipping after a cancel.
     open_order_ids: allOrders
-      .filter(o => ['pending', 'processing', 'shipping'].includes(o.order_status))
+      .filter(o => ['pending', 'processing', 'shipping', 'delivery_failed'].includes(o.order_status))
       .map(o => o.order_id),
     messages: [...(plain.admin_messages || [])].reverse(),
     paused_by: plain.paused_by || null,

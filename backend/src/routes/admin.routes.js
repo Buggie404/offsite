@@ -22,9 +22,11 @@ router.get('/services-dashboard', authMiddleware, requireRole('admin_cc', 'cskh'
 
 router.get('/orders', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminController.getAllOrders);
 router.get('/orders/:id', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminController.getOrderById);
-router.put('/orders/:id/status', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.updateOrderStatus);
+// Marking a delivery failed or cancelling a failed delivery requires a reason.
+router.put('/orders/:id/status', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog({ requireReasonWhen: adminController.statusChangeRequiresReason }), adminController.updateOrderStatus);
 router.post('/orders/:id/refund/approve', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.approveRefundRequest);
 router.post('/orders/:id/refund/reject', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog({ requireReason: true }), adminController.rejectRefundRequest);
+router.post('/orders/:id/out-of-stock', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.markItemsOutOfStock);
 router.post('/orders/:id/notes', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.addInternalNote);
 
 // Subscriptions (QLSP, Admin CC): list, detail, pause / reactivate / frequency / cancel / internal note.

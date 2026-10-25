@@ -4,6 +4,7 @@ export type AdminOrderStatus =
   | 'pending'
   | 'processing'
   | 'shipping'
+  | 'delivery_failed'
   | 'delivered'
   | 'canceled'
   | 'refund'
@@ -14,10 +15,14 @@ export type AdminOrderStatusFilter =
   | 'all'
   | 'processing'
   | 'shipping'
+  | 'delivery_failed'
   | 'delivered'
   | 'refund'
   | 'pending_refund'
   | 'refund_rejected';
+
+/** 'all' or one of the order types (same rule as the badge). */
+export type AdminOrderTypeFilter = 'all' | OrderType;
 
 export type AdminDateRange = 'today' | '7' | '30' | '90' | 'custom';
 
@@ -52,6 +57,7 @@ export interface AdminOrdersResponse {
 
 export interface AdminOrdersQuery {
   order_status?: AdminOrderStatusFilter;
+  order_type?: AdminOrderTypeFilter;
   search?: string;
   date_range?: AdminDateRange;
   date_from?: string;
@@ -71,6 +77,8 @@ export interface AdminOrderLineItem {
   subtotal: number;
   purchase_type?: 'one_time' | 'subscription';
   subscription_frequency_days?: number | null;
+  /** Marked out of stock after ordering (the order was cancelled for it). */
+  out_of_stock?: boolean;
 }
 
 export interface AdminOrderStatusHistoryEntry {
@@ -152,7 +160,7 @@ export interface AdminOrderDetailResponse {
   data: AdminOrderDetail;
 }
 
-export type AdminOrderStatusUpdate = 'processing' | 'shipping';
+export type AdminOrderStatusUpdate = 'processing' | 'shipping' | 'delivery_failed' | 'canceled';
 
 export interface AdminOrderRitualBox {
   subscription_id: string;
