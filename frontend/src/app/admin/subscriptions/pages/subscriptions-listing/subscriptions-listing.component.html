@@ -310,7 +310,7 @@
         @if (needsTicket(pauseReason)) {
           <label class="field">
             <span class="overline">Support ticket id (required)</span>
-            <input class="input" type="text" placeholder="e.g. CS-2048" [(ngModel)]="pauseTicket" />
+            <input class="input" type="text" placeholder="Support chat id, e.g. CHAT-1A2B3C4D5E" [(ngModel)]="pauseTicket" />
           </label>
         }
 
@@ -424,7 +424,7 @@
         @if (needsTicket(cancelReason)) {
           <label class="field">
             <span class="overline">Support ticket id (required)</span>
-            <input class="input" type="text" placeholder="e.g. CS-2048" [(ngModel)]="cancelTicket" />
+            <input class="input" type="text" placeholder="Support chat id, e.g. CHAT-1A2B3C4D5E" [(ngModel)]="cancelTicket" />
           </label>
         }
 
@@ -481,7 +481,7 @@
         @if (needsTicket(skipReason)) {
           <label class="field">
             <span class="overline">Support ticket id (required)</span>
-            <input class="input" type="text" placeholder="e.g. CS-2048" [(ngModel)]="skipTicket" />
+            <input class="input" type="text" placeholder="Support chat id, e.g. CHAT-1A2B3C4D5E" [(ngModel)]="skipTicket" />
           </label>
         }
         <label class="field">
@@ -535,7 +535,7 @@
         }
         <label class="field">
           <span class="overline">Support ticket id (optional)</span>
-          <input class="input" type="text" placeholder="e.g. CS-2048" [(ngModel)]="proposeTicket" />
+          <input class="input" type="text" placeholder="Support chat id, e.g. CHAT-1A2B3C4D5E" [(ngModel)]="proposeTicket" />
         </label>
         <label class="field">
           <span class="overline">Message to {{ firstName }}</span>

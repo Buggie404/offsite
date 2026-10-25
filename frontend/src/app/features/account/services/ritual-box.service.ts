@@ -85,6 +85,8 @@ export interface RitualSubscription {
     type: 'frequency' | 'resume';
     frequency_days: number | null;
     message: string;
+    /** Next charge / delivery date if the customer accepts now. */
+    next_charge_at: string;
     expires_at: string;
   } | null;
   /** Who paused the box — 'admin' when staff paused it (e.g. out of stock). */

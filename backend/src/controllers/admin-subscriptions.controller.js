@@ -5,15 +5,8 @@ const FILTERS = ['all', 'active', 'needs_action', 'paused', 'cancelled'];
 // Staff can't charge a card or change the schedule directly: no 'reactivate' / 'frequency'.
 const ACTIONS = ['pause', 'skip', 'unpause', 'propose', 'withdraw_proposal', 'cancel', 'note'];
 
-const ACTIVITY_TYPES = {
-  pause: 'SUBSCRIPTION_PAUSED',
-  skip: 'SUBSCRIPTION_SKIPPED',
-  unpause: 'SUBSCRIPTION_RESUMED',
-  propose: 'SUBSCRIPTION_PROPOSAL_SENT',
-  withdraw_proposal: 'SUBSCRIPTION_PROPOSAL_WITHDRAWN',
-  cancel: 'SUBSCRIPTION_CANCELLED',
-  note: 'SUBSCRIPTION_NOTE_UPDATED'
-};
+// action_type follows the shared entity.action convention (e.g. subscription.cancel).
+const ACTIVITY_TYPES = Object.fromEntries(ACTIONS.map(a => [a, `subscription.${a}`]));
 
 function sendError(res, error, fallback) {
   if (error instanceof SubscriptionActionError) {
@@ -71,7 +64,7 @@ async function runAction(req, res) {
     const ticketId = typeof req.body?.ticket_id === 'string' ? req.body.ticket_id.trim().slice(0, 100) : '';
     await req.writeActivityLog({
       actionType: ACTIVITY_TYPES[action],
-      targetEntity: 'subscription',
+      targetEntity: 'Subscriptions',
       targetId: id,
       oldValue: activitySnapshot(before),
       newValue: { ...activitySnapshot(after), ticket_id: ticketId || null }

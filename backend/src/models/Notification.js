@@ -32,7 +32,8 @@ const notificationSchema = new mongoose.Schema({
       'SUBSCRIPTION_SUSPENDED',
       'SUBSCRIPTION_OUT_OF_STOCK',
       'SUBSCRIPTION_SKIPPED',
-      'SUBSCRIPTION_PROPOSAL'
+      'SUBSCRIPTION_PROPOSAL',
+      'SUBSCRIPTION_PROPOSAL_WITHDRAWN'
     ],
     required: true
   },

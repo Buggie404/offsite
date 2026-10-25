@@ -205,6 +205,7 @@
                   <svg *ngSwitchCase="'SUBSCRIPTION_OUT_OF_STOCK'"   lucideInfo   [size]="15"></svg>
                   <svg *ngSwitchCase="'SUBSCRIPTION_SKIPPED'"        lucideArrowRight [size]="15"></svg>
                   <svg *ngSwitchCase="'SUBSCRIPTION_PROPOSAL'"       lucideRepeat [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_PROPOSAL_WITHDRAWN'" lucideX  [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_CREATED'"    lucideArrowRight    [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_LIKED'"      lucideHeart         [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_COMMENTED'"  lucideMessageSquare [size]="15"></svg>
@@ -238,6 +239,7 @@
                       <span *ngSwitchCase="'SUBSCRIPTION_SUSPENDED'">Your Ritual Box <strong>{{ item.post_id }}</strong> has been suspended{{ item.comment_content ? ': ' + item.comment_content : '.' }}</span>
                       <span *ngSwitchCase="'SUBSCRIPTION_OUT_OF_STOCK'">An item in your Ritual Box <strong>{{ item.post_id }}</strong> is out of stock{{ item.comment_content ? '. ' + item.comment_content : '.' }}</span>
                       <span *ngSwitchCase="'SUBSCRIPTION_PROPOSAL'">We suggested a change to your Ritual Box <strong>{{ item.post_id }}</strong>{{ item.comment_content ? ': ' + item.comment_content : '.' }} Review it in Account › Ritual Box — nothing changes unless you accept.</span>
+                      <span *ngSwitchCase="'SUBSCRIPTION_PROPOSAL_WITHDRAWN'">We withdrew our suggested change to your Ritual Box <strong>{{ item.post_id }}</strong>{{ item.comment_content ? ': ' + item.comment_content : '.' }} Your box stays as it is.</span>
                       <span *ngSwitchCase="'SUBSCRIPTION_SKIPPED'">A delivery of your Ritual Box <strong>{{ item.post_id }}</strong> was skipped{{ item.comment_content ? ': ' + item.comment_content : '.' }}</span>
                     </ng-container>
                   </span>

@@ -1,6 +1,7 @@
 const Subscription = require('../models/Subscription');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const ChatConversation = require('../models/ChatConversation');
 const notificationService = require('./notification.service');
 const {
   SubscriptionActionError,
@@ -304,6 +305,10 @@ async function applyAdminAction(subscriptionId, action, payload, adminId, role) 
 
   const message = cleanText(payload.message);
   const ticketId = cleanText(payload.ticket_id, 100) || null;
+  // The ticket is the customer's support chat — it must exist and belong to this box's owner.
+  if (ticketId && !(await ChatConversation.exists({ conversation_id: ticketId, customer_id: sub.user_id }))) {
+    throw new SubscriptionActionError('Ticket not found in this customer’s support chats.');
+  }
   const requireReason = (allowed, reason, label) => {
     if (!allowed.includes(reason)) throw new SubscriptionActionError(`Choose a reason to ${label}.`);
     // Acting on the customer's behalf needs the support ticket as proof of the request.
@@ -428,6 +433,8 @@ async function applyAdminAction(subscriptionId, action, payload, adminId, role) 
       sub.admin_proposal = null;
       log('withdraw_proposal', type);
       await sub.save();
+      // The banner disappears from Ritual Box, so tell the customer why.
+      await notifyCustomer(sub, 'SUBSCRIPTION_PROPOSAL_WITHDRAWN', message);
       break;
     }
 
