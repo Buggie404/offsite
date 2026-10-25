@@ -366,6 +366,55 @@ async function createSubscriptionsFromOrder(order) {
   return created;
 }
 
+// Điều chỉnh thông minh: a paid order buying, one-time, the product of an active Ritual Box
+// suggests bringing that box forward one step (30 → 14 → 7). Only a suggestion: applied when
+// the customer accepts, dropped after SUGGESTION_TTL_DAYS. Not for boxes charging within the
+// 48h window (that box is already on its way) or ones started by this same order.
+async function suggestAdjustmentsForOrder(order) {
+  if (!order || order.is_guest || !order.user_id || order.subscription_id) return [];
+  const lines = (order.items || []).filter(it => (it.purchase_type || 'one_time') === 'one_time');
+  if (!lines.length) return [];
+
+  const now = new Date();
+  const suggested = [];
+  for (const line of lines) {
+    const filter = {
+      user_id: order.user_id,
+      product_id: String(line.product_id),
+      status: 'active',
+      frequency_days: { $in: Object.keys(SHORTER_FREQUENCY).map(Number) },
+      next_charge_at: { $gte: new Date(now.getTime() + LOCK_WINDOW_HOURS * HOUR_MS) },
+      source_order_id: { $ne: order.order_id },
+      // No suggestion still waiting on the customer.
+      $or: [
+        { suggested_frequency_days: null },
+        { suggested_at: null },
+        { suggested_at: { $lte: addDays(now, -SUGGESTION_TTL_DAYS) } }
+      ]
+    };
+    if (line.variant_id) filter.variant_id = line.variant_id;
+
+    const candidates = await Subscription.find(filter);
+    for (const candidate of candidates) {
+      const days = SHORTER_FREQUENCY[candidate.frequency_days];
+      // Conditional write so a concurrent order can't suggest (and notify) twice.
+      const sub = await Subscription.findOneAndUpdate(
+        { _id: candidate._id, frequency_days: candidate.frequency_days, $or: filter.$or },
+        { $set: { suggested_frequency_days: days, suggested_at: now } },
+        { new: true }
+      );
+      if (!sub) continue;
+      suggested.push(sub);
+      await notificationService.notifySubscription(
+        sub,
+        'SUBSCRIPTION_ADJUSTED',
+        `You bought ${line.product_name} separately. Switch your Ritual Box to every ${days} days to get your next box sooner?`
+      );
+    }
+  }
+  return suggested;
+}
+
 // Ritual Boxes started by a checkout order (for the order confirmation page).
 async function shapeOrderSubscription(sub) {
   const product = await findProduct(sub.product_id);
@@ -753,8 +802,15 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
     case 'accept_adjustment': {
       const days = sub.suggested_frequency_days;
       if (!days) throw new SubscriptionActionError('This suggestion has expired.');
-      if (sub.status === 'active') {
-        sub.next_charge_at = shiftedChargeAt(sub, days, now);
+      // Same as choosing the shorter frequency: inside the 48h window it starts from the next cycle.
+      if (locked) {
+        sub.pending_changes.frequency_days = days;
+      } else {
+        if (sub.status === 'active') {
+          sub.next_charge_at = shiftedChargeAt(sub, days, now);
+        }
+        sub.frequency_days = days;
+        sub.pending_changes.frequency_days = null;
       }
       sub.suggested_frequency_days = null;
       sub.suggested_at = null;
@@ -788,6 +844,7 @@ module.exports = {
   getRitualBox,
   priceSubscriptionLine,
   createSubscriptionsFromOrder,
+  suggestAdjustmentsForOrder,
   getOrderSubscriptions,
   getOrderRitualBoxes,
   applyAction,
@@ -805,7 +862,6 @@ module.exports = {
   maskCard,
   cardBrand,
   findReplacement,
-  applyDueTransitions,
   dueTransitionsQuery,
   orderHistoryStatus,
   shapePendingChanges

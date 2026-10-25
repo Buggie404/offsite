@@ -196,6 +196,17 @@ async function applyCustomerTransition(order, action, changes, note) {
   return Order.findOneAndUpdate(filter, update, { new: true, runValidators: true });
 }
 
+// One-time lines matching an active Ritual Box suggest a shorter cycle (SUBSCRIPTION_ADJUSTED).
+// Not for orders billed by the subscription job; never fails the checkout.
+async function suggestRitualBoxAdjustments(order) {
+  if (order.subscription_id) return;
+  try {
+    await subscriptionService.suggestAdjustmentsForOrder(order);
+  } catch (err) {
+    console.error('Error suggesting Ritual Box adjustments:', err);
+  }
+}
+
 async function cleanupSession(session) {
   if (!session) return;
   try {
@@ -783,6 +794,7 @@ async function confirmOrder(req, res) {
     order._statusChangeNote = 'Order confirmed by user via COD verification modal';
     await order.save();
     socketService.emitOrderUpdated(order, 'status_change');
+    await suggestRitualBoxAdjustments(order);
 
     // Save address if registered customer and it doesn't exist yet
     if (!order.is_guest && userDoc) {
@@ -981,6 +993,7 @@ async function confirmPayment(req, res) {
         console.error('Error creating subscriptions from order:', subErr);
       }
     }
+    await suggestRitualBoxAdjustments(updated);
 
     res.json({
       message: 'Payment confirmed successfully',

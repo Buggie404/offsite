@@ -34,7 +34,8 @@ const notificationSchema = new mongoose.Schema({
       'SUBSCRIPTION_SKIPPED',
       'SUBSCRIPTION_PROPOSAL',
       'SUBSCRIPTION_PROPOSAL_WITHDRAWN',
-      'SUBSCRIPTION_NOT_STARTED'
+      'SUBSCRIPTION_NOT_STARTED',
+      'SUBSCRIPTION_ADJUSTED'
     ],
     required: true
   },

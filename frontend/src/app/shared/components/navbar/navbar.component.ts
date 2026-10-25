@@ -1173,6 +1173,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       case 'SUBSCRIPTION_PROPOSAL':       return 'notif-icon--sage';
       case 'SUBSCRIPTION_PROPOSAL_WITHDRAWN': return 'notif-icon--gray';
       case 'SUBSCRIPTION_NOT_STARTED':    return 'notif-icon--red';
+      case 'SUBSCRIPTION_ADJUSTED':       return 'notif-icon--sage';
       case 'POST_CREATED':     return 'notif-icon--green';
       case 'POST_LIKED':       return 'notif-icon--pink';
       case 'POST_COMMENTED':   return 'notif-icon--sage';
