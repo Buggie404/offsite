@@ -24,7 +24,7 @@ async function getPublicProfile(req, res) {
     const currentUserId = await currentCommunityUserId(req);
     const isSelf = currentUserId === userId;
     const [postCount, recipeCount, followerCount, followingCount, followRow] = await Promise.all([
-      Post.countDocuments({ user_id: userId, status: { $ne: 'hidden' } }),
+      Post.countDocuments({ user_id: userId, post_type: { $ne: 'recipe' }, status: { $ne: 'hidden' } }),
       Post.countDocuments({ user_id: userId, post_type: 'recipe', status: { $ne: 'hidden' } }),
       Follow.countDocuments({ following_id: userId }),
       Follow.countDocuments({ follower_id: userId }),

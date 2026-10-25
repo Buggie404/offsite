@@ -23,7 +23,7 @@ export class PublicProfileComponent implements OnInit {
   edit = { profile_name: '', community_name: '', email: '', phone: '', avatar_url: '' };
 
   ngOnInit(): void { this.route.paramMap.subscribe(params => { const id = params.get('userId'); if (id) this.load(id); }); }
-  get displayedPosts(): Post[] { return this.activeTab === 'recipes' ? this.posts.filter(post => post.post_type === 'recipe') : this.posts; }
+  get displayedPosts(): Post[] { return this.activeTab === 'recipes' ? this.posts.filter(post => post.post_type === 'recipe') : this.posts.filter(post => post.post_type !== 'recipe'); }
   get shareUrl(): string { return this.profile ? `${window.location.origin}/community/profile/${this.profile.user_id}` : ''; }
   private load(userId: string): void {
     this.loading = true; this.notFound = false; this.posts = [];
