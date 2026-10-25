@@ -318,8 +318,19 @@ export class PaymentQrComponent implements OnInit, OnDestroy {
         this.stopTimer();
         this.router.navigate(['/checkout/pending'], { state: { order: res.data, showFailedModal: true } });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to report payment failure to backend:', err);
+      // The order moved on elsewhere (paid from the phone, canceled): polling picks up a paid
+      // order; a canceled one would never resolve here, so leave the QR page.
+      if (err?.status === 409 && err.error?.code === 'INVALID_ORDER_STATE' && err.error.order_status === 'canceled') {
+        const ord = this.order();
+        this.paymentConfirmed = true; // prevent ngOnDestroy from discarding
+        this.stopPollingStatus();
+        this.stopTimer();
+        this.router.navigate(['/checkout/canceled'], {
+          state: { order: { ...ord, order_status: err.error.order_status, payment_status: err.error.payment_status } }
+        });
+      }
     }
   }
 
