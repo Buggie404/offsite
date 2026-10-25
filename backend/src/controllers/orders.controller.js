@@ -1,4 +1,5 @@
 const Order = require('../models/Order');
+const Product = require('../models/Product');
 const User = require('../models/User');
 const Voucher = require('../models/Voucher');
 const RefundRequest = require('../models/RefundRequest');
@@ -106,6 +107,93 @@ function formatRefundRequestForClient(doc) {
     reviewed_at: doc.reviewed_at,
     reviewed_by: doc.reviewed_by
   };
+}
+
+// Customer access to an order: the guest session that placed it, or its signed-in owner.
+// session_id comes from the body, or the query string on GET/DELETE.
+async function authorizeOrderAccess(req, order) {
+  const sessionId = req.body?.session_id || req.query?.session_id;
+  if (sessionId && order.session_id === sessionId) {
+    return { authorized: true, userDoc: null };
+  }
+  if (req.user && req.user.user_id) {
+    const userDoc = await User.findById(req.user.user_id);
+    if (userDoc && order.user_id === userDoc.user_id) {
+      return { authorized: true, userDoc };
+    }
+  }
+  return { authorized: false, userDoc: null };
+}
+
+// States a customer payment action may start from; anything else is a 409.
+const CUSTOMER_PAYMENT_TRANSITIONS = {
+  confirmPayment: {
+    label: 'confirm payment for',
+    order_status: ['pending'],
+    payment_status: ['pending', 'failed'],
+    methods: ['qr', 'card', 'bank_transfer']
+  },
+  failPayment: {
+    label: 'fail payment for',
+    order_status: ['pending'],
+    payment_status: ['pending']
+  },
+  retryPayment: {
+    label: 'retry payment for',
+    order_status: ['pending'],
+    payment_status: ['pending', 'failed']
+  },
+  changePaymentMethod: {
+    label: 'change the payment method of',
+    order_status: ['pending'],
+    payment_status: ['pending', 'failed']
+  }
+};
+
+function canTransition(order, action) {
+  const rule = CUSTOMER_PAYMENT_TRANSITIONS[action];
+  return rule.order_status.includes(order.order_status) &&
+    rule.payment_status.includes(order.payment_status) &&
+    (!rule.methods || rule.methods.includes(order.payment?.method));
+}
+
+function invalidOrderStateResponse(res, order, action) {
+  const rule = CUSTOMER_PAYMENT_TRANSITIONS[action];
+  return res.status(409).json({
+    error: `Cannot ${rule.label} an order that is ${order.order_status} (payment ${order.payment_status}).`,
+    code: 'INVALID_ORDER_STATE',
+    order_status: order.order_status,
+    payment_status: order.payment_status,
+    payment_method: order.payment?.method || null
+  });
+}
+
+// Applies a customer payment action only if the order is still in an allowed state, so two
+// concurrent requests can't both move it. Returns the updated order, or null when another
+// request changed the order first. findOneAndUpdate skips the save hooks, so the history
+// entry is written here.
+async function applyCustomerTransition(order, action, changes, note) {
+  const rule = CUSTOMER_PAYMENT_TRANSITIONS[action];
+  const filter = {
+    _id: order._id,
+    order_status: { $in: rule.order_status },
+    payment_status: { $in: rule.payment_status }
+  };
+  if (rule.methods) filter['payment.method'] = { $in: rule.methods };
+
+  const update = { $set: changes };
+  if (changes.order_status && !rule.order_status.includes(changes.order_status)) {
+    update.$push = {
+      status_history: {
+        status: changes.order_status,
+        changed_at: new Date(),
+        changed_by: order.is_guest ? 'guest' : order.user_id,
+        note
+      }
+    };
+  }
+
+  return Order.findOneAndUpdate(filter, update, { new: true, runValidators: true });
 }
 
 async function cleanupSession(session) {
@@ -664,7 +752,6 @@ async function getOrderHistory(req, res) {
 async function confirmOrder(req, res) {
   try {
     const { id } = req.params;
-    const { session_id } = req.body;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -686,23 +773,8 @@ async function confirmOrder(req, res) {
       return res.status(400).json({ error: `Order is already in ${order.order_status} status.` });
     }
 
-    let userDoc = null;
-
-    // Access control
-    let isAuthorized = false;
-    if (session_id && order.session_id === session_id) {
-      isAuthorized = true;
-    }
-    
-    if (req.user && req.user.user_id) {
-      const uDoc = await User.findById(req.user.user_id);
-      if (uDoc && order.user_id === uDoc.user_id) {
-        isAuthorized = true;
-        userDoc = uDoc;
-      }
-    }
-
-    if (!isAuthorized) {
+    const { authorized, userDoc } = await authorizeOrderAccess(req, order);
+    if (!authorized) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
     }
 
@@ -750,7 +822,6 @@ async function confirmOrder(req, res) {
 async function cancelPendingOrder(req, res) {
   try {
     const { id } = req.params;
-    const { session_id } = req.body;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -768,18 +839,8 @@ async function cancelPendingOrder(req, res) {
       return res.status(400).json({ error: `Order is in ${order.order_status} status and cannot be canceled.` });
     }
 
-    // Access control
-    let isAuthorized = false;
-    if (session_id && order.session_id === session_id) {
-      isAuthorized = true;
-    } else if (req.user && req.user.user_id) {
-      const userDoc = await User.findById(req.user.user_id);
-      if (userDoc && order.user_id === userDoc.user_id) {
-        isAuthorized = true;
-      }
-    }
-
-    if (!isAuthorized) {
+    const { authorized } = await authorizeOrderAccess(req, order);
+    if (!authorized) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
     }
 
@@ -804,7 +865,6 @@ async function cancelPendingOrder(req, res) {
 async function failPayment(req, res) {
   try {
     const { id } = req.params;
-    const { session_id } = req.body;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -818,31 +878,33 @@ async function failPayment(req, res) {
       return res.status(404).json({ error: 'Order not found.' });
     }
 
-    // Access control
-    let isAuthorized = false;
-    if (session_id && order.session_id === session_id) {
-      isAuthorized = true;
-    } else if (req.user && req.user.user_id) {
-      const userDoc = await User.findById(req.user.user_id);
-      if (userDoc && order.user_id === userDoc.user_id) {
-        isAuthorized = true;
-      }
-    }
-
-    if (!isAuthorized) {
+    const { authorized } = await authorizeOrderAccess(req, order);
+    if (!authorized) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
     }
 
-    order.payment_status = 'failed';
-    order.order_status = 'pending';
-    order._changedBy = order.is_guest ? 'guest' : order.user_id;
-    order._statusChangeNote = 'Payment failed: QR code expired and exceeded maximum reloads';
-    await order.save();
-    socketService.emitOrderUpdated(order, 'status_change');
+    // Already failed (e.g. the QR page reported it twice): nothing to change.
+    if (order.order_status === 'pending' && order.payment_status === 'failed') {
+      return res.json({ message: 'Order payment status is already failed', data: order });
+    }
+
+    if (!canTransition(order, 'failPayment')) {
+      return invalidOrderStateResponse(res, order, 'failPayment');
+    }
+
+    const updated = await applyCustomerTransition(order, 'failPayment', { payment_status: 'failed' });
+    if (!updated) {
+      const current = await Order.findById(order._id);
+      if (current && current.order_status === 'pending' && current.payment_status === 'failed') {
+        return res.json({ message: 'Order payment status is already failed', data: current });
+      }
+      return invalidOrderStateResponse(res, current || order, 'failPayment');
+    }
+    socketService.emitOrderUpdated(updated, 'status_change');
 
     res.json({
       message: 'Order payment status updated to failed',
-      data: order
+      data: updated
     });
   } catch (error) {
     console.error('Error failing payment:', error);
@@ -850,11 +912,22 @@ async function failPayment(req, res) {
   }
 }
 
+// Orders placed before stock was reserved at checkout take it off when they are paid
+// (same as the pending -> processing step in the Order save hook).
+async function subtractUnreservedStock(order) {
+  if (order.stock_reserved) return;
+  for (const item of order.items) {
+    await Product.updateOne(
+      { _id: item.product_id, 'variants.sku': item.variant_id },
+      { $inc: { 'variants.$.stock': -item.quantity } }
+    );
+  }
+}
+
 // Confirm QR/Card Payment (PUT /api/orders/:id/confirm-payment)
 async function confirmPayment(req, res) {
   try {
     const { id } = req.params;
-    const { session_id } = req.body;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -868,32 +941,42 @@ async function confirmPayment(req, res) {
       return res.status(404).json({ error: 'Order not found.' });
     }
 
-    // Access control
-    let isAuthorized = false;
-    if (session_id && order.session_id === session_id) {
-      isAuthorized = true;
-    } else if (req.user && req.user.user_id) {
-      const userDoc = await User.findById(req.user.user_id);
-      if (userDoc && order.user_id === userDoc.user_id) {
-        isAuthorized = true;
-      }
-    }
-
-    if (!isAuthorized) {
+    const { authorized } = await authorizeOrderAccess(req, order);
+    if (!authorized) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
     }
 
-    order.payment_status = 'paid';
-    order.order_status = 'processing';
-    order._changedBy = order.is_guest ? 'guest' : order.user_id;
-    order._statusChangeNote = 'Payment confirmed by user via mobile QR scan';
-    await order.save();
-    socketService.emitOrderUpdated(order, 'status_change');
+    // Repeated confirm (double click, QR page and desktop both confirming): return the order as is.
+    if (order.payment_status === 'paid') {
+      return res.json({ message: 'Payment already confirmed', data: order });
+    }
+
+    if (!canTransition(order, 'confirmPayment')) {
+      return invalidOrderStateResponse(res, order, 'confirmPayment');
+    }
+
+    const updated = await applyCustomerTransition(
+      order,
+      'confirmPayment',
+      { payment_status: 'paid', order_status: 'processing' },
+      'Payment confirmed by user via mobile QR scan'
+    );
+    if (!updated) {
+      // Another request moved the order first; only that one runs the side effects below.
+      const current = await Order.findById(order._id);
+      if (current && current.payment_status === 'paid') {
+        return res.json({ message: 'Payment already confirmed', data: current });
+      }
+      return invalidOrderStateResponse(res, current || order, 'confirmPayment');
+    }
+
+    await subtractUnreservedStock(updated);
+    socketService.emitOrderUpdated(updated, 'status_change');
 
     // A paid card order with Subscribe & Save lines starts the customer's Ritual Box.
-    if (order.payment?.method === 'card') {
+    if (updated.payment?.method === 'card') {
       try {
-        await subscriptionService.createSubscriptionsFromOrder(order);
+        await subscriptionService.createSubscriptionsFromOrder(updated);
       } catch (subErr) {
         console.error('Error creating subscriptions from order:', subErr);
       }
@@ -901,7 +984,7 @@ async function confirmPayment(req, res) {
 
     res.json({
       message: 'Payment confirmed successfully',
-      data: order
+      data: updated
     });
   } catch (error) {
     console.error('Error confirming payment:', error);
@@ -913,7 +996,6 @@ async function confirmPayment(req, res) {
 async function getOrderStatus(req, res) {
   try {
     const { id } = req.params;
-    const { session_id } = req.query;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -952,18 +1034,8 @@ async function getOrderStatus(req, res) {
       }
     }
 
-    // Access control
-    let isAuthorized = false;
-    if (session_id && order.session_id === session_id) {
-      isAuthorized = true;
-    } else if (req.user && req.user.user_id) {
-      const userDoc = await User.findById(req.user.user_id);
-      if (userDoc && order.user_id === userDoc.user_id) {
-        isAuthorized = true;
-      }
-    }
-
-    if (!isAuthorized) {
+    const { authorized } = await authorizeOrderAccess(req, order);
+    if (!authorized) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 
@@ -1013,7 +1085,6 @@ async function getOrderStatus(req, res) {
 async function receiveOrder(req, res) {
   try {
     const { id } = req.params;
-    const { session_id, email, mobile } = req.body;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -1033,20 +1104,8 @@ async function receiveOrder(req, res) {
       });
     }
 
-    // Access control
-    let isAuthorized = false;
-    if (session_id && order.session_id === session_id) {
-      isAuthorized = true;
-    } else if (order.user_id && req.user && req.user.user_id) {
-      const userDoc = await User.findById(req.user.user_id);
-      if (userDoc && order.user_id === userDoc.user_id) {
-        isAuthorized = true;
-      }
-    } else if (!order.user_id && session_id && order.session_id === session_id) {
-      isAuthorized = true;
-    }
-
-    if (!isAuthorized) {
+    const { authorized } = await authorizeOrderAccess(req, order);
+    if (!authorized) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
     }
 
@@ -1287,7 +1346,6 @@ async function requestRefund(req, res) {
 async function deleteOrder(req, res) {
   try {
     const { id } = req.params;
-    const session_id = req.body.session_id || req.query.session_id;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -1301,18 +1359,8 @@ async function deleteOrder(req, res) {
       return res.status(404).json({ error: 'Order not found.' });
     }
 
-    // Access control
-    let isAuthorized = false;
-    if (session_id && order.session_id === session_id) {
-      isAuthorized = true;
-    } else if (req.user && req.user.user_id) {
-      const userDoc = await User.findById(req.user.user_id);
-      if (userDoc && order.user_id === userDoc.user_id) {
-        isAuthorized = true;
-      }
-    }
-
-    if (!isAuthorized) {
+    const { authorized } = await authorizeOrderAccess(req, order);
+    if (!authorized) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
     }
 
@@ -1339,7 +1387,6 @@ async function deleteOrder(req, res) {
 async function retryPayment(req, res) {
   try {
     const { id } = req.params;
-    const session_id = req.body.session_id || req.query.session_id;
 
     let query = {};
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -1353,30 +1400,24 @@ async function retryPayment(req, res) {
       return res.status(404).json({ error: 'Order not found.' });
     }
 
-    // Access control
-    let isAuthorized = false;
-    if (session_id && order.session_id === session_id) {
-      isAuthorized = true;
-    } else if (req.user && req.user.user_id) {
-      const userDoc = await User.findById(req.user.user_id);
-      if (userDoc && order.user_id === userDoc.user_id) {
-        isAuthorized = true;
-      }
-    }
-
-    if (!isAuthorized) {
+    const { authorized } = await authorizeOrderAccess(req, order);
+    if (!authorized) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
     }
 
-    order.payment_status = 'pending';
-    order.order_status = 'pending';
-    order._changedBy = order.is_guest ? 'guest' : order.user_id;
-    order._statusChangeNote = 'Payment retried: reset payment status to pending';
-    await order.save();
+    if (!canTransition(order, 'retryPayment')) {
+      return invalidOrderStateResponse(res, order, 'retryPayment');
+    }
+
+    const updated = await applyCustomerTransition(order, 'retryPayment', { payment_status: 'pending' });
+    if (!updated) {
+      const current = await Order.findById(order._id);
+      return invalidOrderStateResponse(res, current || order, 'retryPayment');
+    }
 
     res.json({
       message: 'Order payment status reset to pending for retry',
-      data: order
+      data: updated
     });
   } catch (error) {
     console.error('Error retrying payment:', error);
@@ -1388,7 +1429,7 @@ async function retryPayment(req, res) {
 async function changePaymentMethod(req, res) {
   try {
     const { id } = req.params;
-    const { payment, session_id } = req.body;
+    const { payment } = req.body;
 
     if (!payment || !payment.method) {
       return res.status(400).json({ error: 'payment.method is required.' });
@@ -1406,24 +1447,13 @@ async function changePaymentMethod(req, res) {
       return res.status(404).json({ error: 'Order not found.' });
     }
 
-    if (order.order_status !== 'pending') {
-      return res.status(400).json({ error: 'Only orders pending payment can change payment method.' });
-    }
-
-    // Access control
-    let isAuthorized = false;
-    let userDoc = null;
-    if (session_id && order.session_id === session_id) {
-      isAuthorized = true;
-    } else if (req.user && req.user.user_id) {
-      userDoc = await User.findById(req.user.user_id);
-      if (userDoc && order.user_id === userDoc.user_id) {
-        isAuthorized = true;
-      }
-    }
-
-    if (!isAuthorized) {
+    const { authorized, userDoc } = await authorizeOrderAccess(req, order);
+    if (!authorized) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
+    }
+
+    if (!canTransition(order, 'changePaymentMethod')) {
+      return invalidOrderStateResponse(res, order, 'changePaymentMethod');
     }
 
     // Verify/persist the new payment method against the User profile (mirrors createOrder's validation)
@@ -1461,16 +1491,18 @@ async function changePaymentMethod(req, res) {
       delete payment.full_card_info;
     }
 
-    order.payment = payment;
-    order.payment_status = 'pending';
-    order.order_status = 'pending';
-    order._changedBy = order.is_guest ? 'guest' : order.user_id;
-    order._statusChangeNote = `Payment method changed to ${payment.method}`;
-    await order.save();
+    const updated = await applyCustomerTransition(order, 'changePaymentMethod', {
+      payment,
+      payment_status: 'pending'
+    });
+    if (!updated) {
+      const current = await Order.findById(order._id);
+      return invalidOrderStateResponse(res, current || order, 'changePaymentMethod');
+    }
 
     res.json({
       message: 'Payment method updated successfully',
-      data: order
+      data: updated
     });
   } catch (error) {
     console.error('Error changing payment method:', error);

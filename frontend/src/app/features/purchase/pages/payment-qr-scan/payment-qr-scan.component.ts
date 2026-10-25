@@ -139,6 +139,7 @@ export class PaymentQrScanComponent implements OnInit {
       localStorage.setItem(`payment_scan_action_${this.orderId()}`, 'confirm');
     } catch (err: any) {
       console.error('Failed to confirm payment:', err);
+      if (this.handleInvalidOrderState(err)) return;
       this.hasActionBeenClicked.set(false);
       alert(err.error?.error || 'Failed to confirm payment. Please try again.');
     } finally {
@@ -158,10 +159,30 @@ export class PaymentQrScanComponent implements OnInit {
       localStorage.setItem(`payment_scan_action_${this.orderId()}`, 'cancel');
     } catch (err: any) {
       console.error('Failed to cancel payment:', err);
+      if (this.handleInvalidOrderState(err)) return;
       this.hasActionBeenClicked.set(false);
       alert(err.error?.error || 'Failed to cancel payment. Please try again.');
     } finally {
       this.loading.set(false);
     }
+  }
+
+  // 409 INVALID_ORDER_STATE: the order was paid, canceled or failed elsewhere. Show where it
+  // stands and keep both buttons locked instead of letting the user retry.
+  private handleInvalidOrderState(err: any): boolean {
+    if (err?.status !== 409 || err.error?.code !== 'INVALID_ORDER_STATE') return false;
+
+    const { order_status, payment_status } = err.error;
+    this.hasActionBeenClicked.set(true);
+    if (payment_status === 'paid') {
+      this.successMessage.set('This order has already been paid. Please check your desktop screen.');
+      localStorage.setItem(`payment_scan_action_${this.orderId()}`, 'confirm');
+    } else {
+      this.isFailed.set(true);
+      this.successMessage.set(order_status === 'canceled'
+        ? 'This order has been canceled and can no longer be paid. You can now close this tab.'
+        : 'This payment can no longer be completed here. Please check your desktop screen.');
+    }
+    return true;
   }
 }
