@@ -113,7 +113,7 @@
           </div>
         </ng-container>
 
-        <app-post-card *ngFor="let post of posts" [post]="post" [isOwner]="!!post.user_id && post.user_id === currentUserId()"
+        <app-post-card *ngFor="let post of posts; trackBy: trackByPost" [post]="post" [isOwner]="!!post.user_id && post.user_id === currentUserId()"
           (like)="likePost($event)" (save)="savePost($event)" (share)="sharePost($event)"
           (openDetail)="goToDetail($event)" (delete)="promptDeletePost($event)" (report)="openReport($event)"
           (edit)="openEdit($event)">

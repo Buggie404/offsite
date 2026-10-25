@@ -44,7 +44,7 @@ function parseLinkedProducts(raw) {
 
 async function getAllPosts(req, res) {
   try {
-    const { page = 1, limit = 10, post_type, recipe_id, user_id, sort, base, following } = req.query;
+    const { page = 1, limit = 10, all, post_type, recipe_id, user_id, sort, base, following } = req.query;
 
     const query = {};
     if (post_type) query.post_type = post_type;
@@ -77,17 +77,20 @@ async function getAllPosts(req, res) {
       query.user_id = { $in: followedIds.filter(id => !blocked.includes(id)) };
     }
 
-    const skipCount = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-    const limitCount = parseInt(limit, 10);
+    const fetchAll = all === 'true';
+    const pageNumber = Math.max(1, parseInt(page, 10) || 1);
+    const limitCount = Math.max(1, parseInt(limit, 10) || 10);
 
     const sortOption = sort === 'like_count'
       ? { like_count: -1 }
       : { created_at: -1 };
 
-    const posts = await Post.find(query)
-      .sort(sortOption)
-      .skip(skipCount)
-      .limit(limitCount);
+    let postsQuery = Post.find(query).sort(sortOption);
+    if (!fetchAll) {
+      const skipCount = (pageNumber - 1) * limitCount;
+      postsQuery = postsQuery.skip(skipCount).limit(limitCount);
+    }
+    const posts = await postsQuery;
 
     const total = await Post.countDocuments(query);
 
@@ -113,8 +116,8 @@ async function getAllPosts(req, res) {
     res.json({
       data,
       total,
-      page: parseInt(page, 10),
-      limit: limitCount
+      page: pageNumber,
+      limit: fetchAll ? data.length : limitCount
     });
   } catch (error) {
     console.error('Error fetching posts:', error);

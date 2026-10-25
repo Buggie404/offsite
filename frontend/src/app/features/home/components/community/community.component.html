@@ -14,7 +14,7 @@
     </div>
 
     <div class="community-grid" appDragScroll appAnimateInView>
-      <div class="community-card" *ngFor="let card of cards" [style.background-color]="card.bgColor"
+      <div class="community-card" *ngFor="let card of cards; trackBy: trackByCard" [style.background-color]="card.bgColor"
            (click)="onCardClick(card)">
         <div class="card-image">
           <ng-container *ngIf="card.mediaType === 'video'; else imageMedia">
@@ -27,7 +27,7 @@
             </div>
           </ng-container>
           <ng-template #imageMedia>
-          <img [src]="card.image" [alt]="'Post by ' + card.community_name"
+          <img [src]="card.image" [alt]="'Post by ' + card.community_name" loading="lazy" decoding="async"
             (error)="setFallbackMedia(card)">
           </ng-template>
         </div>

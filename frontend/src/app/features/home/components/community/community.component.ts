@@ -149,6 +149,10 @@ export class CommunityComponent implements OnInit {
     this.loadTopLiked();
   }
 
+  trackByCard(index: number, card: CommunityCard): string {
+    return card.postId ?? `fallback-${index}`;
+  }
+
   private loadTopLiked() {
     this.communityService.getTopLiked(10).subscribe({
       next: (res) => {
