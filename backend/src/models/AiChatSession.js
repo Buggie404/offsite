@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const chatMessageSchema = new mongoose.Schema({
+  message_id: { type: String, default: null },
   sender: {
     type: String,
     enum: ['user', 'ai', 'agent', 'system'],
@@ -13,11 +14,13 @@ const chatMessageSchema = new mongoose.Schema({
 }, { _id: false });
 
 const aiChatSessionSchema = new mongoose.Schema({
-  session_id: { type: String, required: true, index: true },
+  session_id: { type: String, required: true, unique: true },
   user_id: { type: String, default: null, index: true },
   dify_conversation_id: { type: String, default: null },
   ip: { type: String, default: null },
   is_guest: { type: Boolean, default: true },
+  retain_for_support: { type: Boolean, default: false },
+  deleted_at: { type: Date, default: null },
   
   // Status: 'ai_active', 'waiting', 'in_progress', 'closed'
   status: {
@@ -56,5 +59,15 @@ const aiChatSessionSchema = new mongoose.Schema({
   collection: 'AiChatSessions',
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
+
+aiChatSessionSchema.index({ user_id: 1, last_activity_at: -1 });
+aiChatSessionSchema.index(
+  { last_activity_at: 1 },
+  {
+    name: 'guest_session_ttl',
+    expireAfterSeconds: 60 * 60 * 24 * 30,
+    partialFilterExpression: { is_guest: true, retain_for_support: false }
+  }
+);
 
 module.exports = mongoose.model('AiChatSession', aiChatSessionSchema);

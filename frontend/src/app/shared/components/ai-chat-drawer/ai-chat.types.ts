@@ -44,12 +44,26 @@ export interface ChatSupportAction {
   summary?: string;
 }
 
+export type ChatInteraction = 'loading' | 'ready' | 'idle' | 'readonly';
+
+export type ChatDecision = 'continue' | 'idle' | 'rotate' | 'closed';
+
+export interface ChatHistoryItem {
+  session_id: string;
+  preview: string;
+  last_activity_at: string;
+  created_at: string;
+  status: string;
+  decision: ChatDecision;
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'ai' | 'user' | 'agent' | 'system';
   text?: string;
   formattedHtml?: string;
   timestamp: Date;
+  noticeKind?: 'status';
   quickReplies?: string[];
   products?: ChatMessageProduct[];
   productCard?: ChatMessageProduct;

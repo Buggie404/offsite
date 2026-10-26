@@ -20,12 +20,15 @@ import {
   LucidePhoneCall,
   LucideHelpCircle,
   LucideArrowRight,
-  LucideAlertTriangle
+  LucideAlertTriangle,
+  LucidePlus,
+  LucideHistory,
+  LucideTrash2
 } from '@lucide/angular';
 import { AiChatService } from './ai-chat.service';
 import { CartService } from '../../../features/purchase/services/cart.service';
 import { ToastService } from '../../services/toast.service';
-import { ChatMessage, ChatMessageOrder, ChatMessageProduct, ChatSupportAction } from './ai-chat.types';
+import { ChatMessage, ChatHistoryItem, ChatMessageOrder, ChatMessageProduct, ChatSupportAction } from './ai-chat.types';
 
 @Component({
   selector: 'app-ai-chat-drawer',
@@ -44,7 +47,10 @@ import { ChatMessage, ChatMessageOrder, ChatMessageProduct, ChatSupportAction } 
     LucidePhoneCall,
     LucideHelpCircle,
     LucideArrowRight,
-    LucideAlertTriangle
+    LucideAlertTriangle,
+    LucidePlus,
+    LucideHistory,
+    LucideTrash2
   ],
   templateUrl: './ai-chat-drawer.component.html',
   styleUrls: ['./ai-chat-drawer.component.scss'],
@@ -68,22 +74,27 @@ export class AiChatDrawerComponent {
   isSendingContact = false;
 
   constructor() {
-    // Auto scroll to bottom when messages or typing changes
     effect(() => {
       this.chatService.messages();
       this.chatService.isTyping();
       this.chatService.isOpen();
+      this.chatService.historyOpen();
       setTimeout(() => this.scrollToBottom(), 50);
     });
 
     effect(() => {
       this.chatService.sessionId();
-      this.inputText = '';
       this.contactEmail = '';
       this.contactMessage = '';
       this.contactEmailError = '';
       this.contactMessageError = '';
       this.isSendingContact = false;
+    });
+
+    effect(() => {
+      const token = this.chatService.draftToken();
+      if (!token) return;
+      this.inputText = this.chatService.draftText();
     });
   }
 
@@ -101,9 +112,10 @@ export class AiChatDrawerComponent {
   }
 
   handleSend(): void {
-    if (this.chatService.composerLocked() || !this.inputText.trim() || this.chatService.isTyping()) return;
-    const sent = this.chatService.sendMessage(this.inputText);
-    if (sent) this.inputText = '';
+    if (this.chatService.composerBlocked() || !this.inputText.trim() || this.chatService.isTyping()) return;
+    const text = this.inputText;
+    if (!this.chatService.sendMessage(text)) return;
+    this.inputText = '';
   }
 
   onKeydown(event: KeyboardEvent): void {
@@ -114,8 +126,29 @@ export class AiChatDrawerComponent {
   }
 
   selectQuickReply(reply: string): void {
-    if (this.chatService.composerLocked()) return;
+    if (this.chatService.composerBlocked()) return;
     this.chatService.sendMessage(reply);
+  }
+
+  startNewChat(): void {
+    this.chatService.startNewChat();
+  }
+
+  continueChat(): void {
+    this.chatService.continueChat();
+  }
+
+  toggleHistory(): void {
+    this.chatService.toggleHistory();
+  }
+
+  openHistory(item: ChatHistoryItem): void {
+    this.chatService.openHistory(item.session_id);
+  }
+
+  deleteHistory(item: ChatHistoryItem, event: MouseEvent): void {
+    event.stopPropagation();
+    this.chatService.deleteHistory(item.session_id);
   }
 
   onSupportAction(action: ChatSupportAction): void {
@@ -266,8 +299,9 @@ export class AiChatDrawerComponent {
 
     this.isSendingContact = true;
     this.chatService.leaveMessage(email, text).subscribe({
-      next: () => {
+      next: (res: any) => {
         this.isSendingContact = false;
+        if (this.chatService.applyServerDecision(res?.decision, text)) return;
         this.chatService.markContactSubmitted(msg.id);
         this.contactEmail = '';
         this.contactMessage = '';
@@ -275,6 +309,10 @@ export class AiChatDrawerComponent {
       error: (err) => {
         this.isSendingContact = false;
         const body = err?.error && typeof err.error === 'object' ? err.error : {};
+        if (err?.status === 409 || body.status === 'closed') {
+          this.contactMessageError = body.message || 'This chat is closed.';
+          return;
+        }
         const message = body.message || 'Could not send your message. Please try again.';
         if (body.field === 'email') {
           this.contactEmailError = message;
@@ -283,6 +321,15 @@ export class AiChatDrawerComponent {
         }
       }
     });
+  }
+
+  composerPlaceholder(): string {
+    if (this.chatService.historyOpen()) return 'Choose a chat or start a new one';
+    if (this.chatService.composerLocked()) return 'Message limit reached for today';
+    if (this.chatService.interaction() === 'readonly') return 'This chat is view only';
+    if (this.chatService.interaction() === 'idle') return 'Choose continue or a new chat';
+    if (this.chatService.interaction() === 'loading') return 'Loading chat…';
+    return 'Type a message...';
   }
 
   private scrollToBottom(): void {

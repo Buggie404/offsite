@@ -3,7 +3,7 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const AiCallLog = require('../models/AiCallLog');
-const AiChatSession = require('../models/AiChatSession');
+const sessionAccess = require('../services/ai-chat-session');
 
 const SUPPORT_HOTLINE = process.env.SUPPORT_HOTLINE || '1900 0000';
 const FAQ_URL = '/contact-us#faq';
@@ -159,15 +159,23 @@ async function readDifyBody(difyRes) {
 }
 
 async function replyForProviderIssue(res, { chatSession, userId, sessionId, clientIp, startTime, messageText, detail }) {
-  chatSession.consecutive_errors = (chatSession.consecutive_errors || 0) + 1;
-  chatSession.last_activity_at = new Date();
-  try {
-    await chatSession.save();
-  } catch (saveErr) {
-    console.error('Failed to persist provider retry count:', saveErr);
+  if (chatSession) {
+    if (chatSession.isNew) {
+      sessionAccess.appendMessage(chatSession, {
+        sender: 'user',
+        text: String(messageText || '').trim()
+      });
+    }
+    chatSession.consecutive_errors = (chatSession.consecutive_errors || 0) + 1;
+    chatSession.last_activity_at = new Date();
+    try {
+      await chatSession.save();
+    } catch (saveErr) {
+      console.error('Failed to persist provider retry count:', saveErr);
+    }
   }
 
-  const exhausted = chatSession.consecutive_errors > PROVIDER_RETRY_LIMIT;
+  const exhausted = (chatSession?.consecutive_errors || 0) > PROVIDER_RETRY_LIMIT;
   await logConciergeCall({
     user_id: userId,
     session_id: sessionId,
@@ -401,22 +409,17 @@ function handoverIntent(text) {
   return null;
 }
 
-async function ensureChatSession({ sessionId, userId, clientIp, isGuest }) {
-  let chatSession = sessionId
-    ? await AiChatSession.findOne({ session_id: sessionId })
-    : null;
-
-  if (!chatSession) {
-    chatSession = new AiChatSession({
-      session_id: sessionId || `SS_${Date.now()}`,
-      user_id: userId,
-      ip: clientIp,
-      is_guest: isGuest,
-      messages: []
-    });
+function sendPrepared(res, prepared) {
+  if (!prepared) return false;
+  if (prepared.http) {
+    res.status(prepared.http).json(prepared.body);
+    return true;
   }
-
-  return chatSession;
+  if (prepared.hold) {
+    res.status(200).json({ success: true, decision: prepared.decision, reply: '' });
+    return true;
+  }
+  return false;
 }
 
 function recordHandoverNote(chatSession, reason, summary) {
@@ -454,6 +457,7 @@ async function notifyCskh(chatSession, note) {
 async function markHandedOff(chatSession, reason, summary) {
   // Forward only this message. Later messages stay with the assistant.
   chatSession.status = 'ai_active';
+  chatSession.retain_for_support = true;
   const note = recordHandoverNote(chatSession, reason, summary);
   await chatSession.save();
   if (note) await notifyCskh(chatSession, note);
@@ -990,36 +994,45 @@ exports.handleChatMessage = async (req, res) => {
       });
     }
 
+    const prepared = await sessionAccess.prepareSession({
+      sessionId,
+      userId,
+      clientIp,
+      holdIdle: true
+    });
+    if (sendPrepared(res, prepared)) return;
+
+    let chatSession = prepared.session;
+
     const requestedHandover = handoverIntent(messageText);
     if (requestedHandover) {
-      const earlySession = await ensureChatSession({ sessionId, userId, clientIp, isGuest });
-      earlySession.messages.push({
+      sessionAccess.appendMessage(chatSession, {
         sender: 'user',
-        text: messageText.trim(),
-        created_at: new Date()
+        text: messageText.trim()
       });
 
       if (!isSupportOpenNow()) {
-        earlySession.last_activity_at = new Date();
-        await earlySession.save();
+        chatSession.last_activity_at = new Date();
+        await chatSession.save();
         return res.status(200).json({
           success: true,
+          decision: 'continue',
           reply: '',
           handover: false,
           ...contactFormFields('', true)
         });
       }
 
-      earlySession.messages.push({
+      sessionAccess.appendMessage(chatSession, {
         sender: 'system',
-        text: 'That message was forwarded to the team. The customer can keep chatting with the assistant.',
-        created_at: new Date()
+        text: 'That message was forwarded to the team. The customer can keep chatting with the assistant.'
       });
-      await markHandedOff(earlySession, requestedHandover, messageText.trim());
+      await markHandedOff(chatSession, requestedHandover, messageText.trim());
       return res.status(200).json({
         success: true,
+        decision: 'continue',
         handover: true,
-        handover_reason: earlySession.handover_reason,
+        handover_reason: chatSession.handover_reason,
         reply: ''
       });
     }
@@ -1119,9 +1132,6 @@ exports.handleChatMessage = async (req, res) => {
       });
     }
 
-    // 4. Session management
-    let chatSession = await ensureChatSession({ sessionId, userId, clientIp, isGuest });
-
     // A previous handoff only forwarded that message. Later messages stay with the assistant.
     if (chatSession.status === 'waiting' || chatSession.status === 'in_progress') {
       chatSession.status = 'ai_active';
@@ -1133,15 +1143,13 @@ exports.handleChatMessage = async (req, res) => {
     // Dify stays on the thread when the shopper also asked something else.
     if (trackingIsTheWholeMessage(messageText)) {
       const resolved = await resolveOrderTracking({ isGuest, userId, messageText, clientIp });
-      chatSession.messages.push({
+      const userMessage = sessionAccess.appendMessage(chatSession, {
         sender: 'user',
-        text: messageText.trim(),
-        created_at: new Date()
+        text: messageText.trim()
       });
-      chatSession.messages.push({
+      const assistantMessage = sessionAccess.appendMessage(chatSession, {
         sender: 'ai',
         text: resolved.reply,
-        created_at: new Date(),
         metadata: { orders: resolved.orders, showOrderForm: resolved.showOrderForm }
       });
       chatSession.consecutive_errors = 0;
@@ -1162,7 +1170,10 @@ exports.handleChatMessage = async (req, res) => {
 
       return res.status(200).json({
         success: true,
+        decision: 'continue',
         reply: resolved.reply,
+        user_message_id: userMessage.message_id,
+        assistant_message_id: assistantMessage.message_id,
         conversation_id: chatSession.dify_conversation_id || conversation_id || '',
         handover: false,
         handover_reason: null,
@@ -1433,17 +1444,16 @@ exports.handleChatMessage = async (req, res) => {
     }
 
     // Lưu tin nhắn vào session
-    chatSession.messages.push({
+    const userMessage = sessionAccess.appendMessage(chatSession, {
       sender: 'user',
-      text: message.trim(),
-      created_at: new Date()
+      text: message.trim()
     });
 
+    let assistantMessage = null;
     if (aiAnswer || productCards.length || orderCard || showOrderForm || accountOrders.length) {
-      chatSession.messages.push({
+      assistantMessage = sessionAccess.appendMessage(chatSession, {
         sender: 'ai',
         text: aiAnswer,
-        created_at: new Date(),
         metadata: { products: productCards, orderCard, orders: accountOrders, showOrderForm, showContactForm }
       });
     }
@@ -1481,7 +1491,10 @@ exports.handleChatMessage = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      decision: 'continue',
       reply: aiAnswer,
+      user_message_id: userMessage.message_id,
+      assistant_message_id: assistantMessage ? assistantMessage.message_id : null,
       conversation_id: difyData.conversation_id,
       handover: isHandover,
       handover_reason: isHandover ? handoverReason : null,
@@ -1528,7 +1541,7 @@ exports.leaveMessage = async (req, res) => {
     const sessionId = typeof req.body.session_id === 'string' && req.body.session_id.trim()
       ? req.body.session_id.trim()
       : null;
-    const userId = req.user ? req.user.user_id : null;
+    const userId = callerId(req);
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({
@@ -1554,26 +1567,21 @@ exports.leaveMessage = async (req, res) => {
       });
     }
 
-    let chatSession = sessionId
-      ? await AiChatSession.findOne({ session_id: sessionId })
-      : null;
+    const prepared = await sessionAccess.prepareSession({
+      sessionId,
+      userId,
+      clientIp: req.ip || req.connection?.remoteAddress || null,
+      holdIdle: false
+    });
+    if (sendPrepared(res, prepared)) return;
+    const chatSession = prepared.session;
 
-    if (!chatSession) {
-      chatSession = new AiChatSession({
-        session_id: sessionId || `SS_${Date.now()}`,
-        user_id: userId,
-        ip: req.ip || req.connection?.remoteAddress || null,
-        is_guest: !userId,
-        messages: []
-      });
-    }
-
-    chatSession.messages.push({
+    sessionAccess.appendMessage(chatSession, {
       sender: 'user',
-      text: `Leave a message (${email}): ${text}`,
-      created_at: new Date()
+      text: `Leave a message (${email}): ${text}`
     });
     chatSession.status = 'waiting';
+    chatSession.retain_for_support = true;
     const note = recordHandoverNote(chatSession, 'user_request', `Customer left a message at ${email}`);
     await chatSession.save();
 
@@ -1601,23 +1609,24 @@ exports.requestHandover = async (req, res) => {
     const sessionId = typeof req.body.session_id === 'string' && req.body.session_id.trim()
       ? req.body.session_id.trim()
       : null;
-    const userId = req.user ? req.user.user_id : null;
+    const userId = callerId(req);
     const note = typeof req.body.message === 'string' ? req.body.message.trim() : '';
     const reason = normalizeHandoverReason(req.body.reason || handoverIntent(note) || 'user_request');
 
-    const chatSession = await ensureChatSession({
+    const prepared = await sessionAccess.prepareSession({
       sessionId,
       userId,
       clientIp: req.ip || req.connection?.remoteAddress || null,
-      isGuest: !userId
+      holdIdle: true
     });
+    if (sendPrepared(res, prepared)) return;
+    const chatSession = prepared.session;
 
     if (!isSupportOpenNow()) {
       if (note) {
-        chatSession.messages.push({
+        sessionAccess.appendMessage(chatSession, {
           sender: 'user',
-          text: note,
-          created_at: new Date()
+          text: note
         });
         chatSession.last_activity_at = new Date();
         await chatSession.save();
@@ -1625,22 +1634,21 @@ exports.requestHandover = async (req, res) => {
 
       return res.status(200).json({
         success: true,
+        decision: 'continue',
         handover: false,
         ...contactFormFields('', true)
       });
     }
 
     if (note) {
-      chatSession.messages.push({
+      sessionAccess.appendMessage(chatSession, {
         sender: 'user',
-        text: note,
-        created_at: new Date()
+        text: note
       });
     } else {
-      chatSession.messages.push({
+      sessionAccess.appendMessage(chatSession, {
         sender: 'system',
-        text: 'Customer asked to talk to a person.',
-        created_at: new Date()
+        text: 'Customer asked to talk to a person.'
       });
     }
 
@@ -1648,6 +1656,7 @@ exports.requestHandover = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      decision: 'continue',
       handover: true,
       handover_reason: chatSession.handover_reason || reason
     });
@@ -1657,5 +1666,125 @@ exports.requestHandover = async (req, res) => {
       success: false,
       message: 'Could not connect you to the team. Please try again.'
     });
+  }
+};
+
+function callerId(req) {
+  return shopperFromRequest(req);
+}
+
+function clientIp(req) {
+  return req.ip || req.connection?.remoteAddress || null;
+}
+
+exports.getSession = async (req, res) => {
+  try {
+    const result = await sessionAccess.readSession({
+      sessionId: req.params.sessionId,
+      userId: callerId(req)
+    });
+    if (result.http) return res.status(result.http).json(result.body);
+    return res.status(200).json(result.body);
+  } catch (error) {
+    console.error('Error reading concierge session:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+exports.openSession = async (req, res) => {
+  try {
+    const userId = callerId(req);
+    const previousId = typeof req.body.session_id === 'string' ? req.body.session_id.trim() : '';
+    const closeReason = typeof req.body.close_reason === 'string' ? req.body.close_reason : 'new_chat';
+    const closed = await sessionAccess.closeOwned({
+      sessionId: previousId,
+      userId,
+      closeReason
+    });
+    if (closed.http) return res.status(closed.http).json(closed.body);
+
+    const wantsNotice = req.body.opening_notice === true || req.body.opening_notice === 'rotated';
+    const opened = await sessionAccess.openFreshSession({
+      userId,
+      clientIp: clientIp(req),
+      withRotateNotice: wantsNotice && closeReason === 'rotate',
+      rotatable: !!(closed.session && closed.closed)
+    });
+    return res.status(200).json({ success: true, decision: 'continue', ...opened });
+  } catch (error) {
+    console.error('Error opening concierge session:', error);
+    return res.status(500).json({ success: false, message: 'Could not start a new chat.' });
+  }
+};
+
+exports.resumeSession = async (req, res) => {
+  try {
+    const result = await sessionAccess.resumeSession({
+      sessionId: req.params.sessionId,
+      userId: callerId(req)
+    });
+    if (result.http) return res.status(result.http).json(result.body);
+    return res.status(200).json(result.body);
+  } catch (error) {
+    console.error('Error resuming concierge session:', error);
+    return res.status(500).json({ success: false, message: 'Could not continue this chat.' });
+  }
+};
+
+exports.claimSession = async (req, res) => {
+  try {
+    const sessionId = typeof req.body.session_id === 'string' ? req.body.session_id.trim() : '';
+    const result = await sessionAccess.claimSession({ sessionId, userId: callerId(req) });
+    if (result.http) return res.status(result.http).json(result.body);
+    return res.status(200).json(result.body);
+  } catch (error) {
+    console.error('Error claiming concierge session:', error);
+    return res.status(500).json({ success: false, message: 'Could not keep this chat.' });
+  }
+};
+
+exports.listSessions = async (req, res) => {
+  try {
+    const result = await sessionAccess.listSessions({
+      userId: callerId(req),
+      limit: req.query.limit,
+      cursor: req.query.cursor
+    });
+    if (result.http) return res.status(result.http).json(result.body);
+    return res.status(200).json(result.body);
+  } catch (error) {
+    console.error('Error listing concierge sessions:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+exports.deleteSession = async (req, res) => {
+  try {
+    const result = await sessionAccess.deleteSession({
+      sessionId: req.params.sessionId,
+      userId: callerId(req)
+    });
+    if (result.http) return res.status(result.http).json(result.body);
+    return res.status(200).json(result.body);
+  } catch (error) {
+    console.error('Error deleting concierge session:', error);
+    return res.status(500).json({ success: false, message: 'Could not delete this chat.' });
+  }
+};
+
+exports.saveOrderCard = async (req, res) => {
+  try {
+    const result = await sessionAccess.saveOrderCard({
+      sessionId: req.params.sessionId,
+      messageId: req.params.messageId,
+      userId: callerId(req),
+      orderCard: req.body.orderCard,
+      text: req.body.text
+    });
+    if (result.http) return res.status(result.http).json(result.body);
+    return res.status(200).json(result.body);
+  } catch (error) {
+    console.error('Error saving concierge order card:', error);
+    return res.status(500).json({ success: false, message: 'Could not save that order.' });
   }
 };

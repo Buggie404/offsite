@@ -888,6 +888,16 @@
       font-weight: 600;
     }
   }
+
+  &--status {
+    background-color: #F4F1EC;
+    border-color: rgba(84, 74, 64, 0.16);
+    color: #544A40;
+
+    .handoff-icon {
+      color: #2F4F30;
+    }
+  }
 }
 
 /* Typing Indicator */
@@ -918,6 +928,121 @@
 }
 
 /* Footer & Input */
+.session-gate {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #F4F1EC;
+  border-top: 1px solid rgba(84, 74, 64, 0.12);
+  color: #1A1A1A;
+
+  p {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+}
+
+.session-gate-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.session-gate-btn {
+  border: 1px solid rgba(84, 74, 64, 0.25);
+  background: #FFFFFF;
+  color: #1A1A1A;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &--primary {
+    background: #2F4F30;
+    border-color: #2F4F30;
+    color: #FFFFFF;
+  }
+}
+
+.history-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.history-open {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: 1px solid rgba(84, 74, 64, 0.12);
+  background: #FFFFFF;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  &:hover {
+    border-color: #2F4F30;
+  }
+}
+
+.history-preview {
+  font-size: 13px;
+  color: #1A1A1A;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-time {
+  font-size: 11px;
+  color: #8C827A;
+}
+
+.history-delete {
+  width: 36px;
+  border: 1px solid rgba(84, 74, 64, 0.12);
+  background: #FFFFFF;
+  border-radius: 10px;
+  color: #79344E;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.history-empty,
+.history-more {
+  margin: 8px 0;
+  color: #8C827A;
+  font-size: 13px;
+  text-align: center;
+}
+
+.history-more {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  color: #2F4F30;
+}
+
 .concierge-footer {
   padding: 12px 14px 10px;
   background-color: #FAF5F0;

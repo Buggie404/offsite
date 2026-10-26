@@ -32,6 +32,27 @@
         </div>
       </div>
       <div class="header-actions">
+        @if (chatService.canUseHistory()) {
+          <button
+            type="button"
+            class="header-btn"
+            (click)="toggleHistory()"
+            [attr.aria-pressed]="chatService.historyOpen()"
+            aria-label="Chat history"
+            title="History"
+          >
+            <svg lucideHistory [size]="16"></svg>
+          </button>
+        }
+        <button
+          type="button"
+          class="header-btn"
+          (click)="startNewChat()"
+          aria-label="New chat"
+          title="New chat"
+        >
+          <svg lucidePlus [size]="16"></svg>
+        </button>
         <button
           type="button"
           class="header-btn"
@@ -55,6 +76,36 @@
 
     <!-- Chat Messages Flow -->
     <div class="concierge-body" #messagesContainer>
+      @if (chatService.historyOpen()) {
+        <div class="history-panel">
+          @for (item of chatService.history(); track item.session_id) {
+            <div class="history-row">
+              <button type="button" class="history-open" (click)="openHistory(item)">
+                <span class="history-preview">{{ item.preview }}</span>
+                <span class="history-time">{{ item.last_activity_at | date:'MMM d, h:mm a' }}</span>
+              </button>
+              <button
+                type="button"
+                class="history-delete"
+                (click)="deleteHistory(item, $event)"
+                aria-label="Delete chat"
+              >
+                <svg lucideTrash2 [size]="14"></svg>
+              </button>
+            </div>
+          } @empty {
+            <p class="history-empty">No earlier chats yet.</p>
+          }
+          @if (chatService.historyCursor()) {
+            <button type="button" class="history-more" (click)="chatService.loadHistory(false)">
+              Load older
+            </button>
+          }
+        </div>
+      } @else {
+      @if (chatService.interaction() === 'loading' && chatService.messages().length === 0) {
+        <p class="history-empty">Loading chat…</p>
+      }
       @for (msg of chatService.messages(); track msg.id) {
         <!-- AI Message Block -->
         @if (msg.sender === 'ai') {
@@ -97,7 +148,7 @@
                   <button
                     type="button"
                     class="order-form-submit-btn"
-                    [disabled]="!(msg.orderForm?.code || '').trim() || !(msg.orderForm?.contact || '').trim() || chatService.isTyping()"
+                    [disabled]="!(msg.orderForm?.code || '').trim() || !(msg.orderForm?.contact || '').trim() || chatService.isTyping() || chatService.composerBlocked()"
                     (click)="submitOrderLookup(msg)"
                   >
                     <span>{{ chatService.isTyping() ? 'FINDING...' : 'FIND MY ORDER' }}</span>
@@ -126,7 +177,7 @@
                     <button
                       type="button"
                       class="quick-reply-pill"
-                      [disabled]="chatService.composerLocked()"
+                      [disabled]="chatService.composerBlocked()"
                       (click)="selectQuickReply(reply)"
                     >
                       {{ reply }}
@@ -262,7 +313,7 @@
                       <button
                         type="button"
                         class="send-message-btn"
-                        [disabled]="isSendingContact"
+                        [disabled]="isSendingContact || chatService.composerBlocked()"
                         (click)="submitContactForm(msg)"
                       >
                         {{ isSendingContact ? 'SENDING...' : 'SEND MESSAGE' }}
@@ -300,7 +351,7 @@
 
         <!-- System Escalation Banner -->
         @if (msg.sender === 'system') {
-          <div class="system-handoff-banner">
+          <div class="system-handoff-banner" [class.system-handoff-banner--status]="msg.noticeKind === 'status'">
             <div class="handoff-icon">
               <svg lucideHeadphones [size]="16"></svg>
             </div>
@@ -325,6 +376,7 @@
           </div>
         }
       }
+      }
 
       <!-- Agent typing status indicator -->
       @if (chatService.isTyping()) {
@@ -337,21 +389,39 @@
       }
     </div>
 
+    @if (!chatService.historyOpen() && chatService.interaction() === 'idle') {
+      <div class="session-gate">
+        <p>This chat has been idle. Continue here, or start a new chat?</p>
+        <div class="session-gate-actions">
+          <button type="button" class="session-gate-btn" (click)="continueChat()">Continue</button>
+          <button type="button" class="session-gate-btn session-gate-btn--primary" (click)="startNewChat()">New chat</button>
+        </div>
+      </div>
+    }
+    @if (!chatService.historyOpen() && chatService.interaction() === 'readonly') {
+      <div class="session-gate">
+        <p>This chat is view only.</p>
+        <div class="session-gate-actions">
+          <button type="button" class="session-gate-btn session-gate-btn--primary" (click)="startNewChat()">New chat</button>
+        </div>
+      </div>
+    }
+
     <!-- Footer Input Bar -->
-    <footer class="concierge-footer" [class.concierge-footer--disabled]="chatService.composerLocked()">
+    <footer class="concierge-footer" [class.concierge-footer--disabled]="chatService.composerBlocked() || chatService.historyOpen()">
       <div class="input-row">
         <input
           type="text"
           class="chat-input"
-          [placeholder]="chatService.composerLocked() ? 'Message limit reached for today' : 'Type a message...'"
+          [placeholder]="composerPlaceholder()"
           [(ngModel)]="inputText"
-          [disabled]="chatService.isTyping() || chatService.composerLocked()"
+          [disabled]="chatService.isTyping() || chatService.composerBlocked() || chatService.historyOpen()"
           (keydown)="onKeydown($event)"
         />
         <button
           type="button"
           class="send-btn"
-          [disabled]="!inputText.trim() || chatService.isTyping() || chatService.composerLocked()"
+          [disabled]="!inputText.trim() || chatService.isTyping() || chatService.composerBlocked() || chatService.historyOpen()"
           (click)="handleSend()"
           aria-label="Send message"
         >
@@ -362,6 +432,7 @@
         <button
           type="button"
           class="talk-to-human-link"
+          [disabled]="chatService.composerBlocked() || chatService.historyOpen()"
           (click)="talkToPerson()"
         >
           <svg lucideUser [size]="13"></svg>

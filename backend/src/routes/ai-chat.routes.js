@@ -15,6 +15,15 @@ router.get('/order-status', aiChatController.getOrderStatus);
 // Signed-in shopper: five most recent orders, no extra details
 router.get('/my-orders', authMiddleware, aiChatController.getMyOrders);
 
+// Session lifecycle. Claim and list stay ahead of /sessions/:id.
+router.post('/sessions/claim', optionalAuthMiddleware, aiChatController.claimSession);
+router.post('/sessions', optionalAuthMiddleware, aiChatController.openSession);
+router.get('/sessions', optionalAuthMiddleware, aiChatController.listSessions);
+router.get('/sessions/:sessionId', optionalAuthMiddleware, aiChatController.getSession);
+router.post('/sessions/:sessionId/resume', optionalAuthMiddleware, aiChatController.resumeSession);
+router.delete('/sessions/:sessionId', optionalAuthMiddleware, aiChatController.deleteSession);
+router.post('/sessions/:sessionId/messages/:messageId/order-card', optionalAuthMiddleware, aiChatController.saveOrderCard);
+
 // 3. Endpoint for Angular Frontend Chat Drawer
 router.post('/message', optionalAuthMiddleware, aiChatController.handleChatMessage);
 

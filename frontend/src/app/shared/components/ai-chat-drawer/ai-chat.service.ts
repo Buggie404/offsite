@@ -1,8 +1,9 @@
-import { Injectable, effect, inject, signal } from '@angular/core';
+import { Injectable, PLATFORM_ID, computed, effect, inject, signal } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../../core/auth.service';
-import { ChatMessage, ChatMessageOrder, ChatSupportAction } from './ai-chat.types';
+import { ChatDecision, ChatHistoryItem, ChatInteraction, ChatMessage, ChatMessageOrder, ChatSupportAction } from './ai-chat.types';
 
 @Injectable({
   providedIn: 'root'
@@ -10,6 +11,9 @@ import { ChatMessage, ChatMessageOrder, ChatSupportAction } from './ai-chat.type
 export class AiChatService {
   private http = inject(HttpClient);
   private auth = inject(AuthService);
+  private platformId = inject(PLATFORM_ID);
+  private readonly storageKey = 'offsite.aiChat.sessionId';
+  private readonly initStorageKey = 'offsite.aiChat.init';
 
   // Toggle states
   readonly isOpen = signal<boolean>(false);
@@ -18,16 +22,32 @@ export class AiChatService {
   // True after the shopper hits the daily message cap. The composer stays closed.
   readonly composerLocked = signal<boolean>(false);
   readonly conversationId = signal<string>('');
-  readonly sessionId = signal<string>(this.newSessionId());
+  readonly sessionId = signal<string>('');
+  readonly interaction = signal<ChatInteraction>('ready');
+  readonly historyOpen = signal(false);
+  readonly history = signal<ChatHistoryItem[]>([]);
+  readonly historyCursor = signal<string | null>(null);
+  readonly draftToken = signal(0);
+  readonly draftText = signal('');
   readonly orderCodeDraft = signal('');
   readonly orderContactDraft = signal('');
+  readonly canUseHistory = computed(() => this.auth.isAuthenticated());
+  readonly composerBlocked = computed(() => this.composerLocked() || this.interaction() !== 'ready');
   // Drops replies from the previous identity after login or logout.
   private requestEpoch = 0;
+  private viewToken = 0;
   private seenAuth: boolean | null = null;
+  private openedFromHistory = false;
+  private openingSession = false;
+  private initInFlight = false;
+  private initCache: { statement: string; questions: string[] } | null = null;
+  private currentDecision = signal<ChatDecision>('continue');
 
-  readonly messages = signal<ChatMessage[]>([this.welcomeMessage()]);
+  readonly messages = signal<ChatMessage[]>([]);
 
   constructor() {
+    this.initCache = this.readInitCache();
+    this.sessionId.set(this.readStoredSessionId());
     effect(() => {
       const authed = this.auth.isAuthenticated();
       if (this.seenAuth === null) {
@@ -35,37 +55,371 @@ export class AiChatService {
         return;
       }
       if (this.seenAuth === authed) return;
+      const loggingIn = authed && this.seenAuth === false;
       this.seenAuth = authed;
+      if (loggingIn) {
+        const previousId = this.sessionId();
+        this.storage()?.removeItem(this.storageKey);
+        this.claimThenReset(previousId);
+        return;
+      }
       this.resetSession();
     });
-    this.fetchInitParams();
   }
 
   /** Fresh concierge thread. Login and logout both start over so order context matches the account. */
   resetSession(): void {
     this.requestEpoch += 1;
-    this.sessionId.set(this.newSessionId());
+    this.viewToken += 1;
+    this.storage()?.removeItem(this.storageKey);
+    const id = this.newSessionId();
+    this.storage()?.setItem(this.storageKey, id);
+    this.sessionId.set(id);
     this.conversationId.set('');
     this.orderCodeDraft.set('');
     this.orderContactDraft.set('');
     this.isTyping.set(false);
     this.composerLocked.set(false);
+    this.interaction.set('ready');
+    this.currentDecision.set('continue');
+    this.historyOpen.set(false);
+    this.openedFromHistory = false;
+    this.showWelcome();
+    this.setDraft('');
+  }
+
+  private newSessionId(): string {
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
+      const rand = Math.random() * 16 | 0;
+      const value = char === 'x' ? rand : ((rand & 0x3) | 0x8);
+      return value.toString(16);
+    });
+  }
+
+  private storage(): Storage | null {
+    return isPlatformBrowser(this.platformId) ? localStorage : null;
+  }
+
+  private readStoredSessionId(): string {
+    const existing = this.storage()?.getItem(this.storageKey)?.trim();
+    if (existing) return existing;
+    const id = this.newSessionId();
+    this.storage()?.setItem(this.storageKey, id);
+    return id;
+  }
+
+  private setDraft(text: string): void {
+    this.draftText.set(text);
+    this.draftToken.update(value => value + 1);
+  }
+
+  private claimThenReset(sessionId: string): void {
+    const epoch = this.requestEpoch;
+    this.interaction.set('loading');
+    this.http.post(`${environment.apiUrl}/ai-chat/sessions/claim`, { session_id: sessionId }).subscribe({
+      next: () => {
+        if (epoch !== this.requestEpoch) return;
+        this.resetSession();
+      },
+      error: () => {
+        if (epoch !== this.requestEpoch) return;
+        this.resetSession();
+      }
+    });
+  }
+
+  private showWelcome(): void {
     this.messages.set([this.welcomeMessage()]);
     this.fetchInitParams();
   }
 
-  private newSessionId(): string {
-    return 'SS_' + Math.random().toString(36).substring(2, 9);
+  startNewChat(): void {
+    if (this.openingSession) return;
+    this.historyOpen.set(false);
+    this.openedFromHistory = false;
+    this.showWelcome();
+    this.openNewSession('new_chat', false, null);
+  }
+
+  continueChat(): void {
+    const id = this.sessionId();
+    const epoch = this.requestEpoch;
+    const view = this.viewToken;
+    this.http.post<any>(`${environment.apiUrl}/ai-chat/sessions/${id}/resume`, {}).subscribe({
+      next: (res) => {
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
+        if (res?.decision === 'rotate') {
+          this.currentDecision.set('rotate');
+          if (this.openedFromHistory) this.interaction.set('readonly');
+          else this.rotateLive(null);
+          return;
+        }
+        this.currentDecision.set('continue');
+        this.interaction.set('ready');
+      },
+      error: () => {
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
+        this.pushAssistantText('Could not continue this chat. Please try again.');
+      }
+    });
+  }
+
+  toggleHistory(): void {
+    if (!this.canUseHistory()) return;
+    const next = !this.historyOpen();
+    this.historyOpen.set(next);
+    if (next) this.loadHistory(true);
+  }
+
+  loadHistory(reset: boolean): void {
+    if (!this.auth.isAuthenticated()) return;
+    const params = new URLSearchParams({ limit: '20' });
+    const cursor = this.historyCursor();
+    if (!reset && cursor) params.set('cursor', cursor);
+    this.http.get<any>(`${environment.apiUrl}/ai-chat/sessions?${params}`).subscribe({
+      next: (res) => {
+        const rows = Array.isArray(res?.sessions) ? res.sessions : [];
+        this.history.update(current => reset ? rows : [...current, ...rows]);
+        this.historyCursor.set(res?.next_cursor || null);
+      },
+      error: () => {
+        if (reset) this.history.set([]);
+        this.historyCursor.set(null);
+      }
+    });
+  }
+
+  openHistory(sessionId: string): void {
+    this.openedFromHistory = true;
+    this.historyOpen.set(false);
+    this.storage()?.setItem(this.storageKey, sessionId);
+    this.sessionId.set(sessionId);
+    this.conversationId.set('');
+    this.viewToken += 1;
+    this.setDraft('');
+    this.loadSession(sessionId, 'history');
+  }
+
+  deleteHistory(sessionId: string): void {
+    this.http.delete(`${environment.apiUrl}/ai-chat/sessions/${sessionId}`).subscribe({
+      next: () => {
+        this.history.update(rows => rows.filter(row => row.session_id !== sessionId));
+        if (this.sessionId() === sessionId) {
+          this.openedFromHistory = false;
+          this.currentDecision.set('continue');
+          this.openNewSession('new_chat', false, null);
+        }
+      }
+    });
+  }
+
+  /** Leave-a-message and other writes can also be asked to idle or rotate. */
+  applyServerDecision(decision: string | undefined, draft = ''): boolean {
+    if (decision === 'idle') {
+      this.currentDecision.set('idle');
+      this.interaction.set('idle');
+      return true;
+    }
+    if (decision === 'rotate') {
+      this.currentDecision.set('rotate');
+      this.rotateLive(draft);
+      return true;
+    }
+    return false;
+  }
+
+  private loadSession(id: string, source: 'current' | 'history'): void {
+    const token = ++this.viewToken;
+    const epoch = this.requestEpoch;
+    this.interaction.set('loading');
+    this.http.get<any>(`${environment.apiUrl}/ai-chat/sessions/${id}`).subscribe({
+      next: (res) => {
+        if (token !== this.viewToken || epoch !== this.requestEpoch || id !== this.sessionId()) return;
+        this.applyLoaded(res, source);
+      },
+      error: (err) => {
+        if (token !== this.viewToken || epoch !== this.requestEpoch || id !== this.sessionId()) return;
+        if (err?.status === 404 && source === 'current') {
+          this.currentDecision.set('continue');
+          this.interaction.set('ready');
+          this.showWelcome();
+          return;
+        }
+        if (err?.status === 404) {
+          this.messages.set([]);
+          this.currentDecision.set('closed');
+          this.interaction.set('readonly');
+          return;
+        }
+        if (!this.messages().length) this.showWelcome();
+        this.interaction.set('ready');
+      }
+    });
+  }
+
+  private applyLoaded(res: any, source: 'current' | 'history'): void {
+    const decision: ChatDecision = res?.decision || 'continue';
+    this.currentDecision.set(decision);
+    if (decision === 'rotate' && source === 'current') {
+      this.rotateLive(null);
+      return;
+    }
+
+    const msgs = this.fromServerMessages(res?.messages || []);
+    if (!msgs.length && decision === 'continue') {
+      this.interaction.set('ready');
+      this.showWelcome();
+      return;
+    }
+    this.messages.set(msgs);
+    if (decision === 'idle') {
+      this.interaction.set('idle');
+      return;
+    }
+    if (decision === 'rotate' || decision === 'closed') {
+      this.interaction.set('readonly');
+      return;
+    }
+    this.interaction.set('ready');
+  }
+
+  private rotateLive(draft: string | null): void {
+    this.openNewSession('rotate', true, draft);
+  }
+
+  private openNewSession(
+    reason: 'new_chat' | 'idle' | 'rotate',
+    notice: boolean,
+    draft: string | null
+  ): void {
+    const epoch = this.requestEpoch;
+    const previous = this.sessionId();
+    this.viewToken += 1;
+    const view = this.viewToken;
+    this.openingSession = true;
+    this.interaction.set('loading');
+    this.historyOpen.set(false);
+    this.http.post<any>(`${environment.apiUrl}/ai-chat/sessions`, {
+      session_id: previous,
+      close_reason: reason,
+      opening_notice: notice
+    }).subscribe({
+      next: (res) => {
+        this.openingSession = false;
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
+        this.adoptSession(res?.session_id || this.newSessionId(), res?.messages || [], draft);
+      },
+      error: () => {
+        this.openingSession = false;
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
+        this.interaction.set(reason === 'idle' ? 'idle' : reason === 'rotate' ? 'readonly' : 'ready');
+        this.pushAssistantText('Could not start a new chat. Please try again.');
+      }
+    });
+  }
+
+  private adoptSession(id: string, serverMessages: any[], draft: string | null): void {
+    this.storage()?.setItem(this.storageKey, id);
+    this.sessionId.set(id);
+    this.conversationId.set('');
+    this.openedFromHistory = false;
+    this.currentDecision.set('continue');
+    this.interaction.set('ready');
+    this.composerLocked.set(false);
+    this.isTyping.set(false);
+    this.orderCodeDraft.set('');
+    this.orderContactDraft.set('');
+    const msgs = this.fromServerMessages(serverMessages);
+    if (msgs.length) this.messages.set(msgs);
+    else this.showWelcome();
+    if (draft !== null) this.setDraft(draft);
+  }
+
+  private fromServerMessages(rows: any[]): ChatMessage[] {
+    let lastUser = '';
+    const mapped = (rows || []).map(row => {
+      const sender = row?.sender || 'ai';
+      const text = row?.text || '';
+      if (sender === 'user') lastUser = text;
+      const meta = row?.metadata || {};
+      const products = Array.isArray(meta.products) ? meta.products : [];
+      const orders = Array.isArray(meta.orders) ? meta.orders.map((order: any) => this.asOrderCard(order)) : [];
+      const orderCard = meta.orderCard ? this.asOrderCard(meta.orderCard) : undefined;
+      const showOrderForm = !!meta.showOrderForm && !orderCard;
+      const showContact = !!meta.showContactForm;
+      const scope = sender === 'ai' ? this.orderSupportScope(lastUser) : null;
+      const details = scope ? this.extractOrderDetails(lastUser) : { code: '', contact: '' };
+      const message: ChatMessage = {
+        id: row?.message_id || ('m-' + Math.random().toString(36).slice(2)),
+        sender,
+        text,
+        formattedHtml: sender === 'ai' && text ? this.formatMarkdown(text) : undefined,
+        timestamp: row?.created_at ? new Date(row.created_at) : new Date(),
+        noticeKind: meta.kind === 'status' ? 'status' : undefined,
+        products: products.length ? products : undefined,
+        productCard: products[0],
+        orderCard,
+        orderCards: orders.length ? orders : undefined,
+        showOrderForm,
+        orderForm: showOrderForm ? { code: '', contact: '' } : undefined,
+        showContactForm: showContact,
+        contactCard: showContact ? {
+          hotline: '1900 0000',
+          faqUrl: '/contact-us#faq'
+        } : undefined,
+        supportActions: scope ? this.supportActionsFor(scope, lastUser, details.code) : undefined
+      };
+      return message;
+    });
+
+    const leaveAt = mapped.findIndex(msg => msg.sender === 'user' && /^Leave a message \(/i.test(msg.text || ''));
+    if (leaveAt > 0) {
+      for (let index = 0; index < leaveAt; index += 1) {
+        if (mapped[index].showContactForm) mapped[index] = { ...mapped[index], contactSubmitted: true };
+      }
+    }
+    return mapped;
+  }
+
+  private asOrderCard(order: any): ChatMessageOrder {
+    if (!order || typeof order !== 'object') {
+      return { code: '', status: 'processing' };
+    }
+    if (order.order_id || order.order_status) {
+      return this.toOrderCard(order, order.contact || '', order.order_id || '');
+    }
+    return {
+      code: order.code || (order.orderId ? `#${order.orderId}` : ''),
+      orderId: order.orderId,
+      contact: order.contact,
+      status: order.status || 'processing',
+      progressPercent: order.progressPercent,
+      expectedDate: order.expectedDate,
+      city: order.city,
+      items: order.items,
+      total: order.total,
+      currency: order.currency || 'USD'
+    };
+  }
+
+  private rollbackMessage(id: string): void {
+    this.messages.update(msgs => msgs.filter(msg => msg.id !== id));
   }
 
   private welcomeMessage(): ChatMessage {
+    const statement = this.initCache?.statement?.trim() || '';
+    const questions = (this.initCache?.questions || []).filter(question => question.trim());
+    const text = statement || "Hi, I'm the Offsite Assistant. Welcome to Offsite - your café, at home.\nI can help you discover matcha and coffee, find brewing tools, learn brewing recipes, track your orders, and answer questions about our policies.\nWhat can I help you with today?";
     return {
       id: 'm1',
       sender: 'ai',
-      text: "Hi, I'm the Offsite Assistant. Welcome to Offsite - your café, at home.\nI can help you discover matcha and coffee, find brewing tools, learn brewing recipes, track your orders, and answer questions about our policies.\nWhat can I help you with today?",
-      formattedHtml: "Hi, I'm the Offsite Assistant. Welcome to Offsite - your café, at home.<br>I can help you discover matcha and coffee, find brewing tools, learn brewing recipes, track your orders, and answer questions about our policies.<br>What can I help you with today?",
+      text,
+      formattedHtml: statement
+        ? this.formatMarkdown(statement)
+        : "Hi, I'm the Offsite Assistant. Welcome to Offsite - your café, at home.<br>I can help you discover matcha and coffee, find brewing tools, learn brewing recipes, track your orders, and answer questions about our policies.<br>What can I help you with today?",
       timestamp: new Date(),
-      quickReplies: [
+      quickReplies: questions.length ? questions : [
         'Recommend a matcha for me',
         'Help me choose brewing tools',
         'Track my order',
@@ -75,31 +429,66 @@ export class AiChatService {
   }
 
   fetchInitParams(): void {
-    const epoch = this.requestEpoch;
+    if (this.initCache || this.initInFlight || !isPlatformBrowser(this.platformId)) return;
+    this.initInFlight = true;
     this.http.get<any>(`${environment.apiUrl}/ai-chat/init`).subscribe({
       next: (res) => {
-        if (epoch !== this.requestEpoch) return;
-        if (res.opening_statement || res.suggested_questions) {
-          const formatted = this.formatMarkdown(res.opening_statement || '');
-          this.messages.update(msgs => {
-            if (msgs.length === 1 && msgs[0].id === 'm1') {
-              return [{
-                ...msgs[0],
-                text: res.opening_statement,
-                formattedHtml: formatted,
-                quickReplies: res.suggested_questions?.length ? res.suggested_questions : msgs[0].quickReplies
-              }];
-            }
-            return msgs;
-          });
-        }
+        this.initInFlight = false;
+        const statement = typeof res?.opening_statement === 'string' ? res.opening_statement.trim() : '';
+        const questions = Array.isArray(res?.suggested_questions)
+          ? res.suggested_questions.map((question: unknown) => String(question || '').trim()).filter(Boolean)
+          : [];
+        if (!statement && !questions.length) return;
+        this.rememberInit(statement, questions);
+        this.applyInitToWelcome();
       },
-      error: () => {}
+      error: () => {
+        this.initInFlight = false;
+      }
+    });
+  }
+
+  private readInitCache(): { statement: string; questions: string[] } | null {
+    try {
+      const raw = this.storage()?.getItem(this.initStorageKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      const statement = typeof parsed?.statement === 'string' ? parsed.statement.trim() : '';
+      const questions = Array.isArray(parsed?.questions)
+        ? parsed.questions.map((question: unknown) => String(question || '').trim()).filter(Boolean)
+        : [];
+      if (!statement && !questions.length) return null;
+      return { statement, questions };
+    } catch {
+      return null;
+    }
+  }
+
+  private rememberInit(statement: string, questions: string[]): void {
+    this.initCache = {
+      statement: statement || this.initCache?.statement || '',
+      questions: questions.length ? questions : (this.initCache?.questions || [])
+    };
+    try {
+      this.storage()?.setItem(this.initStorageKey, JSON.stringify(this.initCache));
+    } catch {
+      // Ignore quota errors. The in-memory copy still makes the next New chat instant.
+    }
+  }
+
+  private applyInitToWelcome(): void {
+    const welcome = this.welcomeMessage();
+    this.messages.update(msgs => {
+      if (msgs.length === 1 && msgs[0].id === 'm1') return [welcome];
+      return msgs;
     });
   }
 
   open(): void {
     this.isOpen.set(true);
+    this.fetchInitParams();
+    if (this.isTyping()) return;
+    this.loadSession(this.sessionId(), this.openedFromHistory ? 'history' : 'current');
   }
 
   close(): void {
@@ -107,7 +496,11 @@ export class AiChatService {
   }
 
   toggle(): void {
-    this.isOpen.update(v => !v);
+    if (this.isOpen()) {
+      this.close();
+      return;
+    }
+    this.open();
   }
 
   dismissBanner(): void {
@@ -115,7 +508,7 @@ export class AiChatService {
   }
 
   sendMessage(text: string): boolean {
-    if (this.composerLocked()) return false;
+    if (this.composerBlocked()) return false;
     const trimmed = text.trim();
     if (!trimmed) return false;
 
@@ -126,8 +519,8 @@ export class AiChatService {
 
     const handoverReason = this.handoverReason(trimmed);
     if (handoverReason) {
-      this.pushUserMessage(trimmed);
-      this.requestHandover(handoverReason, trimmed);
+      const userMsg = this.pushUserMessage(trimmed);
+      this.requestHandover(handoverReason, trimmed, { userMessageId: userMsg.id });
       return true;
     }
 
@@ -145,6 +538,7 @@ export class AiChatService {
     this.isTyping.set(true);
 
     const epoch = this.requestEpoch;
+    const view = this.viewToken;
     const payload = {
       message: trimmed,
       session_id: this.sessionId(),
@@ -153,10 +547,28 @@ export class AiChatService {
 
     this.http.post<any>(`${environment.apiUrl}/ai-chat/message`, payload).subscribe({
       next: (res) => {
-        if (epoch !== this.requestEpoch) return;
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
         this.isTyping.set(false);
+        if (res?.decision === 'idle') {
+          this.rollbackMessage(userMsg.id);
+          this.currentDecision.set('idle');
+          this.interaction.set('idle');
+          this.setDraft(trimmed);
+          return;
+        }
+        if (res?.decision === 'rotate') {
+          this.rollbackMessage(userMsg.id);
+          this.currentDecision.set('rotate');
+          this.rotateLive(trimmed);
+          return;
+        }
         if (res.conversation_id) {
           this.conversationId.set(res.conversation_id);
+        }
+        if (res.user_message_id) {
+          this.messages.update(msgs => msgs.map(msg => (
+            msg.id === userMsg.id ? { ...msg, id: res.user_message_id } : msg
+          )));
         }
 
         const scope = res.handover ? null : this.orderSupportScope(trimmed);
@@ -176,7 +588,7 @@ export class AiChatService {
           this.pushAssistantText('Our assistant is unavailable right now. Please try again in a moment.');
         } else if (hasBody) {
           const aiReply: ChatMessage = {
-            id: 'ai-' + Date.now(),
+            id: res.assistant_message_id || ('ai-' + Date.now()),
             sender: 'ai',
             text: rawText,
             formattedHtml: formatted,
@@ -200,15 +612,22 @@ export class AiChatService {
             hotline: res.hotline,
             faq_url: res.faq_url
           });
-        } else if (res.handover) {
+        } else         if (res.handover) {
           this.pushHandoffBanner();
         }
       },
       error: (err) => {
-        if (epoch !== this.requestEpoch) return;
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
         this.isTyping.set(false);
         const body = err?.error && typeof err.error === 'object' ? err.error : {};
         const status = body.status || '';
+
+        if (err?.status === 409 || status === 'closed') {
+          this.rollbackMessage(userMsg.id);
+          this.currentDecision.set('closed');
+          this.interaction.set('readonly');
+          return;
+        }
 
         // Dify quota / 429 / llm_error / out of tokens: tell the shopper to retry.
         // The contact form only comes back after more than two of these failures.
@@ -246,8 +665,13 @@ export class AiChatService {
     return true;
   }
 
-  requestHandover(reason = 'user_request', message = ''): void {
+  requestHandover(
+    reason = 'user_request',
+    message = '',
+    hooks?: { userMessageId?: string }
+  ): void {
     const epoch = this.requestEpoch;
+    const view = this.viewToken;
     this.http.post<any>(`${environment.apiUrl}/ai-chat/handover`, {
       reason,
       message,
@@ -255,7 +679,19 @@ export class AiChatService {
       conversation_id: this.conversationId()
     }).subscribe({
       next: (res) => {
-        if (epoch !== this.requestEpoch) return;
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
+        if (res?.decision === 'idle') {
+          if (hooks?.userMessageId) this.rollbackMessage(hooks.userMessageId);
+          this.currentDecision.set('idle');
+          this.interaction.set('idle');
+          return;
+        }
+        if (res?.decision === 'rotate') {
+          if (hooks?.userMessageId) this.rollbackMessage(hooks.userMessageId);
+          this.currentDecision.set('rotate');
+          this.rotateLive(null);
+          return;
+        }
         if (res?.show_contact_form) {
           this.pushUnavailableForm(res);
           return;
@@ -263,8 +699,14 @@ export class AiChatService {
         this.pushHandoffBanner();
       },
       error: (err) => {
-        if (epoch !== this.requestEpoch) return;
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
         const body = err?.error && typeof err.error === 'object' ? err.error : {};
+        if (err?.status === 409 || body.status === 'closed') {
+          if (hooks?.userMessageId) this.rollbackMessage(hooks.userMessageId);
+          this.currentDecision.set('closed');
+          this.interaction.set('readonly');
+          return;
+        }
         this.pushAssistantText(body.message || 'Could not connect you to the team. Please try again.');
       }
     });
@@ -288,13 +730,15 @@ export class AiChatService {
     )));
   }
 
-  private pushUserMessage(text: string): void {
-    this.messages.update(msgs => [...msgs, {
+  private pushUserMessage(text: string): ChatMessage {
+    const message: ChatMessage = {
       id: 'user-' + Date.now(),
       sender: 'user',
       text,
       timestamp: new Date()
-    }]);
+    };
+    this.messages.update(msgs => [...msgs, message]);
+    return message;
   }
 
   /**
@@ -353,6 +797,10 @@ export class AiChatService {
           }
         : msg
     )));
+    this.http.post(
+      `${environment.apiUrl}/ai-chat/sessions/${this.sessionId()}/messages/${messageId}/order-card`,
+      { orderCard: card, text }
+    ).subscribe({ error: () => {} });
   }
 
   private orderLookupError(err: any): string {
