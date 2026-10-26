@@ -43,16 +43,11 @@ async function toAppUserId(id) {
   return user?.user_id || null;
 }
 
+// Users are stored in the MongoDB `Users` collection; Mongoose and the native
+// driver must not both $inc the same document or balances double-count.
 async function adjustBalance(userId, delta) {
   if (!delta) return;
   await User.updateOne({ user_id: userId }, { $inc: { points: delta } });
-  try {
-    const { getCollections } = require('../config/db');
-    const { userCollection } = await getCollections();
-    await userCollection.updateOne({ user_id: userId }, { $inc: { points: delta } });
-  } catch (_) {
-    // Native user collection may be unavailable in some test contexts.
-  }
 }
 
 // ─── Purchase ───────────────────────────────────────────────────
@@ -245,5 +240,6 @@ module.exports = {
   awardReviewPoints,
   reverseReviewPoints,
   postDuePoints,
-  startPointsPostingJob
+  startPointsPostingJob,
+  adjustBalance
 };

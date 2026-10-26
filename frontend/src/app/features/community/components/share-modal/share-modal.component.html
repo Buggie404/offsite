@@ -56,17 +56,29 @@
       </div>
     </div>
 
-    <!-- Story link -->
-    <div class="share-section">
-      <p class="share-label share-label--left">{{ linkLabel }}</p>
-
-      <div class="link-row">
-        <input class="link-input" type="text" readonly [value]="shareUrl" (click)="copyToClipboard()" />
-        <button class="btn-copy" type="button" (click)="copyToClipboard()">
-          {{ copied ? 'COPIED' : 'COPY' }}
-        </button>
+    @if (referralCode) {
+      <div class="share-section">
+        <p class="share-label share-label--left">Referral code</p>
+        <div class="link-row">
+          <input class="link-input" type="text" readonly [value]="referralCode" (click)="copyReferralCode()" />
+          <button class="btn-copy" type="button" (click)="copyReferralCode()">
+            {{ copiedReferralCode ? 'COPIED' : 'COPY' }}
+          </button>
+        </div>
       </div>
-    </div>
+    }
+
+    @if (showReferralLink) {
+      <div class="share-section">
+        <p class="share-label share-label--left">{{ linkLabel }}</p>
+        <div class="link-row">
+          <input class="link-input" type="text" readonly [value]="shareUrl" (click)="copyToClipboard()" />
+          <button class="btn-copy" type="button" (click)="copyToClipboard()">
+            {{ copied ? 'COPIED' : 'COPY' }}
+          </button>
+        </div>
+      </div>
+    }
 
     <p class="share-tagline">"{{ tagline }}"</p>
 

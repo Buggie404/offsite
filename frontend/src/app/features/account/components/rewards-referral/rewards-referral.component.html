@@ -2,26 +2,31 @@
   @if (loading()) {
     <p class="rewards-loading">Loading rewards…</p>
   } @else {
-    @let theme = tierTheme(activeTier);
+    <header class="rewards-page-header">
+      <h1 class="rewards-page-header__title">Rewards</h1>
+      <p class="rewards-page-header__subtitle">Points from orders, community and referrals</p>
+    </header>
 
     <section
       class="tier-card"
-      [style.background]="theme.cardBackground"
-      [style.color]="activeTier === 'Zen' ? '#f5f7f2' : '#1a1a1a'"
+      [ngClass]="'tier-card--' + activeTier.toLowerCase()"
       aria-label="Membership tier overview"
     >
       <div class="tier-card__content">
-        <div class="tier-card__header">
-          <div class="tier-card__label-row">
-            <span class="tier-card__eyebrow">YOUR TIER</span>
-            <span class="tier-badge">
-              <svg lucideGift [size]="12" aria-hidden="true"></svg>
-              {{ activeTier }}
-            </span>
-            <button type="button" class="tier-info-btn" (click)="openTierInfo()" aria-label="View tier benefits">
-              <svg lucideInfo [size]="14" aria-hidden="true"></svg>
-            </button>
-          </div>
+        <div class="tier-card__label-row">
+          <span class="tier-card__eyebrow">Your tier</span>
+          <span class="tier-badge">
+            <svg lucideAward [size]="12" aria-hidden="true"></svg>
+            <span>{{ tierBadgeLabel(activeTier) }}</span>
+          </span>
+          <button
+            type="button"
+            class="tier-info-btn"
+            (click)="openTierInfo()"
+            aria-label="View tier benefits"
+          >
+            <svg lucideInfo [size]="14" aria-hidden="true"></svg>
+          </button>
         </div>
 
         <div class="points-summary">
@@ -34,39 +39,61 @@
             <span>Lifetime points · decides your tier</span>
           </div>
           <div class="summary-item">
-            <strong>{{ pointsPerDollar | number : '1.0-1' }}×</strong>
+            <strong>{{ formatMultiplier(pointsPerDollar) }}</strong>
             <span>Points per $1</span>
           </div>
         </div>
 
         <div class="tier-progress">
           <div class="tier-progress__labels">
-            <span>{{ activeTier }}</span>
-            <span>{{ progressLabel }}</span>
+            <span class="tier-progress__current">{{ tierBadgeLabel(activeTier) }}</span>
+            <span class="tier-progress__next">{{ progressLabel }}</span>
           </div>
-          <div class="tier-progress__track" [style.background]="theme.progressTrack">
-            <div
-              class="tier-progress__fill"
-              [style.width.%]="progressPercent"
-              [style.background]="theme.progressFill"
-            ></div>
+          <div class="tier-progress__track">
+            <div class="tier-progress__fill" [style.width.%]="progressPercent"></div>
           </div>
         </div>
       </div>
 
-      <div class="tier-card__decoration" [style.box-shadow]="'0 0 0 24px ' + theme.ring + ', 0 0 0 48px rgba(255,255,255,0.06)'" aria-hidden="true"></div>
+      <div class="tier-card__decoration" aria-hidden="true">
+        @switch (activeTier) {
+          @case ('Leaf') {
+            <svg class="tier-card__ellipse-svg" viewBox="0 0 260 260" fill="none">
+              <circle cx="130" cy="130" r="112" stroke="#faf0eb" stroke-opacity="0.4" stroke-width="24" />
+            </svg>
+          }
+          @case ('Bloom') {
+            <svg class="tier-card__ellipse-svg" viewBox="0 0 260 260" fill="none">
+              <circle cx="130" cy="130" r="112" stroke="#7a2848" stroke-opacity="0.5" stroke-width="24" />
+            </svg>
+          }
+          @case ('Zen') {
+            <svg class="tier-card__ellipse-svg" viewBox="0 0 260 260" fill="none">
+              <circle cx="130" cy="130" r="112" stroke="#1a1a1a" stroke-opacity="0.25" stroke-width="22" />
+              <circle cx="130" cy="130" r="88" stroke="#1a1a1a" stroke-opacity="0.18" stroke-width="18" />
+              <circle cx="130" cy="130" r="66" stroke="#ffffff" stroke-opacity="0.14" stroke-width="14" />
+            </svg>
+          }
+          @default {
+            <!-- Figma 86:338 — single thick band (no outer green hairline) -->
+            <svg class="tier-card__ellipse-svg" viewBox="0 0 260 260" fill="none">
+              <circle cx="130" cy="130" r="112" stroke="#544a40" stroke-opacity="0.5" stroke-width="24" />
+            </svg>
+          }
+        }
+      </div>
     </section>
 
     <section class="dashboard-card history-card" aria-labelledby="points-history-title">
-      <h2 id="points-history-title" class="card-eyebrow">POINTS HISTORY</h2>
+      <h2 id="points-history-title" class="section-label">Points history</h2>
       <div class="table-scroll">
-        <table>
+        <table class="rewards-table">
           <thead>
             <tr>
-              <th scope="col">DATE</th>
-              <th scope="col">ACTIVITY</th>
-              <th scope="col">POINTS</th>
-              <th scope="col">STATUS</th>
+              <th scope="col">Date</th>
+              <th scope="col">Activity</th>
+              <th scope="col">Points</th>
+              <th scope="col">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -77,10 +104,12 @@
             } @else {
               @for (row of dashboard()?.pointsHistory || []; track row.id) {
                 <tr>
-                  <td>{{ formatDate(row.date) }}</td>
+                  <td>{{ formatHistoryDate(row.date) }}</td>
                   <td>{{ row.activity }}</td>
                   <td [class.points-negative]="row.points < 0">{{ formatPoints(row.points) }}</td>
-                  <td>{{ row.status }}</td>
+                  <td>
+                    <span class="status-chip" [ngClass]="statusChipClass(row.status)">{{ row.status }}</span>
+                  </td>
                 </tr>
               }
             }
@@ -90,12 +119,24 @@
     </section>
 
     <section class="dashboard-card redeem-card" aria-labelledby="redeem-title">
-      <div class="card-heading">
-        <div>
-          <h2 id="redeem-title" class="card-eyebrow">REDEEM POINTS</h2>
-          <p class="card-note">Redeeming does not lower your tier</p>
-        </div>
+      <div class="redeem-card__heading">
+        <h2 id="redeem-title" class="section-label">Redeem points</h2>
+        <p class="redeem-card__note">Redeeming does not lower your tier</p>
       </div>
+
+      @if ((dashboard()?.availableVouchers?.length || 0) > 0) {
+        <div class="voucher-list">
+          @for (voucher of dashboard()?.availableVouchers || []; track voucher.code) {
+            <article class="voucher-chip">
+              <div>
+                <strong>{{ voucher.title }}</strong>
+                <p>{{ voucher.subtitle }}</p>
+              </div>
+              <code>{{ voucher.code }}</code>
+            </article>
+          }
+        </div>
+      }
 
       <div class="reward-options">
         @for (reward of dashboard()?.redeemRewards || []; track reward.id) {
@@ -106,10 +147,14 @@
               <span>{{ reward.pointsCost | number }} pts</span>
               <button
                 type="button"
+                class="reward-redeem-btn"
                 [disabled]="!reward.canRedeem || redeemingId() === reward.id"
                 (click)="redeem(reward.id)"
               >
-                {{ redeemingId() === reward.id ? 'Redeeming…' : 'Redeem' }}
+                @if (redeemingId() !== reward.id) {
+                  <svg lucidePlus [size]="14" aria-hidden="true"></svg>
+                }
+                <span>{{ redeemingId() === reward.id ? 'Redeeming…' : 'Redeem' }}</span>
               </button>
             </div>
           </article>
@@ -118,19 +163,17 @@
     </section>
 
     <section class="dashboard-card referral-section" aria-labelledby="referral-title">
-      <h2 id="referral-title" class="card-eyebrow">INVITE FRIENDS</h2>
+      <h2 id="referral-title" class="section-label">Invite friends</h2>
       <p class="referral-desc">
         You both get <strong>100 points</strong> when they sign up, and <strong>100 more</strong> after their first confirmed order.
       </p>
 
-      @if (dashboard()?.welcomeVoucherCode) {
-        <p class="welcome-voucher-note">
-          Your welcome voucher: <strong>{{ dashboard()?.welcomeVoucherCode }}</strong> ($5 off your next order)
-        </p>
-      }
-
       <div class="referral-share-row">
-        <div class="referral-code-box" [class.referral-code-box--empty]="!activeReferralCode">
+        <div
+          class="referral-code-box"
+          [class.referral-code-box--empty]="!activeReferralCode"
+          [title]="activeReferralCode || ''"
+        >
           {{ activeReferralCode || 'Unavailable' }}
         </div>
         <button
@@ -139,19 +182,18 @@
           [disabled]="!activeReferralCode"
           (click)="openShareModal()"
         >
-          <svg lucideShare2 [size]="12" aria-hidden="true"></svg>
+          <svg lucideShare2 [size]="14" aria-hidden="true"></svg>
           <span>Share</span>
         </button>
       </div>
 
-      <h3 class="referral-history-title">REFERRAL ACTIVITY</h3>
-      <div class="table-scroll">
-        <table>
+      <div class="table-scroll referral-table-wrap">
+        <table class="rewards-table">
           <thead>
             <tr>
-              <th scope="col">FRIEND</th>
-              <th scope="col">STATUS</th>
-              <th scope="col">POINTS</th>
+              <th scope="col">Friend</th>
+              <th scope="col">Status</th>
+              <th scope="col">Points</th>
             </tr>
           </thead>
           <tbody>
@@ -163,7 +205,9 @@
               @for (row of dashboard()?.referralActivity || []; track row.id) {
                 <tr>
                   <td>{{ row.friend }}</td>
-                  <td>{{ row.status }}</td>
+                  <td>
+                    <span class="status-chip" [ngClass]="referralStatusChipClass(row.status)">{{ row.status }}</span>
+                  </td>
                   <td>{{ formatPoints(row.points) }}</td>
                 </tr>
               }
@@ -177,6 +221,8 @@
   @if (showShareModal()) {
     <app-share-modal
       [shareUrl]="referralLink"
+      [referralCode]="activeReferralCode"
+      [showReferralLink]="false"
       [title]="'Invite friends'"
       [linkLabel]="'Referral link'"
       [tagline]="referralShareTagline"
@@ -190,8 +236,7 @@
     <div class="tier-modal" role="dialog" aria-modal="true" aria-labelledby="tier-modal-title">
       <div class="tier-modal__header">
         <div>
-          <p class="tier-modal__eyebrow">Membership tiers</p>
-          <h3 id="tier-modal-title">How tiers work</h3>
+          <h3 id="tier-modal-title" class="tier-modal__title">Tier Benefits</h3>
         </div>
         <button type="button" class="tier-modal__close" (click)="closeTierInfo()" aria-label="Close">
           <svg lucideX [size]="18" aria-hidden="true"></svg>

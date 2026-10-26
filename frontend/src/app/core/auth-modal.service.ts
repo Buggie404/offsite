@@ -6,9 +6,11 @@ import { Injectable, signal } from '@angular/core';
 export class AuthModalService {
   private isOpenSignal = signal<boolean>(false);
   private modeSignal = signal<'login' | 'signup' | 'forgot'>('login');
+  private pendingReferralCodeSignal = signal<string>('');
 
   readonly isOpen = this.isOpenSignal.asReadonly();
   readonly mode = this.modeSignal.asReadonly();
+  readonly pendingReferralCode = this.pendingReferralCodeSignal.asReadonly();
 
   private successOpenSignal = signal(false);
   readonly successOpen = this.successOpenSignal.asReadonly();
@@ -22,8 +24,21 @@ export class AuthModalService {
     this.isOpenSignal.set(true);
   }
 
+  openSignupWithReferral(referralCode: string): void {
+    const normalized = String(referralCode || '').trim().toUpperCase();
+    this.pendingReferralCodeSignal.set(normalized);
+    this.open('signup');
+  }
+
+  consumePendingReferralCode(): string {
+    const code = this.pendingReferralCodeSignal();
+    this.pendingReferralCodeSignal.set('');
+    return code;
+  }
+
   close(): void {
     this.isOpenSignal.set(false);
+    this.pendingReferralCodeSignal.set('');
   }
 
   setMode(mode: 'login' | 'signup' | 'forgot'): void {

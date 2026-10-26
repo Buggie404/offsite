@@ -18,6 +18,16 @@ export interface LoyaltyPointsHistoryRow {
   status: string;
 }
 
+export interface LoyaltyAvailableVoucher {
+  code: string;
+  title: string;
+  subtitle: string;
+  voucherType: string;
+  discountValue: number;
+  minOrderAmount: number;
+  validTo: string;
+}
+
 export interface LoyaltyReferralActivityRow {
   id: string;
   friend: string;
@@ -38,6 +48,7 @@ export interface LoyaltyDashboard {
   pointsHistory: LoyaltyPointsHistoryRow[];
   referralActivity: LoyaltyReferralActivityRow[];
   welcomeVoucherCode?: string | null;
+  availableVouchers?: LoyaltyAvailableVoucher[];
 }
 
 @Injectable({ providedIn: 'root' })

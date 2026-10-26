@@ -15,10 +15,13 @@ export class ShareModalComponent {
   @Input() linkLabel = 'Story link';
   @Input() tagline = 'Crafting connections through every shared cup.';
   @Input() shareText = '';
+  @Input() referralCode = '';
+  @Input() showReferralLink = true;
 
   @Output() close = new EventEmitter<void>();
 
   copied = false;
+  copiedReferralCode = false;
 
   onBackdropClick(): void {
     this.close.emit();
@@ -69,6 +72,14 @@ export class ShareModalComponent {
     navigator.clipboard.writeText(this.shareUrl).then(() => {
       this.copied = true;
       setTimeout(() => (this.copied = false), 2000);
+    });
+  }
+
+  copyReferralCode(): void {
+    if (!this.referralCode) return;
+    navigator.clipboard.writeText(this.referralCode).then(() => {
+      this.copiedReferralCode = true;
+      setTimeout(() => (this.copiedReferralCode = false), 2000);
     });
   }
 }

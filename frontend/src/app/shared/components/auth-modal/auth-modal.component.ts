@@ -1,4 +1,4 @@
-import { Component, inject, HostListener, ChangeDetectorRef, ElementRef, ViewChild, OnDestroy, AfterViewInit, signal } from '@angular/core';
+import { Component, inject, HostListener, ChangeDetectorRef, ElementRef, ViewChild, OnDestroy, AfterViewInit, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideX, LucideEye, LucideEyeOff } from '@lucide/angular';
@@ -49,6 +49,17 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
   mode = this.authModalService.mode;
 
   signupValidator: InlineValidator | null = null;
+
+  constructor() {
+    effect(() => {
+      if (!this.isOpen() || this.mode() !== 'signup') return;
+      const pendingReferral = this.authModalService.consumePendingReferralCode();
+      if (pendingReferral) {
+        this.signupReferralCode = pendingReferral;
+        this.cdr.markForCheck();
+      }
+    });
+  }
 
   loginTab: 'email' | 'phone' = 'email';
   showPassword = false;

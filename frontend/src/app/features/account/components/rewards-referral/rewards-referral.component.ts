@@ -1,6 +1,6 @@
 import { Component, EventEmitter, Input, OnInit, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { LucideGift, LucideInfo, LucideShare2, LucideX } from '@lucide/angular';
+import { LucideAward, LucideInfo, LucidePlus, LucideShare2, LucideX } from '@lucide/angular';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ShareModalComponent } from '../../../community/components/share-modal/share-modal.component';
 import {
@@ -9,18 +9,10 @@ import {
 } from '../../services/loyalty.service';
 import { MembershipTier } from '../../../../shared/models/user.model';
 
-interface TierTheme {
-  cardBackground: string;
-  accent: string;
-  progressTrack: string;
-  progressFill: string;
-  ring: string;
-}
-
 @Component({
   selector: 'app-rewards-referral',
   standalone: true,
-  imports: [CommonModule, LucideGift, LucideInfo, LucideShare2, LucideX, ShareModalComponent],
+  imports: [CommonModule, LucideAward, LucideInfo, LucidePlus, LucideShare2, LucideX, ShareModalComponent],
   templateUrl: './rewards-referral.component.html',
   styleUrl: './rewards-referral.component.scss'
 })
@@ -99,7 +91,7 @@ export class RewardsReferralComponent implements OnInit {
 
   get progressLabel(): string {
     const data = this.dashboard();
-    if (!data?.nextTier) return 'Top tier reached';
+    if (!data?.nextTier) return 'Top tier · benefits locked in';
     return `${data.pointsToNext.toLocaleString()} points to ${data.nextTier}`;
   }
 
@@ -107,45 +99,44 @@ export class RewardsReferralComponent implements OnInit {
     return this.dashboard()?.progressPercent ?? 0;
   }
 
-  tierTheme(tier: MembershipTier): TierTheme {
-    switch (tier) {
-      case 'Leaf':
-        return {
-          cardBackground: 'linear-gradient(108deg, #c8d8bc 0%, #d9e6cf 58%, #e6efd8 100%)',
-          accent: '#4f6848',
-          progressTrack: 'rgba(255,255,255,0.72)',
-          progressFill: '#5f7a56',
-          ring: 'rgba(79,104,72,0.18)'
-        };
-      case 'Bloom':
-        return {
-          cardBackground: 'linear-gradient(108deg, #efc8cf 0%, #f6d5db 58%, #fde7ec 100%)',
-          accent: '#8f4f5d',
-          progressTrack: 'rgba(255,255,255,0.78)',
-          progressFill: '#b56b7a',
-          ring: 'rgba(143,79,93,0.16)'
-        };
-      case 'Zen':
-        return {
-          cardBackground: 'linear-gradient(108deg, #2f3d34 0%, #375545 58%, #456553 100%)',
-          accent: '#edf2ea',
-          progressTrack: 'rgba(255,255,255,0.18)',
-          progressFill: '#cfe1b9',
-          ring: 'rgba(207,225,185,0.12)'
-        };
-      default:
-        return {
-          cardBackground: 'linear-gradient(108deg, #ddc8a5 0%, #e7d3aa 58%, #f3e5b7 100%)',
-          accent: '#5d5546',
-          progressTrack: 'rgba(255,255,255,0.78)',
-          progressFill: '#8f7a52',
-          ring: 'rgba(93,85,70,0.16)'
-        };
-    }
+  tierBadgeLabel(tier: MembershipTier): string {
+    return tier.toUpperCase();
   }
 
   benefitsForTier(tier: MembershipTier): string[] {
     return this.tierBenefits[tier];
+  }
+
+  formatMultiplier(value: number): string {
+    const formatted = Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '');
+    return `${formatted}×`;
+  }
+
+  formatHistoryDate(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  statusChipClass(status: string): string {
+    const normalized = status.trim().toLowerCase();
+    if (normalized.includes('pending')) return 'status-chip--pending';
+    if (normalized.includes('posted')) return 'status-chip--posted';
+    if (normalized.includes('reversed')) return 'status-chip--reversed';
+    if (normalized.includes('used')) return 'status-chip--used';
+    return 'status-chip--neutral';
+  }
+
+  referralStatusChipClass(status: string): string {
+    const normalized = status.trim().toLowerCase();
+    if (normalized.includes('ordered')) return 'status-chip--posted';
+    if (normalized.includes('order') || normalized.includes('completed') || normalized.includes('rewarded')) {
+      return 'status-chip--posted';
+    }
+    if (normalized.includes('signed') || normalized.includes('register')) return 'status-chip--used';
+    if (normalized.includes('ineligible') || normalized.includes('reversed')) return 'status-chip--reversed';
+    if (normalized.includes('pending')) return 'status-chip--pending';
+    return 'status-chip--neutral';
   }
 
   openTierInfo(): void {

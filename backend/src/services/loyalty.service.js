@@ -5,7 +5,7 @@ const PointTransaction = require('../models/PointTransaction');
 const Referral = require('../models/Referral');
 const Voucher = require('../models/Voucher');
 const Order = require('../models/Order');
-const { tierMultiplier, TIER_MULTIPLIER, HOLD_DAYS } = require('./points.service');
+const { tierMultiplier, TIER_MULTIPLIER, HOLD_DAYS, adjustBalance } = require('./points.service');
 
 const REFERRALS_PER_YEAR_LIMIT = 10;
 const COMMUNITY_DAILY_CAP = 20;
@@ -52,6 +52,41 @@ const REDEEM_REWARDS = [
 ];
 
 const REFERRAL_CODE_REGEX = /^[A-Z0-9]+_[A-Z0-9]{8}$/;
+
+const TIER_RANK = { Seed: 0, Leaf: 1, Bloom: 2, Zen: 3 };
+
+const TIER_PERK_VOUCHERS = [
+  {
+    tier: 'Leaf',
+    title: '$5 off · Leaf perk',
+    subtitle: 'Orders from $40',
+    voucherType: 'discount',
+    discountType: 'fixed',
+    discountValue: 5,
+    minOrderAmount: 40,
+    codePrefix: 'LEAF5'
+  },
+  {
+    tier: 'Bloom',
+    title: 'Free shipping · Bloom perk',
+    subtitle: 'Any order',
+    voucherType: 'shipping',
+    discountType: 'fixed',
+    discountValue: 999,
+    minOrderAmount: 0,
+    codePrefix: 'BLOOMFS'
+  },
+  {
+    tier: 'Zen',
+    title: '$10 off · Zen perk',
+    subtitle: 'Orders from $60',
+    voucherType: 'discount',
+    discountType: 'fixed',
+    discountValue: 10,
+    minOrderAmount: 60,
+    codePrefix: 'ZEN10'
+  }
+];
 
 async function resolveAppUserId(jwtUserId) {
   if (!jwtUserId) return null;
@@ -179,12 +214,90 @@ function getNextTierInfo(tier, lifetimePoints) {
 async function syncMembershipTier(userId, lifetimePoints) {
   const tier = resolveTierFromLifetime(lifetimePoints);
   await User.updateOne({ user_id: userId }, { $set: { membership_tier: tier } });
-
-  const { getCollections } = require('../config/db');
-  const { userCollection } = await getCollections();
-  await userCollection.updateOne({ user_id: userId }, { $set: { membership_tier: tier } });
-
   return tier;
+}
+
+function tierVoucherCode(prefix, userId) {
+  return `${prefix}_${String(userId).replace(/^USR/i, '')}`;
+}
+
+function isVoucherUsable(voucher, today) {
+  if (!voucher?.is_active) return false;
+  if (voucher.usage_limit != null && voucher.used_count >= voucher.usage_limit) return false;
+  if (voucher.valid_from && today < voucher.valid_from) return false;
+  if (voucher.valid_to && today > voucher.valid_to) return false;
+  return true;
+}
+
+function formatVoucherRow(voucher) {
+  return {
+    code: voucher.code,
+    title: voucher.title || voucher.code,
+    subtitle: voucher.subtitle || '',
+    voucherType: voucher.voucher_type,
+    discountValue: voucher.discount_value,
+    minOrderAmount: voucher.min_order_amount ?? 0,
+    validTo: voucher.valid_to
+  };
+}
+
+async function ensureTierPerkVouchers(userId, tier) {
+  const rank = TIER_RANK[tier] ?? 0;
+  const now = new Date();
+  const validFrom = now.toISOString().slice(0, 10);
+  const validTo = new Date(now.getTime() + 365 * DAY_MS).toISOString().slice(0, 10);
+
+  for (const def of TIER_PERK_VOUCHERS) {
+    if ((TIER_RANK[def.tier] ?? 0) > rank) continue;
+    const code = tierVoucherCode(def.codePrefix, userId);
+    await Voucher.findOneAndUpdate(
+      { code },
+      {
+        code,
+        title: def.title,
+        subtitle: def.subtitle,
+        voucher_type: def.voucherType,
+        discount_type: def.discountType,
+        discount_value: def.discountValue,
+        is_active: true,
+        usage_limit: 1,
+        used_count: 0,
+        min_order_amount: def.minOrderAmount,
+        max_discount_value: def.voucherType === 'shipping' ? null : def.discountValue,
+        valid_from: validFrom,
+        valid_to: validTo,
+        createdAt: now.toISOString()
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+  }
+}
+
+async function listAvailableVouchers(userId, profile, tier) {
+  await ensureTierPerkVouchers(userId, tier);
+  const codes = new Set();
+
+  if (profile.welcome_voucher_code) codes.add(profile.welcome_voucher_code);
+
+  const redeemed = await PointTransaction.find(
+    { user_id: userId, type: 'redeem_voucher', ref_id: { $ne: null } },
+    { ref_id: 1 }
+  ).lean();
+  redeemed.forEach((row) => codes.add(row.ref_id));
+
+  for (const def of TIER_PERK_VOUCHERS) {
+    if ((TIER_RANK[def.tier] ?? 0) <= (TIER_RANK[tier] ?? 0)) {
+      codes.add(tierVoucherCode(def.codePrefix, userId));
+    }
+  }
+
+  if (!codes.size) return [];
+
+  const today = new Date().toISOString().slice(0, 10);
+  const vouchers = await Voucher.find({ code: { $in: [...codes] } }).lean();
+  return vouchers
+    .filter((v) => isVoucherUsable(v, today))
+    .map((v) => formatVoucherRow(v));
 }
 
 function formatActivityLabel(txn) {
@@ -251,6 +364,8 @@ async function getDashboard(jwtUserId) {
     .limit(50)
     .lean();
 
+  const availableVouchers = await listAvailableVouchers(appUserId, profile, tier);
+
   return {
     tier,
     availablePoints,
@@ -279,7 +394,8 @@ async function getDashboard(jwtUserId) {
         (row.register_reward_status === 'posted' ? row.register_points : 0) +
         (row.order_reward_status === 'posted' ? row.order_points : 0)
     })),
-    welcomeVoucherCode: profile.welcome_voucher_code || null
+    welcomeVoucherCode: profile.welcome_voucher_code || null,
+    availableVouchers
   };
 }
 
@@ -314,6 +430,8 @@ async function redeemReward(jwtUserId, rewardId) {
 
   await Voucher.create({
     code,
+    title: reward.title,
+    subtitle: reward.subtitle,
     voucher_type: reward.voucherType,
     discount_type: reward.discountType,
     discount_value: reward.discountValue,
@@ -327,11 +445,7 @@ async function redeemReward(jwtUserId, rewardId) {
     createdAt: now.toISOString()
   });
 
-  await User.updateOne({ user_id: appUserId }, { $inc: { points: -reward.pointsCost } });
-
-  const { getCollections } = require('../config/db');
-  const { userCollection } = await getCollections();
-  await userCollection.updateOne({ user_id: appUserId }, { $inc: { points: -reward.pointsCost } });
+  await adjustBalance(appUserId, -reward.pointsCost);
 
   await PointTransaction.create({
     user_id: appUserId,
@@ -388,11 +502,7 @@ async function countReferralsThisYear(referrerId) {
 }
 
 async function creditPostedPoints(userId, amount) {
-  if (!amount) return;
-  await User.updateOne({ user_id: userId }, { $inc: { points: amount } });
-  const { getCollections } = require('../config/db');
-  const { userCollection } = await getCollections();
-  await userCollection.updateOne({ user_id: userId }, { $inc: { points: amount } });
+  await adjustBalance(userId, amount);
 }
 
 async function ensurePersonalWelcomeVoucher(refereeUserId) {
@@ -547,13 +657,14 @@ async function scheduleCommunityPointsForPost(userId, post) {
   if (!userId || !post?.post_id) return null;
 
   const earnedToday = await communityPointsEarnedToday(userId);
-  if (earnedToday >= COMMUNITY_DAILY_CAP) return null;
+  const remaining = COMMUNITY_DAILY_CAP - earnedToday;
+  if (remaining <= 0) return null;
 
   const isRecipePost = Boolean(post.recipe_id) || post.post_type === 'recipe';
   const type = isRecipePost ? 'recipe_approved' : 'post_approved';
-  const amount = isRecipePost ? 10 : 2;
-
-  if (earnedToday + amount > COMMUNITY_DAILY_CAP) return null;
+  const baseAmount = isRecipePost ? 10 : 2;
+  const amount = Math.min(baseAmount, remaining);
+  if (amount <= 0) return null;
 
   const existing = await PointTransaction.findOne({
     user_id: userId,
@@ -577,8 +688,10 @@ async function scheduleRecipeCuratedPoints(userId, recipeId) {
   if (!userId || !recipeId) return null;
 
   const earnedToday = await communityPointsEarnedToday(userId);
-  if (earnedToday >= COMMUNITY_DAILY_CAP) return null;
-  if (earnedToday + 15 > COMMUNITY_DAILY_CAP) return null;
+  const remaining = COMMUNITY_DAILY_CAP - earnedToday;
+  if (remaining <= 0) return null;
+  const amount = Math.min(15, remaining);
+  if (amount <= 0) return null;
 
   const existing = await PointTransaction.findOne({
     user_id: userId,
@@ -591,7 +704,7 @@ async function scheduleRecipeCuratedPoints(userId, recipeId) {
   return PointTransaction.create({
     user_id: userId,
     type: 'recipe_curated',
-    amount: 15,
+    amount,
     status: 'pending',
     ref_type: 'recipe',
     ref_id: recipeId
@@ -686,11 +799,7 @@ async function handleReferralRegistration(referee, referralCode) {
     posted_at: new Date()
   });
 
-  await User.updateOne({ user_id: validation.referrerId }, { $inc: { points: 20 } });
-
-  const { getCollections } = require('../config/db');
-  const { userCollection } = await getCollections();
-  await userCollection.updateOne({ user_id: validation.referrerId }, { $inc: { points: 20 } });
+  await adjustBalance(validation.referrerId, 20);
 
   const lifetime = await computeLifetimePoints(validation.referrerId);
   await syncMembershipTier(validation.referrerId, lifetime);

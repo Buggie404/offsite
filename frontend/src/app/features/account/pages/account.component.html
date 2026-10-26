@@ -100,15 +100,16 @@
           <button class="sidebar-toggle-btn" (click)="toggleSidebar()" aria-label="Open sidebar menu">
             <svg lucideMenu [size]="24"></svg>
           </button>
-          <div class="page-title-stack" [class.page-title-stack--rewards]="activeTab() === 'rewards'">
-            <h1 class="page-title">{{ getActiveTabLabel() }}</h1>
-            <p class="page-subtitle" *ngIf="activeTab() === 'rewards'">
-              Points from orders, community and referrals
-            </p>
-            <p class="page-subtitle" *ngIf="activeTab() === 'pantry'">
-              Items are added automatically when an order is delivered, including Ritual Box deliveries.
-            </p>
-          </div>
+          @if (activeTab() !== 'rewards') {
+            <div class="page-title-stack">
+              <h1 class="page-title">{{ getActiveTabLabel() }}</h1>
+              @if (activeTab() === 'pantry') {
+                <p class="page-subtitle">
+                  Items are added automatically when an order is delivered, including Ritual Box deliveries.
+                </p>
+              }
+            </div>
+          }
         </div>
 
         <div class="header-action-wrapper" *ngIf="activeTab() === 'saved' && hasAnySavedItems()">

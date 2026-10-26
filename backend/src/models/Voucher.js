@@ -20,7 +20,9 @@ const voucherSchema = new mongoose.Schema({
   max_discount_value: { type: Number, default: null },
   valid_from: { type: String, required: true },
   valid_to: { type: String, required: true },
-  createdAt: { type: String, required: true }
+  createdAt: { type: String, required: true },
+  title: { type: String, default: null },
+  subtitle: { type: String, default: null }
 }, {
   collection: 'Vouchers'
 });
