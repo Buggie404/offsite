@@ -1,0 +1,296 @@
+<section class="pantry" aria-label="My pantry">
+  <p class="field-error" *ngIf="pantry.error()">{{ pantry.error() }}</p>
+
+  <div class="pantry-toolbar">
+    <div class="filter-row" role="tablist" aria-label="Pantry filters">
+      <button type="button" class="filter-chip" [class.is-active]="filter() === 'all'" (click)="setFilter('all')">
+        All ({{ counts().all }})
+      </button>
+      <button type="button" class="filter-chip" [class.is-active]="filter() === 'expiring'" (click)="setFilter('expiring')">
+        Expiring soon ({{ counts().expiring }})
+      </button>
+      <button type="button" class="filter-chip" [class.is-active]="filter() === 'expired'" (click)="setFilter('expired')">
+        Expired ({{ counts().expired }})
+      </button>
+      <button type="button" class="filter-chip" [class.is-active]="filter() === 'offsite'" (click)="setFilter('offsite')">
+        From Offsite
+      </button>
+      <button type="button" class="filter-chip" [class.is-active]="filter() === 'me'" (click)="setFilter('me')">
+        Added by me
+      </button>
+    </div>
+
+    <button type="button" class="btn btn--outline btn--add" (click)="openAdd()">
+      <svg lucidePlus [size]="14" aria-hidden="true"></svg>
+      <span>Add item</span>
+    </button>
+  </div>
+
+  <p class="empty-note" *ngIf="pantry.loading() && pantry.items().length === 0">Loading your pantry…</p>
+
+  <div class="item-rail" *ngIf="visibleItems().length > 0; else emptyItems">
+    <article
+      class="item-card"
+      *ngFor="let item of visibleItems(); trackBy: trackById"
+      [class.is-warning]="item.countdown === 'warning'"
+      [class.is-danger]="item.countdown === 'danger'"
+      [class.is-expired]="item.countdown === 'expired' || item.status === 'used_up'"
+    >
+      <div class="thumb thumb--banner">
+        <img [src]="item.imageUrl || 'assets/pantry/image-placeholder.svg'" alt="" width="36" height="36" />
+        <span class="meta-chip thumb-tag thumb-tag--source" [class.meta-chip--neutral]="item.source === 'manual'">{{ sourceLabel(item) }}</span>
+        <span
+          class="meta-chip thumb-tag thumb-tag--status"
+          *ngIf="statusTag(item) as tag"
+          [class.meta-chip--warning]="tag.tone === 'warning'"
+          [class.meta-chip--danger]="tag.tone === 'danger'"
+          [class.meta-chip--expired]="tag.tone === 'expired'"
+          [class.meta-chip--neutral]="tag.tone === 'neutral'"
+        >{{ tag.label }}</span>
+      </div>
+
+      <div class="item-card__body">
+        <div class="item-card__title-row">
+          <h3>{{ item.name }}</h3>
+          <button
+            type="button"
+            class="more-btn"
+            (click)="toggleMenu(item.id, $event)"
+            [attr.aria-expanded]="openMenuId() === item.id"
+            [attr.aria-label]="'Actions for ' + item.name"
+          >
+            <svg lucideEllipsis [size]="16" aria-hidden="true"></svg>
+          </button>
+          <div class="more-menu" *ngIf="openMenuId() === item.id" (click)="$event.stopPropagation()">
+            <button type="button" class="more-menu__quiet" *ngIf="item.status !== 'used_up'" (click)="markUsedUp(item.id, $event)">
+              <svg lucideCheck [size]="14" aria-hidden="true"></svg>
+              <span>Mark as used up</span>
+            </button>
+            <button type="button" (click)="removeItem(item.id, $event)">
+              <svg lucideTrash2 [size]="14" aria-hidden="true"></svg>
+              <span>Remove</span>
+            </button>
+          </div>
+        </div>
+
+        <p
+          class="days-left"
+          *ngIf="item.countdown !== 'unknown' && item.countdown !== 'used_up'"
+          [class.is-warning]="item.countdown === 'warning'"
+          [class.is-danger]="item.countdown === 'danger'"
+          [class.is-expired]="item.countdown === 'expired'"
+        >
+          <svg lucideHourglass [size]="13" aria-hidden="true"></svg>
+          <span>{{ daysLabel(item) }}</span>
+        </p>
+        <p class="best-before" [class.is-expired]="item.countdown === 'expired'">{{ item.expiryLabel }}</p>
+        <p class="best-before" *ngIf="item.quantityLabel">{{ item.quantityLabel }}</p>
+        <a
+          *ngIf="pantry.canBuyAgain(item)"
+          class="btn btn--outline btn--restock"
+          [routerLink]="restockLink(item)"
+          [queryParams]="restockQuery(item)"
+        >Buy again</a>
+      </div>
+    </article>
+  </div>
+
+  <ng-template #emptyItems>
+    <p class="empty-note" *ngIf="!pantry.loading()">{{ itemsEmptyCopy() }}</p>
+  </ng-template>
+
+  <section class="pantry-block" aria-labelledby="pantry-brews-title">
+    <h2 id="pantry-brews-title">Your brews</h2>
+    <p class="empty-note" *ngIf="!pantry.loading() && pantry.recipes().length === 0">Start a brew and it will show up here.</p>
+    <div class="bulk-action-bar" *ngIf="pantry.recipes().length > 0">
+      <label class="pantry-check">
+        <input type="checkbox" [checked]="allRecipesSelected()" (change)="toggleSelectAllRecipes()" />
+        <span class="pantry-check__box"></span>
+        <span class="pantry-check__label">Select all <span class="pantry-check__count">({{ selectedRecipeIds().length }} selected)</span></span>
+      </label>
+      <button type="button" class="btn-delete-selected" [disabled]="selectedRecipeIds().length === 0 || saving()" (click)="askRemoveSelected()">
+        <svg lucideTrash2 [size]="14" aria-hidden="true"></svg>
+        <span>Delete selected</span>
+      </button>
+    </div>
+    <div class="brew-rail" *ngIf="pantry.recipes().length > 0">
+      <article class="recipe-card" [class.selected]="isRecipeSelected(recipe.id)" *ngFor="let recipe of pantry.recipes(); trackBy: trackById">
+        <div class="thumb thumb--recipe">
+          <a class="thumb-link" [routerLink]="['/recipes', recipe.slug]" [attr.aria-label]="recipe.name"></a>
+          <img [src]="recipe.imageUrl || 'assets/pantry/image-placeholder.svg'" alt="" width="36" height="36" />
+          <label class="pantry-check pantry-check--float" (click)="$event.stopPropagation()">
+            <input type="checkbox" [checked]="isRecipeSelected(recipe.id)" (change)="toggleRecipe(recipe.id)" [attr.aria-label]="'Select ' + recipe.name" />
+            <span class="pantry-check__box"></span>
+          </label>
+          <button type="button" class="recipe-remove recipe-remove--float" (click)="removeRecipe(recipe, $event)" [attr.aria-label]="'Remove ' + recipe.name">
+            <svg lucideX [size]="12" aria-hidden="true"></svg>
+          </button>
+        </div>
+        <div class="recipe-card__body">
+          <a class="recipe-card__title" [routerLink]="['/recipes', recipe.slug]"><h3>{{ recipe.name }}</h3></a>
+          <span class="meta-chip" [class.meta-chip--warning]="recipe.matchTone === 'warning'">{{ recipe.matchLabel }}</span>
+
+          <div class="brew-progress">
+            <div class="brew-progress__label" [class.is-done]="recipe.status === 'done'">
+              <svg *ngIf="recipe.status === 'done'" lucideCheck [size]="13" aria-hidden="true"></svg>
+              <span>{{ progressLabel(recipe) }}</span>
+              <strong>{{ progressPercent(recipe) }}%</strong>
+            </div>
+            <div class="brew-progress__track" aria-hidden="true">
+              <span [style.width.%]="progressPercent(recipe)"></span>
+            </div>
+          </div>
+
+          <div class="recipe-card__actions">
+            <button type="button" class="btn btn--primary" (click)="openRecipe(recipe)">
+              <svg *ngIf="recipe.status !== 'done'" lucidePlay [size]="14" aria-hidden="true"></svg>
+              <svg *ngIf="recipe.status === 'done'" lucideRefreshCw [size]="14" aria-hidden="true"></svg>
+              <span>{{ primaryLabel(recipe) }}</span>
+            </button>
+            <button type="button" class="btn btn--outline" *ngIf="recipe.status !== 'done'" [disabled]="saving()" (click)="markDone(recipe)">Done?</button>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="pantry-block" aria-labelledby="pantry-make-title">
+    <h2 id="pantry-make-title">With your pantry you can make</h2>
+    <p class="empty-note" *ngIf="!pantry.loading() && pantry.suggestions().ready.length === 0 && pantry.suggestions().almost.length === 0">
+      Add ingredients and recipes you can make will show up here.
+    </p>
+
+    <div class="suggest-group" *ngIf="pantry.suggestions().ready.length > 0">
+      <h3>Ready</h3>
+      <div class="suggest-grid">
+        <article class="suggest-card" *ngFor="let idea of pantry.suggestions().ready; trackBy: trackById">
+          <a class="suggest-card__media" [routerLink]="['/recipes', idea.slug]" [attr.aria-label]="idea.name">
+            <div class="thumb thumb--suggest" aria-hidden="true">
+              <img [src]="idea.imageUrl || 'assets/pantry/image-placeholder.svg'" alt="" width="36" height="36" />
+            </div>
+          </a>
+          <div class="suggest-card__body">
+            <a class="suggest-card__title" [routerLink]="['/recipes', idea.slug]"><h3>{{ idea.name }}</h3></a>
+            <span class="meta-chip">{{ idea.matchLabel }}</span>
+            <div class="recipe-card__actions">
+              <button type="button" class="btn btn--primary" (click)="startSuggested(idea)">
+                <svg lucidePlay [size]="14" aria-hidden="true"></svg>
+                <span>Start brew</span>
+              </button>
+              <button type="button" class="btn btn--outline" [disabled]="saving()" (click)="markDone(idea)">Done?</button>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <div class="suggest-group" *ngIf="pantry.suggestions().almost.length > 0">
+      <h3>One ingredient away</h3>
+      <div class="suggest-grid">
+        <article class="suggest-card" *ngFor="let idea of pantry.suggestions().almost; trackBy: trackById">
+          <a class="suggest-card__media" [routerLink]="['/recipes', idea.slug]" [attr.aria-label]="idea.name">
+            <div class="thumb thumb--suggest" aria-hidden="true">
+              <img [src]="idea.imageUrl || 'assets/pantry/image-placeholder.svg'" alt="" width="36" height="36" />
+            </div>
+          </a>
+          <div class="suggest-card__body">
+            <a class="suggest-card__title" [routerLink]="['/recipes', idea.slug]"><h3>{{ idea.name }}</h3></a>
+            <span class="meta-chip meta-chip--warning">{{ idea.matchLabel }}</span>
+            <div class="recipe-card__actions">
+              <button type="button" class="btn btn--primary" (click)="startSuggested(idea)">
+                <svg lucidePlay [size]="14" aria-hidden="true"></svg>
+                <span>Start brew</span>
+              </button>
+              <button type="button" class="btn btn--outline" [disabled]="saving()" (click)="markDone(idea)">Done?</button>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="pantry-block" *ngIf="pantry.missing().length > 0" aria-labelledby="pantry-buy-title">
+    <h2 id="pantry-buy-title">Almost there</h2>
+    <div class="missing-grid">
+      <article class="missing-card" *ngFor="let product of pantry.missing(); trackBy: trackById">
+        <a class="missing-card__link" [routerLink]="productLink(product)">
+          <div class="thumb thumb--square" aria-hidden="true">
+            <img [src]="product.imageUrl || 'assets/pantry/image-placeholder.svg'" alt="" width="36" height="36" />
+          </div>
+          <div class="missing-card__copy">
+            <h3>{{ product.name }}</h3>
+            <p>{{ product.unlocks }}</p>
+            <strong>{{ priceLabel(product) }}</strong>
+          </div>
+        </a>
+        <button
+          type="button"
+          class="btn btn--outline"
+          [disabled]="!canAdd(product)"
+          (click)="addMissing(product, $event)"
+        >{{ canAdd(product) ? 'Add' : 'Sold out' }}</button>
+      </article>
+    </div>
+  </section>
+</section>
+
+<div class="add-overlay" *ngIf="addOpen()" (click)="closeAdd()">
+  <div class="add-modal" role="dialog" aria-modal="true" aria-labelledby="add-pantry-title" (click)="$event.stopPropagation()">
+    <div class="add-modal__header">
+      <h2 id="add-pantry-title">Add an item</h2>
+      <button type="button" class="more-btn" (click)="closeAdd()" aria-label="Close">
+        <svg lucideX [size]="18" aria-hidden="true"></svg>
+      </button>
+    </div>
+
+    <form (ngSubmit)="submitAdd()">
+      <div class="add-modal__body">
+        <label class="field">
+          <span>Item name</span>
+          <input type="text" name="pantryItemName" [(ngModel)]="addName" maxlength="80" placeholder="Oat milk (1L)" autocomplete="off" />
+        </label>
+
+        <label class="field">
+          <span>Quantity</span>
+          <span class="measure">
+            <input type="text" name="pantryQuantity" [(ngModel)]="addQuantity" inputmode="decimal" maxlength="8" placeholder="1" autocomplete="off" aria-label="Quantity" />
+            <select name="pantryUnit" [(ngModel)]="addUnit" aria-label="Unit">
+              <option *ngFor="let unit of units" [value]="unit">{{ unit }}</option>
+            </select>
+          </span>
+        </label>
+
+        <label class="field">
+          <span>Best before</span>
+          <input type="date" name="pantryBestBefore" [(ngModel)]="addBestBefore" [class.is-empty]="!addBestBefore" aria-label="Best before" />
+          <small>Leave empty if the item has no expiry date.</small>
+        </label>
+      </div>
+
+      <p class="field-error add-modal__error" *ngIf="addError()">{{ addError() }}</p>
+
+      <div class="add-modal__actions">
+        <button type="button" class="btn btn--outline" (click)="closeAdd()" [disabled]="saving()">Cancel</button>
+        <button type="submit" class="btn btn--primary" [disabled]="saving()">Add to pantry</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="add-overlay" *ngIf="confirmHideOpen()" (click)="closeConfirmHide()">
+  <div class="add-modal add-modal--confirm" role="dialog" aria-modal="true" aria-labelledby="hide-recipes-title" (click)="$event.stopPropagation()">
+    <div class="add-modal__header">
+      <h2 id="hide-recipes-title">Remove recipes</h2>
+      <button type="button" class="more-btn" (click)="closeConfirmHide()" aria-label="Close">
+        <svg lucideX [size]="18" aria-hidden="true"></svg>
+      </button>
+    </div>
+    <div class="add-modal__body">
+      <p class="confirm-copy">Remove {{ selectedRecipeIds().length }} {{ selectedRecipeIds().length === 1 ? 'recipe' : 'recipes' }} from this list? Brew history stays saved, and starting a brew again brings the recipe back.</p>
+    </div>
+    <div class="add-modal__actions">
+      <button type="button" class="btn btn--outline" (click)="closeConfirmHide()" [disabled]="saving()">Cancel</button>
+      <button type="button" class="btn btn--primary" (click)="confirmRemoveSelected()" [disabled]="saving()">Remove</button>
+    </div>
+  </div>
+</div>

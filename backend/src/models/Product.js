@@ -76,6 +76,9 @@ const productSchema = new mongoose.Schema({
     }
   },
   total_sold_quantity: { type: Number, default: 0 },
+  // Current lot expiry. Applies only to orders delivered after the Vietnam day it was saved.
+  batch_expiry_date: { type: Date, default: null },
+  batch_expiry_set_at: { type: Date, default: null },
   variant_type: { type: String, required: true, default: 'none' },
   images: { type: [imageSchema], default: [] },
   variants: { type: [variantSchema], default: [] },

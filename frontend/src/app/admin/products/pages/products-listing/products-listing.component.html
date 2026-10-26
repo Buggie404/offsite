@@ -1,0 +1,56 @@
+<header class="page-header">
+  <h1 class="page-header__title">Products</h1>
+  <p class="page-header__meta">Batch expiry applies to orders delivered after the day you save it. Earlier deliveries stay as they are.</p>
+</header>
+
+<label class="search-field">
+  <input
+    type="search"
+    placeholder="Search by name or product id"
+    aria-label="Search products"
+    [ngModel]="search"
+    (ngModelChange)="search = $event"
+  />
+</label>
+
+<p class="state-message state-message--error" *ngIf="rowError" role="alert">{{ rowError }}</p>
+
+<section class="card">
+  <p class="state-message" *ngIf="loading">Loading products…</p>
+  <p class="state-message state-message--error" *ngIf="!loading && error" role="alert">{{ error }}</p>
+  <p class="state-message" *ngIf="!loading && !error && !visibleRows.length">No products match this search.</p>
+
+  <table class="product-table" *ngIf="!loading && !error && visibleRows.length">
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>Group</th>
+        <th>Batch expiry</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let row of visibleRows">
+        <td>
+          <strong>{{ row.name }}</strong>
+          <span>{{ row.product_id }}</span>
+        </td>
+        <td>{{ row.category }}</td>
+        <td>
+          <input
+            type="date"
+            [name]="'expiry-' + row.product_id"
+            [ngModel]="drafts[row.product_id]"
+            (ngModelChange)="drafts[row.product_id] = $event"
+            [attr.aria-label]="'Batch expiry for ' + row.name"
+          />
+        </td>
+        <td>
+          <button type="button" [disabled]="!dirty(row) || savingId === row.product_id" (click)="save(row)">
+            {{ savingId === row.product_id ? 'Saving…' : 'Save' }}
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>

@@ -210,6 +210,7 @@
                   <svg *ngSwitchCase="'SUBSCRIPTION_PROPOSAL_WITHDRAWN'" lucideX  [size]="15"></svg>
                   <svg *ngSwitchCase="'SUBSCRIPTION_NOT_STARTED'"    lucideInfo   [size]="15"></svg>
                   <svg *ngSwitchCase="'SUBSCRIPTION_ADJUSTED'"       lucideRepeat [size]="15"></svg>
+                  <svg *ngSwitchCase="'PANTRY_EXPIRY_SOON'" lucideHourglass [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_CREATED'"    lucideArrowRight    [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_LIKED'"      lucideHeart         [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_COMMENTED'"  lucideMessageSquare [size]="15"></svg>
@@ -249,6 +250,7 @@
                       <span *ngSwitchCase="'SUBSCRIPTION_NOT_STARTED'">{{ ritualBoxMessage(item) || "Your Ritual Box couldn't start. Our team will contact you." }}</span>
                       <span *ngSwitchCase="'SUBSCRIPTION_SKIPPED'">A delivery of your Ritual Box <strong>{{ ritualBoxId(item) }}</strong> was skipped{{ ritualBoxMessage(item) ? ': ' + ritualBoxMessage(item) : '.' }}</span>
                       <span *ngSwitchCase="'SUBSCRIPTION_ADJUSTED'">{{ ritualBoxMessage(item) || 'You bought an item from your Ritual Box separately. Get your next box sooner?' }} Nothing changes unless you confirm in Account › Ritual Box.</span>
+                      <span *ngSwitchCase="'PANTRY_EXPIRY_SOON'">{{ item.comment_content }}</span>
                     </ng-container>
                   </span>
                 </p>

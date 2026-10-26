@@ -306,6 +306,15 @@ orderSchema.pre('save', async function(next) {
         );
       }
     }
+
+    if (this.user_id && isDelivered) {
+      this._pantryEvent = 'delivered';
+      this.$locals.pantryEvent = 'delivered';
+    }
+    if (this.user_id && newStatus === 'refund' && originalStatus !== 'refund') {
+      this._pantryEvent = 'refund';
+      this.$locals.pantryEvent = 'refund';
+    }
   }
 
   next();
@@ -313,5 +322,20 @@ orderSchema.pre('save', async function(next) {
 
 // Admin Orders listing: newest first within a date range, paged in the database.
 orderSchema.index({ created_at: -1 });
+
+orderSchema.post('save', function pantrySync(doc) {
+  const event = this._pantryEvent || this.$locals?.pantryEvent;
+  const refundItems = this._refundItems || this.$locals?.refundItems || null;
+  this._pantryEvent = undefined;
+  if (this.$locals) this.$locals.pantryEvent = undefined;
+  if (!event || !doc.user_id) return;
+  setImmediate(() => {
+    const pantry = require('../services/pantry.service');
+    const task = event === 'refund'
+      ? pantry.removeItemsForRefund(doc, refundItems)
+      : pantry.addItemsForDeliveredOrder(doc);
+    task.catch(error => console.error('Pantry sync failed:', error));
+  });
+});
 
 module.exports = mongoose.model('Order', orderSchema);

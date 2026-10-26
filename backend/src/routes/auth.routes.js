@@ -29,8 +29,11 @@ router.delete('/payment-methods/:id', authMiddleware, authController.deletePayme
 
 // Saved Items routes
 router.get('/saved-items', authMiddleware, authController.getSavedItems);
+router.get('/recipe-flags', authMiddleware, authController.getRecipeFlags);
 router.post('/saved-products', authMiddleware, authController.toggleSavedProduct);
 router.post('/saved-recipes', authMiddleware, authController.toggleSavedRecipe);
+router.patch('/saved-recipes/:recipeId', authMiddleware, authController.updateSavedRecipe);
+router.patch('/done-recipes/:recipeId', authMiddleware, authController.updateDoneRecipe);
 router.post('/saved-blogs', authMiddleware, authController.toggleSavedBlog);
 router.post('/saved-posts', authMiddleware, authController.toggleSavedPost);
 router.post('/saved-items-batch-delete', authMiddleware, authController.deleteSavedItemsBatch);

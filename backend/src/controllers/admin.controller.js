@@ -568,6 +568,8 @@ async function approveRefundRequest(req, res) {
 
     order._changedBy = adminId;
     order._statusChangeNote = 'Refund approved by admin';
+    order._refundItems = refundRequest.refund_item || [];
+    order.$locals.refundItems = order._refundItems;
     order.order_status = 'refund';
     order.payment_status = 'refunded';
     await order.save();

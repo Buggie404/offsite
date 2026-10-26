@@ -30,7 +30,8 @@ import {
   LucideMessageSquare,
   LucideRefreshCw,
   LucideRepeat,
-  LucideInfo
+  LucideInfo,
+  LucideHourglass
 } from '@lucide/angular';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
@@ -112,6 +113,7 @@ import { isMeaningfulVariantLabel } from '../../utils/variant-label';
     LucideRefreshCw,
     LucideRepeat,
     LucideInfo,
+    LucideHourglass,
     FormsModule
   ],
   templateUrl: './navbar.component.html',
@@ -612,6 +614,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     const isOrderOrRefund = notification.type.startsWith('ORDER_') || notification.type.startsWith('REFUND_');
     if (notification.type.startsWith('SUBSCRIPTION_')) {
       this.router.navigate(['/account'], { queryParams: { tab: 'ritual-box' } });
+    } else if (notification.type.startsWith('PANTRY_')) {
+      this.router.navigate(['/account'], { queryParams: { tab: 'pantry' } });
     } else if (isOrderOrRefund) {
       this.router.navigate(['/order-tracking'], { queryParams: { orderId: notification.post_id } });
     } else {
@@ -1147,7 +1151,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
       n.type.startsWith('POST_') || n.type.startsWith('COMMENT_')
     );
     if (tab === 'RITUAL_BOX') return all.filter(n => n.type.startsWith('SUBSCRIPTION_'));
-    return []; // PANTRY — future feature
+    if (tab === 'PANTRY') return all.filter(n => n.type.startsWith('PANTRY_'));
+    return [];
   }
 
   /**
@@ -1176,6 +1181,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       case 'SUBSCRIPTION_PROPOSAL_WITHDRAWN': return 'notif-icon--gray';
       case 'SUBSCRIPTION_NOT_STARTED':    return 'notif-icon--red';
       case 'SUBSCRIPTION_ADJUSTED':       return 'notif-icon--sage';
+      case 'PANTRY_EXPIRY_SOON': return 'notif-icon--orange';
       case 'POST_CREATED':     return 'notif-icon--green';
       case 'POST_LIKED':       return 'notif-icon--pink';
       case 'POST_COMMENTED':   return 'notif-icon--sage';

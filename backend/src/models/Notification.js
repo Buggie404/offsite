@@ -37,7 +37,8 @@ const notificationSchema = new mongoose.Schema({
       'SUBSCRIPTION_PROPOSAL',
       'SUBSCRIPTION_PROPOSAL_WITHDRAWN',
       'SUBSCRIPTION_NOT_STARTED',
-      'SUBSCRIPTION_ADJUSTED'
+      'SUBSCRIPTION_ADJUSTED',
+      'PANTRY_EXPIRY_SOON'
     ],
     required: true
   },

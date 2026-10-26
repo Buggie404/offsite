@@ -44,6 +44,7 @@ import { RecipeSectionComponent } from '../../../../features/home/components/rec
 import { ContentService } from '../../../content/services/content.service';
 import { buildMockProductReviews } from '../../../../shared/data/mock-product-reviews';
 import { AuthService } from '../../../../core/auth.service';
+import { PantryService } from '../../../account/components/my-pantry/pantry.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 import { Subscription } from 'rxjs';
@@ -124,6 +125,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   private contentService = inject(ContentService);
   private cartService = inject(CartService);
   private authService = inject(AuthService);
+  private pantry = inject(PantryService);
   private authPromptService = inject(AuthPromptModalService);
   private platformId = inject(PLATFORM_ID);
   private cdr = inject(ChangeDetectorRef);
@@ -392,8 +394,13 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     if (product.is_best_seller) tags.push({ label: 'BEST SELLER', kind: 'status' });
     if (product.is_new_arrival) tags.push({ label: 'NEW ARRIVAL', kind: 'status' });
 
-    // Purchase history is not available in the product payload yet, so this remains display text for now.
-    tags.push({ label: 'IN YOUR PANTRY', kind: 'pantry' });
+    const productKeys = new Set(
+      [product._id, product.product_id].filter(value => value != null).map(value => String(value))
+    );
+    const inPantry = this.pantry.items().some(item =>
+      item.status === 'active' && !!item.productId && productKeys.has(item.productId)
+    );
+    if (inPantry) tags.push({ label: 'IN YOUR PANTRY', kind: 'pantry' });
 
     return tags;
   }

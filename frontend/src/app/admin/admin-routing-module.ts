@@ -92,6 +92,13 @@ const routes: Routes = [
         canActivate: [adminRoleGuard],
         data: { adminRoles: SUBSCRIPTION_VIEW_ROLES }
       },
+      {
+        path: 'products',
+        loadComponent: () =>
+          import('./products/pages/products-listing/products-listing.component').then((m) => m.ProductsListingComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SALES_OPS_ROLES }
+      },
 
       // ── Services Operations ───────────────────────────────────────────────
       {
