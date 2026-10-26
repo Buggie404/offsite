@@ -3,6 +3,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
+import { AuthPromptModalService } from '../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 
 @Component({
   selector: 'app-oauth-success',
@@ -19,6 +20,7 @@ export class OAuthSuccessComponent implements OnInit {
   private router = inject(Router);
   private authService = inject(AuthService);
   private authModalService = inject(AuthModalService);
+  private authPrompt = inject(AuthPromptModalService);
   private platformId = inject(PLATFORM_ID);
 
   ngOnInit(): void {
@@ -37,7 +39,12 @@ export class OAuthSuccessComponent implements OnInit {
       await this.authService.mergeGuestCartAfterOAuth();
       this.authModalService.close();
 
-      this.router.navigate(['/']);
+      const returnUrl = this.authPrompt.consumeReturnUrl();
+      if (returnUrl) {
+        await this.router.navigateByUrl(returnUrl);
+        return;
+      }
+      await this.router.navigate(['/']);
     });
   }
 }

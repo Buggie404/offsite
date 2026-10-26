@@ -18,12 +18,16 @@ import { PaymentModalComponent } from '../../purchase/components/payment-modal/p
 import { ChangePaymentModalComponent } from '../../purchase/components/change-payment-modal/change-payment-modal.component';
 import { InlineValidator, FieldConfig } from '../../../shared/utils/inline-validator';
 import { RitualBoxComponent } from '../components/ritual-box/ritual-box.component';
+import { BrewResumeModalComponent } from '../../content/components/brew-resume-modal/brew-resume-modal.component';
+import { clearBrewProgress, readBrewProgress, resumeSecondsLeft } from '../../content/components/brew-coach/brew-progress';
 import { RitualBoxService } from '../services/ritual-box.service';
 import { ToastService } from '../../../shared/services/toast.service';
 import { QuickViewModalComponent } from '../../shop/components/quick-view-modal/quick-view-modal.component';
 import { ConfirmationModalComponent } from '../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { Product } from '../../home/models/product.model';
 import { RewardsReferralComponent } from '../components/rewards-referral/rewards-referral.component';
+import { MyPantryComponent } from '../components/my-pantry/my-pantry.component';
+import { PantryService } from '../components/my-pantry/pantry.service';
 
 const VIETNAM_BANK_LIST = ['Vietcombank', 'BIDV', 'Techcombank', 'VietinBank', 'Agribank', 'MB Bank', 'VPBank', 'ACB', 'Sacombank', 'TPBank', 'VIB', 'SHB', 'MSB', 'SeABank'];
 import {
@@ -50,6 +54,7 @@ import {
   LucideChevronDown,
   LucideChevronUp,
   LucideArrowRight,
+  LucidePlay,
   LucideCoffee,
   LucideClock,
   LucideChefHat,
@@ -61,7 +66,8 @@ import {
   LucideDessert,
   LucideBadgeCheck,
   LucideTrophy,
-  LucideActivity
+  LucideActivity,
+  LucideArchive
 } from '@lucide/angular';
 
 import { isWithinRefundWindow } from '../../purchase/models/refund-window.model';
@@ -106,6 +112,7 @@ import { isWithinRefundWindow } from '../../purchase/models/refund-window.model'
     LucideChevronDown,
     LucideChevronUp,
     LucideArrowRight,
+    LucidePlay,
     LucideCoffee,
     LucideClock,
     LucideChefHat,
@@ -118,7 +125,10 @@ import { isWithinRefundWindow } from '../../purchase/models/refund-window.model'
     LucideBadgeCheck,
     LucideTrophy,
     LucideActivity,
-    RitualBoxComponent
+    LucideArchive,
+    RitualBoxComponent,
+    BrewResumeModalComponent,
+    MyPantryComponent
   ],
   templateUrl: './account.component.html',
   styleUrl: './account.component.scss'
@@ -126,6 +136,7 @@ import { isWithinRefundWindow } from '../../purchase/models/refund-window.model'
 export class AccountComponent implements OnInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   readonly ritualBox = inject(RitualBoxService);
+  readonly pantry = inject(PantryService);
   private authService = inject(AuthService);
   private authModalService = inject(AuthModalService);
   private http = inject(HttpClient);
@@ -160,7 +171,7 @@ export class AccountComponent implements OnInit, OnDestroy {
       tabs: [
         { key: 'orders',  label: 'My orders',      icon: 'shopping-bag' },
         { key: 'ritual-box', label: 'Ritual Box',  icon: 'refresh-cw' },
-        { key: 'pantry',  label: 'My Pantry',       icon: 'archive',     badge: null, comingSoon: true },
+        { key: 'pantry',  label: 'My Pantry',       icon: 'archive' },
         { key: 'saved',   label: 'Saved items',     icon: 'bookmark' },
         { key: 'address', label: 'My address',      icon: 'map-pin' },
         { key: 'payment', label: 'Payment cards',   icon: 'credit-card' },
@@ -332,6 +343,13 @@ export class AccountComponent implements OnInit, OnDestroy {
   showDeleteSelectedModal = signal<boolean>(false);
   deleteSelectedSection = signal<string>('');
   selectedQuickViewProduct = signal<Product | null>(null);
+  resumePrompt = signal<{
+    slug: string;
+    recipeId: string;
+    title: string;
+    step: number;
+    secondsLeft: number | null;
+  } | null>(null);
 
   // Address Modal State
   showAddressModal = signal<boolean>(false);
@@ -937,6 +955,81 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (tab === 'saved') {
       this.fetchSavedItems();
     }
+  }
+
+  recipeStatus(item: any): 'done' | 'resume' | 'new' {
+    if (this.hasBrewProgress(item)) return 'resume';
+    if (item?.is_done) return 'done';
+    return 'new';
+  }
+
+  recipeStatusLabel(item: any): string {
+    const status = this.recipeStatus(item);
+    if (status === 'resume') return 'Resume';
+    if (status === 'done') {
+      const date = this.formatDoneDate(item?.last_done_at);
+      return date ? `Done ✓ ${date}` : 'Done';
+    }
+    return 'Not tried yet';
+  }
+
+  openSavedRecipe(item: any, event: Event): void {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button, a, label, input')) return;
+    const slug = item?.recipe?.slug;
+    if (!slug) return;
+    this.saveScrollAnchor('recipe', item.recipe.recipe_id);
+    this.router.navigate(['/recipes', slug]);
+  }
+
+  openBrewCoach(event: Event, item: any): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const slug = item?.recipe?.slug;
+    const recipeId = item?.recipe?.recipe_id;
+    if (!slug || !recipeId) return;
+    this.saveScrollAnchor('recipe', recipeId);
+    if (this.recipeStatus(item) !== 'resume') {
+      this.router.navigate(['/recipes', slug], { queryParams: { brew: 'start' } });
+      return;
+    }
+    const progress = readBrewProgress(recipeId);
+    this.resumePrompt.set({
+      slug,
+      recipeId,
+      title: item.recipe.title || 'this recipe',
+      step: (progress?.stepIndex ?? 0) + 1,
+      secondsLeft: progress ? resumeSecondsLeft(item.recipe, progress) : null,
+    });
+  }
+
+  continueBrewResume(): void {
+    const prompt = this.resumePrompt();
+    if (!prompt) return;
+    this.resumePrompt.set(null);
+    this.router.navigate(['/recipes', prompt.slug], { queryParams: { brew: 'resume' } });
+  }
+
+  restartBrewResume(): void {
+    const prompt = this.resumePrompt();
+    if (!prompt) return;
+    clearBrewProgress(prompt.recipeId);
+    this.resumePrompt.set(null);
+    this.router.navigate(['/recipes', prompt.slug], { queryParams: { brew: 'start' } });
+  }
+
+  private hasBrewProgress(item: any): boolean {
+    if (!isPlatformBrowser(this.platformId)) return false;
+    const recipeId = item?.recipe?.recipe_id;
+    if (!recipeId) return false;
+    return !!readBrewProgress(recipeId);
+  }
+
+  private formatDoneDate(value: string | Date | null | undefined): string {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
   saveScrollAnchor(type: string, id: string | number): void {

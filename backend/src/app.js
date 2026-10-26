@@ -85,6 +85,8 @@ app.use('/api/orders', require('./routes/orders.routes'));
 app.use('/api/order-tracking', require('./routes/order-tracking.routes'));
 app.use('/api/reviews', require('./routes/reviews.routes'));
 app.use('/api/recipes', require('./routes/recipes.routes'));
+app.use('/api/brew-sessions', require('./routes/brew-sessions.routes'));
+app.use('/api/pantry', require('./routes/pantry.routes'));
 app.use('/api/blogs', require('./routes/blogs.routes'));
 app.use('/api/posts', require('./routes/posts.routes'));
 app.use('/api/follows', require('./routes/follows.routes'));

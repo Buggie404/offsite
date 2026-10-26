@@ -40,9 +40,33 @@ const savedProductSchema = new mongoose.Schema({
   saved_at: { type: Date, default: Date.now }
 }, { _id: false });
 
+const personalAdjustmentSchema = new mongoose.Schema({
+  ingredient_name: { type: String, required: true },
+  delta_quantity: { type: Number, required: true },
+  unit: { type: String, default: '' },
+  deduct_quantity: { type: Number, default: null },
+  deduct_unit: { type: String, default: '' }
+}, { _id: false });
+
 const savedRecipeSchema = new mongoose.Schema({
   recipe_id: { type: String, required: true },
-  saved_at: { type: Date, default: Date.now }
+  saved_at: { type: Date, default: Date.now },
+  is_done: { type: Boolean, default: false },
+  done_count: { type: Number, default: 0 },
+  last_done_at: { type: Date, default: null },
+  personal_adjustments: { type: [personalAdjustmentSchema], default: [] }
+}, { _id: false });
+
+const doneRecipeSchema = new mongoose.Schema({
+  recipe_id: { type: String, required: true },
+  is_done: { type: Boolean, default: false },
+  done_count: { type: Number, default: 0 },
+  last_done_at: { type: Date, default: null }
+}, { _id: false });
+
+const startedRecipeSchema = new mongoose.Schema({
+  recipe_id: { type: String, required: true },
+  started_at: { type: Date, default: Date.now }
 }, { _id: false });
 
 const savedPostSchema = new mongoose.Schema({
@@ -84,6 +108,9 @@ const userSchema = new mongoose.Schema({
   payment_methods: { type: [paymentMethodSchema], default: [] },
   saved_products: { type: [savedProductSchema], default: [] },
   saved_recipes: { type: [savedRecipeSchema], default: [] },
+  done_recipes: { type: [doneRecipeSchema], default: [] },
+  started_recipes: { type: [startedRecipeSchema], default: [] },
+  hidden_pantry_recipes: { type: [String], default: [] },
   saved_posts: { type: [savedPostSchema], default: [] },
   liked_posts: [{ post_id: {type: String,required: true}, liked_at: {type: Date, default: Date.now}}],
   liked_posts: { type: [likedPostSchema], default: [] },

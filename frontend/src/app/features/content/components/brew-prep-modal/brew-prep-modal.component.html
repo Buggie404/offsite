@@ -1,0 +1,63 @@
+<div class="prep-overlay" (click)="onBackdropClick()">
+  <div
+    class="prep-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="brew-prep-title"
+    (click)="$event.stopPropagation()"
+  >
+    <button class="prep-close" type="button" (click)="onBackdropClick()" aria-label="Close">
+      <svg lucideX [size]="18" [strokeWidth]="1.75"></svg>
+    </button>
+
+    <h2 id="brew-prep-title" class="prep-title">Before you start</h2>
+
+    <p class="prep-note">
+      <svg lucideVolume2 [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
+      <span>Gather these. We will read each step aloud.</span>
+    </p>
+
+    <ul class="prep-list" [class.is-scrollable]="items.length > 6">
+      <li class="prep-row" *ngFor="let item of items; trackBy: trackItem">
+        <div class="prep-main">
+          <button
+            class="prep-check"
+            type="button"
+            [class.is-checked]="item.checked"
+            (click)="onToggle(item.key)"
+            [attr.aria-pressed]="item.checked"
+            [attr.aria-label]="'Mark ' + item.name + (item.checked ? ' as missing' : ' as ready')"
+          >
+            <svg *ngIf="item.checked" lucideCheck [size]="12" [strokeWidth]="2.5"></svg>
+          </button>
+          <span class="prep-name">
+            <span class="prep-optional" *ngIf="item.optional">Optional: </span>{{ item.name }}
+          </span>
+          <span class="prep-amount" *ngIf="item.amount">{{ item.amount }}</span>
+        </div>
+        <label class="prep-use" *ngIf="item.candidates.length > 1">
+          <span>Use</span>
+          <span class="prep-select">
+            <select
+              [ngModel]="item.selectedId"
+              (ngModelChange)="onPantrySelect(item, $event)"
+              [attr.aria-label]="'Pantry item for ' + item.name"
+            >
+              <option *ngFor="let candidate of item.candidates; trackBy: trackCandidate" [ngValue]="candidate.id">{{ candidate.label }}</option>
+            </select>
+            <svg lucideChevronDown [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
+          </span>
+          <span class="prep-draw" *ngIf="item.deductLabel">{{ item.deductLabel }}</span>
+        </label>
+        <p class="prep-use" *ngIf="item.candidates.length === 1">
+          <span>{{ item.pantryLabel }}</span>
+          <span class="prep-draw" *ngIf="item.deductLabel">{{ item.deductLabel }}</span>
+        </p>
+      </li>
+    </ul>
+
+    <button class="prep-start" type="button" (click)="onStart()">
+      Start · {{ stepCount }} {{ stepLabel }} · {{ prepMinutes }} min
+    </button>
+  </div>
+</div>

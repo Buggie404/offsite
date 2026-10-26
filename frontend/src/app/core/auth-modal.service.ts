@@ -10,6 +10,13 @@ export class AuthModalService {
   readonly isOpen = this.isOpenSignal.asReadonly();
   readonly mode = this.modeSignal.asReadonly();
 
+  private successOpenSignal = signal(false);
+  readonly successOpen = this.successOpenSignal.asReadonly();
+
+  setSuccessOpen(open: boolean): void {
+    this.successOpenSignal.set(open);
+  }
+
   open(mode: 'login' | 'signup' | 'forgot' = 'login'): void {
     this.modeSignal.set(mode);
     this.isOpenSignal.set(true);

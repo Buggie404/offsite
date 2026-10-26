@@ -14,7 +14,12 @@ const server = http.createServer(app);
 initSocket(server);
 
 connectDB()
-  .then(() => {
+  .then(async () => {
+    try {
+      await require('./services/ai-chat-session').syncSessionIndexes();
+    } catch (error) {
+      console.error('AiChatSession index sync failed:', error.message);
+    }
     server.listen(PORT, () => {
       console.log(`Backend server running on http://localhost:${PORT}`);
     });
@@ -22,6 +27,7 @@ connectDB()
     require('./services/points.service').startPointsPostingJob();
     // Hourly (per minute with SUB_TIME_UNIT=minute): charge due Ritual Box subscriptions.
     require('./services/subscription-charge.service').startSubscriptionChargeJob();
+    require('./services/pantry.service').startPantryExpiryJob();
   })
   .catch((error) => {
     console.error('Failed to start server:', error.message);

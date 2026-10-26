@@ -1,4 +1,4 @@
-import { Injectable, signal, inject, PLATFORM_ID } from '@angular/core';
+import { Injectable, afterNextRender, signal, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HttpService } from './http.service';
 import { CartService } from '../features/purchase/services/cart.service';
@@ -22,7 +22,12 @@ export class AuthService {
   readonly currentUser = this.currentUserSignal.asReadonly();
 
   constructor() {
-    this.initAuthState();
+    if (!isPlatformBrowser(this.platformId)) return;
+    window.addEventListener('offsite:session-expired', () => this.logout());
+    window.addEventListener('offsite:token-refreshed', () => this.orderSocketService.refreshTokenAuth());
+    // Match the server render (logged out) until hydration finishes. Applying
+    // the stored session before that swaps the navbar and breaks clicks.
+    afterNextRender(() => this.initAuthState());
   }
 
   initAuthState() {

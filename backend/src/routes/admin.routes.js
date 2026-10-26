@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
 const adminSubscriptionsController = require('../controllers/admin-subscriptions.controller');
+const adminProductsController = require('../controllers/admin-products.controller');
 const authController = require('../controllers/auth.controller');
 const adminCommunityController = require('../controllers/admin-community.controller');
 const adminDashboardController = require('../controllers/admin-dashboard.controller');
@@ -28,6 +29,9 @@ router.post('/orders/:id/refund/approve', authMiddleware, requireRole(...ADMIN_O
 router.post('/orders/:id/refund/reject', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog({ requireReason: true }), adminController.rejectRefundRequest);
 router.post('/orders/:id/out-of-stock', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.markItemsOutOfStock);
 router.post('/orders/:id/notes', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.addInternalNote);
+
+router.get('/products', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.listProducts);
+router.patch('/products/:productId/batch-expiry', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.updateBatchExpiry);
 
 // Subscriptions (QLSP, Admin CC): list, detail, pause / reactivate / frequency / cancel / internal note.
 // Ritual Box: CSKH can view (and keep notes); what each role may do is enforced per action

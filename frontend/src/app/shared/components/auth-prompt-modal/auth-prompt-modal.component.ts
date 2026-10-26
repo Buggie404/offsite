@@ -18,11 +18,11 @@ export class AuthPromptModalComponent {
   checkOpen = this.authPromptService.isOpen;
 
   closeModal(): void {
-    this.authPromptService.close();
+    this.authPromptService.dismiss();
   }
 
   openLoginModal(): void {
-    this.closeModal();
+    this.authPromptService.prepareLogin();
     this.authModalService.open('login');
   }
 

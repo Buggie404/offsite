@@ -22,6 +22,8 @@ export class HttpService {
     localStorage.setItem('token', token);
   }
 
+  private refreshInFlight: Promise<boolean> | null = null;
+
   // HEADERS
   private createHeaders() {
     const token = this.getAccessToken();
@@ -64,7 +66,10 @@ export class HttpService {
       url.startsWith('/auth/refresh');
 
     // HANDLE 401 → TRY REFRESH TOKEN
-    if (res.status === 401 && retry && !isPublicAuthEndpoint) {
+    // Only when this request actually carried an access token. A guest 401
+    // ("No token provided") must not clear a session that is not there.
+    const hadAccessToken = !!this.getAccessToken();
+    if (res.status === 401 && retry && !isPublicAuthEndpoint && hadAccessToken) {
       const refreshed = await this.refreshToken();
 
       if (refreshed) {
@@ -106,9 +111,22 @@ export class HttpService {
     return this.request('DELETE', url);
   }
 
+  patch(url: string, body: any) {
+    return this.request('PATCH', url, body);
+  }
+
   // REFRESH TOKEN FLOW
 
-  private async refreshToken(): Promise<boolean> {
+  private refreshToken(): Promise<boolean> {
+    if (!this.refreshInFlight) {
+      this.refreshInFlight = this.requestRefresh().finally(() => {
+        this.refreshInFlight = null;
+      });
+    }
+    return this.refreshInFlight;
+  }
+
+  private async requestRefresh(): Promise<boolean> {
     const refreshToken = this.getRefreshToken();
 
     if (!refreshToken) return false;
@@ -127,11 +145,15 @@ export class HttpService {
 
       if (data?.token) {
         this.setAccessToken(data.token);
+        if (data.refreshToken) {
+          localStorage.setItem('refreshToken', data.refreshToken);
+        }
+        this.notify('offsite:token-refreshed');
         return true;
       }
 
       return false;
-    } catch (err) {
+    } catch {
       return false;
     }
   }
@@ -140,5 +162,12 @@ export class HttpService {
   private logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    this.notify('offsite:session-expired');
+  }
+
+  private notify(name: string) {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent(name));
   }
 }

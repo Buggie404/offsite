@@ -49,7 +49,7 @@
             <ng-container [ngSwitch]="tab.icon">
               <svg *ngSwitchCase="'shopping-bag'" lucideShoppingBag [size]="18" class="menu-icon"></svg>
               <svg *ngSwitchCase="'refresh-cw'"   lucideRefreshCw   [size]="18" class="menu-icon"></svg>
-              <svg *ngSwitchCase="'archive'"      lucideShoppingBag [size]="18" class="menu-icon"></svg>
+              <svg *ngSwitchCase="'archive'"      lucideArchive    [size]="18" class="menu-icon"></svg>
               <svg *ngSwitchCase="'bookmark'"     lucideHeart       [size]="18" class="menu-icon"></svg>
               <svg *ngSwitchCase="'map-pin'"      lucideMapPin      [size]="18" class="menu-icon"></svg>
               <svg *ngSwitchCase="'credit-card'"  lucideCreditCard  [size]="18" class="menu-icon"></svg>
@@ -66,6 +66,12 @@
             <!-- Badge: info / count with label -->
             <span *ngIf="tab.badge?.type === 'info' || tab.badge?.type === 'count'" class="menu-badge menu-badge--info">
               {{ tab.badge?.label }}
+            </span>
+            <span *ngIf="tab.key === 'pantry' && pantry.expiringCount() > 0" class="menu-badge menu-badge--expiring">
+              {{ pantry.expiringCount() }} EXPIRING
+            </span>
+            <span *ngIf="tab.key === 'pantry' && pantry.expiringCount() === 0 && pantry.expiredCount() > 0" class="menu-badge menu-badge--expired">
+              {{ pantry.expiredCount() }} EXPIRED
             </span>
           </button>
         </ng-container>
@@ -86,8 +92,9 @@
       <!-- Title Header with Mobile Sidebar Toggle -->
       <div
         class="content-header"
-        [class.content-header--stack]="activeTab() === 'ritual-box' || activeTab() === 'rewards'"
+        [class.content-header--stack]="activeTab() === 'ritual-box' || activeTab() === 'rewards' || activeTab() === 'pantry'"
         [class.content-header--rewards]="activeTab() === 'rewards'"
+        [class.content-header--pantry]="activeTab() === 'pantry'"
       >
         <div class="header-title-wrapper">
           <button class="sidebar-toggle-btn" (click)="toggleSidebar()" aria-label="Open sidebar menu">
@@ -97,6 +104,9 @@
             <h1 class="page-title">{{ getActiveTabLabel() }}</h1>
             <p class="page-subtitle" *ngIf="activeTab() === 'rewards'">
               Points from orders, community and referrals
+            </p>
+            <p class="page-subtitle" *ngIf="activeTab() === 'pantry'">
+              Items are added automatically when an order is delivered, including Ritual Box deliveries.
             </p>
           </div>
         </div>
@@ -304,7 +314,7 @@
               </div>
 
               <div class="recipes-grid" *ngIf="savedRecipes().length > 0; else noRecipes">
-                <div [id]="'recipe-' + item.recipe.recipe_id" class="saved-item-card recipe-card" [class.selected]="isItemSelected('recipes', item.recipe.recipe_id)" *ngFor="let item of savedRecipes() | slice:0:visibleLimits()['recipes']" [routerLink]="['/recipes', item.recipe.slug]" (click)="saveScrollAnchor('recipe', item.recipe.recipe_id)">
+                <div [id]="'recipe-' + item.recipe.recipe_id" class="saved-item-card recipe-card" [class.selected]="isItemSelected('recipes', item.recipe.recipe_id)" *ngFor="let item of savedRecipes() | slice:0:visibleLimits()['recipes']" (click)="openSavedRecipe(item, $event)">
                   <div class="card-left-select" (click)="$event.stopPropagation()">
                     <label class="custom-checkbox-container">
                       <input type="checkbox" [checked]="isItemSelected('recipes', item.recipe.recipe_id)" (change)="toggleSelection('recipes', item.recipe.recipe_id)">
@@ -320,27 +330,37 @@
                     <h3 class="item-name">{{ item.recipe.title }}</h3>
                     <div class="item-meta recipe-meta-row">
                       <span class="meta-item">
-                        <svg *ngIf="item.recipe.metadata?.tags && (item.recipe.metadata.tags[0]?.toLowerCase() === 'hot' || item.recipe.metadata.tags[0]?.toLowerCase() === 'cold')" lucideCoffee [size]="14" class="meta-icon"></svg>
-                        <svg *ngIf="item.recipe.metadata?.tags && item.recipe.metadata.tags[0]?.toLowerCase() === 'dessert'" lucideDessert [size]="14" class="meta-icon"></svg>
-                        <svg *ngIf="!item.recipe.metadata?.tags || (item.recipe.metadata.tags[0]?.toLowerCase() !== 'hot' && item.recipe.metadata.tags[0]?.toLowerCase() !== 'cold' && item.recipe.metadata.tags[0]?.toLowerCase() !== 'dessert')" lucideCoffee [size]="14" class="meta-icon"></svg>
+                        <svg *ngIf="item.recipe.metadata?.tags && item.recipe.metadata.tags[0]?.toLowerCase() === 'dessert'" lucideDessert [size]="13" class="meta-icon"></svg>
+                        <svg *ngIf="!item.recipe.metadata?.tags || item.recipe.metadata.tags[0]?.toLowerCase() !== 'dessert'" lucideDroplet [size]="13" class="meta-icon"></svg>
                         <span>{{ (item.recipe.metadata?.tags && item.recipe.metadata.tags[0]) || 'COFFEE' | uppercase }}</span>
                       </span>
                       <span class="meta-separator">·</span>
                       <span class="meta-item">
-                        <svg lucideClock [size]="14" class="meta-icon"></svg>
+                        <svg lucideClock [size]="13" class="meta-icon"></svg>
                         <span>{{ item.recipe.metadata?.cookTime || item.recipe.metadata?.prepTime || 12 }} MINS</span>
                       </span>
                       <span class="meta-separator">·</span>
                       <span class="meta-item">
-                        <svg lucideStar [size]="14" class="meta-icon"></svg>
+                        <svg lucideStar [size]="13" class="meta-icon"></svg>
                         <span>{{ item.recipe.metadata?.difficulty || 'MEDIUM' | uppercase }}</span>
                       </span>
                     </div>
+                    <span
+                      class="recipe-status"
+                      [class.is-done]="recipeStatus(item) === 'done'"
+                      [class.is-resume]="recipeStatus(item) === 'resume'"
+                      [class.is-new]="recipeStatus(item) === 'new'">
+                      {{ recipeStatusLabel(item) }}
+                    </span>
                   </div>
 
-                  <div class="card-actions">
-                    <a class="btn-view-item" [routerLink]="['/recipes', item.recipe.slug]">
-                      <span>VIEW RECIPE</span>
+                  <div class="card-actions" (click)="$event.stopPropagation()">
+                    <button type="button" class="btn-brew-coach" (click)="openBrewCoach($event, item)">
+                      <svg lucidePlay [size]="14"></svg>
+                      <span>Brew coach</span>
+                    </button>
+                    <a class="btn-view-item" [routerLink]="['/recipes', item.recipe.slug]" (click)="saveScrollAnchor('recipe', item.recipe.recipe_id); $event.stopPropagation()">
+                      <span>View recipe</span>
                       <svg lucideArrowRight [size]="14"></svg>
                     </a>
                   </div>
@@ -991,7 +1011,11 @@
         <app-ritual-box (addCard)="switchTab('payment'); openAddCardForm()" (viewOrder)="viewOrderById($event)"></app-ritual-box>
       </div>
 
-      <div class="tab-content placeholder-tab" *ngIf="activeTab() !== 'profile' && activeTab() !== 'saved' && activeTab() !== 'address' && activeTab() !== 'orders' && activeTab() !== 'payment' && activeTab() !== 'rewards' && activeTab() !== 'ritual-box'">
+      <div class="tab-content pantry-tab" *ngIf="activeTab() === 'pantry'">
+        <app-my-pantry></app-my-pantry>
+      </div>
+
+      <div class="tab-content placeholder-tab" *ngIf="activeTab() !== 'profile' && activeTab() !== 'saved' && activeTab() !== 'address' && activeTab() !== 'orders' && activeTab() !== 'payment' && activeTab() !== 'rewards' && activeTab() !== 'ritual-box' && activeTab() !== 'pantry'">
         <div class="profile-info-card empty-state-card">
           <svg lucideShoppingBag [size]="48" class="empty-icon" *ngIf="activeTab() === 'orders'"></svg>
           <svg lucideCreditCard [size]="48" class="empty-icon" *ngIf="activeTab() === 'payment'"></svg>
@@ -1539,6 +1563,16 @@
       </div>
     </div>
   </div>
+
+  <app-brew-resume-modal
+    *ngIf="resumePrompt() as prompt"
+    [recipeTitle]="prompt.title"
+    [stepNumber]="prompt.step"
+    [secondsLeft]="prompt.secondsLeft"
+    (continued)="continueBrewResume()"
+    (restarted)="restartBrewResume()"
+    (closed)="resumePrompt.set(null)"
+  ></app-brew-resume-modal>
 
   <app-confirmation-modal
     [isOpen]="isConfirmModalOpen"

@@ -1,0 +1,390 @@
+<div class="brew-coach" [class.is-awaiting-auth]="awaitingAuth" role="dialog" aria-modal="true" aria-label="Brew coach">
+  <div class="deco" aria-hidden="true">
+    <img class="deco-right-arc" src="assets/brew-coach/deco-right-arc.svg" width="584" height="760" alt="" />
+    <img class="deco-left-ring" src="assets/brew-coach/deco-left-ring.svg" width="280" height="280" alt="" />
+    <svg lucideSparkle class="spark spark-a" [size]="18" [strokeWidth]="1.25" aria-hidden="true"></svg>
+    <svg lucideSparkle class="spark spark-c" [size]="14" [strokeWidth]="1.25" aria-hidden="true"></svg>
+  </div>
+
+  <div class="coach-top">
+  <header class="coach-header">
+    <button class="exit-btn" type="button" (click)="askToExit()">
+      <svg lucideArrowLeft [size]="16" [strokeWidth]="1.75" aria-hidden="true"></svg>
+      <span>Exit brew mode</span>
+    </button>
+
+    <p class="brew-title">
+      <span>Brewing</span>
+      <span class="dot" aria-hidden="true">·</span>
+      <span class="recipe-name">{{ recipe.title }}</span>
+    </p>
+
+    <div class="header-meta">
+      <button class="pill-btn" type="button" (click)="toggleVoice()" [attr.aria-pressed]="voiceOn">
+        <svg *ngIf="voiceOn; else voiceOffIcon" lucideVolume2 [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
+        <ng-template #voiceOffIcon>
+          <svg lucideVolumeX [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
+        </ng-template>
+        <span>{{ voiceOn ? 'Voice on' : 'Voice off' }}</span>
+      </button>
+      <span class="v-rule" aria-hidden="true"></span>
+      <span class="meta-clock">{{ formatClock(elapsed) }}</span>
+      <span class="v-rule" aria-hidden="true"></span>
+      <span class="meta-step">Step {{ stepIndex + 1 }} / {{ steps.length }}</span>
+    </div>
+  </header>
+
+  <div class="progress" aria-hidden="true">
+    <span
+      *ngFor="let item of steps; let i = index"
+      [class.is-done]="isDone(i)"
+      [class.is-current]="i === stepIndex"
+    ></span>
+  </div>
+  </div>
+
+  <div class="stage" *ngIf="steps.length">
+    <section class="coach-main" *ngIf="step as current">
+      <div class="adjust" *ngIf="showAdjustmentBanner">
+        <div class="adjust-heading">
+          <p class="adjust-kicker">{{ adjustmentLabel }}</p>
+          <button class="adjust-dismiss" type="button" (click)="dismissAdjustment()" aria-label="Hide adjustment note">
+            <svg lucideX [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
+          </button>
+        </div>
+        <p class="adjust-message" *ngIf="adjustmentMessage">{{ adjustmentMessage }}</p>
+        <div class="adjust-change" *ngFor="let change of visibleChanges">
+          <span class="adjust-change-name" *ngIf="change.name">{{ change.name }}</span>
+          <span class="adjust-pill">
+            <span class="from">{{ change.from }}</span>
+            <span aria-hidden="true">→</span>
+            <span class="to">{{ change.to }}</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="step-head">
+        <div class="step-kicker">
+          <span class="kicker-strong">Step {{ stepIndex + 1 }} of {{ steps.length }}</span>
+          <span class="dot" aria-hidden="true">·</span>
+          <span>{{ current.timerSeconds ? 'Timed · ' + formatClock(current.timerSeconds) : 'At your pace' }}</span>
+        </div>
+        <button class="pill-btn read-btn" type="button" (click)="readAloud()">
+          <svg lucideVolume1 [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
+          <span>Read aloud</span>
+        </button>
+      </div>
+
+      <h1>{{ current.title }}</h1>
+
+      <div class="need-row">
+        <div class="need-line">
+          <p class="label">You'll need</p>
+          <div class="need-chips">
+            <ng-container *ngFor="let need of needsFor(current, stepIndex)">
+              <span class="need-chip">
+                <span>{{ need.name }}</span>
+                <span class="need-adjust" *ngIf="need.change as change; else plainAmount">
+                  <span class="from">{{ change.from }}</span>
+                  <span aria-hidden="true">→</span>
+                  <span class="to">{{ change.to }}</span>
+                </span>
+                <ng-template #plainAmount>
+                  <span class="need-amount">{{ need.amount }}</span>
+                </ng-template>
+              </span>
+              <p class="need-source" *ngIf="pantryChoiceFor(need.name) as choice">
+                <span class="need-source-name">{{ choice.productName }}</span>
+                <span *ngIf="choice.deductLabel">{{ choice.deductLabel }}</span>
+              </p>
+            </ng-container>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-card" *ngIf="!current.timerSeconds">
+        <div class="card-head">
+          <span>No timer</span>
+        </div>
+        <ul>
+          <li>
+            <p class="pace-copy">{{ current.description }}</p>
+          </li>
+        </ul>
+        <img class="card-swirl" src="assets/brew-coach/card-swirl.svg" width="200" height="120" alt="" />
+      </div>
+
+      <div class="action-card action-card--timer" *ngIf="current.timerSeconds">
+        <div class="timer-dial" aria-live="polite">
+          <svg class="timer-ring" viewBox="0 0 220 220" aria-hidden="true">
+            <circle class="timer-track" cx="110" cy="110" r="96" />
+            <circle
+              class="timer-arc"
+              cx="110"
+              cy="110"
+              r="96"
+              transform="rotate(-90 110 110)"
+              [style.stroke-dasharray]="circumference"
+              [style.stroke-dashoffset]="ringOffset"
+              [style.transition]="ringTransition"
+            />
+          </svg>
+          <div class="timer-readout">
+            <span class="timer-value">{{ formatClock(timerLeft) }}</span>
+            <span class="timer-status" [class.is-up]="timerTotal > 0 && timerLeft <= 0">{{ timerStatus }}</span>
+          </div>
+        </div>
+
+        <div class="timer-copy">
+          <p class="while">{{ current.description }}</p>
+          <div class="timer-actions">
+            <button class="timer-btn timer-btn--solid" type="button" (click)="startOrPause()">
+              {{ timerButtonLabel }}
+            </button>
+            <button class="timer-btn" type="button" (click)="addTenSeconds()">+10s</button>
+            <button class="timer-btn" type="button" (click)="resetTimer()">Reset</button>
+          </div>
+        </div>
+
+        <img class="timer-swirl" src="assets/brew-coach/timer-swirl.svg" width="160" height="160" alt="" />
+        <svg lucideSparkle class="timer-spark" [size]="22" [strokeWidth]="1.25" aria-hidden="true"></svg>
+      </div>
+
+      <div class="nav-row">
+        <button class="nav-btn nav-btn--ghost" type="button" (click)="previous()" [disabled]="stepIndex === 0">
+          ← Previous
+        </button>
+        <button class="nav-btn nav-btn--next" type="button" (click)="finishOrNext()">
+          {{ stepIndex === steps.length - 1 ? 'Finish brew' : 'Step done · next →' }}
+        </button>
+      </div>
+    </section>
+
+    <aside class="coach-side">
+      <p class="side-label">Steps</p>
+      <ol>
+        <li
+          *ngFor="let item of steps; let i = index"
+          [class.is-current]="i === stepIndex"
+          [class.has-preview]="i === stepIndex + 1"
+        >
+          <button type="button" (click)="goTo(i)" [attr.aria-current]="i === stepIndex ? 'step' : null">
+            <span class="badge" [class.is-done]="isDone(i)" [class.is-current]="i === stepIndex">
+              {{ isDone(i) ? '✓' : i + 1 }}
+            </span>
+            <span class="side-name" [class.is-current]="i === stepIndex">{{ item.title }}</span>
+            <span class="side-time" *ngIf="item.timerSeconds">{{ formatClock(item.timerSeconds) }}</span>
+          </button>
+          <div class="up-next" *ngIf="i === stepIndex + 1">
+            <p>{{ nextPreviewLabel(item) }}</p>
+            <p>{{ item.description }}</p>
+          </div>
+        </li>
+      </ol>
+
+      <div class="bowl" aria-hidden="true">
+        <img src="assets/brew-coach/bowl.svg" width="300" height="250" alt="" />
+      </div>
+    </aside>
+  </div>
+
+  <div class="exit-overlay" *ngIf="exitConfirmOpen" (mousedown)="onExitBackdrop($event)">
+    <section class="exit-card" role="dialog" aria-modal="true" aria-labelledby="brew-exit-title" (mousedown)="$event.stopPropagation()">
+      <button class="exit-close" type="button" (click)="stayInBrew()" aria-label="Close">
+        <svg lucideX [size]="18" [strokeWidth]="1.75" aria-hidden="true"></svg>
+      </button>
+      <h2 id="brew-exit-title">Leave brew mode?</h2>
+      <p>{{ exitNote }}</p>
+      <div class="exit-actions">
+        <button class="exit-stay" type="button" (click)="stayInBrew()">Keep brewing</button>
+        <button class="exit-confirm" type="button" (click)="confirmExit()">Exit</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="review-overlay" *ngIf="reviewOpen" (mousedown)="onReviewBackdrop($event)">
+    <form class="review-card" role="dialog" aria-modal="true" aria-labelledby="brew-review-title" (submit)="saveReview($event)" (mousedown)="$event.stopPropagation()">
+      <button class="review-close" type="button" (click)="closeReview()" aria-label="Close">
+        <svg lucideX [size]="18" [strokeWidth]="1.75" aria-hidden="true"></svg>
+      </button>
+      <h1 id="brew-review-title">How was it?</h1>
+      <p class="review-lead">{{ reviewLead }}</p>
+
+      <div class="rating-block">
+        <p class="review-label">Your rating</p>
+        <div class="rating-row">
+          <div class="stars" role="radiogroup" aria-label="Your rating">
+            <button
+              *ngFor="let star of stars"
+              type="button"
+              role="radio"
+              class="star-btn"
+              [class.is-on]="star <= shownRating"
+              [attr.aria-checked]="rating === star"
+              [attr.aria-label]="star + ' out of 5'"
+              (click)="setRating(star)"
+              (mouseenter)="hoverRating = star"
+              (mouseleave)="hoverRating = 0"
+            >
+              <svg lucideStar [size]="32" [strokeWidth]="1.75" [attr.fill]="star <= shownRating ? 'currentColor' : 'none'" aria-hidden="true"></svg>
+            </button>
+          </div>
+          <p class="rating-caption" *ngIf="shownRating">{{ shownRating }} / 5 · {{ ratingLabels[shownRating] }}</p>
+        </div>
+      </div>
+
+      <div class="intensity-block">
+        <div class="intensity-legend">
+          <span>Lighter</span>
+          <span class="intensity-title">Flavor intensity</span>
+          <span>Stronger</span>
+        </div>
+        <input
+          class="intensity"
+          type="range"
+          min="1"
+          max="5"
+          step="1"
+          [value]="intensity"
+          [style.--fill]="intensityFill"
+          (input)="setIntensity($event)"
+          aria-label="Flavor intensity"
+        />
+        <div class="intensity-scale" aria-hidden="true">
+          <span *ngFor="let mark of stars">{{ mark }}</span>
+        </div>
+      </div>
+
+      <div class="adjust-block">
+        <div class="adjust-choice">
+          <p class="review-label">Adjust the recipe for next time?</p>
+          <div class="adjust-toggle" role="group" aria-label="Adjust the recipe for next time?">
+            <button type="button" [class.is-on]="adjustRecipe" (click)="setAdjustRecipe(true)">Yes, adjust it</button>
+            <button type="button" [class.is-on]="!adjustRecipe" (click)="setAdjustRecipe(false)">No, keep it as is</button>
+          </div>
+        </div>
+        <p class="adjust-hint" *ngIf="!adjustRecipe && hasPreviousTweaks">Your last tweaks stay in place.</p>
+
+        <ng-container *ngIf="adjustRecipe">
+          <div class="adjust-box" *ngIf="recipe.ingredients.length">
+            <div class="adjust-head">
+              <span>Ingredient</span>
+              <span>Amount next time</span>
+            </div>
+            <div class="adjust-row" *ngFor="let row of reviewRows" [class.has-powder]="showsPowder(row)">
+              <label class="ingredient-select">
+                <select
+                  [name]="'ingredient-' + row.id"
+                  [ngModel]="row.ingredientIndex"
+                  (ngModelChange)="changeIngredient(row, $event)"
+                  aria-label="Ingredient"
+                >
+                  <option
+                    *ngFor="let ingredient of recipe.ingredients; let i = index"
+                    [ngValue]="i"
+                    [disabled]="ingredientTaken(i, row)"
+                  >{{ ingredient.name }}</option>
+                </select>
+                <svg lucideChevronDown [size]="16" [strokeWidth]="1.75" aria-hidden="true"></svg>
+              </label>
+              <div class="amount-line">
+                <div class="stepper">
+                  <button type="button" (click)="nudgeAmount(row, -1)" [disabled]="row.amount <= 0" aria-label="Decrease amount">
+                    <svg lucideMinus [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
+                  </button>
+                  <input
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    [value]="amountField(row)"
+                    (input)="onAmountType(row, $any($event.target).value)"
+                    (blur)="commitAmount(row)"
+                    (keydown.enter)="$event.preventDefault()"
+                    aria-label="Amount next time"
+                  />
+                  <button type="button" (click)="nudgeAmount(row, 1)" aria-label="Increase amount">
+                    <svg lucidePlus [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
+                  </button>
+                </div>
+                <span class="amount-unit" *ngIf="unitOf(row)">{{ unitOf(row) }}</span>
+                <span class="amount-delta" *ngIf="formatDelta(row) as delta" [class.is-up]="deltaDirection(row) === 'up'" [class.is-down]="deltaDirection(row) === 'down'">{{ delta }}</span>
+              </div>
+              <button class="trash-btn" type="button" (click)="removeRow(row)" aria-label="Remove ingredient">
+                <svg lucideTrash2 [size]="16" [strokeWidth]="1.75" aria-hidden="true"></svg>
+              </button>
+              <span class="powder-label" *ngIf="showsPowder(row)">Powder from the tin</span>
+              <div class="powder-line" *ngIf="showsPowder(row)">
+                <div class="stepper">
+                  <button type="button" (click)="nudgePowder(row, -1)" [disabled]="(row.powderGrams ?? 0) <= 0" aria-label="Decrease powder">
+                    <svg lucideMinus [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
+                  </button>
+                  <input
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    [value]="powderField(row)"
+                    (input)="onPowderType(row, $any($event.target).value)"
+                    (blur)="commitPowder(row)"
+                    (keydown.enter)="$event.preventDefault()"
+                    aria-label="Powder from the tin in grams"
+                  />
+                  <button type="button" (click)="nudgePowder(row, 1)" aria-label="Increase powder">
+                    <svg lucidePlus [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
+                  </button>
+                </div>
+                <span class="amount-unit">g</span>
+              </div>
+            </div>
+            <button class="add-ingredient" type="button" *ngIf="canAddIngredient()" (click)="addReviewRow()">
+              <svg lucidePlus [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
+              <span>Add an ingredient to adjust</span>
+            </button>
+            <p class="adjust-hint" *ngIf="showsPowderNote">Prepared matcha is the whisked drink. These grams come out of the tin and are saved for the next brew.</p>
+          </div>
+
+          <label class="note-field">
+            <span class="review-label">Note for next time</span>
+            <textarea
+              rows="2"
+              [value]="reviewNote"
+              (input)="reviewNote = $any($event.target).value"
+              placeholder="Whisk 10 seconds longer so the foam holds. A little less milk."
+            ></textarea>
+          </label>
+        </ng-container>
+      </div>
+
+      <p class="save-error" *ngIf="saveError">{{ saveError }}</p>
+      <button class="save-results" type="submit" [disabled]="saving">
+        {{ saving ? 'Saving...' : (signedIn ? 'Save results' : 'Sign in to save') }}
+      </button>
+      <button class="review-skip" type="button" *ngIf="!signedIn" (click)="skipReview()" [disabled]="saving">
+        Finish without saving
+      </button>
+    </form>
+  </div>
+
+  <div class="saved-overlay" *ngIf="savedOpen" (click)="backToRecipe()">
+    <section class="saved-card" role="dialog" aria-modal="true" aria-labelledby="brew-saved-title" (click)="$event.stopPropagation()">
+      <button class="saved-close" type="button" (click)="backToRecipe()" aria-label="Back to recipe">
+        <svg lucideX [size]="18" [strokeWidth]="1.75" aria-hidden="true"></svg>
+      </button>
+      <div class="saved-check" aria-hidden="true">
+        <svg lucideCheck [size]="32" [strokeWidth]="2.5"></svg>
+      </div>
+      <h2 id="brew-saved-title">Saved!</h2>
+      <p>Recipe, rating, tweaks and photos saved. Matcha usage logged in My Pantry.</p>
+      <button class="saved-primary" type="button" (click)="viewPantry()">
+        <svg lucideArchive [size]="16" [strokeWidth]="1.75" aria-hidden="true"></svg>
+        <span>View in My Pantry</span>
+      </button>
+      <button class="saved-secondary" type="button" (click)="shareToCommunity()">
+        <svg lucideShare2 [size]="16" [strokeWidth]="1.75" aria-hidden="true"></svg>
+        <span>Share a photo to Community</span>
+      </button>
+      <button class="saved-back" type="button" (click)="backToRecipe()">
+        Back to recipe
+      </button>
+    </section>
+  </div>
+</div>

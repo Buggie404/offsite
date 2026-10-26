@@ -19,6 +19,9 @@ function authMiddleware(req, res, next) {
     req.user = decoded; // { user_id, email, role }
     next();
   } catch (error) {
+    if (error?.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token expired' });
+    }
     return res.status(403).json({ error: 'Invalid token' });
   }
 }

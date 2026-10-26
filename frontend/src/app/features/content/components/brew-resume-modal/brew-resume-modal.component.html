@@ -1,0 +1,26 @@
+<div class="resume-overlay" (click)="onBackdropClick()">
+  <div
+    class="resume-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="brew-resume-title"
+    (click)="$event.stopPropagation()"
+  >
+    <button class="resume-close" type="button" (click)="onClose()" aria-label="Close">
+      <svg lucideX [size]="18" [strokeWidth]="1.75" aria-hidden="true"></svg>
+    </button>
+    <div class="resume-body">
+      <h2 id="brew-resume-title" class="resume-title">Continue your brewing session?</h2>
+      <p class="resume-copy">{{ message }}</p>
+    </div>
+    <div class="resume-footer">
+      <button class="resume-continue" type="button" (click)="onContinue()">
+        <svg lucidePlay [size]="14" [strokeWidth]="2.25" aria-hidden="true"></svg>
+        <span>Continue</span>
+      </button>
+      <button class="resume-restart" type="button" (click)="onRestart()">
+        <span>Start over</span>
+      </button>
+    </div>
+  </div>
+</div>

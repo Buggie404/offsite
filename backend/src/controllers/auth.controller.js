@@ -1044,6 +1044,169 @@ async function toggleSavedRecipe(req, res) {
   }
 }
 
+function parsePersonalAdjustments(raw) {
+  if (!Array.isArray(raw)) return { error: 'personal_adjustments must be a list' };
+  const items = [];
+  for (const row of raw) {
+    if (!row || typeof row.ingredient_name !== 'string' || !row.ingredient_name.trim()) {
+      return { error: 'Each adjustment needs an ingredient name, delta, and unit' };
+    }
+    const delta = Number(row.delta_quantity);
+    if (!Number.isFinite(delta)) {
+      return { error: 'Each adjustment needs an ingredient name, delta, and unit' };
+    }
+    if (row.unit != null && typeof row.unit !== 'string') {
+      return { error: 'Each adjustment needs an ingredient name, delta, and unit' };
+    }
+    let deduct_quantity = null;
+    let deduct_unit = '';
+    if (row.deduct_quantity != null && row.deduct_quantity !== '') {
+      deduct_quantity = Number(row.deduct_quantity);
+      deduct_unit = typeof row.deduct_unit === 'string' ? row.deduct_unit.trim() : '';
+      if (!Number.isFinite(deduct_quantity) || deduct_quantity < 0 || !deduct_unit) {
+        return { error: 'Each powder amount needs a quantity and a unit' };
+      }
+    }
+    items.push({
+      ingredient_name: row.ingredient_name.trim(),
+      delta_quantity: delta,
+      unit: typeof row.unit === 'string' ? row.unit.trim() : '',
+      deduct_quantity,
+      deduct_unit
+    });
+  }
+  return { value: items };
+}
+
+async function updateSavedRecipe(req, res) {
+  try {
+    const recipeId = String(req.params.recipeId || '').trim();
+    if (!recipeId) return res.status(400).json({ error: 'Missing recipeId' });
+
+    const User = require('../models/User');
+    const user = await User.findById(req.user.user_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const body = req.body || {};
+    const fields = ['is_done', 'done_count', 'last_done_at', 'personal_adjustments'];
+    if (!fields.some(key => Object.prototype.hasOwnProperty.call(body, key))) {
+      return res.status(400).json({ error: 'No saved recipe fields to update' });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, 'is_done') && typeof body.is_done !== 'boolean') {
+      return res.status(400).json({ error: 'is_done must be a boolean' });
+    }
+
+    const saved = user.saved_recipes.find(sr => sr.recipe_id === recipeId);
+    if (!saved) return res.status(404).json({ error: 'Saved recipe not found' });
+
+    const wasDone = !!saved.is_done;
+    if (Object.prototype.hasOwnProperty.call(body, 'is_done')) {
+      saved.is_done = body.is_done;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, 'done_count')) {
+      const count = Number(body.done_count);
+      if (!Number.isInteger(count) || count < 0) {
+        return res.status(400).json({ error: 'done_count must be a non-negative integer' });
+      }
+      saved.done_count = count;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, 'last_done_at')) {
+      if (body.last_done_at == null || body.last_done_at === '') {
+        saved.last_done_at = null;
+      } else {
+        const date = new Date(body.last_done_at);
+        if (Number.isNaN(date.getTime())) return res.status(400).json({ error: 'last_done_at must be a date' });
+        saved.last_done_at = date;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, 'personal_adjustments')) {
+      const parsed = parsePersonalAdjustments(body.personal_adjustments);
+      if (parsed.error) return res.status(400).json({ error: parsed.error });
+      saved.personal_adjustments = parsed.value;
+    }
+
+    if (saved.is_done && !wasDone) {
+      if (!Object.prototype.hasOwnProperty.call(body, 'done_count')) {
+        saved.done_count = Number(saved.done_count || 0) + 1;
+      }
+      if (!Object.prototype.hasOwnProperty.call(body, 'last_done_at')) {
+        saved.last_done_at = new Date();
+      }
+    }
+
+    user.markModified('saved_recipes');
+    await user.save();
+
+    res.json({
+      saved_recipe: {
+        recipe_id: saved.recipe_id,
+        saved_at: saved.saved_at,
+        is_done: !!saved.is_done,
+        done_count: saved.done_count || 0,
+        last_done_at: saved.last_done_at || null,
+        personal_adjustments: saved.personal_adjustments || []
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function updateDoneRecipe(req, res) {
+  try {
+    const recipeId = String(req.params.recipeId || '').trim();
+    if (!recipeId) return res.status(400).json({ error: 'Missing recipeId' });
+    if (typeof req.body?.is_done !== 'boolean') {
+      return res.status(400).json({ error: 'is_done must be a boolean' });
+    }
+
+    const User = require('../models/User');
+    const Recipe = require('../models/Recipe');
+    const user = await User.findById(req.user.user_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const recipe = await Recipe.findOne({ recipe_id: recipeId }).select('recipe_id');
+    if (!recipe) return res.status(404).json({ error: 'Recipe not found' });
+
+    if (!Array.isArray(user.done_recipes)) user.done_recipes = [];
+    let done = user.done_recipes.find(item => item.recipe_id === recipeId);
+    if (!done) {
+      user.done_recipes.push({
+        recipe_id: recipeId,
+        is_done: false,
+        done_count: 0,
+        last_done_at: null
+      });
+      done = user.done_recipes[user.done_recipes.length - 1];
+    }
+
+    const wasDone = !!done.is_done;
+    done.is_done = req.body.is_done;
+    if (done.is_done && !wasDone) {
+      done.done_count = Number(done.done_count || 0) + 1;
+      done.last_done_at = new Date();
+    }
+
+    user.markModified('done_recipes');
+    await user.save();
+
+    res.json({
+      done_recipe: {
+        recipe_id: done.recipe_id,
+        is_done: !!done.is_done,
+        done_count: done.done_count || 0,
+        last_done_at: done.last_done_at || null
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 async function toggleSavedBlog(req, res) {
   try {
     const { blogId } = req.body;
@@ -1092,6 +1255,29 @@ async function toggleSavedPost(req, res) {
   }
 }
 
+async function getRecipeFlags(req, res) {
+  try {
+    const User = require('../models/User');
+    const user = await User.findById(req.user.user_id)
+      .select('saved_recipes.recipe_id saved_recipes.is_done done_recipes.recipe_id done_recipes.is_done')
+      .lean();
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json({
+      saved_recipes: (user.saved_recipes || []).map(item => ({
+        recipe_id: item.recipe_id,
+        is_done: !!item.is_done
+      })),
+      done_recipes: (user.done_recipes || []).map(item => ({
+        recipe_id: item.recipe_id,
+        is_done: !!item.is_done
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 async function getSavedItems(req, res) {
   try {
     const mongoose = require('mongoose');
@@ -1124,7 +1310,14 @@ async function getSavedItems(req, res) {
 
       saved_recipes: user.saved_recipes.map(sr => {
         const rec = recipes.find(r => r.recipe_id === sr.recipe_id);
-        return { saved_at: sr.saved_at, recipe: rec || null };
+        return {
+          saved_at: sr.saved_at,
+          is_done: !!sr.is_done,
+          done_count: sr.done_count || 0,
+          last_done_at: sr.last_done_at || null,
+          personal_adjustments: sr.personal_adjustments || [],
+          recipe: rec || null
+        };
       }).filter(item => item.recipe !== null),
 
       saved_posts: user.saved_posts.map(sp => {
@@ -1135,7 +1328,14 @@ async function getSavedItems(req, res) {
       saved_blogs: user.saved_blogs.map(sb => {
         const blg = blogs.find(b => String(b._id) === sb.blog_id);
         return { saved_at: sb.saved_at, blog: blg || null };
-      }).filter(item => item.blog !== null)
+      }).filter(item => item.blog !== null),
+
+      done_recipes: (user.done_recipes || []).map(item => ({
+        recipe_id: item.recipe_id,
+        is_done: !!item.is_done,
+        done_count: item.done_count || 0,
+        last_done_at: item.last_done_at || null
+      }))
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1379,8 +1579,11 @@ module.exports = {
   deletePaymentMethod,
   toggleSavedProduct,
   toggleSavedRecipe,
+  updateSavedRecipe,
+  updateDoneRecipe,
   toggleSavedBlog,
   toggleSavedPost,
   getSavedItems,
+  getRecipeFlags,
   deleteSavedItemsBatch
 };

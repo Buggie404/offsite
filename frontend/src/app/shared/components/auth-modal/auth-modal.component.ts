@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { LucideX, LucideEye, LucideEyeOff } from '@lucide/angular';
 import { AuthModalService } from '../../../core/auth-modal.service';
 import { AuthService } from '../../../core/auth.service';
+import { AuthPromptModalService } from '../auth-prompt-modal/auth-prompt-modal.service';
+import { ToastService } from '../../services/toast.service';
 import { SuccessModalComponent, SuccessModalConfig } from '../success-modal/success-modal.components';
 import { Router, RouterModule } from '@angular/router';
 import { environment } from '../../../../environments/environment';
@@ -19,6 +21,8 @@ import { InlineValidator, FieldConfig } from '../../utils/inline-validator';
 export class AuthModalComponent implements AfterViewInit, OnDestroy {
   private authModalService = inject(AuthModalService);
   private authService = inject(AuthService);
+  private authPrompt = inject(AuthPromptModalService);
+  private toast = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router); 
 
@@ -149,6 +153,10 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
   closeAuthModal(): void {
     this.authModalService.close();
     this.resetForm();
+    if (!this.authService.isAuthenticated()) {
+      this.authPrompt.clearResume();
+      this.authPrompt.cancelStay();
+    }
   }
 
   closeOrCancelOtp(): void {
@@ -749,17 +757,10 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
 
     try {
       await this.authService.login(normalizedIdentifier, this.loginPassword);
-      this.closeAuthModal();
-
-      const isOnHomepage = this.router.url === '/';
-      this.successModalConfig = {
+      this.finishAuthenticated({
         title: 'Log In Successfully',
         subtitle: "Welcome back! You're now signed in.",
-        primaryBtn: 'CONTINUE',
-        ...(isOnHomepage ? {} : { secondaryBtn: 'BACK TO HOMEPAGE' })
-      };
-      this.showSuccessModal = true;
-      this.cdr.detectChanges();
+      });
     } catch (err: any) {
         const errorCode = err?.code;
         if (errorCode === 'ACCOUNT_NOT_FOUND') {
@@ -1062,19 +1063,12 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
       const linkedOrders = Array.isArray(response?.linked_guest_orders) ? response.linked_guest_orders.length : 0;
 
       this.clearOtpCountdown();
-      this.closeAuthModal();
-
-      const isOnHomepage = this.router.url === '/';
-      this.successModalConfig = {
+      this.finishAuthenticated({
         title: 'Signed Up Successfully',
         subtitle: linkedOrders
           ? `Welcome to Offsite! We found ${linkedOrders} earlier order${linkedOrders > 1 ? 's' : ''} you placed as a guest — ${linkedOrders > 1 ? 'they are' : 'it is'} now in your order history.`
           : 'Welcome to Offsite!',
-        primaryBtn: 'CONTINUE',
-        ...(isOnHomepage ? {} : { secondaryBtn: 'BACK TO HOMEPAGE' })
-      };
-      this.showSuccessModal = true;
-      this.cdr.detectChanges();
+      });
     } catch (err: any) {
       const code = err?.code;
 
@@ -1157,34 +1151,64 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.clearOtpCountdown();
     this.cleanupSignupValidator();
+    this.authModalService.setSuccessOpen(false);
+  }
+
+  private setSuccessModal(open: boolean): void {
+    this.showSuccessModal = open;
+    this.authModalService.setSuccessOpen(open);
   }
 
   loginWithGoogle(): void {
+    this.authPrompt.stashReturnUrl(this.router.url);
     window.location.href = `${environment.apiUrl}/auth/oauth/google`;
   }
 
   loginWithFacebook(): void {
+    this.authPrompt.stashReturnUrl(this.router.url);
     window.location.href = `${environment.apiUrl}/auth/oauth/facebook`;
   }
 
+  private finishAuthenticated(config: Pick<SuccessModalConfig, 'title' | 'subtitle'>): void {
+    const resume = this.authPrompt.hasResume();
+    const stay = this.authPrompt.shouldStayOnPage();
+    this.authPrompt.cancelStay();
+    this.closeAuthModal();
+    if (resume) {
+      this.toast.success("You're signed in.");
+      this.cdr.detectChanges();
+      return;
+    }
+    const isOnHomepage = this.router.url === '/';
+    this.successModalConfig = {
+      ...config,
+      primaryBtn: 'CONTINUE',
+      ...(!stay && !isOnHomepage ? { secondaryBtn: 'BACK TO HOMEPAGE' } : {}),
+    };
+    this.setSuccessModal(true);
+    this.cdr.detectChanges();
+  }
+
   onSuccessPrimary(): void {
-    this.showSuccessModal = false;
+    this.setSuccessModal(false);
     if (this.successModalConfig.primaryBtn === 'LOG IN') {
       this.closeAuthModal();
       this.authModalService.open('login');
-    } else if (this.successModalConfig.primaryBtn === 'CONTINUE') {
+    } else if (this.successModalConfig.primaryBtn === 'CONTINUE' || this.authPrompt.hasResume()) {
       this.closeAuthModal();
     } else {
       this.closeAuthModal();
-      this.router.navigate(['/']);
+      void this.router.navigate(['/']);
     }
   }
 
   onSuccessSecondary(): void {
-    this.showSuccessModal = false;
+    this.setSuccessModal(false);
     if (this.successModalConfig.secondaryBtn === 'BACK TO HOMEPAGE') {
       this.closeAuthModal();
-      this.router.navigate(['/']);
+      if (!this.authPrompt.shouldStayOnPage()) {
+        void this.router.navigate(['/']);
+      }
     } else if (this.successModalConfig.secondaryBtn === 'SIGN OUT') {
       this.closeAuthModal();
       this.authService.logout();
@@ -1194,7 +1218,7 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
   }
 
   onSuccessClose(): void {
-    this.showSuccessModal = false;
+    this.setSuccessModal(false);
     this.closeAuthModal();
   }
 

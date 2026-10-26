@@ -1,0 +1,253 @@
+$forest-green: #375534;
+$surface: #fffdf9;
+$text: #1a1a1a;
+$text-muted: #544a40;
+$border: rgba(84, 74, 64, 0.18);
+$border-strong: rgba(84, 74, 64, 0.35);
+$white: #ffffff;
+
+:host {
+  display: contents;
+}
+
+.prep-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: rgba(22, 39, 25, 0.42);
+}
+
+.prep-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 22px;
+  width: min(600px, 100%);
+  max-height: calc(100dvh - 48px);
+  padding: 36px;
+  background: $surface;
+  border: 1px solid $border;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px -20px rgba(26, 26, 26, 0.28);
+
+  @media (max-width: 640px) {
+    gap: 18px;
+    padding: 28px 20px 20px;
+  }
+}
+
+.prep-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: $text-muted;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba($forest-green, 0.08);
+    color: $text;
+  }
+}
+
+.prep-title {
+  margin: 0;
+  padding-right: 28px;
+  font-family: var(--font-display), 'Russo One', sans-serif;
+  font-size: 40px;
+  font-weight: 400;
+  line-height: 46px;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: $text;
+
+  @media (max-width: 640px) {
+    font-size: 30px;
+    line-height: 36px;
+  }
+}
+
+.prep-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-family: var(--font-body), 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: $text-muted;
+
+  svg {
+    flex-shrink: 0;
+  }
+}
+
+.prep-list {
+  list-style: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 296px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  &.is-scrollable {
+    padding-right: 6px;
+  }
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(84, 74, 64, 0.06);
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(84, 74, 64, 0.28);
+    border-radius: 3px;
+  }
+}
+
+.prep-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 14px 0;
+  border-bottom: 1px solid $border;
+}
+
+.prep-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.prep-use {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding-left: 30px;
+  color: $text-muted;
+  font-family: var(--font-body), 'DM Sans', sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.prep-select {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+
+  select {
+    width: 100%;
+    height: 32px;
+    padding: 0 28px 0 10px;
+    border: 1px solid $border-strong;
+    border-radius: 6px;
+    background: $white;
+    color: $text;
+    font-family: var(--font-body), 'DM Sans', sans-serif;
+    font-size: 13px;
+    appearance: none;
+    cursor: pointer;
+  }
+
+  svg {
+    position: absolute;
+    top: 9px;
+    right: 8px;
+    color: $text-muted;
+    pointer-events: none;
+  }
+}
+
+.prep-draw {
+  flex-shrink: 0;
+  color: $forest-green;
+  font-family: var(--font-mono), 'DM Mono', monospace;
+  font-size: 12px;
+}
+
+.prep-check {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  border: 1.5px solid $border-strong;
+  background: $white;
+  color: $white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+
+  &.is-checked {
+    background: $forest-green;
+    border-color: $forest-green;
+  }
+}
+
+.prep-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-body), 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: $text;
+}
+
+.prep-optional {
+  color: $text-muted;
+}
+
+.prep-amount {
+  flex-shrink: 0;
+  font-family: var(--font-mono), 'DM Mono', monospace;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  color: $text-muted;
+}
+
+.prep-start {
+  width: 100%;
+  height: 56px;
+  border: none;
+  border-radius: 4px;
+  background: $forest-green;
+  color: $white;
+  font-family: var(--font-body), 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+
+  &:hover {
+    background: #2c4429;
+  }
+}
