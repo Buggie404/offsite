@@ -15,210 +15,173 @@
       </button>
     </div>
 
-    <!-- Body -->
+    <!-- Body: 2 cột (media | nội dung + sản phẩm) -->
     <div class="modal-body">
+      <div class="compose-grid">
 
-      <!-- CONTENT -->
-      <section class="form-section">
-        <div class="section-label-row">
-          <span class="section-label">CONTENT</span>
-          <span class="section-divider"></span>
-        </div>
-        <textarea
-          class="content-textarea"
-          placeholder="Title your post and tell the story..."
-          [(ngModel)]="content"
-          name="content"
-          rows="3"
-        ></textarea>
-      </section>
+        <!-- ── Trái: ảnh / video ── -->
+        <div class="media-col">
+          <input #fileInput type="file" accept="image/*,video/*" multiple hidden (change)="onFilesSelected($event)" />
 
-      <!-- PHOTO & MEDIA -->
-      <section class="form-section">
-        <div class="section-label-row">
-          <span class="section-label">PHOTO &amp; MEDIA</span>
-          <span class="section-divider"></span>
-        </div>
-
-        <!-- Drag & drop / click to upload -->
-        <label class="dropzone" *ngIf="canAddMoreFiles">
-          <input
-            type="file"
-            accept="image/*,video/*"
-            multiple
-            hidden
-            (change)="onFilesSelected($event)"
-          />
-          <div class="dropzone-icon">
-            <svg lucideImage [size]="20"></svg>
-          </div>
-          <p class="dropzone-title">Drag and drop or click to upload</p>
-          <p class="dropzone-sub">PNG, JPG, MP4 up to {{ maxFiles }} files</p>
-          <p class="dropzone-count">{{ files.length }}/{{ maxFiles }} added</p>
-        </label>
-
-        <!-- Thumbnails -->
-        <div class="thumbnail-row" *ngIf="previews.length">
-          <div class="thumb" *ngFor="let preview of previews; let i = index">
-            <img *ngIf="preview.type === 'image'" [src]="preview.url" alt="preview" />
-            <video *ngIf="preview.type === 'video'" [src]="preview.url" muted playsinline></video>
-            <button class="thumb-remove" *ngIf="!isEdit" type="button" (click)="removeFile(i)" aria-label="Remove">
-              <svg lucideX [size]="12"></svg>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAGS -->
-      <section class="form-section">
-        <div class="section-label-row">
-          <span class="section-label">TAGS</span>
-          <span class="section-divider"></span>
-        </div>
-
-        <!-- Chọn nhanh base tag: coffee / matcha -->
-        <div class="base-select-row">
-          <button
-            class="base-chip"
-            type="button"
-            *ngFor="let base of baseOptions"
-            [class.base-chip--active]="selectedBase === base"
-            (click)="toggleBase(base)"
-          >
-            {{ base === 'COFFEE' ? 'Coffee' : 'Matcha' }}
-          </button>
-        </div>
-
-        <input
-          class="tag-input"
-          type="text"
-          placeholder="Add a hashtag..."
-          [(ngModel)]="tagInput"
-          name="tagInput"
-          (keydown)="onTagInputKeydown($event)"
-        />
-
-        <div class="tag-chip-row" *ngIf="tags.length">
-          <div class="tag-chip" [class.tag-chip--base]="tag.isBase" *ngFor="let tag of tags">
-            <span>{{ tag.isBase ? tag.label : '#' + tag.label }}</span>
-            <button type="button" (click)="removeTag(tag)" aria-label="Remove tag">
-              <svg lucideX [size]="12"></svg>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- PRODUCTS (gắn tối đa 3) -->
-      <section class="form-section">
-        <div class="section-label-row">
-          <span class="section-label">PRODUCTS</span>
-          <span class="section-divider"></span>
-          <span class="section-count">{{ selectedProducts.length }}/{{ maxProducts }}</span>
-        </div>
-
-        <div class="product-search" *ngIf="canAddMoreProducts">
-          <svg lucideSearch [size]="16" class="product-search__icon"></svg>
-          <input
-            class="tag-input product-search__input"
-            type="text"
-            placeholder="Search a product to tag..."
-            [ngModel]="productQuery"
-            (ngModelChange)="onProductQueryChange($event)"
-            name="productQuery"
-            autocomplete="off"
-          />
-        </div>
-
-        <div class="product-results" *ngIf="canAddMoreProducts && productQuery.trim().length >= 2">
-          <p class="product-hint" *ngIf="searching">Searching...</p>
-          <p class="product-hint" *ngIf="!searching && searchDone && !visibleSearchResults.length">No products found.</p>
-          <button type="button" class="product-option" *ngFor="let p of visibleSearchResults" (click)="addProduct(p)">
-            <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
-            <span class="product-option__name">{{ p.name }}</span>
-            <svg lucidePlus [size]="14"></svg>
-          </button>
-        </div>
-
-        <div class="tag-chip-row" *ngIf="selectedProducts.length">
-          <div class="tag-chip product-chip" *ngFor="let p of selectedProducts">
-            <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
-            <span>{{ p.name }}</span>
-            <button type="button" (click)="removeProduct(p)" aria-label="Remove product">
-              <svg lucideX [size]="12"></svg>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- PREVIEW + gợi ý thẻ AI -->
-      <section class="form-section" *ngIf="showPreview">
-        <div class="section-label-row">
-          <span class="section-label">PREVIEW</span>
-          <span class="section-divider"></span>
-        </div>
-
-        <div class="post-preview">
-          <div class="post-preview__media">
-            <ng-container *ngIf="previewMedia; else previewText">
-              <img *ngIf="previewMedia.type === 'image'" [src]="previewMedia.url" alt="preview" />
-              <video *ngIf="previewMedia.type === 'video'" [src]="previewMedia.url" muted playsinline></video>
+          <div class="media-main">
+            <ng-container *ngIf="activePreview as m; else emptyMedia">
+              <img *ngIf="m.type === 'image'" [src]="m.url" alt="preview" />
+              <video *ngIf="m.type === 'video'" [src]="m.url" muted playsinline controls></video>
             </ng-container>
-            <ng-template #previewText>
-              <p class="post-preview__text">{{ content }}</p>
+            <ng-template #emptyMedia>
+              <button type="button" class="media-empty" [disabled]="!canAddMoreFiles" (click)="fileInput.click()">
+                <svg lucideImage [size]="28"></svg>
+                <span class="media-empty__title">Add photo or video</span>
+                <span class="media-empty__sub">PNG, JPG, MP4 · up to {{ maxFiles }} files</span>
+              </button>
             </ng-template>
+          </div>
 
-            <!-- Thẻ sản phẩm nằm trên ảnh, giống feed -->
-            <div class="post-preview__tags" *ngIf="selectedProducts.length">
-              <span class="preview-tag" *ngFor="let p of selectedProducts">
+          <div class="media-thumbs" *ngIf="previews.length || canAddMoreFiles">
+            <div class="media-thumb" *ngFor="let preview of previews; let i = index"
+              [class.media-thumb--active]="i === activeIndex" (click)="activeIndex = i">
+              <img *ngIf="preview.type === 'image'" [src]="preview.url" alt="" />
+              <video *ngIf="preview.type === 'video'" [src]="preview.url" muted playsinline></video>
+              <button class="thumb-remove" *ngIf="!isEdit" type="button" aria-label="Remove"
+                (click)="removeFile(i); $event.stopPropagation()">
+                <svg lucideX [size]="12"></svg>
+              </button>
+            </div>
+            <button type="button" class="media-add" *ngIf="canAddMoreFiles" aria-label="Add media"
+              (click)="fileInput.click()">
+              <svg lucidePlus [size]="20"></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Phải: nội dung, tag, sản phẩm ── -->
+        <div class="form-col">
+
+          <textarea
+            class="content-textarea"
+            placeholder="Title your post and tell the story..."
+            [ngModel]="content"
+            (ngModelChange)="onContentChange($event)"
+            name="content"
+            rows="3"
+          ></textarea>
+
+          <!-- Base + hashtag -->
+          <div class="chip-row">
+            <button class="base-chip" type="button" *ngFor="let base of baseOptions"
+              [class.base-chip--active]="selectedBase === base" (click)="toggleBase(base)">
+              {{ base }}
+            </button>
+
+            <span class="hash-chip" *ngFor="let tag of hashtags">
+              <span>#{{ tag.label }}</span>
+              <button type="button" (click)="removeTag(tag)" aria-label="Remove tag">
+                <svg lucideX [size]="11"></svg>
+              </button>
+            </span>
+
+            <input
+              class="hash-input"
+              type="text"
+              placeholder="+ #hashtag"
+              [(ngModel)]="tagInput"
+              name="tagInput"
+              (keydown)="onTagInputKeydown($event)"
+              (blur)="addTagFromInput()"
+            />
+          </div>
+
+          <!-- TAG PRODUCTS -->
+          <section class="tag-products">
+            <div class="tp-head">
+              <span class="tp-label">TAG PRODUCTS</span>
+              <span class="tp-count">{{ totalTagged }} / {{ maxProducts }}</span>
+            </div>
+
+            <div class="tp-search">
+              <svg lucideSearch [size]="16" class="tp-search__icon"></svg>
+              <input
+                type="text"
+                placeholder="Search by name or SKU"
+                [ngModel]="productQuery"
+                (ngModelChange)="onProductQueryChange($event)"
+                name="productQuery"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="tp-results" *ngIf="productQuery.trim().length >= 2">
+              <p class="tp-hint" *ngIf="searching">Searching...</p>
+              <p class="tp-hint" *ngIf="!searching && searchDone && !searchResults.length">No products found.</p>
+
+              <button type="button" class="tp-row" *ngFor="let p of searchResults"
+                [class.tp-row--on]="isSelected(p)" (click)="toggleProduct(p)">
+                <span class="tp-thumb"><img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" /></span>
+                <span class="tp-info">
+                  <span class="tp-name">{{ p.name }}</span>
+                  <span class="tp-sku" *ngIf="p.sku">{{ p.sku }}</span>
+                </span>
+                <span class="tp-price" *ngIf="p.price != null">{{ p.price | currency:'USD':'symbol':'1.2-2' }}</span>
+                <svg *ngIf="isSelected(p)" lucideCheck [size]="16" class="tp-mark"></svg>
+                <svg *ngIf="!isSelected(p)" lucidePlus [size]="16" class="tp-mark"></svg>
+              </button>
+            </div>
+
+            <!-- Thẻ do người dùng tự tag -->
+            <div class="chip-row" *ngIf="selectedProducts.length">
+              <span class="prod-chip" *ngFor="let p of selectedProducts">
                 <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
-                {{ p.name }}
+                <span>{{ p.name }}</span>
+                <button type="button" (click)="removeProduct(p)" aria-label="Remove product">
+                  <svg lucideX [size]="12"></svg>
+                </button>
               </span>
             </div>
-          </div>
+          </section>
 
-          <div class="ai-suggest">
-            <div class="ai-suggest__head">
-              <span class="ai-suggest__title"><svg lucideSparkles [size]="14"></svg> Suggested products</span>
+          <!-- AI suggestions -->
+          <section class="ai-panel">
+            <div class="ai-head">
+              <span class="ai-title"><svg lucideSparkles [size]="14"></svg> AI suggestions from your text</span>
 
-              <button type="button" class="ai-suggest__btn" *ngIf="!hasSuggested"
+              <button type="button" class="ai-btn" *ngIf="!hasSuggested"
                 [disabled]="suggestLoading || !canSuggest" (click)="requestSuggestions(false)">
-                {{ suggestLoading ? 'Thinking...' : 'Suggest tags' }}
+                {{ suggestLoading ? 'Thinking...' : 'Suggest' }}
               </button>
-
-              <button type="button" class="ai-suggest__btn" *ngIf="hasSuggested"
+              <button type="button" class="ai-btn" *ngIf="hasSuggested"
                 [disabled]="suggestLoading || regenLeft <= 0" (click)="requestSuggestions(true)">
-                <svg lucideRefreshCw [size]="13"></svg>
+                <svg lucideRefreshCw [size]="12"></svg>
                 {{ suggestLoading ? 'Thinking...' : 'Suggest again (' + regenLeft + ' left)' }}
               </button>
             </div>
 
-            <p class="product-hint" *ngIf="suggestMessage">{{ suggestMessage }}</p>
-
-            <div class="ai-suggest__list" *ngIf="visibleSuggestions.length">
-              <button type="button" class="product-option" *ngFor="let p of visibleSuggestions"
-                [disabled]="!canAddMoreProducts" (click)="addProduct(p)">
+            <div class="chip-row" *ngIf="aiProducts.length">
+              <span class="ai-chip" *ngFor="let p of aiProducts">
                 <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
-                <span class="product-option__name">{{ p.name }}</span>
-                <span class="product-option__badge" *ngIf="p.confidence != null">{{ (p.confidence * 100) | number:'1.0-0' }}%</span>
-                <svg lucidePlus [size]="14"></svg>
-              </button>
+                <span>{{ p.name }}</span>
+                <span class="ai-chip__tag">AI</span>
+                <button type="button" (click)="removeAiProduct(p)" aria-label="Remove AI tag">
+                  <svg lucideX [size]="12"></svg>
+                </button>
+              </span>
             </div>
-          </div>
-        </div>
-      </section>
 
-      <p class="form-error" *ngIf="errorMessage">{{ errorMessage }}</p>
+            <p class="ai-hint" *ngIf="suggestMessage">{{ suggestMessage }}</p>
+            <p class="ai-note">
+              Keep or remove each tag before posting. Kept AI tags count toward the 3-product limit.
+              Nothing is added automatically.
+            </p>
+          </section>
+
+          <p class="form-error" *ngIf="errorMessage">{{ errorMessage }}</p>
+        </div>
+      </div>
     </div>
 
     <!-- Footer -->
     <div class="modal-footer">
       <button class="btn-cancel" type="button" (click)="onRequestClose()">CANCEL</button>
-      <button
-        class="btn-post"
-        type="button"
-        [disabled]="isSubmitting"
-        (click)="submitPost()"
-      >
+      <button class="btn-post" type="button" [disabled]="isSubmitting" (click)="submitPost()">
         {{ isSubmitting ? (isEdit ? 'SAVING...' : 'POSTING...') : (isEdit ? 'SAVE' : 'POST') }}
       </button>
     </div>
@@ -237,12 +200,8 @@
       </p>
 
       <div class="discard-actions">
-        <button class="btn-keep-editing" type="button" (click)="onKeepEditing()">
-          KEEP EDITING
-        </button>
-        <button class="btn-discard" type="button" (click)="onConfirmDiscard()">
-          DISCARD
-        </button>
+        <button class="btn-keep-editing" type="button" (click)="onKeepEditing()">KEEP EDITING</button>
+        <button class="btn-discard" type="button" (click)="onConfirmDiscard()">DISCARD</button>
       </div>
     </div>
   </div>

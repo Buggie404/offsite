@@ -6,18 +6,19 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, of } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, switchMap, tap } from 'rxjs/operators';
 import {
-  LucideX, LucideImage, LucideTrash2, LucideSearch, LucideSparkles, LucideRefreshCw, LucidePlus
+  LucideX, LucideImage, LucideTrash2, LucideSearch, LucideSparkles, LucideRefreshCw, LucidePlus, LucideCheck
 } from '@lucide/angular';
 
 import { CloudinaryService, CloudinaryUploadResult } from '../../services/cloudinary.service';
 import { CommunityService } from '../../services/community.service';
 import { Post, ProductTag } from '../../models/post.model';
 
+// base chỉ có 2 giá trị hợp lệ theo Post model
 const VALID_BASES = ['coffee', 'matcha'] as const;
 type BaseValue = 'COFFEE' | 'MATCHA';
 
 interface TagChip {
-  label: string;   
+  label: string;   // "coffee"/"matcha" (base) hoặc "icedlatte" (hashtag tự do)
   isBase: boolean;
 }
 
@@ -26,12 +27,15 @@ interface MediaPreview {
   type: 'image' | 'video';
 }
 
+// Backend có thể trả thêm sku cho từng sản phẩm (ô tìm theo tên hoặc SKU)
+type ProductOption = ProductTag & { sku?: string | null };
+
 @Component({
   selector: 'app-create-post-modal',
   standalone: true,
   imports: [
     CommonModule, FormsModule,
-    LucideX, LucideImage, LucideTrash2, LucideSearch, LucideSparkles, LucideRefreshCw, LucidePlus
+    LucideX, LucideImage, LucideTrash2, LucideSearch, LucideSparkles, LucideRefreshCw, LucidePlus, LucideCheck
   ],
   templateUrl: './create-post-modal.component.html',
   styleUrls: ['./create-post-modal.component.scss'],
@@ -42,55 +46,59 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
 
-
+  // Khớp với feed.component.html: (close)="closeCreatePost()"
   @Output() close = new EventEmitter<void>();
 
+  // Có post truyền vào = chế độ sửa bài
   @Input() post: Post | null = null;
-  @Output() saved = new EventEmitter<string>();
-
-  private initialSnapshot = '';
+  @Output() saved = new EventEmitter<string>(); // post_id vừa sửa xong
 
   get isEdit(): boolean {
     return !!this.post;
   }
 
-  // ----- State modal Create Post -----
+  // ----- State bài viết -----
   content = '';
   tagInput = '';
   tags: TagChip[] = [];
   files: File[] = [];
-  previews: MediaPreview[] = []; 
+  previews: MediaPreview[] = []; // object URL (hoặc url Cloudinary khi sửa bài)
+  activeIndex = 0;               // ảnh/video đang hiện ở khung lớn
   isSubmitting = false;
   errorMessage = '';
 
   readonly maxFiles = 4;
-  // Giới hạn dung lượng phía client (chỉnh theo preset Cloudinary của team nếu khác)
   readonly maxImageMb = 10;
   readonly maxVideoMb = 50;
   readonly baseOptions: BaseValue[] = ['COFFEE', 'MATCHA'];
 
-  // ----- Gắn sản phẩm (tối đa 3) -----
+  // ----- Gắn sản phẩm: thủ công (selectedProducts) và do AI gợi ý (aiProducts) -----
+  // Cả hai cộng lại tối đa 3. AI không bao giờ chiếm chỗ của thẻ tự tag.
   readonly maxProducts = 3;
-  selectedProducts: ProductTag[] = [];
+  selectedProducts: ProductOption[] = [];
+  aiProducts: ProductOption[] = [];
   productQuery = '';
-  searchResults: ProductTag[] = [];
+  searchResults: ProductOption[] = [];
   searching = false;
   searchDone = false;
   private query$ = new Subject<string>();
 
-  // ----- Gợi ý thẻ sản phẩm (AI) 
+  // ----- Gợi ý AI — "Suggest again" tối đa 2 lần -----
   readonly maxRegenerate = 2;
-  suggestions: ProductTag[] = [];
   suggestLoading = false;
   hasSuggested = false;
   regenCount = 0;
   suggestMessage = '';
   private shownSuggestionIds = new Set<number>();
+  private autoSuggest$ = new Subject<void>();
 
-  // ----- State modal Discard confirm -----
+  private initialSnapshot = '';
+
+  // ----- Discard confirm -----
   showDiscardConfirm = false;
 
   constructor() {
+    // Tìm sản phẩm thủ công: debounce 300ms, huỷ request cũ khi gõ tiếp
     this.query$
       .pipe(
         debounceTime(300),
@@ -110,10 +118,19 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       )
       .subscribe(results => {
         if (results) {
-          this.searchResults = results;
+          this.searchResults = results as ProductOption[];
           this.searchDone = true;
         }
         this.searching = false;
+      });
+
+    // Tự gợi ý một lần sau khi người dùng dừng gõ ~1.5s (chỉ lần đầu, chỉ khi tạo bài mới)
+    this.autoSuggest$
+      .pipe(debounceTime(1500), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (!this.isEdit && !this.hasSuggested && !this.suggestLoading && this.content.trim().length >= 8) {
+          this.requestSuggestions(false);
+        }
       });
   }
 
@@ -139,9 +156,14 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       confidence: null,
     }));
 
+    // Ảnh/video giữ nguyên khi sửa, chỉ để xem
     this.previews = (p.media || []).map(m => ({ url: m.url, type: m.type }));
 
     this.initialSnapshot = this.snapshot();
+  }
+
+  ngOnDestroy(): void {
+    this.previews.forEach(p => URL.revokeObjectURL(p.url));
   }
 
   private snapshot(): string {
@@ -149,12 +171,8 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       this.content.trim(),
       this.tags.map(t => t.label),
       this.selectedProducts.map(s => s.product_id),
+      this.aiProducts.map(s => s.product_id),
     ]);
-  }
-
-
-  ngOnDestroy(): void {
-    this.previews.forEach(p => URL.revokeObjectURL(p.url));
   }
 
   // Esc: đang mở hộp discard thì quay lại soạn bài, ngược lại thử đóng modal
@@ -164,7 +182,18 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     else this.onRequestClose();
   }
 
+  // ================== Content ==================
+
+  onContentChange(value: string): void {
+    this.content = value;
+    this.autoSuggest$.next();
+  }
+
   // ================== Tags ==================
+
+  get hashtags(): TagChip[] {
+    return this.tags.filter(t => !t.isBase);
+  }
 
   onTagInputKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter') {
@@ -184,12 +213,8 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       this.tags = this.tags.filter(t => !t.isBase);
       this.tags.unshift({ label: raw.toLowerCase(), isBase: true });
     } else {
-      const exists = this.tags.some(
-        t => !t.isBase && t.label.toLowerCase() === raw.toLowerCase(),
-      );
-      if (!exists) {
-        this.tags.push({ label: raw, isBase: false });
-      }
+      const exists = this.tags.some(t => !t.isBase && t.label.toLowerCase() === raw.toLowerCase());
+      if (!exists) this.tags.push({ label: raw, isBase: false });
     }
 
     this.tagInput = '';
@@ -199,7 +224,6 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     this.tags = this.tags.filter(t => t !== tag);
   }
 
-  // Chọn nhanh base tag (coffee/matcha) bằng nút bấm thay vì gõ tay
   get selectedBase(): BaseValue | null {
     const base = this.tags.find(t => t.isBase);
     return base ? (base.label.toUpperCase() as BaseValue) : null;
@@ -211,12 +235,18 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
 
     // Bấm lại vào base đang chọn -> bỏ chọn; ngược lại -> thay thế base cũ
     this.tags = this.tags.filter(t => !t.isBase);
-    if (!already) {
-      this.tags.unshift({ label, isBase: true });
-    }
+    if (!already) this.tags.unshift({ label, isBase: true });
   }
 
   // ================== Photo & Media ==================
+
+  get canAddMoreFiles(): boolean {
+    return !this.isEdit && this.files.length < this.maxFiles;
+  }
+
+  get activePreview(): MediaPreview | null {
+    return this.previews[this.activeIndex] ?? this.previews[0] ?? null;
+  }
 
   onFilesSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -260,18 +290,17 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
   }
 
   removeFile(index: number): void {
+    if (this.isEdit) return;
     URL.revokeObjectURL(this.previews[index].url);
     this.files.splice(index, 1);
     this.previews.splice(index, 1);
+    this.activeIndex = Math.max(0, Math.min(this.activeIndex, this.previews.length - 1));
   }
 
-  get canAddMoreFiles(): boolean {
-    return this.files.length < this.maxFiles;
-  }
+  // ================== Gắn sản phẩm ==================
 
-
-  get canAddMoreProducts(): boolean {
-    return this.selectedProducts.length < this.maxProducts;
+  get totalTagged(): number {
+    return this.selectedProducts.length + this.aiProducts.length;
   }
 
   onProductQueryChange(value: string): void {
@@ -279,18 +308,39 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     this.query$.next(value);
   }
 
-  isProductSelected(p: ProductTag): boolean {
+  isManual(p: ProductTag): boolean {
     return this.selectedProducts.some(s => s.product_id === p.product_id);
   }
 
-  addProduct(p: ProductTag): void {
-    if (this.isProductSelected(p)) return;
-    if (!this.canAddMoreProducts) {
-      this.errorMessage = `You can tag up to ${this.maxProducts} products.`;
+  isAi(p: ProductTag): boolean {
+    return this.aiProducts.some(s => s.product_id === p.product_id);
+  }
+
+  isSelected(p: ProductTag): boolean {
+    return this.isManual(p) || this.isAi(p);
+  }
+
+  // Bấm một dòng trong kết quả tìm: đang chọn thì bỏ, chưa chọn thì thêm (thẻ tự tag)
+  toggleProduct(p: ProductOption): void {
+    if (this.isManual(p)) {
+      this.removeProduct(p);
       return;
     }
+    if (this.isAi(p)) {
+      this.removeAiProduct(p);
+      return;
+    }
+    if (this.totalTagged >= this.maxProducts) {
+      // Thẻ tự tag được ưu tiên: nhường chỗ bằng cách bỏ thẻ AI cuối cùng
+      if (this.aiProducts.length) {
+        this.aiProducts = this.aiProducts.slice(0, -1);
+      } else {
+        this.errorMessage = `You can tag up to ${this.maxProducts} products.`;
+        return;
+      }
+    }
     this.errorMessage = '';
-    this.selectedProducts.push(p);
+    this.selectedProducts = [...this.selectedProducts, { ...p, source: 'manual' }];
   }
 
   removeProduct(p: ProductTag): void {
@@ -298,10 +348,11 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
   }
 
-  get visibleSearchResults(): ProductTag[] {
-    return this.searchResults.filter(p => !this.isProductSelected(p));
+  removeAiProduct(p: ProductTag): void {
+    this.aiProducts = this.aiProducts.filter(s => s.product_id !== p.product_id);
   }
 
+  // ================== Gợi ý AI ==================
 
   get regenLeft(): number {
     return this.maxRegenerate - this.regenCount;
@@ -311,12 +362,9 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     return !!this.content.trim() || !!this.selectedBase;
   }
 
-  get visibleSuggestions(): ProductTag[] {
-    return this.suggestions.filter(p => !this.isProductSelected(p));
-  }
-
+  // content + hashtag — cùng định dạng sẽ gửi lên khi đăng
   private get composedContent(): string {
-    const hashtags = this.tags.filter(t => !t.isBase).map(t => `#${t.label}`).join(' ');
+    const hashtags = this.hashtags.map(t => `#${t.label}`).join(' ');
     const text = this.content.trim();
     return hashtags ? `${text} ${hashtags}`.trim() : text;
   }
@@ -329,10 +377,16 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const slots = this.maxProducts - this.selectedProducts.length;
+    if (slots <= 0) {
+      this.suggestMessage = 'You have tagged 3 products. Remove one to see AI suggestions.';
+      return;
+    }
+
     this.suggestLoading = true;
     this.suggestMessage = '';
 
-
+    // Loại những sản phẩm đã gợi ý hoặc đã tự tag để "Suggest again" ra kết quả khác
     const exclude = [
       ...new Set([...this.shownSuggestionIds, ...this.selectedProducts.map(p => p.product_id)]),
     ];
@@ -342,11 +396,10 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       .subscribe({
         next: list => {
           this.suggestLoading = false;
-          const fresh = list
-            .filter(p => !exclude.includes(p.product_id))
-            .slice(0, this.maxProducts);
+          const fresh = (list as ProductOption[]).filter(p => !exclude.includes(p.product_id)).slice(0, slots);
 
           if (fresh.length === 0) {
+            // Không còn gì mới: giữ nguyên kết quả cũ và KHÔNG tính vào lượt gợi ý lại
             this.suggestMessage = this.hasSuggested
               ? 'No other matches for this post.'
               : 'No matching products found. Try adding more detail or search manually.';
@@ -354,7 +407,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
             return;
           }
 
-          this.suggestions = fresh;
+          this.aiProducts = fresh.map(p => ({ ...p, source: 'ai' as const }));
           fresh.forEach(p => this.shownSuggestionIds.add(p.product_id));
           if (isRegenerate) this.regenCount++;
           this.hasSuggested = true;
@@ -366,23 +419,16 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       });
   }
 
-
-
-  get showPreview(): boolean {
-  return !!this.content.trim() || this.previews.length > 0 || !!this.selectedBase;
-  }
-
-  get previewMedia(): MediaPreview | null {
-    return this.previews[0] ?? null;
-  }
-
+  // ================== Đóng modal / Discard confirm ==================
 
   get hasUnsavedContent(): boolean {
+    if (this.isEdit) return this.snapshot() !== this.initialSnapshot;
     return (
       this.content.trim().length > 0 ||
       this.tags.length > 0 ||
       this.files.length > 0 ||
-      this.selectedProducts.length > 0
+      this.selectedProducts.length > 0 ||
+      this.aiProducts.length > 0
     );
   }
 
@@ -416,12 +462,13 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     this.previews.forEach(p => URL.revokeObjectURL(p.url));
     this.previews = [];
     this.files = [];
+    this.activeIndex = 0;
     this.errorMessage = '';
     this.selectedProducts = [];
+    this.aiProducts = [];
     this.productQuery = '';
     this.searchResults = [];
     this.searchDone = false;
-    this.suggestions = [];
     this.shownSuggestionIds.clear();
     this.hasSuggested = false;
     this.regenCount = 0;
@@ -433,7 +480,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
   submitPost(): void {
     if (this.isSubmitting) return;
 
-    // Người dùng gõ "coffee"/"#icedcoffee" rồi bấm POST luôn mà chưa Enter -> vẫn nhận
+    // Người dùng gõ "coffee"/"#icedlatte" rồi bấm POST luôn mà chưa Enter -> vẫn nhận
     this.addTagFromInput();
 
     const baseTag = this.tags.find(t => t.isBase);
@@ -441,7 +488,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       this.errorMessage = 'Please select a base tag (coffee or matcha).';
       return;
     }
-    if (!this.content.trim() && this.files.length === 0) {
+    if (!this.content.trim() && this.files.length === 0 && !this.isEdit) {
       this.errorMessage = 'Add some content or media before posting.';
       return;
     }
@@ -451,10 +498,12 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
 
     const finalContent = this.composedContent;
     const base = baseTag.label.toUpperCase() as BaseValue;
-    const linkedProducts = this.selectedProducts.slice(0, this.maxProducts).map(p => p.product_id);
+    // Thẻ tự tag trước, thẻ AI còn giữ sau; tổng tối đa 3
+    const linkedProducts = [...this.selectedProducts, ...this.aiProducts]
+      .slice(0, this.maxProducts)
+      .map(p => p.product_id);
 
     const afterUpload = (media: CloudinaryUploadResult[]) => {
-
       if (this.post) {
         const editedId = this.post.post_id;
         this.communityService
