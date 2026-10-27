@@ -8,10 +8,11 @@ dialog {
   margin: auto;
   width: min(480px, calc(100vw - 32px));
   max-width: none;
-  max-height: calc(100dvh - 48px);
+  height: min(660px, calc(100dvh - 48px));
+  max-height: none;
   box-sizing: border-box;
   padding: 0;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid #dcd6d0;
   border-radius: 12px;
   background: #fffdfa;
@@ -25,8 +26,16 @@ dialog::backdrop {
   backdrop-filter: blur(3px);
 }
 
+.modal-content {
+  display: flex;
+  flex-direction: column;
+  height: min(658px, calc(100dvh - 50px));
+  min-height: min(658px, calc(100dvh - 50px));
+}
+
 header {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -62,7 +71,23 @@ header button {
   color: #222;
 }
 
-.list-content { padding: 16px 24px 24px; }
+.list-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 16px 24px 24px;
+}
+.list-tabs, .search, footer { flex-shrink: 0; }
+.people {
+  // Reserve the list area even on short pages or when there are no results.
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c7c2bc transparent;
+}
 .list-tabs {
   display: flex;
   gap: 24px;
@@ -150,7 +175,7 @@ small { font-size: 12px; line-height: 16px; color: #63584d; }
   font-size: 12px;
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
-.follow, .state button, .load-more {
+.follow, .state button {
   flex: none;
   min-height: 32px;
   box-sizing: border-box;
@@ -168,12 +193,18 @@ small { font-size: 12px; line-height: 16px; color: #63584d; }
 .following { border-color: #c7c2bc; background: transparent; color: #222; }
 button:disabled { opacity: .55; cursor: wait; }
 .state { text-align: center; padding: 24px 0; color: #776e65; font-size: 13px; }
-.load-more { display: block; margin: 16px auto 0; }
-footer { padding-top: 16px; font-size: 12px; line-height: 17px; color: #63584d; }
+footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 16px; font-size: 12px; line-height: 17px; color: #63584d; }
+.pagination { display: flex; gap: 6px; }
+.pagination button { padding: 6px 9px; border: 1px solid #c7c2bc; border-radius: 4px; background: transparent; color: #375534; font-size: 11px; }
+.pagination button:disabled { cursor: default; }
 :focus-visible { outline: 2px solid #375534; outline-offset: 3px; }
 
 @media (max-width: 420px) {
-  dialog { max-height: calc(100dvh - 32px); }
+  dialog { height: min(660px, calc(100dvh - 32px)); }
+  .modal-content {
+    height: min(658px, calc(100dvh - 34px));
+    min-height: min(658px, calc(100dvh - 34px));
+  }
   header { padding: 16px 18px; }
   .list-content { padding: 12px 18px 20px; }
   .list-tabs { gap: 18px; }

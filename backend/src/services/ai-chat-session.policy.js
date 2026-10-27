@@ -16,6 +16,7 @@ function countableMessages(messages) {
 
 function shouldRotate(session, now = Date.now()) {
   if (!session) return false;
+  if (session.support_conversation_id && ['waiting', 'in_progress'].includes(session.status)) return false;
   if (countableMessages(session.messages) >= MESSAGE_LIMIT) return true;
   if (!session.created_at) return false;
   const created = new Date(session.created_at).getTime();
@@ -24,6 +25,7 @@ function shouldRotate(session, now = Date.now()) {
 }
 
 function isIdle(session, now = Date.now()) {
+  if (session?.support_conversation_id && ['waiting', 'in_progress'].includes(session.status)) return false;
   if (!session || session.status === 'closed' || shouldRotate(session, now)) return false;
   const last = session.last_activity_at || session.created_at;
   if (!last) return false;

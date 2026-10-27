@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const ChatConversation = require('../models/ChatConversation');
-const { AGENT_ROLES, canAccessConversation, appendMessage } = require('./chat.service');
+const { AGENT_ROLES, canAccessConversation, appendMessage, resolveChatUserId } = require('./chat.service');
 const {
   hasAdminRole,
   ADMIN_ORDER_UNSCOPED_ROLES,
@@ -119,10 +119,11 @@ function initSocket(server) {
           socket.emit('error', { message: 'Cannot send to this chat.' });
           return;
         }
-        const isCustomer = conversation.customer_id === socket.user.user_id;
+        const senderId = await resolveChatUserId(socket.user.user_id);
+        const isCustomer = conversation.customer_id === senderId;
         const message = await appendMessage(conversation, {
           sender_type: isCustomer ? 'customer' : 'agent',
-          sender_id: socket.user.user_id,
+          sender_id: senderId,
           content: data.content
         });
         if (message) emitChatEvent('chat_message', message.toObject(), conversation);

@@ -118,6 +118,25 @@ test('follow search uses literal text, correct relationship direction and pagina
   assert.equal(res.body.data[0].is_self, false);
 });
 
+test('profile counts use the visible follow list totals instead of raw relationship counts', async () => {
+  const calls = [];
+  const api = load('../src/controllers/profiles.controller.js', {
+    '../models/User': { findOne: () => ({ lean: async () => ({ user_id: 'U1' }) }) },
+    '../models/Post': { countDocuments: async () => 0 },
+    '../models/Follow': { countDocuments: () => assert.fail('must not count hidden or missing users') },
+    '../services/follow-list': { countVisibleFollows: async (id, type) => {
+      calls.push([id, type]);
+      return type === 'followers' ? 1 : 0;
+    } }
+  });
+  const res = response();
+  await api.getPublicProfile({ params: { userId: 'U1' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.follower_count, 1);
+  assert.equal(res.body.following_count, 0);
+  assert.deepEqual(calls, [['U1', 'followers'], ['U1', 'following']]);
+});
+
 test('admin moderation requires a reason and writes an activity log after saving', async () => {
   let update;
   const logs = [];

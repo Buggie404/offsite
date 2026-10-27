@@ -17,6 +17,7 @@ const aiChatSessionSchema = new mongoose.Schema({
   session_id: { type: String, required: true, unique: true },
   user_id: { type: String, default: null, index: true },
   dify_conversation_id: { type: String, default: null },
+  support_conversation_id: { type: String, default: null },
   ip: { type: String, default: null },
   is_guest: { type: Boolean, default: true },
   retain_for_support: { type: Boolean, default: false },

@@ -1,6 +1,8 @@
 import { Injectable, PLATFORM_ID, computed, effect, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { EMPTY, catchError, exhaustMap, filter, interval, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../../core/auth.service';
 import { ChatDecision, ChatHistoryItem, ChatInteraction, ChatMessage, ChatMessageOrder, ChatSupportAction } from './ai-chat.types';
@@ -22,6 +24,7 @@ export class AiChatService {
   // True after the shopper hits the daily message cap. The composer stays closed.
   readonly composerLocked = signal<boolean>(false);
   readonly conversationId = signal<string>('');
+  readonly humanChatActive = signal(false);
   readonly sessionId = signal<string>('');
   readonly interaction = signal<ChatInteraction>('ready');
   readonly historyOpen = signal(false);
@@ -65,10 +68,25 @@ export class AiChatService {
       }
       this.resetSession();
     });
+    // Use the owned AI session endpoint for both signed-in customers and guests.
+    interval(2500).pipe(
+      filter(() => isPlatformBrowser(this.platformId) && this.isOpen() && this.humanChatActive() && !this.isTyping() && !this.openedFromHistory && !this.openingSession),
+      exhaustMap(() => {
+        const id = this.sessionId(), epoch = this.requestEpoch, view = this.viewToken;
+        return this.http.get<any>(`${environment.apiUrl}/ai-chat/sessions/${id}`).pipe(
+          map(res => ({ res, id, epoch, view })), catchError(() => EMPTY)
+        );
+      }),
+      takeUntilDestroyed()
+    ).subscribe(({ res, id, epoch, view }) => {
+      if (id !== this.sessionId() || epoch !== this.requestEpoch || view !== this.viewToken || this.isTyping()) return;
+      this.applyLoaded(res, 'current');
+    });
   }
 
   /** Fresh concierge thread. Login and logout both start over so order context matches the account. */
   resetSession(): void {
+    this.humanChatActive.set(false);
     this.requestEpoch += 1;
     this.viewToken += 1;
     this.storage()?.removeItem(this.storageKey);
@@ -259,6 +277,7 @@ export class AiChatService {
   }
 
   private applyLoaded(res: any, source: 'current' | 'history'): void {
+    this.humanChatActive.set(!!res?.support_conversation_id && ['waiting', 'in_progress'].includes(res?.status));
     const decision: ChatDecision = res?.decision || 'continue';
     this.currentDecision.set(decision);
     if (decision === 'rotate' && source === 'current') {
@@ -320,6 +339,7 @@ export class AiChatService {
   }
 
   private adoptSession(id: string, serverMessages: any[], draft: string | null): void {
+    this.humanChatActive.set(false);
     this.storage()?.setItem(this.storageKey, id);
     this.sessionId.set(id);
     this.conversationId.set('');
@@ -518,7 +538,7 @@ export class AiChatService {
     }
 
     const handoverReason = this.handoverReason(trimmed);
-    if (handoverReason) {
+    if (handoverReason && !this.humanChatActive()) {
       const userMsg = this.pushUserMessage(trimmed);
       this.requestHandover(handoverReason, trimmed, { userMessageId: userMsg.id });
       return true;
@@ -549,6 +569,10 @@ export class AiChatService {
       next: (res) => {
         if (epoch !== this.requestEpoch || view !== this.viewToken) return;
         this.isTyping.set(false);
+        if (res?.human_chat) {
+          this.applyLoaded(res, 'current');
+          return;
+        }
         if (res?.decision === 'idle') {
           this.rollbackMessage(userMsg.id);
           this.currentDecision.set('idle');
@@ -922,10 +946,11 @@ export class AiChatService {
   }
 
   private pushHandoffBanner(): void {
+    this.humanChatActive.set(true);
     this.messages.update(msgs => [...msgs, {
       id: 'sys-' + Date.now(),
       sender: 'system',
-      text: 'That message was sent to the team. You can keep chatting with the assistant.',
+      text: 'Your conversation has been sent to our support team. You can continue messaging here.',
       timestamp: new Date()
     }]);
   }

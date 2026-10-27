@@ -10,6 +10,9 @@ export interface ChatConversation {
   agent_id: string | null;
   status: 'bot' | 'waiting' | 'open' | 'closed';
   handoff_summary?: string;
+  summary?: string;
+  handover_reason?: string | null;
+  ai_session_id?: string | null;
   last_message_preview: string;
   last_message_at: string;
   unread_agent: number;

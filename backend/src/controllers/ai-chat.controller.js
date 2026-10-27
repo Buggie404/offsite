@@ -449,18 +449,18 @@ function recordHandoverNote(chatSession, reason, summary) {
 }
 
 async function notifyCskh(chatSession, note) {
+  await require('../services/ai-chat-handover.service').handoverAiSession(chatSession);
   const agents = await User.find({ role: 'cskh', status: 'active' }).select('user_id').lean();
   const { emitChatHandover } = require('../services/socket.service');
   emitChatHandover(chatSession, agents.map(agent => agent.user_id), note);
 }
 
 async function markHandedOff(chatSession, reason, summary) {
-  // Forward only this message. Later messages stay with the assistant.
-  chatSession.status = 'ai_active';
+  chatSession.status = 'waiting';
   chatSession.retain_for_support = true;
-  const note = recordHandoverNote(chatSession, reason, summary);
+  const note = recordHandoverNote(chatSession, reason, chatSession.summary || summary);
   await chatSession.save();
-  if (note) await notifyCskh(chatSession, note);
+  await notifyCskh(chatSession, note);
   return note;
 }
 
@@ -1004,6 +1004,18 @@ exports.handleChatMessage = async (req, res) => {
 
     let chatSession = prepared.session;
 
+    if (chatSession.support_conversation_id && ['waiting', 'in_progress'].includes(chatSession.status)) {
+      const conversation = await require('../models/ChatConversation').findOne({ conversation_id: chatSession.support_conversation_id });
+      if (conversation && conversation.status !== 'closed') {
+        const { appendMessage } = require('../services/chat.service');
+        const saved = await appendMessage(conversation, { sender_type: 'customer', sender_id: conversation.customer_id, content: messageText });
+        if (saved) require('../services/socket.service').emitChatEvent('chat_message', saved.toObject(), conversation);
+        const current = await sessionAccess.readSession({ sessionId: chatSession.session_id, userId });
+        return res.json({ ...current.body, human_chat: true, handover: false });
+      }
+      chatSession.status = 'ai_active';
+    }
+
     const requestedHandover = handoverIntent(messageText);
     if (requestedHandover) {
       sessionAccess.appendMessage(chatSession, {
@@ -1025,7 +1037,7 @@ exports.handleChatMessage = async (req, res) => {
 
       sessionAccess.appendMessage(chatSession, {
         sender: 'system',
-        text: 'That message was forwarded to the team. The customer can keep chatting with the assistant.'
+        text: 'Your conversation has been sent to our support team. You can continue messaging here.'
       });
       await markHandedOff(chatSession, requestedHandover, messageText.trim());
       return res.status(200).json({
@@ -1130,13 +1142,6 @@ exports.handleChatMessage = async (req, res) => {
         message: `You are sending messages too quickly. Please wait ${waitSeconds}s before trying again.`,
         wait_seconds: waitSeconds
       });
-    }
-
-    // A previous handoff only forwarded that message. Later messages stay with the assistant.
-    if (chatSession.status === 'waiting' || chatSession.status === 'in_progress') {
-      chatSession.status = 'ai_active';
-      chatSession.last_activity_at = new Date();
-      await chatSession.save();
     }
 
     // A plain "track my order" is answered from the account or the guest form.
@@ -1460,7 +1465,8 @@ exports.handleChatMessage = async (req, res) => {
 
     let handoverNote = null;
     if (isHandover) {
-      chatSession.status = 'ai_active';
+      chatSession.status = 'waiting';
+      chatSession.retain_for_support = true;
       handoverNote = recordHandoverNote(chatSession, handoverReason, summary || messageText);
     }
 
@@ -1469,7 +1475,7 @@ exports.handleChatMessage = async (req, res) => {
     await chatSession.save();
 
     // Notify Support / Admin Dashboard via Realtime Socket.IO
-    if (handoverNote) {
+    if (isHandover) {
       await notifyCskh(chatSession, handoverNote);
     }
 
@@ -1585,7 +1591,7 @@ exports.leaveMessage = async (req, res) => {
     const note = recordHandoverNote(chatSession, 'user_request', `Customer left a message at ${email}`);
     await chatSession.save();
 
-    if (note) await notifyCskh(chatSession, note);
+    await notifyCskh(chatSession, note);
 
     return res.status(200).json({
       success: true,

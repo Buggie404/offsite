@@ -1,5 +1,6 @@
 const Follow = require('../models/Follow');
 const User = require('../models/User');
+const { visibleFollowStages } = require('../services/follow-list');
 
 async function currentCommunityUserId(req) {
   const tokenId = String(req.user?.user_id || '');
@@ -50,16 +51,10 @@ async function getFollowList(req, res) {
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = 20;
     const me = await currentCommunityUserId(req);
-    const match = type === 'followers' ? { following_id: userId } : { follower_id: userId };
-    const field = type === 'followers' ? 'follower_id' : 'following_id';
     const search = String(req.query.q || '').trim().slice(0, 80);
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const result = await Follow.aggregate([
-      { $match: match },
-      { $sort: { created_at: -1, _id: -1 } },
-      { $lookup: { from: User.collection.name, localField: field, foreignField: 'user_id', as: 'person' } },
-      { $unwind: '$person' },
-      { $match: { 'person.status': 'active' } },
+      ...visibleFollowStages(userId, type),
       { $project: { _id: 0, user_id: '$person.user_id', username: { $cond: ['$person.community_name', '$person.community_name', '$person.profile_name'] }, avatar_url: '$person.avatar_url', membership_tier: '$person.membership_tier' } },
       ...(search ? [{ $match: { username: { $regex: escaped, $options: 'i' } } }] : []),
       { $facet: { data: [{ $skip: (page - 1) * limit }, { $limit: limit + 1 }], count: [{ $count: 'total' }] } }

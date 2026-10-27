@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Post = require('../models/Post');
 const Follow = require('../models/Follow');
+const { countVisibleFollows } = require('../services/follow-list');
 const AccountReport = require('../models/AccountReport');
 const { REPORT_REASONS } = require('../models/PostReport');
 
@@ -26,8 +27,8 @@ async function getPublicProfile(req, res) {
     const [postCount, recipeCount, followerCount, followingCount, followRow] = await Promise.all([
       Post.countDocuments({ user_id: userId, post_type: { $ne: 'recipe' }, status: { $ne: 'hidden' } }),
       Post.countDocuments({ user_id: userId, post_type: 'recipe', status: { $ne: 'hidden' } }),
-      Follow.countDocuments({ following_id: userId }),
-      Follow.countDocuments({ follower_id: userId }),
+      countVisibleFollows(userId, 'followers'),
+      countVisibleFollows(userId, 'following'),
       currentUserId && !isSelf ? Follow.exists({ follower_id: currentUserId, following_id: userId }) : null
     ]);
 
