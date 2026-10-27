@@ -97,6 +97,7 @@ app.use('/api/notifications', require('./routes/notifications.routes'));
 app.use('/api/loyalty', require('./routes/loyalty.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/ai-chat', require('./routes/ai-chat.routes'));
+app.use('/api/starter-quiz', require('./routes/starter-quiz.routes'));
 
 // Health check
 app.get('/api/health', (req, res) => {

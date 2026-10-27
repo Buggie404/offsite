@@ -117,6 +117,7 @@ export class BuildYourBundleComponent implements OnInit {
   activeSlotKey = signal<SlotKey | null>('package');
   slotSelections = signal<Partial<Record<SlotKey, SlotSelection>>>({});
   bundleCategoryFilter = signal<BundleCategoryFilter>('all');
+  quizProductOrder = signal<Partial<Record<SlotKey, number[]>> | null>(null);
   products = signal<Product[]>([]);
   loadingProducts = signal(false);
 
@@ -180,17 +181,21 @@ export class BuildYourBundleComponent implements OnInit {
     const slotKey = this.activeSlotKey();
     if (!slotKey) return [];
 
+    let products: Product[] = [];
+
     if (this.isBundleMode()) {
-      return this.getBundleBrowserProducts();
+      products = this.getBundleBrowserProducts();
+    } else {
+      const kitType = this.selectedKitType();
+      if (kitType === 'matcha_kit' || kitType === 'coffee_kit') {
+        const filter = KIT_SLOT_FILTERS[kitType][slotKey as KitSlotId];
+        if (filter) {
+          products = this.products().filter((product) => this.matchesSlotProductFilter(product, filter));
+        }
+      }
     }
 
-    const kitType = this.selectedKitType();
-    if (kitType !== 'matcha_kit' && kitType !== 'coffee_kit') return [];
-
-    const filter = KIT_SLOT_FILTERS[kitType][slotKey as KitSlotId];
-    if (!filter) return [];
-
-    return this.products().filter((product) => this.matchesSlotProductFilter(product, filter));
+    return this.sortByQuizOrder(products, slotKey);
   });
 
   showBundlePricing = computed(() => {
@@ -251,6 +256,7 @@ export class BuildYourBundleComponent implements OnInit {
     const previousType = this.selectedKitType();
     const previousActive = this.activeSlotKey();
 
+    this.quizProductOrder.set(null);
     this.selectedKitType.set(kitType);
     this.bundleCategoryFilter.set('all');
     this.resetSelections();
@@ -667,6 +673,7 @@ export class BuildYourBundleComponent implements OnInit {
     this.selectedPackSize.set(snapshot.packSize);
     this.activeSlotKey.set(snapshot.activeSlotKey);
     this.bundleCategoryFilter.set(snapshot.categoryFilter);
+    this.quizProductOrder.set(snapshot.slotProductOrder ?? null);
     this.pendingSlotRestore = snapshot.slots;
   }
 
@@ -708,13 +715,30 @@ export class BuildYourBundleComponent implements OnInit {
       };
     }
 
+    const slotProductOrder = this.quizProductOrder();
     return {
       kitType: this.selectedKitType(),
       packSize: this.selectedPackSize(),
       activeSlotKey: this.activeSlotKey(),
       categoryFilter: this.bundleCategoryFilter(),
-      slots
+      slots,
+      ...(slotProductOrder ? { slotProductOrder } : {})
     };
+  }
+
+  private sortByQuizOrder(products: Product[], slotKey: SlotKey): Product[] {
+    const order = this.quizProductOrder()?.[slotKey];
+    if (!order?.length) return products;
+
+    const index = new Map(order.map((id, position) => [id, position]));
+    return [...products].sort((a, b) => {
+      const left = index.get(a.product_id);
+      const right = index.get(b.product_id);
+      if (left == null && right == null) return 0;
+      if (left == null) return 1;
+      if (right == null) return -1;
+      return left - right;
+    });
   }
 
   private persistBuilderState(): void {

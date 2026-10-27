@@ -129,6 +129,7 @@ async function enrichCart(cart) {
       quantity: it.quantity,
       selected: it.is_selected,
       bundle: it.bundle || undefined,
+      fromQuizBundle: !!it.from_quiz_bundle,
       purchaseType: it.purchase_type || 'one_time',
       subscriptionFrequencyDays: it.subscription_frequency_days ?? null,
       priceAtAdd: it.price_at_add,
@@ -184,6 +185,9 @@ async function mergeGuestCartIntoUser(userId, guestItems) {
       if (g.bundle) {
         working[idx].bundle = g.bundle;
       }
+      if (g.fromQuizBundle || g.from_quiz_bundle) {
+        working[idx].from_quiz_bundle = true;
+      }
     } else {
       // Different product, or same product but different variant -> new line.
       working.push({
@@ -193,6 +197,7 @@ async function mergeGuestCartIntoUser(userId, guestItems) {
         ...purchase,
         is_selected: true,
         bundle: g.bundle || null,
+        from_quiz_bundle: !!(g.fromQuizBundle || g.from_quiz_bundle),
         added_at: new Date()
       });
     }
@@ -254,6 +259,7 @@ async function replaceUserCart(userId, items) {
       ...purchase,
       is_selected: g.selected !== undefined ? !!g.selected : true,
       bundle: g.bundle || null,
+      from_quiz_bundle: !!(g.fromQuizBundle || g.from_quiz_bundle),
       added_at: new Date()
     });
   }
