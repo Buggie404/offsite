@@ -1,3 +1,4 @@
+import { avatarInitials } from '../../../../shared/utils/avatar';
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, HostListener, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
@@ -104,7 +105,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   }
 
   initials(username: string): string {
-    return (username || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase();
+    return avatarInitials(username);
   }
 
   avatarTone(username: string): 'sage' | 'pink' {
@@ -168,7 +169,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.reportSubmitting = false;
         this.showReportModal = false;
-        this.toast.error(err?.error?.error || 'Failed to submit report. Please try again.');
+        this.toast.error(err?.status === 409 ? 'You have already reported this' : err?.error?.error || 'Failed to submit report. Please try again.');
         this.cdr.markForCheck();
       }
     });

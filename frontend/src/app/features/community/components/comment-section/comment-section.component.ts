@@ -1,3 +1,4 @@
+import { avatarInitials } from '../../../../shared/utils/avatar';
 import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, inject, ChangeDetectorRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -176,7 +177,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
 
   // ── Phân quyền và xóa Comment ──
   initials(username?: string): string {
-    return (username || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase();
+    return avatarInitials(username);
   }
 
   avatarTone(username?: string): 'sage' | 'pink' {
@@ -186,7 +187,8 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
   }
 
   get currentUser() {
-    return this.authService.getUser();
+    const user = this.authService.currentUser();
+    return user ? { ...user, username: user.community_name || user.profile_name || user.username || 'Anonymous' } : null;
   }
 
   isCommentAuthor(commentUserId: string): boolean {
@@ -223,7 +225,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.reportSubmitting = false;
-        this.toast.error(err?.error?.error || 'Failed to submit report. Please try again.');
+        this.toast.error(err?.status === 409 ? 'You have already reported this' : err?.error?.error || 'Failed to submit report. Please try again.');
       }
     });
   }

@@ -127,6 +127,34 @@ async function reverseReviewPoints(reviewId) {
   return txn ? reverseTransaction(txn) : null;
 }
 
+// Claim each transition inside a transaction so retries cannot change the balance twice.
+async function changeCommunityPoints(postId, restore = false, existingSession = null) {
+  const session = existingSession || await PointTransaction.db.startSession();
+  const change = async () => {
+    const rows = await PointTransaction.find({
+      ref_type: 'post', ref_id: postId,
+      type: { $in: ['post_approved', 'recipe_approved'] },
+      status: restore ? 'reversed' : { $in: ['pending', 'posted'] }
+    }).session(session);
+    for (const txn of rows) {
+      const wasPosted = restore ? Boolean(txn.posted_at) : txn.status === 'posted';
+      const status = restore ? (wasPosted ? 'posted' : 'pending') : 'reversed';
+      const claimed = await PointTransaction.updateOne({ _id: txn._id, status: txn.status }, {
+        $set: { status, reversed_at: restore ? null : new Date() }
+      }, { session });
+      if (claimed.modifiedCount && wasPosted) {
+        await User.updateOne({ user_id: txn.user_id }, { $inc: { points: restore ? txn.amount : -txn.amount } }, { session });
+      }
+    }
+  };
+  if (existingSession) return change();
+  try { await session.withTransaction(change); }
+  finally { await session.endSession(); }
+}
+
+const reverseCommunityPoints = (postId, session) => changeCommunityPoints(postId, false, session);
+const restoreCommunityPoints = (postId, session) => changeCommunityPoints(postId, true, session);
+
 // ─── Shared ─────────────────────────────────────────────────────
 
 async function reverseTransaction(txn) {
@@ -205,7 +233,12 @@ async function postDuePoints(now = new Date()) {
   posted += await postPendingByType(
     ['post_approved', 'recipe_approved', 'recipe_curated'],
     DAY_MS,
-    now
+    now,
+    async txn => {
+      if (txn.ref_type !== 'post') return 'post';
+      const post = await require('../models/Post').findOne({ post_id: txn.ref_id }, 'status').lean();
+      return !post || post.status === 'hidden' ? 'reverse' : 'post';
+    }
   );
 
   try {
@@ -239,6 +272,8 @@ module.exports = {
   getOrderPoints,
   awardReviewPoints,
   reverseReviewPoints,
+  reverseCommunityPoints,
+  restoreCommunityPoints,
   postDuePoints,
   startPointsPostingJob,
   adjustBalance

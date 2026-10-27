@@ -1,3 +1,5 @@
+import { avatarInitials } from '../../../../shared/utils/avatar';
+import { FollowModalComponent } from '../../components/follow-modal/follow-modal.component';
 import { ChangeDetectorRef, Component, OnInit, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -15,12 +17,21 @@ import { PostCardComponent } from '../../components/post-card/post-card.componen
 import { CreatePostModalComponent } from '../../components/create-post-modal/create-post-modal.component';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
-@Component({ selector: 'app-public-profile', standalone: true, imports: [CommonModule, FormsModule, RouterModule, ShareModalComponent, ReportPostModalComponent, PostCardComponent, CreatePostModalComponent, ConfirmationModalComponent], templateUrl: './public-profile.component.html', styleUrl: './public-profile.component.scss' })
+@Component({ selector: 'app-public-profile', standalone: true, imports: [FollowModalComponent, CommonModule, FormsModule, RouterModule, ShareModalComponent, ReportPostModalComponent, PostCardComponent, CreatePostModalComponent, ConfirmationModalComponent], templateUrl: './public-profile.component.html', styleUrl: './public-profile.component.scss' })
 export class PublicProfileComponent implements OnInit {
   private route = inject(ActivatedRoute); private router = inject(Router); private community = inject(CommunityService);
   private auth = inject(AuthService); private authModal = inject(AuthModalService); private toast = inject(ToastService); private cdr = inject(ChangeDetectorRef);
   private http = inject(HttpClient); private cloudinary = inject(CloudinaryService);
   profile: PublicProfile | null = null; posts: Post[] = []; loading = true; notFound = false; followBusy = false;
+  followList: 'followers' | 'following' | null = null;
+  onFollowChanged(event: { userId: string; following: boolean }): void {
+    if (!this.profile) return;
+    if (this.profile.is_self) this.profile.following_count = Math.max(0, this.profile.following_count + (event.following ? 1 : -1));
+    if (this.profile.user_id === event.userId) {
+      this.profile.is_following = event.following;
+      this.profile.follower_count = Math.max(0, this.profile.follower_count + (event.following ? 1 : -1));
+    }
+  }
   activeTab: 'posts' | 'recipes' = 'posts'; menuOpen = false; shareOpen = false; reportOpen = false; reportSubmitting = false;
   editOpen = false; editSaving = false; editError = '';
   edit = { profile_name: '', community_name: '', email: '', phone: '', avatar_url: '' };
@@ -51,7 +62,7 @@ export class PublicProfileComponent implements OnInit {
     const postId = this.reportingPostId; if (!postId || this.postReportSubmitting) return; this.postReportSubmitting = true;
     this.community.reportPost(postId, payload.reason, payload.note).subscribe({
       next: () => { this.postReportSubmitting = false; this.reportingPostId = null; this.toast.success('Thanks for letting us know. We will review this post.'); this.cdr.markForCheck(); },
-      error: error => { this.postReportSubmitting = false; this.reportingPostId = null; this.toast.error(error?.error?.error || 'Failed to submit report. Please try again.'); this.cdr.markForCheck(); }
+      error: error => { this.postReportSubmitting = false; this.reportingPostId = null; this.toast.error(error?.status === 409 ? 'You have already reported this' : error?.error?.error || 'Failed to submit report. Please try again.'); this.cdr.markForCheck(); }
     });
   }
   promptDeletePost(postId: string): void { this.pendingDeletePost = this.posts.find(p => p.post_id === postId) || null; }
@@ -74,7 +85,7 @@ export class PublicProfileComponent implements OnInit {
   get displayedPosts(): Post[] { return this.activeTab === 'recipes' ? this.posts.filter(post => post.post_type === 'recipe') : this.posts.filter(post => post.post_type !== 'recipe'); }
   get shareUrl(): string { return this.profile ? `${window.location.origin}/community/profile/${this.profile.user_id}` : ''; }
   private load(userId: string): void {
-    this.loading = true; this.notFound = false; this.posts = [];
+    this.loading = true; this.notFound = false; this.posts = []; this.followList = null;
     this.community.getPublicProfile(userId).subscribe({ next: profile => {
       this.profile = profile; this.loading = false;
       this.community.getFeed(1, 100, 'MY_POST', 'created_at', userId).subscribe({ next: result => { this.posts = result.data; this.cdr.markForCheck(); } });
@@ -112,7 +123,7 @@ export class PublicProfileComponent implements OnInit {
   }
   submitAccountReport(payload: ReportPayload): void {
     if (!this.profile || this.reportSubmitting) return; this.reportSubmitting = true;
-    this.community.reportAccount(this.profile.user_id, payload.reason, payload.note).subscribe({ next: () => { this.reportSubmitting = false; this.reportOpen = false; this.toast.success('Thanks for letting us know. We will review this account.'); this.cdr.markForCheck(); }, error: error => { this.reportSubmitting = false; this.toast.error(error?.error?.error || 'Failed to submit report.'); this.cdr.markForCheck(); } });
+    this.community.reportAccount(this.profile.user_id, payload.reason, payload.note).subscribe({ next: () => { this.reportSubmitting = false; this.reportOpen = false; this.toast.success('Thanks for letting us know. We will review this account.'); this.cdr.markForCheck(); }, error: error => { this.reportSubmitting = false; this.toast.error(error?.status === 409 ? 'You have already reported this' : error?.error?.error || 'Failed to submit report.'); this.cdr.markForCheck(); } });
   }
-  initials(name: string): string { return (name || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase(); }
+  initials(name: string): string { return avatarInitials(name); }
 }

@@ -47,7 +47,7 @@ async function getCommentsByPostId(req, res) {
     const total = await Comment.countDocuments(query);
 
     res.json({
-      data: comments,
+      data: await require('../services/community-author.service').hydrateAuthors(comments),
       total,
       page: parseInt(page, 10),
       limit: limitCount
@@ -349,7 +349,8 @@ async function reportComment(req, res) {
     const comment = await Comment.findOne(query);
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
-    if (comment.user_id === req.user.user_id) {
+    const reporterId = await require('./profiles.controller').currentCommunityUserId(req);
+    if (comment.user_id === reporterId) {
       return res.status(400).json({ error: 'You cannot report your own comment' });
     }
 
@@ -357,12 +358,12 @@ async function reportComment(req, res) {
       await CommentReport.create({
         comment_id: comment.comment_id,
         post_id: comment.post_id,
-        reporter_id: req.user.user_id,
+        reporter_id: reporterId,
         reason,
         note: String(note).trim().slice(0, 500)
       });
     } catch (err) {
-      if (err.code === 11000) return res.status(409).json({ error: 'You have already reported this comment' });
+      if (err.code === 11000) return res.status(409).json({ error: 'You have already reported this' });
       throw err;
     }
 

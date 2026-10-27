@@ -65,7 +65,7 @@ async function reportAccount(req, res) {
     try {
       await AccountReport.create({ reported_user_id: targetId, reporter_id: reporterId, reason, note });
     } catch (error) {
-      if (error.code === 11000) return res.status(409).json({ error: 'You have already reported this account' });
+      if (error.code === 11000) return res.status(409).json({ error: 'You have already reported this' });
       throw error;
     }
     res.status(201).json({ message: 'Report submitted' });

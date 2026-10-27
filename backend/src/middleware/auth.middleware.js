@@ -6,7 +6,7 @@ const ADMIN_ORDER_MANAGE_ROLES = ['admin_cc', 'qlsp'];
 const ADMIN_ORDER_UNSCOPED_ROLES = ['admin_cc', 'qlsp'];
 const ADMIN_CROSS_USER_ROLES = ['admin_cc'];
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // "Bearer [token]"
 
@@ -16,13 +16,20 @@ function authMiddleware(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-key');
+    const User = require('../models/User');
+    const id = String(decoded.user_id || '');
+    const query = /^[0-9a-fA-F]{24}$/.test(id) ? { _id: id } : { user_id: id };
+    const account = await User.findOne(query, 'status').lean();
+    if (!account) return res.status(401).json({ error: 'Account not found' });
+    if (account.status === 'suspended') return res.status(403).json({ error: 'Your account is suspended', code: 'ACCOUNT_SUSPENDED' });
     req.user = decoded; // { user_id, email, role }
     next();
   } catch (error) {
     if (error?.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Token expired' });
     }
-    return res.status(403).json({ error: 'Invalid token' });
+    if (['JsonWebTokenError', 'NotBeforeError'].includes(error?.name)) return res.status(403).json({ error: 'Invalid token' });
+    return res.status(500).json({ error: 'Could not verify account status' });
   }
 }
 

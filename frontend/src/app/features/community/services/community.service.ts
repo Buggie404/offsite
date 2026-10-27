@@ -13,6 +13,17 @@ export interface FeedResponse {
   limit: number;
 }
 
+export interface FollowListResponse { data: FollowUser[]; has_more: boolean; total: number; }
+
+export interface FollowUser {
+  membership_tier: string;
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  is_following: boolean;
+  is_self: boolean;
+}
+
 export interface PublicProfile {
   user_id: string;
   username: string;
@@ -148,6 +159,10 @@ export class CommunityService {
 
   toggleFollow(userId: string): Observable<{ following: boolean }> {
     return this.http.post<{ following: boolean }>(`/api/follows/${userId}`, {});
+  }
+
+  getFollowList(userId: string, type: 'followers' | 'following', page = 1, q = ''): Observable<FollowListResponse> {
+    return this.http.get<FollowListResponse>(`/api/follows/${encodeURIComponent(userId)}/${type}`, { params: { page, q } });
   }
 
   getFollowingIds(): Observable<{ data: string[] }> {

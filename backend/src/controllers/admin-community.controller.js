@@ -183,7 +183,34 @@ async function unhideCommentAction(req, res) {
   }
 }
 
+async function moderateUser(req, res, suspend) {
+  try {
+    const User = require('../models/User');
+    const { normalizeReason } = require('../services/activity-log.service');
+    const reason = normalizeReason(req.body?.reason);
+    if (!reason) return res.status(400).json({ error: 'A valid reason is required.' });
+    const id = req.params.id;
+    const query = /^[0-9a-fA-F]{24}$/.test(id) ? { _id: id } : { user_id: id };
+    const before = await User.findOne(query, 'user_id role status community_warnings').lean();
+    if (!before) return res.status(404).json({ error: 'User not found' });
+    if (before.role !== 'customer') return res.status(403).json({ error: 'Only customer accounts can be moderated' });
+    if (suspend && before.status === 'suspended') return res.status(409).json({ error: 'User is already suspended' });
+    const update = suspend ? { $set: { status: 'suspended', suspended_reason: reason, suspended_by: req.user.user_id, suspended_at: new Date() } }
+      : { $push: { community_warnings: { reason, admin_id: req.user.user_id, created_at: new Date() } } };
+    const user = await User.findOneAndUpdate({ user_id: before.user_id }, update, { new: true });
+    await req.writeActivityLog({ actionType: suspend ? 'community_user_suspend' : 'community_user_warn', targetEntity: 'user', targetId: user.user_id,
+      oldValue: { status: before.status, warnings: before.community_warnings?.length || 0 },
+      newValue: { status: user.status, warnings: user.community_warnings.length }, reason });
+    res.json({ data: { user_id: user.user_id, status: user.status, warnings: user.community_warnings.length } });
+  } catch (error) {
+    console.error('Error moderating community user:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+}
+
 module.exports = {
+  warnUser: (req, res) => moderateUser(req, res, false),
+  suspendUser: (req, res) => moderateUser(req, res, true),
   listReportedPosts, hide, unhide, dismissReports,
   listReportedComments, hideComment: hideCommentAction, unhideComment: unhideCommentAction
 };

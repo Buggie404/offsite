@@ -292,7 +292,7 @@ export class FeedComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.reportSubmitting = false;
         this.reportingPostId = null;
-        this.toast.error(err?.error?.error || 'Failed to submit report. Please try again.');
+        this.toast.error(err?.status === 409 ? 'You have already reported this' : err?.error?.error || 'Failed to submit report. Please try again.');
         this.cdr.markForCheck();
       }
     });

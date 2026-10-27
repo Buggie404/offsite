@@ -5,7 +5,7 @@ const Product = require('../models/Product');
 
 const MAX_TAGS = 3;
 const CATALOG_TTL_MS = 5 * 60 * 1000;
-const MIN_SCORE = 0.25; // dưới ngưỡng này coi như không liên quan
+const MIN_SCORE = 0.6; // dưới ngưỡng này coi như không liên quan
 
 const STOPWORDS = new Set([
   'the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 'just', 'today', 'love', 'really',

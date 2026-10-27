@@ -1,0 +1,183 @@
+:host {
+  display: block;
+}
+
+dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(480px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 48px);
+  box-sizing: border-box;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid #dcd6d0;
+  border-radius: 12px;
+  background: #fffdfa;
+  color: #222;
+  font-family: inherit;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .22);
+}
+
+dialog::backdrop {
+  background: rgba(28, 27, 24, .38);
+  backdrop-filter: blur(3px);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  box-sizing: border-box;
+  padding: 18px 24px;
+  border-bottom: 1px solid #dcd6d0;
+  background: #faf0eb;
+}
+
+h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+button, input { font: inherit; }
+button { cursor: pointer; }
+header button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #222;
+}
+
+.list-content { padding: 16px 24px 24px; }
+.list-tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid #dcd6d0;
+}
+.list-tabs button {
+  padding: 12px 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #9b948d;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: .025em;
+  white-space: nowrap;
+}
+.list-tabs button.active { border-color: #375534; color: #222; }
+.search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  box-sizing: border-box;
+  margin: 16px 0;
+  padding: 0 12px;
+  border: 1px solid #c7c2bc;
+  border-radius: 6px;
+  background: #fff;
+  color: #9b948d;
+}
+.search svg { flex: none; }
+.search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #222;
+  font-size: 14px;
+  line-height: 20px;
+  outline: none;
+}
+.search input::placeholder { color: #9b948d; opacity: 1; }
+.search:focus-within { outline: 2px solid #375534; outline-offset: 2px; }
+.person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 63px;
+  box-sizing: border-box;
+  padding: 12px 0;
+  border-bottom: 1px solid #ded9d3;
+}
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.person-info { display: grid; gap: 3px; min-width: 0; }
+.username {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 19px;
+  font-weight: 500;
+}
+small { font-size: 12px; line-height: 16px; color: #63584d; }
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #efb1d1;
+  color: #804264;
+  overflow: hidden;
+  font-size: 12px;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.follow, .state button, .load-more {
+  flex: none;
+  min-height: 32px;
+  box-sizing: border-box;
+  padding: 7px 14px;
+  border: 1px solid #375534;
+  border-radius: 4px;
+  background: #375534;
+  color: #fff;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: .025em;
+}
+.following { border-color: #c7c2bc; background: transparent; color: #222; }
+button:disabled { opacity: .55; cursor: wait; }
+.state { text-align: center; padding: 24px 0; color: #776e65; font-size: 13px; }
+.load-more { display: block; margin: 16px auto 0; }
+footer { padding-top: 16px; font-size: 12px; line-height: 17px; color: #63584d; }
+:focus-visible { outline: 2px solid #375534; outline-offset: 3px; }
+
+@media (max-width: 420px) {
+  dialog { max-height: calc(100dvh - 32px); }
+  header { padding: 16px 18px; }
+  .list-content { padding: 12px 18px 20px; }
+  .list-tabs { gap: 18px; }
+  .list-tabs button { font-size: 11px; }
+  .identity { gap: 9px; }
+  .follow { padding-inline: 10px; font-size: 11px; }
+}

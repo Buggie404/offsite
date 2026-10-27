@@ -1,0 +1,28 @@
+<dialog #dialog aria-labelledby="follow-title" (cancel)="$event.preventDefault(); close.emit()" (click)="$event.target === dialog && close.emit()">
+  <section class="modal-content">
+    <header><h2 id="follow-title">@{{ username }}</h2><button type="button" autofocus aria-label="Close follow list" (click)="close.emit()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
+    <div class="list-content">
+      <nav class="list-tabs" aria-label="Follow lists">
+        <button type="button" [class.active]="type === 'followers'" [attr.aria-pressed]="type === 'followers'" (click)="selectTab('followers')">Followers &middot; {{ followersCount }}</button>
+        <button type="button" [class.active]="type === 'following'" [attr.aria-pressed]="type === 'following'" (click)="selectTab('following')">Following &middot; {{ followingCount }}</button>
+      </nav>
+      <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/></svg><input type="search" [attr.aria-label]="'Search ' + type" [placeholder]="'Search ' + type" [(ngModel)]="search" (ngModelChange)="searchChanged()"></label>
+      <div class="people" [attr.aria-busy]="loading">
+        @for (user of users; track user.user_id) {
+          <div class="person">
+            <a class="identity" [routerLink]="['/community/profile', user.user_id]" (click)="close.emit()">
+              <span class="avatar">@if (user.avatar_url) { <img [src]="user.avatar_url" alt=""> } @else { {{ initials(user.username) }} }</span>
+              <span class="person-info"><span class="username">@{{ user.username }}</span><small>{{ user.is_self ? 'You' : user.membership_tier || 'Seed' }}</small></span>
+            </a>
+            @if (!user.is_self) { <button type="button" class="follow" [class.following]="user.is_following" [disabled]="busy.has(user.user_id)" [attr.aria-label]="(user.is_following ? 'Unfollow ' : 'Follow ') + user.username" (click)="toggle(user)">{{ busy.has(user.user_id) ? 'Updating...' : user.is_following ? 'Following' : 'Follow' }}</button> }
+          </div>
+        }
+        @if (loading) { <p class="state" role="status">Loading...</p> }
+        @else if (error) { <div class="state" role="alert"><p>Could not load this list.</p><button type="button" (click)="load()">Try again</button></div> }
+        @else if (!users.length) { <p class="state">{{ search ? 'No users found.' : type === 'followers' ? 'No followers yet.' : 'Not following anyone yet.' }}</p> }
+        @else if (hasMore) { <button class="load-more" type="button" (click)="load()">Load more</button> }
+      </div>
+      @if (!loading && !error) { <footer role="status">Showing {{ users.length }} of {{ total }}</footer> }
+    </div>
+  </section>
+</dialog>
