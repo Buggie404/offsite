@@ -21,6 +21,9 @@ export type AdminOrderStatusFilter =
   | 'pending_refund'
   | 'refund_rejected';
 
+/** Needs attention › flags the system sets on an order (?attention=). */
+export type AdminOrderAttentionFilter = 'all' | 'ritual_box_not_started';
+
 /** 'all' or one of the order types (same rule as the badge). */
 export type AdminOrderTypeFilter = 'all' | OrderType;
 
@@ -38,6 +41,8 @@ export interface AdminOrderListItem {
   total: number;
   currency: string;
   is_guest: boolean;
+  /** Paid Ritual Box lines but no box could start (card removed). */
+  subscription_start_failed?: boolean;
 }
 
 export interface AdminOrderStats {
@@ -58,6 +63,7 @@ export interface AdminOrdersResponse {
 export interface AdminOrdersQuery {
   order_status?: AdminOrderStatusFilter;
   order_type?: AdminOrderTypeFilter;
+  attention?: AdminOrderAttentionFilter;
   search?: string;
   date_range?: AdminDateRange;
   date_from?: string;
@@ -139,6 +145,9 @@ export interface AdminOrderDetail {
   subscription_id?: string | null;
   subscription_cycle?: number | null;
   ritual_boxes?: AdminOrderRitualBox[];
+  /** Paid Ritual Box lines but no box could start; cleared when the customer starts it. */
+  subscription_start_failed?: boolean;
+  subscription_start_failed_at?: string | null;
   pricing: {
     subtotal: number;
     shipping_cost: number;

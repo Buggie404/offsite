@@ -1075,6 +1075,8 @@ async function getOrderStatus(req, res) {
       items: order.items,
       subscription_id: order.subscription_id,
       subscription_cycle: order.subscription_cycle,
+      // Paid Ritual Box lines whose box couldn't start: the customer can start it with another card.
+      subscription_start_failed: !!order.subscription_start_failed,
       subscriptions,
       points,
       coupon: order.coupon,

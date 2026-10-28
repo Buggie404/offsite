@@ -293,41 +293,56 @@ async function priceSubscriptionLine(productId, sku) {
 }
 
 // The order was paid for its Subscribe & Save lines but no Ritual Box could start (card removed
-// or not a credit / debit card): tell the customer and leave a note on the order for CSKH.
+// or not a credit / debit card): flag the order for CSKH (Admin Orders › Needs attention), leave
+// a note on it and tell the customer, pointing at the order.
 async function reportSubscriptionNotStarted(order) {
   console.error(`Order ${order.order_id}: no saved card for its Ritual Box lines, subscriptions not created.`);
   const note = 'Ritual Box not started: the card chosen at checkout is no longer saved (or is not a Visa / Mastercard). '
-    + 'Contact the customer to add a card and start the box, or refund the subscription lines.';
+    + 'Contact the customer to add a card and start the box from the order, or refund the order.';
   try {
     const fresh = await Order.findOne({ order_id: order.order_id }, 'internal_notes').lean();
     await Order.updateOne(
       { order_id: order.order_id },
-      { $set: { internal_notes: appendInternalNote(fresh?.internal_notes, note, 'System') } }
+      {
+        $set: {
+          subscription_start_failed: true,
+          subscription_start_failed_at: new Date(),
+          internal_notes: appendInternalNote(fresh?.internal_notes, note, 'System')
+        }
+      }
     );
   } catch (err) {
-    console.error(`Order ${order.order_id}: could not add the Ritual Box note.`, err);
+    console.error(`Order ${order.order_id}: could not flag the order for its Ritual Box.`, err);
   }
   await notificationService.notifySubscription(
-    { user_id: order.user_id, subscription_id: null },
+    { user_id: order.user_id, subscription_id: null, order_id: order.order_id },
     'SUBSCRIPTION_NOT_STARTED',
-    `Order ${order.order_id}: your Ritual Box couldn't start because the card you chose is no longer saved. Our team will contact you.`
+    "Your Ritual Box couldn't start because the card you chose is no longer saved. "
+      + 'Add a Visa / Mastercard and start it from the order, or our team will contact you.'
   );
 }
+
+// A card a Ritual Box can be billed to: saved, Visa / Mastercard (not NAPAS) and not expired.
+const isSubscriptionCard = pm => pm.card_type !== 'NAPAS' && !isCardExpired(pm.expire_date);
 
 // Start one subscription per 'subscription' line of a paid checkout order.
 // The order itself is the first delivery, so the next charge is one cycle out.
 // Idempotent: lines already turned into subscriptions for this order are skipped.
-async function createSubscriptionsFromOrder(order) {
+// `paymentMethodId` (customer starting the box later from the order) replaces the checkout
+// card; a bad card then throws instead of flagging the order again.
+async function createSubscriptionsFromOrder(order, { paymentMethodId = null } = {}) {
   if (!order || order.is_guest || !order.user_id) return [];
   const lines = (order.items || []).filter(it => it.purchase_type === 'subscription');
   if (!lines.length) return [];
 
   // The card picked at checkout is stored on the order; a Ritual Box is never created without one.
   const user = await User.findOne({ user_id: order.user_id }).lean();
+  const cardId = paymentMethodId || order.subscription_payment_method_id;
   const card = (user?.payment_methods || []).find(pm =>
-    String(pm._id) === String(order.subscription_payment_method_id) && pm.card_type !== 'NAPAS'
+    String(pm._id) === String(cardId) && (paymentMethodId ? isSubscriptionCard(pm) : pm.card_type !== 'NAPAS')
   );
   if (!card) {
+    if (paymentMethodId) throw new SubscriptionActionError('Choose a saved Visa / Mastercard that has not expired.');
     await reportSubscriptionNotStarted(order);
     return [];
   }
@@ -365,6 +380,35 @@ async function createSubscriptionsFromOrder(order) {
     created.push(sub);
   }
   return created;
+}
+
+// POST /api/subscriptions/start-from-order/:orderId — the customer starts the Ritual Box of a
+// flagged order (subscription_start_failed) with a card saved since. Clears the flag on success.
+async function startFromOrder(userIdStr, orderId, paymentMethodId) {
+  if (!paymentMethodId) throw new SubscriptionActionError('Choose a card for your Ritual Box.');
+  const order = await Order.findOne({ order_id: orderId, user_id: userIdStr });
+  if (!order) throw new SubscriptionActionError('Order not found.', 404);
+  if (!order.subscription_start_failed) {
+    throw new SubscriptionActionError('The Ritual Box of this order has already started.', 409);
+  }
+  if (order.payment_status !== 'paid' || ['canceled', 'refund', 'pending_refund'].includes(order.order_status)) {
+    throw new SubscriptionActionError('This order can no longer start a Ritual Box.', 409);
+  }
+
+  await createSubscriptionsFromOrder(order, { paymentMethodId });
+  const fresh = await Order.findOne({ order_id: orderId }, 'internal_notes').lean();
+  await Order.updateOne(
+    { order_id: orderId },
+    {
+      $set: {
+        subscription_start_failed: false,
+        subscription_start_failed_at: null,
+        subscription_payment_method_id: String(paymentMethodId),
+        internal_notes: appendInternalNote(fresh?.internal_notes, 'Ritual Box started by the customer from the order.', 'System')
+      }
+    }
+  );
+  return { order_id: orderId, subscriptions: await getOrderSubscriptions(orderId) };
 }
 
 // Điều chỉnh thông minh: a paid order buying, one-time, the product of an active Ritual Box
@@ -845,6 +889,7 @@ module.exports = {
   getRitualBox,
   priceSubscriptionLine,
   createSubscriptionsFromOrder,
+  startFromOrder,
   suggestAdjustmentsForOrder,
   getOrderSubscriptions,
   getOrderRitualBoxes,

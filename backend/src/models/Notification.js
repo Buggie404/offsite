@@ -45,6 +45,7 @@ const notificationSchema = new mongoose.Schema({
   // Target post_id / order_id for redirecting; Ritual Box notifications use subscription_id instead.
   post_id: { type: String, required() { return !this.type?.startsWith('SUBSCRIPTION_'); }, default: null },
   subscription_id: { type: String, default: null },
+  order_id: { type: String, default: null }, // Ritual Box notifications about an order (e.g. SUBSCRIPTION_NOT_STARTED)
   message: { type: String, default: null }, // Ritual Box: text shown to the customer
   comment_id: { type: String, default: null }, // Optional comment_id
   comment_content: { type: String, default: null }, // Optional snippet of comment/reply

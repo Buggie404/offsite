@@ -25,6 +25,9 @@ export class AdminOrderService {
     if (query.order_type && query.order_type !== 'all') {
       params = params.set('order_type', query.order_type);
     }
+    if (query.attention && query.attention !== 'all') {
+      params = params.set('attention', query.attention);
+    }
     if (query.search?.trim()) {
       params = params.set('search', query.search.trim());
     }
