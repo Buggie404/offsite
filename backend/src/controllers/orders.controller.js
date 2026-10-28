@@ -274,6 +274,10 @@ async function createOrder(req, res) {
       await cleanupSession(session);
       session = null;
       useTransaction = false;
+      // A signed-in shopper whose token expired sends no guest session: ask them to log in again.
+      if (req.authError) {
+        return res.status(401).json({ error: 'Your session has expired. Please log in again.', code: 'TOKEN_EXPIRED' });
+      }
       return res.status(400).json({ error: 'session_id is required for guest checkout.' });
     }
 
