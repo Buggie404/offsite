@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config/auth');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const User = require('../models/User');
@@ -31,7 +32,7 @@ function shopperFromRequest(req) {
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
   if (!token) return null;
 
-  const secret = process.env.JWT_SECRET || 'fallback-secret-key';
+  const secret = JWT_SECRET;
   try {
     const decoded = jwt.verify(token, secret);
     return decoded?.user_id ? String(decoded.user_id) : null;

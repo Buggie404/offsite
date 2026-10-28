@@ -1,12 +1,10 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { getCollections } = require('../config/db');
-const ACCESS_SECRET   = process.env.JWT_SECRET         || 'fallback-secret-key';
 const ADMIN_ROLES = new Set(['admin_cc', 'cskh', 'qlsp']);
-const REFRESH_SECRET  = process.env.JWT_REFRESH_SECRET  || 'refresh_secret_dev';
 const { ObjectId } = require('mongodb');
 const { mergeGuestCartIntoUser } = require('../services/cart-merge.service');
-const { AUTH_TOKEN_TTL } = require('../config/auth');
+const { AUTH_TOKEN_TTL, JWT_SECRET: ACCESS_SECRET, REFRESH_SECRET } = require('../config/auth');
 
 // Chuẩn hóa
 function normalizeIdentity(value, isEmail = false) {

@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config/auth');
 
 function optionalAuthMiddleware(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -10,8 +11,7 @@ function optionalAuthMiddleware(req, res, next) {
   }
 
   try {
-    const secret = process.env.JWT_SECRET || 'fallback-secret-key';
-    const decoded = jwt.verify(token, secret);
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded; // { user_id, email, role }
     next();
   } catch (error) {
