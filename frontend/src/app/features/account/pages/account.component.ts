@@ -136,6 +136,7 @@ import { isWithinRefundWindow } from '../../purchase/models/refund-window.model'
 export class AccountComponent implements OnInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   readonly ritualBox = inject(RitualBoxService);
+  readonly ritualBoxFocusId = signal<string | null>(null);
   readonly pantry = inject(PantryService);
   private authService = inject(AuthService);
   private authModalService = inject(AuthModalService);
@@ -576,6 +577,8 @@ export class AccountComponent implements OnInit, OnDestroy {
       }
     });
     this.route.queryParams.subscribe(params => {
+      // ?tab=ritual-box&sub=SUB0003 (Order detail links): box to highlight in the Ritual Box tab.
+      this.ritualBoxFocusId.set(params['sub'] || null);
       if (params['tab']) {
         this.activeTab.set(params['tab']);
         if (params['tab'] === 'saved') {

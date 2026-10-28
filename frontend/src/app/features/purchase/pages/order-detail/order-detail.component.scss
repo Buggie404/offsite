@@ -1276,6 +1276,13 @@
   color: var(--color-forest-green);
 }
 
+.summary-cycle-note--link {
+  display: block;
+  text-decoration: none;
+
+  &:hover { text-decoration: underline; }
+}
+
 /* Return deadline shown once the order is delivered */
 .refund-window-note {
   margin: 8px 0 0;

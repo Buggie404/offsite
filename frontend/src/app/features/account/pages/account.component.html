@@ -694,6 +694,7 @@
               <div class="header-left-col">
                 <div class="order-id-group">
                   <h3 class="order-id font-display">{{ order.order_id }}</h3>
+                  <span class="guest-origin-chip" *ngIf="order.linked_from_guest_at">From guest checkout</span>
                 </div>
                 <span class="order-date font-mono">{{ formatOrderDate(order.created_at || order.createdAt) }}</span>
               </div>
@@ -1009,7 +1010,7 @@
 
       <!-- Ritual Box (Subscription) Tab -->
       <div class="tab-content ritual-box-tab" *ngIf="activeTab() === 'ritual-box'">
-        <app-ritual-box (addCard)="switchTab('payment'); openAddCardForm()" (viewOrder)="viewOrderById($event)"></app-ritual-box>
+        <app-ritual-box [focusSubscriptionId]="ritualBoxFocusId()" (addCard)="switchTab('payment'); openAddCardForm()" (viewOrder)="viewOrderById($event)"></app-ritual-box>
       </div>
 
       <div class="tab-content pantry-tab" *ngIf="activeTab() === 'pantry'">
