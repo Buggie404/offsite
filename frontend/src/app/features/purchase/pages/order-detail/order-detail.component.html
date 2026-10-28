@@ -146,6 +146,38 @@
       </div>
     </div>
 
+    <!-- ================= RITUAL BOX NOT STARTED ================= -->
+    <div class="ritual-start-box" *ngIf="order()?.subscription_start_failed" role="status">
+      <div class="ritual-start-box__text">
+        <p class="ritual-start-box__title">Your Ritual Box hasn't started</p>
+        <p class="ritual-start-box__desc">
+          The card you chose at checkout is no longer saved. Pick a Visa / Mastercard to start your Ritual Box,
+          or contact us for a refund of this order.
+        </p>
+      </div>
+      <ng-container *ngIf="ritualBoxCards().length; else noRitualCard">
+        <div class="ritual-start-box__actions">
+          <select
+            class="ritual-start-box__select"
+            aria-label="Card for your Ritual Box"
+            [value]="ritualBoxCardId()"
+            (change)="ritualBoxCardId.set($any($event.target).value)"
+          >
+            <option *ngFor="let card of ritualBoxCards()" [value]="card._id" [selected]="card._id === ritualBoxCardId()">
+              {{ ritualBoxCardLabel(card) }}
+            </option>
+          </select>
+          <button type="button" class="ritual-start-box__btn" [disabled]="startingRitualBox() || !ritualBoxCardId()" (click)="startRitualBox()">
+            {{ startingRitualBox() ? 'Starting…' : 'Start Ritual Box' }}
+          </button>
+        </div>
+      </ng-container>
+      <ng-template #noRitualCard>
+        <a class="ritual-start-box__link" [routerLink]="['/account']" [queryParams]="{ tab: 'payment' }">Add a Visa / Mastercard →</a>
+      </ng-template>
+      <p class="ritual-start-box__error" *ngIf="ritualBoxError()">{{ ritualBoxError() }}</p>
+    </div>
+
     <!-- ================= CONTENT GRID ================= -->
     <div class="content-grid">
       <!-- Left Column -->
@@ -586,9 +618,23 @@
               <span>Then {{ row.label }}</span>
               <span class="font-mono">${{ row.amount | number:'1.2-2' }}</span>
             </div>
-            <p class="summary-cycle-note" *ngIf="order().subscription_id">
-              Ritual Box delivery{{ order().subscription_cycle ? ' #' + order().subscription_cycle : '' }} · charged at the Subscribe &amp; Save price
-            </p>
+            <a
+              class="summary-cycle-note summary-cycle-note--link"
+              *ngIf="order().subscription_id"
+              [routerLink]="['/account']"
+              [queryParams]="{ tab: 'ritual-box', sub: order().subscription_id }"
+            >
+              Ritual Box delivery{{ order().subscription_cycle ? ' #' + order().subscription_cycle : '' }} · charged at the Subscribe &amp; Save price →
+            </a>
+            <!-- Ritual Boxes this checkout started (mixed / subscription orders) -->
+            <a
+              class="summary-cycle-note summary-cycle-note--link"
+              *ngFor="let box of order().subscriptions || []"
+              [routerLink]="['/account']"
+              [queryParams]="{ tab: 'ritual-box', sub: box.subscription_id }"
+            >
+              Ritual Box {{ box.subscription_id }} · {{ box.product_name }} →
+            </a>
           </div>
         </div>
       </aside>

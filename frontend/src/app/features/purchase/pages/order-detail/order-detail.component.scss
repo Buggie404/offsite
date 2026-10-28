@@ -400,6 +400,75 @@
 }
 
 /* ─── CONTENT GRID ─── */
+.ritual-start-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 24px;
+  padding: 18px 24px;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  border-radius: 16px;
+
+  &__text { flex: 1 1 320px; }
+
+  &__title {
+    margin: 0 0 4px;
+    font-weight: 700;
+    color: #b42318;
+  }
+
+  &__desc {
+    margin: 0;
+    font-size: 14px;
+    color: #544a40;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  &__select {
+    min-width: 0;
+    max-width: 100%;
+    padding: 10px 12px;
+    border: 1px solid rgba(84, 74, 64, 0.25);
+    border-radius: 9999px;
+    background: #ffffff;
+    font-size: 13px;
+  }
+
+  &__btn {
+    background-color: #375534;
+    color: #ffffff;
+    border: none;
+    border-radius: 9999px;
+    padding: 12px 22px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover:not(:disabled) { background-color: #2b4229; }
+    &:disabled { opacity: 0.6; cursor: default; }
+  }
+
+  &__link {
+    font-weight: 700;
+    color: #375534;
+  }
+
+  &__error {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 13px;
+    color: #b42318;
+  }
+}
+
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -1205,6 +1274,13 @@
   font-size: 12px;
   line-height: 18px;
   color: var(--color-forest-green);
+}
+
+.summary-cycle-note--link {
+  display: block;
+  text-decoration: none;
+
+  &:hover { text-decoration: underline; }
 }
 
 /* Return deadline shown once the order is delivered */

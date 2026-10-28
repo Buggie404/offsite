@@ -30,7 +30,7 @@
   <article class="stat-card stat-card--attention">
     <p class="stat-card__label">Needs Attention</p>
     <p class="stat-card__value">{{ stats.needsAttention | number }}</p>
-    <p class="stat-card__meta">Failed deliveries or refunds</p>
+    <p class="stat-card__meta">Failed deliveries, refunds or Ritual Box not started</p>
   </article>
 </section>
 
@@ -60,6 +60,23 @@
       >
         @for (option of orderTypeOptions; track option.value) {
           <option [value]="option.value" [selected]="option.value === orderType">{{ option.label }}</option>
+        }
+      </select>
+      <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+    </div>
+  </div>
+
+  <div class="filter-bar__group filter-bar__group--type">
+    <span class="filter-label">Needs attention</span>
+    <div class="select-wrap select-wrap--filter">
+      <select
+        class="filter-select"
+        aria-label="Filter orders needing attention"
+        [value]="attention"
+        (change)="setAttention($any($event.target).value)"
+      >
+        @for (option of attentionOptions; track option.value) {
+          <option [value]="option.value" [selected]="option.value === attention">{{ option.label }}</option>
         }
       </select>
       <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
@@ -168,6 +185,9 @@
               <a [routerLink]="['/admin/orders', order.order_id]" class="data-table__link">
                 #{{ order.order_id }}
               </a>
+              @if (order.subscription_start_failed) {
+                <div class="attention-tag">Ritual Box not started</div>
+              }
             </td>
             <td>
               @if (order.user_id) {

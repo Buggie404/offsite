@@ -19,6 +19,7 @@ async function createNotification(data) {
       type: data.type,
       post_id: data.post_id || null,
       subscription_id: data.subscription_id || null,
+      order_id: data.order_id || null,
       message: data.message || null,
       comment_id: data.comment_id || null,
       comment_content: data.comment_content || null,
@@ -40,6 +41,7 @@ async function notifySubscription(sub, type, message) {
       sender: null,
       type,
       subscription_id: sub.subscription_id,
+      order_id: sub.order_id || null,
       message: message ? String(message).slice(0, 500) : null
     });
   } catch (err) {

@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config/auth');
 
 const ADMIN_ROLES = new Set(['admin_cc', 'cskh', 'qlsp']);
 const ADMIN_ORDER_VIEW_ROLES = ['admin_cc', 'cskh', 'qlsp'];
@@ -15,7 +16,7 @@ async function authMiddleware(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-key');
+    const decoded = jwt.verify(token, JWT_SECRET);
     const User = require('../models/User');
     const id = String(decoded.user_id || '');
     const query = /^[0-9a-fA-F]{24}$/.test(id) ? { _id: id } : { user_id: id };
@@ -42,7 +43,7 @@ function optionalAuthMiddleware(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-key');
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
   } catch (error) {
     // Token không hợp lệ, nhưng vì là optional nên vẫn cho qua, không set req.user

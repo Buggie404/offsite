@@ -28,6 +28,7 @@ import { PaymentModalComponent } from '../../components/payment-modal/payment-mo
 import { ReviewModalComponent } from '../../components/review-modal/review-modal.component';
 import { ChangePaymentModalComponent } from '../../components/change-payment-modal/change-payment-modal.component';
 import { PaymentMethod } from '../../services/checkout.service';
+import { UserPaymentMethod } from '../../../../shared/models/user.model';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
@@ -105,6 +106,14 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
 
   order = signal<any>(null);
   copiedOrderNum = signal<boolean>(false);
+
+  // Ritual Box that couldn't start at checkout (order.subscription_start_failed): the customer
+  // starts it here with a saved Visa / Mastercard.
+  ritualBoxCards = signal<UserPaymentMethod[]>([]);
+  ritualBoxCardId = signal<string | null>(null);
+  startingRitualBox = signal<boolean>(false);
+  ritualBoxError = signal<string | null>(null);
+  private ritualBoxCardsLoaded = false;
 
   // Confirmation Modal state properties
   isConfirmModalOpen = false;
@@ -383,8 +392,54 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
       const fresh = await this.checkoutService.getOrderStatus(ord.order_id, this.getSessionId(ord));
       this.order.set(fresh);
       this.syncUrlWithStatus(fresh);
+      await this.loadRitualBoxCards(fresh);
     } catch (e) {
       console.error('Failed to refresh order status:', e);
+    }
+  }
+
+  /** Saved, unexpired Visa / Mastercard (not NAPAS) — the cards a Ritual Box can be billed to. */
+  private isRitualBoxCard(card: UserPaymentMethod): boolean {
+    if (card.card_type === 'NAPAS') return false;
+    const m = /^(\d{1,2})\/(\d{2})$/.exec(String(card.expire_date || '').trim());
+    return !m || new Date(2000 + Number(m[2]), Number(m[1]), 1) > new Date();
+  }
+
+  private async loadRitualBoxCards(ord: any): Promise<void> {
+    if (!ord?.subscription_start_failed || this.ritualBoxCardsLoaded || !this.authService.isAuthenticated()) return;
+    this.ritualBoxCardsLoaded = true;
+    try {
+      const profile = await this.checkoutService.getUserProfile();
+      const cards = (profile.payment_methods || [])
+        .filter(card => this.isRitualBoxCard(card))
+        .sort((a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0));
+      this.ritualBoxCards.set(cards);
+      this.ritualBoxCardId.set(cards[0]?._id || null);
+    } catch (e) {
+      this.ritualBoxCardsLoaded = false;
+      console.error('Failed to load saved cards for the Ritual Box:', e);
+    }
+  }
+
+  ritualBoxCardLabel(card: UserPaymentMethod): string {
+    const digits = String(card.card_number || '').replace(/\D/g, '');
+    const brand = digits.startsWith('4') ? 'Visa' : digits.startsWith('5') ? 'Mastercard' : 'Card';
+    return `${brand} •••• ${digits.slice(-4)} · exp ${card.expire_date}`;
+  }
+
+  async startRitualBox(): Promise<void> {
+    const ord = this.order();
+    const cardId = this.ritualBoxCardId();
+    if (!ord?.order_id || !cardId || this.startingRitualBox()) return;
+    this.startingRitualBox.set(true);
+    this.ritualBoxError.set(null);
+    try {
+      const res = await this.checkoutService.startRitualBoxFromOrder(ord.order_id, cardId);
+      this.order.set({ ...ord, subscription_start_failed: false, subscriptions: res.subscriptions });
+    } catch (e: any) {
+      this.ritualBoxError.set(e?.error?.error || "We couldn't start your Ritual Box. Please try again.");
+    } finally {
+      this.startingRitualBox.set(false);
     }
   }
 

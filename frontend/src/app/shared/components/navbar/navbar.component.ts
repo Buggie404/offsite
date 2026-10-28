@@ -613,7 +613,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     // Navigate to post detail or order tracking
     const isOrderOrRefund = notification.type.startsWith('ORDER_') || notification.type.startsWith('REFUND_');
-    if (notification.type.startsWith('SUBSCRIPTION_')) {
+    if (notification.type === 'SUBSCRIPTION_NOT_STARTED' && notification.order_id) {
+      // No box exists yet: open the order, where the customer can start it with another card.
+      this.router.navigate(['/order-tracking'], { queryParams: { orderId: notification.order_id } });
+    } else if (notification.type.startsWith('SUBSCRIPTION_')) {
       this.router.navigate(['/account'], { queryParams: { tab: 'ritual-box' } });
     } else if (notification.type.startsWith('PANTRY_')) {
       this.router.navigate(['/account'], { queryParams: { tab: 'pantry' } });

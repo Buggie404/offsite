@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
-const { AUTH_TOKEN_TTL } = require('../config/auth');
+const { AUTH_TOKEN_TTL, JWT_SECRET, CLIENT_URL } = require('../config/auth');
 
 // ========== Google OAuth Routes ==========
 // Initiate Google login
@@ -13,7 +13,7 @@ router.get('/google',
 // Google callback
 router.get('/google/callback',
   (req, res, next) => {
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    const clientUrl = CLIENT_URL;
     passport.authenticate('google', { failureRedirect: `${clientUrl}/login` })(req, res, next);
   },
   (req, res) => {
@@ -24,12 +24,12 @@ router.get('/google/callback',
         email: req.user.email,
         role: req.user.role
       },
-      process.env.JWT_SECRET || 'fallback-secret-key',
+      JWT_SECRET,
       { expiresIn: AUTH_TOKEN_TTL }
     );
 
     // Redirect to frontend with token
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    const clientUrl = CLIENT_URL;
     res.redirect(`${clientUrl}/oauth-success?token=${token}`);
   }
 );
@@ -43,7 +43,7 @@ router.get('/facebook',
 // Facebook callback
 router.get('/facebook/callback',
   (req, res, next) => {
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    const clientUrl = CLIENT_URL;
     passport.authenticate('facebook', { failureRedirect: `${clientUrl}/login` })(req, res, next);
   },
   (req, res) => {
@@ -53,11 +53,11 @@ router.get('/facebook/callback',
         email: req.user.email,
         role: req.user.role
       },
-      process.env.JWT_SECRET || 'fallback-secret-key',
+      JWT_SECRET,
       { expiresIn: AUTH_TOKEN_TTL }
     );
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    const clientUrl = CLIENT_URL;
     res.redirect(`${clientUrl}/oauth-success?token=${token}`);
   }
 );

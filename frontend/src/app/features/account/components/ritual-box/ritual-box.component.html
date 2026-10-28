@@ -103,6 +103,7 @@
         *ngFor="let sub of data.subscriptions"
         [id]="'sub-' + sub.subscription_id"
         [class.is-busy]="busyId() === sub.subscription_id"
+        [class.is-focused]="focusSubscriptionId() === sub.subscription_id"
       >
         <div class="rb-card__main">
           <a class="rb-card__thumb" [routerLink]="sub.product_slug ? ['/products', sub.product_slug] : null">

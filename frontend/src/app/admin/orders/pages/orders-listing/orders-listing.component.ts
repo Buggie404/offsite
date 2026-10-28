@@ -9,6 +9,7 @@ import { AdminRefreshService } from '../../../shared/services/admin-refresh.serv
 import { OrderSocketService } from '../../../../core/services/order-socket.service';
 import {
   AdminDateRange,
+  AdminOrderAttentionFilter,
   AdminOrderListItem,
   AdminOrderStats,
   AdminOrderStatusFilter,
@@ -52,6 +53,7 @@ export class OrdersListingComponent implements OnInit {
 
   activeStatus: AdminOrderStatusFilter = 'all';
   orderType: AdminOrderTypeFilter = 'all';
+  attention: AdminOrderAttentionFilter = 'all';
   dateRange: AdminDateRange = '30';
   search = '';
 
@@ -83,6 +85,15 @@ export class OrdersListingComponent implements OnInit {
     { value: 'mixed', label: ORDER_TYPE_LABEL.mixed }
   ];
 
+  readonly attentionOptions: { value: AdminOrderAttentionFilter; label: string }[] = [
+    { value: 'all', label: 'All orders' },
+    { value: 'ritual_box_not_started', label: 'Ritual Box not started' }
+  ];
+
+  private toAttentionFilter(value: unknown): AdminOrderAttentionFilter {
+    return this.attentionOptions.find(o => o.value === value)?.value ?? 'all';
+  }
+
   private toOrderTypeFilter(value: unknown): AdminOrderTypeFilter {
     return this.orderTypeOptions.find(o => o.value === value)?.value ?? 'all';
   }
@@ -97,6 +108,7 @@ export class OrdersListingComponent implements OnInit {
     this.search = initial['search'] || '';
     this.activeStatus = this.toStatusFilter(initial['status']);
     this.orderType = this.toOrderTypeFilter(initial['type']);
+    this.attention = this.toAttentionFilter(initial['attention']);
     this.dateRange = (initial['date'] as AdminDateRange) || '30';
 
     this.loadTrigger$
@@ -168,6 +180,18 @@ export class OrdersListingComponent implements OnInit {
         this.loadTrigger$.next({});
       });
 
+    this.route.queryParams
+      .pipe(
+        map((params) => this.toAttentionFilter(params['attention'])),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((attention) => {
+        if (attention === this.attention) return;
+        this.attention = attention;
+        this.loadTrigger$.next({});
+      });
+
     this.adminRefresh.onOrdersListRefresh$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.loadTrigger$.next({ silent: true }));
@@ -203,6 +227,20 @@ export class OrdersListingComponent implements OnInit {
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { type: next === 'all' ? null : next },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
+  }
+
+  /** Kept in ?attention= so CSKH can bookmark / share the to-do list. */
+  setAttention(value: string): void {
+    const next = this.toAttentionFilter(value);
+    if (next === this.attention) return;
+    this.attention = next;
+    this.loadTrigger$.next({});
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { attention: next === 'all' ? null : next },
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
@@ -355,6 +393,7 @@ export class OrdersListingComponent implements OnInit {
     return {
       order_status: this.activeStatus,
       order_type: this.orderType,
+      attention: this.attention,
       search: this.search,
       date_range: this.dateRange,
       date_from: this.dateRange === 'custom' ? this.appliedCustomFrom : undefined,
