@@ -4,6 +4,7 @@ import { HttpService } from './http.service';
 import { CartService } from '../features/purchase/services/cart.service';
 import { Router } from '@angular/router';
 import { OrderSocketService } from './services/order-socket.service';
+import { StarterQuizService } from '../features/shop/pages/starter-quiz/starter-quiz.service';
 
 @Injectable({
   providedIn: 'root'
@@ -14,6 +15,7 @@ export class AuthService {
   private cartService = inject(CartService);
   private router = inject(Router);
   private orderSocketService = inject(OrderSocketService);
+  private starterQuiz = inject(StarterQuizService);
 
   private isAuthenticatedSignal = signal<boolean>(false);
   readonly isAuthenticated = this.isAuthenticatedSignal.asReadonly();
@@ -38,6 +40,7 @@ export class AuthService {
       this.currentUserSignal.set(user);
       if (token) {
         this.fetchUserProfile();
+        this.starterQuiz.claimGuestResult();
       }
     }
   }
@@ -164,6 +167,7 @@ export class AuthService {
       this.orderSocketService.refreshTokenAuth();
     }
     this.fetchUserProfile();
+    this.starterQuiz.claimGuestResult();
   }
 
   // Merge the guest cart after an OAuth login. The redirect callback can't
@@ -226,6 +230,7 @@ export class AuthService {
     }
     this.isAuthenticatedSignal.set(true);
     this.fetchUserProfile();
+    this.starterQuiz.claimGuestResult();
   }
 
   getUser(): any {

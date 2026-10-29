@@ -1,9 +1,12 @@
 const QuizConfig = require('../models/QuizConfig');
 const QuizResult = require('../models/QuizResult');
+const Counter = require('../models/Counter');
 const Product = require('../models/Product');
 const { STARTER_QUESTIONS } = require('../services/starter-quiz.questions');
 const { matchStarterKit } = require('../services/starter-quiz.matcher');
 const { resolveUserIdString } = require('./cart.controller');
+
+const RESULT_COUNTER_ID = 'starter_quiz_result';
 
 async function ensureStarterQuestions() {
   const count = await QuizConfig.countDocuments({ quiz_type: 'starter_kit' });
@@ -11,14 +14,70 @@ async function ensureStarterQuestions() {
   await QuizConfig.insertMany(STARTER_QUESTIONS);
 }
 
-async function nextResultId() {
-  const last = await QuizResult.findOne({}).sort({ result_id: -1 }).select('result_id').lean();
-  let n = 1;
-  if (last?.result_id) {
-    const match = String(last.result_id).match(/QR(\d+)/);
-    if (match) n = parseInt(match[1], 10) + 1;
+let resultCounterReady = null;
+
+function ensureResultCounter() {
+  if (!resultCounterReady) {
+    resultCounterReady = (async () => {
+      const existing = await Counter.findById(RESULT_COUNTER_ID).lean();
+      if (existing) return;
+      const rows = await QuizResult.find({ result_id: /^QR\d+$/ }).select('result_id').lean();
+      let max = 0;
+      for (const row of rows) {
+        const match = String(row.result_id).match(/^QR(\d+)$/);
+        if (match) max = Math.max(max, parseInt(match[1], 10));
+      }
+      try {
+        await Counter.create({ _id: RESULT_COUNTER_ID, seq: max });
+      } catch (error) {
+        if (error.code !== 11000) throw error;
+      }
+    })().catch((error) => {
+      resultCounterReady = null;
+      throw error;
+    });
   }
-  return `QR${String(n).padStart(5, '0')}`;
+  return resultCounterReady;
+}
+
+async function nextResultId() {
+  await ensureResultCounter();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const counter = await Counter.findOneAndUpdate(
+        { _id: RESULT_COUNTER_ID },
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+      return `QR${String(counter.seq).padStart(5, '0')}`;
+    } catch (error) {
+      if (error.code !== 11000 || attempt === 2) throw error;
+    }
+  }
+  throw new Error('Could not allocate a result id.');
+}
+
+function questionIsVisible(question, chosen) {
+  const when = question.visible_when;
+  if (!when?.question_id) return true;
+  return chosen.get(when.question_id) === when.option_id;
+}
+
+function answersInView(questions, answers) {
+  const chosen = new Map();
+  for (const answer of answers) {
+    if (!answer?.question_id || !answer?.option_id) continue;
+    chosen.set(answer.question_id, answer.option_id);
+  }
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const question of questions) {
+      if (questionIsVisible(question, chosen)) continue;
+      if (chosen.delete(question.question_id)) changed = true;
+    }
+  }
+  return [...chosen.entries()].map(([question_id, option_id]) => ({ question_id, option_id }));
 }
 
 function publicQuestion(question) {
@@ -126,17 +185,19 @@ async function createResult(req, res) {
     }
 
     const questions = await loadQuestions();
-    const knownAnswers = answers.filter((answer) =>
-      questions.some((question) =>
-        question.question_id === answer.question_id
-        && (question.options || []).some((option) => option.option_id === answer.option_id)
+    const knownAnswers = answersInView(
+      questions,
+      answers.filter((answer) =>
+        questions.some((question) =>
+          question.question_id === answer.question_id
+          && (question.options || []).some((option) => option.option_id === answer.option_id)
+        )
       )
     );
 
     const kit = await buildKit(questions, knownAnswers);
     const scores = accumulateScores(questions, knownAnswers);
-    const result = await QuizResult.create({
-      result_id: await nextResultId(),
+    const resultDoc = {
       user_id: userId,
       session_id: sessionId,
       quiz_type: 'starter_kit',
@@ -148,12 +209,44 @@ async function createResult(req, res) {
       bundle_id: kit.bundleId,
       archetype_id: kit.archetypeId,
       kit_snapshot: kit
-    });
+    };
+
+    let result;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        result = await QuizResult.create({
+          ...resultDoc,
+          result_id: await nextResultId()
+        });
+        break;
+      } catch (error) {
+        if (error.code !== 11000 || attempt === 1) throw error;
+      }
+    }
 
     return res.status(201).json({ result: publicResult(result) });
   } catch (error) {
     const status = error.status || 500;
     return res.status(status).json({ error: error.message });
+  }
+}
+
+async function claimResult(req, res) {
+  try {
+    const userId = await resolveUserIdString(req.user);
+    if (!userId) {
+      return res.status(401).json({ error: 'Sign in to save this kit.' });
+    }
+    const sessionId = String(req.body?.session_id || '').trim();
+    if (!sessionId) return res.json({ claimed: false });
+
+    const updated = await QuizResult.updateMany(
+      { quiz_type: 'starter_kit', session_id: sessionId, user_id: null },
+      { $set: { user_id: userId, session_id: null } }
+    );
+    return res.json({ claimed: updated.modifiedCount > 0 });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 }
 
@@ -208,5 +301,6 @@ function publicResult(result) {
 module.exports = {
   getQuestions,
   createResult,
+  claimResult,
   getLatestResult
 };

@@ -37,4 +37,16 @@ export class StarterQuizService {
     localStorage.setItem(SESSION_KEY, created);
     return created;
   }
+
+  claimGuestResult(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const sessionId = localStorage.getItem(SESSION_KEY);
+    if (!sessionId) return;
+    this.http.post<{ claimed: boolean }>(`${this.api}/results/claim`, { session_id: sessionId }).subscribe({
+      next: (response) => {
+        if (response?.claimed) localStorage.removeItem(SESSION_KEY);
+      },
+      error: () => undefined
+    });
+  }
 }

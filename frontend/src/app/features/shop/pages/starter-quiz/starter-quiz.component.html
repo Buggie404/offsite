@@ -1,4 +1,14 @@
 <section class="starter-quiz">
+  <div class="starter-deco" aria-hidden="true">
+    <span class="geo geo--blob"></span>
+    <span class="geo geo--ring"></span>
+    <span class="geo geo--ring-dashed"></span>
+    <span class="geo geo--diamond"></span>
+    <span class="geo geo--dot"></span>
+    <span class="geo geo--dot-sm"></span>
+    <span class="geo geo--dots"></span>
+    <span class="geo geo--plus"></span>
+  </div>
   @if (errorMessage() && step() !== 'question') {
     <p class="starter-alert" role="alert">{{ errorMessage() }}</p>
   }
@@ -6,6 +16,14 @@
   @if (step() === 'intro') {
     <div class="starter-intro">
       <article class="starter-card starter-intro__card">
+        <div class="starter-intro__wash" aria-hidden="true">
+          <span class="wash wash--ring"></span>
+          <span class="wash wash--dashed"></span>
+          <span class="wash wash--diamond"></span>
+          <span class="wash wash--dot"></span>
+          <span class="wash wash--dot-sm"></span>
+          <span class="wash wash--plus"></span>
+        </div>
         <p class="starter-kicker">Starter Kit Quiz</p>
         <h1>Find your starter kit</h1>
         <p class="starter-lede">
@@ -97,6 +115,13 @@
         }
 
         <article class="starter-result__panel">
+          <div class="starter-result__wash" aria-hidden="true">
+            <span class="result-mark result-mark--ring"></span>
+            <span class="result-mark result-mark--dashed"></span>
+            <span class="result-mark result-mark--diamond"></span>
+            <span class="result-mark result-mark--dot"></span>
+            <span class="result-mark result-mark--plus"></span>
+          </div>
           <div class="starter-result__copy">
             <p class="starter-kicker">Your starter kit</p>
             <h2>{{ result.title }}</h2>

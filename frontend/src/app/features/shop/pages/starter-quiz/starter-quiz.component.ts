@@ -101,13 +101,7 @@ export class StarterQuizComponent implements OnInit {
   }
 
   selectOption(questionId: string, optionId: string): void {
-    this.answers.update((current) => {
-      const next = { ...current, [questionId]: optionId };
-      if (questionId === 'SQ002' && optionId !== 'B') {
-        delete next['SQ003'];
-      }
-      return next;
-    });
+    this.answers.update((current) => this.pruneHiddenAnswers({ ...current, [questionId]: optionId }));
   }
 
   isSelected(questionId: string, optionId: string): boolean {
@@ -197,6 +191,7 @@ export class StarterQuizComponent implements OnInit {
 
   private submitAnswers(): void {
     if (!isPlatformBrowser(this.platformId)) return;
+    this.answers.set(this.pruneHiddenAnswers(this.answers()));
     const payload = this.visibleQuestions()
       .filter((question) => this.answers()[question.question_id])
       .map((question) => ({
@@ -222,5 +217,22 @@ export class StarterQuizComponent implements OnInit {
         this.errorMessage.set(error?.error?.error || 'We could not build a starter kit from those answers.');
       }
     });
+  }
+
+  private pruneHiddenAnswers(chosen: Record<string, string>): Record<string, string> {
+    const next = { ...chosen };
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const question of this.questions()) {
+        const when = question.visible_when;
+        if (!when?.question_id) continue;
+        if (next[when.question_id] === when.option_id) continue;
+        if (next[question.question_id] == null) continue;
+        delete next[question.question_id];
+        changed = true;
+      }
+    }
+    return next;
   }
 }
