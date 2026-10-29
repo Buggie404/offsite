@@ -20,10 +20,12 @@ async function authMiddleware(req, res, next) {
     const User = require('../models/User');
     const id = String(decoded.user_id || '');
     const query = /^[0-9a-fA-F]{24}$/.test(id) ? { _id: id } : { user_id: id };
-    const account = await User.findOne(query, 'status').lean();
+    const account = await User.findOne(query, 'status role').lean();
     if (!account) return res.status(401).json({ error: 'Account not found' });
     if (account.status === 'suspended') return res.status(403).json({ error: 'Your account is suspended', code: 'ACCOUNT_SUSPENDED' });
-    req.user = decoded; // { user_id, email, role }
+    // Use the stored role so a role change on the Staff page applies right away, not when the token expires.
+    const role = account.role === 'admin' ? 'admin_cc' : account.role;
+    req.user = { ...decoded, role: role || decoded.role }; // { user_id, email, role }
     next();
   } catch (error) {
     if (error?.name === 'TokenExpiredError') {

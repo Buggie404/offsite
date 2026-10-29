@@ -105,6 +105,9 @@ const userSchema = new mongoose.Schema({
   suspended_reason: { type: String, default: null },
   suspended_by: { type: String, default: null },
   suspended_at: { type: Date, default: null },
+  // Staff accounts: set when Admin CC creates the account or resets the password; cleared on change-password.
+  must_change_password: { type: Boolean, default: false },
+  last_login_at: { type: Date, default: null },
   // Membership: tier multiplies earned points and is never downgraded.
   membership_tier: { type: String, enum: ['Seed', 'Leaf', 'Bloom', 'Zen'], default: 'Seed' },
   // Posted (spendable) points; may go negative after a reversal and is made up by later credits.

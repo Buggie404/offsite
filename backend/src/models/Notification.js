@@ -38,12 +38,15 @@ const notificationSchema = new mongoose.Schema({
       'SUBSCRIPTION_PROPOSAL_WITHDRAWN',
       'SUBSCRIPTION_NOT_STARTED',
       'SUBSCRIPTION_ADJUSTED',
-      'PANTRY_EXPIRY_SOON'
+      'PANTRY_EXPIRY_SOON',
+      // Community reports (admin moderation): message written by staff; post_id only when there is a post to open
+      'COMMUNITY_MODERATION',
+      'COMMUNITY_REPORT_RESOLVED'
     ],
     required: true
   },
   // Target post_id / order_id for redirecting; Ritual Box notifications use subscription_id instead.
-  post_id: { type: String, required() { return !this.type?.startsWith('SUBSCRIPTION_'); }, default: null },
+  post_id: { type: String, required() { return !this.type?.startsWith('SUBSCRIPTION_') && !this.type?.startsWith('COMMUNITY_'); }, default: null },
   subscription_id: { type: String, default: null },
   order_id: { type: String, default: null }, // Ritual Box notifications about an order (e.g. SUBSCRIPTION_NOT_STARTED)
   message: { type: String, default: null }, // Ritual Box: text shown to the customer

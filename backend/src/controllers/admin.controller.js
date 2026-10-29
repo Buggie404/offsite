@@ -1,8 +1,7 @@
 const Order = require('../models/Order');
 const RefundRequest = require('../models/RefundRequest');
 const subscriptionService = require('../services/subscription.service');
-const ActivityLog = require('../models/ActivityLog');
-const { unsavedActivityLogCount, normalizeReason } = require('../services/activity-log.service');
+const { normalizeReason } = require('../services/activity-log.service');
 const notificationService = require('../services/notification.service');
 const { parseInternalNotes, appendInternalNote } = require('../utils/internal-notes');
 const mongoose = require('mongoose');
@@ -822,26 +821,6 @@ async function addInternalNote(req, res) {
   }
 }
 
-async function getActivityLogs(req, res) {
-  try {
-    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
-    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 200);
-    const filter = {};
-    for (const field of ['action_type', 'admin_id', 'target_entity', 'target_id']) {
-      if (req.query[field]) filter[field] = req.query[field];
-    }
-    const [total, data] = await Promise.all([
-      ActivityLog.countDocuments(filter),
-      ActivityLog.find(filter).sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).lean()
-    ]);
-    // Logs whose write failed and are still waiting to be retried — the change itself was saved.
-    res.json({ total, page, limit, data, unsaved_count: unsavedActivityLogCount() });
-  } catch (error) {
-    console.error('Error fetching activity logs:', error);
-    res.status(500).json({ error: 'Failed to retrieve activity logs.' });
-  }
-}
-
 module.exports = {
   getAllOrders,
   getOrderById,
@@ -850,6 +829,5 @@ module.exports = {
   rejectRefundRequest,
   addInternalNote,
   markItemsOutOfStock,
-  getActivityLogs,
   statusChangeRequiresReason
 };

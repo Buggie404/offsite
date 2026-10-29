@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { LucideChevronRight, LucideCreditCard, LucideFlag, LucideMessagesSquare, LucidePackage, LucideTriangleAlert, LucideUndo2 } from '@lucide/angular';
+import { LucideChevronRight, LucideCreditCard, LucideFlag, LucideMessagesSquare, LucidePackage, LucideTriangleAlert, LucideRotateCcw, LucideTicket } from '@lucide/angular';
 import { SalesDashboardData, SalesDashboardService } from '../../services/sales-dashboard.service';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 
@@ -11,7 +11,7 @@ type RangeKey = 'today' | '7' | '30' | '90' | 'custom';
 @Component({
   selector: 'app-sales-dashboard',
   standalone: true,
-  imports: [CommonModule, DecimalPipe, FormsModule, LucideChevronRight, LucideCreditCard, LucideFlag, LucideMessagesSquare, LucidePackage, LucideTriangleAlert, LucideUndo2],
+  imports: [CommonModule, DecimalPipe, FormsModule, LucideChevronRight, LucideCreditCard, LucideFlag, LucideMessagesSquare, LucidePackage, LucideTriangleAlert, LucideRotateCcw, LucideTicket],
   templateUrl: './sales-dashboard.component.html',
   styleUrl: './sales-dashboard.component.scss'
 })
@@ -70,6 +70,10 @@ export class SalesDashboardComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  get accountName(): string {
+    return this.adminAuth.getDisplayName();
   }
 
   get greeting(): string {

@@ -1,60 +1,209 @@
-<header class="page-header">
-  <h1>Community reports</h1>
-  <p>Posts are hidden automatically after {{ threshold }} pending reports. You can also hide or restore any post manually.</p>
-</header>
+<section class="reports-page" aria-label="Community reports">
+  <header class="page-header">
+    <div class="page-header__left">
+      <h1>Community reports</h1>
+      <p>
+        @if (tab === 'waiting') { {{ waitingCount }} waiting · sorted by report count }
+        @else { Handled · hidden content and locked accounts can be undone from here }
+      </p>
+    </div>
+  </header>
 
-<div class="tabs">
-  <button type="button" class="tab" [class.active]="tab === 'pending'" (click)="tab = 'pending'">
-    Needs review <span class="count">{{ pendingCount }}</span>
-  </button>
-  <button type="button" class="tab" [class.active]="tab === 'hidden'" (click)="tab = 'hidden'">
-    Hidden <span class="count">{{ hiddenCount }}</span>
-  </button>
-</div>
+  <div class="toolbar">
+    <div class="segmented" role="tablist" aria-label="Queue">
+      <button type="button" role="tab" [class.active]="tab === 'waiting'" (click)="setTab('waiting')">
+        Waiting{{ tab === 'waiting' && !loading ? ' (' + waitingCount + ')' : '' }}
+      </button>
+      <button type="button" role="tab" [class.active]="tab === 'handled'" (click)="setTab('handled')">Handled</button>
+    </div>
+    <select class="select" aria-label="Report type" [ngModel]="type" (ngModelChange)="setType($event)">
+      @for (option of typeOptions; track option.value) {
+        <option [value]="option.value">{{ option.label }}</option>
+      }
+    </select>
+  </div>
 
-@if (loading) {
-  <p class="state">Loading…</p>
-} @else if (error) {
-  <p class="state state--error">{{ error }}</p>
-} @else if (!visibleRows.length) {
-  <p class="state">{{ tab === 'hidden' ? 'No hidden posts.' : 'No reported posts waiting for review.' }}</p>
-} @else {
-  <ul class="list">
-    @for (r of visibleRows; track r.post_id) {
-      <li class="item">
-        <div class="thumb">
-          @if (r.thumbnail) { <img [src]="r.thumbnail" alt=""> } @else { <span>Aa</span> }
-        </div>
+  @if (loading && !(tab === 'waiting' ? queue.length : handled.length)) {
+    <div class="state">Loading reports...</div>
+  } @else if (error) {
+    <div class="state state--error">{{ error }} <button type="button" (click)="load()">Try again</button></div>
+  } @else if (tab === 'waiting') {
+    @if (!queue.length) {
+      <div class="state state--empty">
+        <svg lucideCircleCheck [size]="28"></svg>
+        <p>No reports waiting. The community is in good shape.</p>
+      </div>
+    }
+    <div class="queue" [class.is-loading]="loading">
+      @for (item of queue; track item.key) {
+        <article class="report-card">
+          <header class="report-card__head">
+            <span class="type-chip">{{ typeLabel(item.target_type) }}</span>
+            <span class="avatar">
+              @if (item.owner_avatar && !brokenImages.has(item.key + ':a')) {
+                <img [src]="item.owner_avatar" alt="" (error)="brokenImages.add(item.key + ':a')" />
+              } @else {
+                {{ initials(item.owner_name) }}
+              }
+            </span>
+            <span class="owner">&#64;{{ item.owner_name }}</span>
+            <span class="meta">
+              @if (item.target_type === 'post') { posted {{ dateTime(item.posted_at) }} }
+              @else if (item.target_type === 'comment') { commented {{ dateTime(item.posted_at) }} }
+              @else { reported account }
+            </span>
+            <span class="spacer"></span>
+            <span class="count-chip">{{ item.pending_reports }} report{{ item.pending_reports === 1 ? '' : 's' }}</span>
+            <span class="reasons">{{ reasonSummary(item) }}</span>
+          </header>
 
-        <div class="body">
-          <div class="top">
-            <strong>&#64;{{ r.author?.username }}</strong>
-            <span class="pid">{{ r.post_id }}</span>
-            @if (r.status === 'hidden') {
-              <span class="pill pill--hidden">{{ r.hidden_reason === 'auto_reports' ? 'Auto-hidden' : 'Hidden by admin' }}</span>
+          <div class="report-card__body">
+            <div class="content-box" [class.is-hidden]="item.content_status === 'hidden'">
+              @if (item.thumbnail && !brokenImages.has(item.key)) {
+                <img class="content-box__thumb" [src]="item.thumbnail" alt="" (error)="brokenImages.add(item.key)" />
+              }
+              <div class="content-box__text">
+                @if (item.content_status === 'hidden') {
+                  <span class="status-chip status-chip--hidden"><svg lucideEyeOff [size]="12"></svg> Hidden</span>
+                }
+                @if (item.target_type === 'account') {
+                  <p class="muted">Profile bio</p>
+                }
+                <p>{{ item.content || 'No text content.' }}</p>
+                @if (item.post_id && item.target_type !== 'account') {
+                  <a class="open-link" [routerLink]="['/community/post', item.post_id]" target="_blank">Open {{ item.target_type === 'comment' ? 'the post' : 'post' }}</a>
+                }
+              </div>
+            </div>
+
+            <aside class="context">
+              <span class="label">Author</span>
+              <p>
+                Account
+                @if (item.owner_status === 'locked') { <strong class="danger">locked</strong> } @else { <strong>active</strong> }
+                · {{ item.owner_warnings }} earlier warning{{ item.owner_warnings === 1 ? '' : 's' }}
+              </p>
+              <p>First reported {{ dateTime(item.first_reported_at) }}</p>
+              @if (item.notes.length) {
+                <span class="label">Reporter notes</span>
+                @for (note of item.notes; track $index) { <p class="note">"{{ note }}"</p> }
+              }
+            </aside>
+          </div>
+
+          <footer class="report-card__actions">
+            <button type="button" class="btn btn--outline" (click)="open(item, 'dismiss')">Dismiss</button>
+            @if (item.target_type !== 'account') {
+              @if (item.content_status === 'hidden') {
+                <button type="button" class="btn btn--outline" (click)="open(item, 'restore')"><svg lucideEye [size]="14"></svg> Restore</button>
+              } @else {
+                <button type="button" class="btn btn--outline" (click)="open(item, 'hide')"><svg lucideEyeOff [size]="14"></svg> Hide</button>
+              }
+            }
+            <button type="button" class="btn btn--outline" [disabled]="item.owner_status === 'locked'" (click)="open(item, 'warn')">
+              <svg lucideTriangleAlert [size]="14"></svg> Warn
+            </button>
+            @if (item.owner_status === 'locked') {
+              <span class="locked-note"><svg lucideLock [size]="14"></svg> Account already locked</span>
+            } @else {
+              <button type="button" class="btn btn--danger" (click)="open(item, 'lock')"><svg lucideLock [size]="14"></svg> Lock account</button>
+            }
+          </footer>
+        </article>
+      }
+    </div>
+  } @else {
+    @if (!handled.length) {
+      <div class="state state--empty">
+        <svg lucideInbox [size]="28"></svg>
+        <p>Nothing handled yet.</p>
+      </div>
+    } @else {
+      <div class="handled-card" [class.is-loading]="loading">
+        @for (row of handled; track row.action_id) {
+          <div class="handled-row">
+            <span class="avatar">{{ initials(row.owner_name) }}</span>
+            <div class="handled-row__text">
+              <p><strong>&#64;{{ row.owner_name || row.owner_id }}</strong> · {{ typeLabel(row.target_type) }}</p>
+              <p class="muted">{{ handledSummary(row) }}</p>
+              @if (row.message) { <p class="handled-row__message">"{{ row.message }}"</p> }
+            </div>
+            <span class="result-chip" [ngClass]="'result-chip--' + row.action">{{ row.action }}</span>
+            @if (row.content_hidden) {
+              <button type="button" class="btn btn--outline btn--sm" (click)="undo(row)"><svg lucideEye [size]="14"></svg> Restore</button>
+            } @else if (row.owner_locked && row.action === 'lock') {
+              <button type="button" class="btn btn--outline btn--sm" (click)="undo(row)"><svg lucideLockOpen [size]="14"></svg> Unlock</button>
             }
           </div>
-          <p class="content">{{ r.content || '(no text)' }}</p>
-          <p class="meta">
-            @if (r.pending_reports) {
-              <strong>{{ r.pending_reports }}</strong> pending · {{ reasonList(r) }}
-              @if (r.last_reported_at) { · last {{ r.last_reported_at | date: 'dd/MM HH:mm' }} }
-            } @else if (r.hidden_at) {
-              Hidden {{ r.hidden_at | date: 'dd/MM HH:mm' }}
-            }
-          </p>
-        </div>
-
-        <div class="actions">
-          <a class="btn" [routerLink]="['/community/post', r.post_id]" target="_blank">View</a>
-          @if (r.status === 'hidden') {
-            <button type="button" class="btn btn-primary" [disabled]="busyId === r.post_id" (click)="unhide(r)">Unhide</button>
-          } @else {
-            <button type="button" class="btn btn-danger" [disabled]="busyId === r.post_id" (click)="hide(r)">Hide</button>
-            <button type="button" class="btn" [disabled]="busyId === r.post_id" (click)="dismiss(r)">Dismiss</button>
+        }
+        <footer class="handled-footer">
+          <span>{{ handledTotal }} handled</span>
+          @if (handledPages > 1) {
+            <nav class="pagination" aria-label="Pages">
+              <button type="button" class="page-btn" aria-label="Previous page" [disabled]="handledPage === 1" (click)="goTo(handledPage - 1)"><svg lucideChevronLeft [size]="14"></svg></button>
+              <span class="page-info">{{ handledPage }} / {{ handledPages }}</span>
+              <button type="button" class="page-btn" aria-label="Next page" [disabled]="handledPage === handledPages" (click)="goTo(handledPage + 1)"><svg lucideChevronRight [size]="14"></svg></button>
+            </nav>
           }
-        </div>
-      </li>
+        </footer>
+      </div>
     }
-  </ul>
+  }
+</section>
+
+<!-- Confirmation with the message sent to the author -->
+@if (pending; as p) {
+  <div class="modal-overlay" (click)="closeModal()">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="moderation-title" (click)="$event.stopPropagation()">
+      <header class="modal__header">
+        <div>
+          <h2 id="moderation-title">{{ modalTitle }}</h2>
+          <p>Please confirm before applying</p>
+        </div>
+        <button type="button" class="icon-btn" aria-label="Close" (click)="closeModal()"><svg lucideX [size]="18"></svg></button>
+      </header>
+
+      <div class="modal__body">
+        @if (p.excerpt) {
+          <div class="modal__row"><span>Content</span><p>"{{ p.excerpt.length > 90 ? p.excerpt.slice(0, 90) + '...' : p.excerpt }}"</p></div>
+        }
+        <div class="modal__row"><span>Effect</span><p>{{ modalEffect }}</p></div>
+
+        @if (p.action !== 'dismiss') {
+          <label class="field">
+            <span class="label">Message to &#64;{{ p.ownerName }}{{ messageRequired ? '' : ' (optional)' }}</span>
+            <textarea class="textarea" rows="3" maxlength="1000" [(ngModel)]="message" (ngModelChange)="modalError = ''"></textarea>
+            <span class="hint">Sent as a notification. It is also saved as the reason in the Activity log.</span>
+          </label>
+        }
+
+        @if (canHideToo) {
+          <label class="check">
+            <input type="checkbox" [(ngModel)]="alsoHide" />
+            <span>Also hide this {{ typeLabel(p.type) }}</span>
+          </label>
+        }
+        @if (p.reporterCount && ['hide', 'warn', 'lock'].includes(p.action)) {
+          <label class="check">
+            <input type="checkbox" [(ngModel)]="notifyReporters" />
+            <span>Tell the {{ p.reporterCount }} {{ p.reporterCount === 1 ? 'person' : 'people' }} who reported it that action was taken</span>
+          </label>
+        }
+
+        @if (modalError) { <p class="form-error" role="alert">{{ modalError }}</p> }
+      </div>
+
+      <footer class="modal__footer">
+        <button type="button" class="btn btn--outline" (click)="closeModal()">Cancel</button>
+        <button
+          type="button"
+          class="btn"
+          [class.btn--danger-solid]="p.action === 'lock'"
+          [class.btn--primary]="p.action !== 'lock'"
+          [disabled]="saving"
+          (click)="confirm()"
+        >{{ saving ? 'Saving...' : confirmLabel }}</button>
+      </footer>
+    </section>
+  </div>
 }

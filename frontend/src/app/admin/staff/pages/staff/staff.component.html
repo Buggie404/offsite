@@ -1,0 +1,263 @@
+<section class="staff-page" aria-label="Staff">
+  <header class="page-header">
+    <div class="page-header__left">
+      <h1>Staff</h1>
+      <p>{{ staff.length }} admin account{{ staff.length === 1 ? '' : 's' }} · each account has exactly one role</p>
+    </div>
+    <button type="button" class="btn btn--primary" (click)="openAdd()">
+      <svg lucideUserPlus [size]="14"></svg>
+      <span>Add staff</span>
+    </button>
+  </header>
+
+  @if (loading) {
+    <div class="state">Loading staff...</div>
+  } @else if (error && !staff.length) {
+    <div class="state state--error">{{ error }} <button type="button" (click)="load()">Try again</button></div>
+  } @else {
+    <div class="table-card">
+      <table class="staff-table">
+        <thead>
+          <tr>
+            <th>Staff</th>
+            <th class="col-role">Role</th>
+            <th class="col-status">Status</th>
+            <th class="col-signin">Last sign-in</th>
+            <th class="col-actions"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (member of staff; track member.user_id) {
+            <tr [class.is-disabled]="member.status === 'disabled'">
+              <td>
+                <div class="person">
+                  <span class="avatar">
+                    @if (member.avatar_url && !brokenAvatars.has(member.user_id)) {
+                      <img [src]="member.avatar_url" alt="" (error)="brokenAvatars.add(member.user_id)" />
+                    } @else {
+                      {{ initials(member.profile_name) }}
+                    }
+                  </span>
+                  <span class="person__text">
+                    <span class="person__name">
+                      {{ member.profile_name }}
+                      @if (isSelf(member)) { <span class="you-tag">You</span> }
+                    </span>
+                    <span class="person__email">{{ member.email }}</span>
+                  </span>
+                </div>
+              </td>
+              <td class="col-role"><span class="chip" [ngClass]="'chip--' + member.role">{{ roleLabel(member.role) }}</span></td>
+              <td class="col-status">
+                @if (member.status === 'active') {
+                  <span class="chip chip--active">Active</span>
+                } @else {
+                  <span class="chip chip--neutral" [attr.title]="member.disabled_reason || null">Disabled</span>
+                }
+              </td>
+              <td class="col-signin">{{ lastSignIn(member) }}</td>
+              <td class="col-actions">
+                @if (isSelf(member)) {
+                  <span class="actions-note">Your account</span>
+                } @else {
+                  <div class="actions">
+                    <button
+                      type="button"
+                      class="action action--primary"
+                      [disabled]="isLastAdminCc(member)"
+                      [attr.title]="isLastAdminCc(member) ? 'There must always be at least one active Admin CC' : null"
+                      (click)="openChangeRole(member)"
+                    >Change role</button>
+                    <button type="button" class="action" (click)="openConfirm(member, 'reset')">Reset password</button>
+                    @if (member.status === 'active') {
+                      <button
+                        type="button"
+                        class="action action--danger"
+                        [disabled]="isLastAdminCc(member)"
+                        [attr.title]="isLastAdminCc(member) ? 'There must always be at least one active Admin CC' : null"
+                        (click)="openConfirm(member, 'disable')"
+                      >Disable</button>
+                    } @else {
+                      <button type="button" class="action action--danger" (click)="openConfirm(member, 'enable')">Enable</button>
+                    }
+                  </div>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="5" class="empty">No staff accounts yet.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>
+
+<!-- Add staff -->
+@if (addOpen) {
+  <div class="modal-overlay" (click)="closeAdd()">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="add-staff-title" (click)="$event.stopPropagation()">
+      <header class="modal__header">
+        <h2 id="add-staff-title">Add staff</h2>
+        <button type="button" class="icon-btn" aria-label="Close" (click)="closeAdd()"><svg lucideX [size]="18"></svg></button>
+      </header>
+
+      <div class="modal__body">
+        <label class="field">
+          <span class="field__label">Full name</span>
+          <input class="input" maxlength="80" placeholder="e.g. Thao Vo" [(ngModel)]="newStaff.profile_name" (ngModelChange)="addError = ''" />
+        </label>
+        <label class="field">
+          <span class="field__label">Email</span>
+          <input class="input" type="email" placeholder="name@offsite.vn" [(ngModel)]="newStaff.email" (ngModelChange)="addError = ''" />
+        </label>
+        <div class="field">
+          <span class="field__label">Temporary password</span>
+          <input class="input input--readonly" value="Generated when the account is created" readonly tabindex="-1" />
+          <span class="field__hint">They must change it at first sign-in</span>
+        </div>
+
+        <div class="field" role="radiogroup" aria-label="Role">
+          <span class="field__label">Role</span>
+          @for (option of roleOptions; track option.value) {
+            <label class="role-option" [class.is-selected]="newStaff.role === option.value">
+              <input type="radio" name="new-staff-role" [value]="option.value" [(ngModel)]="newStaff.role" />
+              <span class="radio" aria-hidden="true"></span>
+              <span class="chip" [ngClass]="'chip--' + option.value">{{ option.label }}</span>
+              <span class="role-option__desc">{{ option.description }}</span>
+            </label>
+          }
+        </div>
+
+        @if (addError) { <p class="form-error" role="alert">{{ addError }}</p> }
+      </div>
+
+      <footer class="modal__footer">
+        <button type="button" class="btn btn--outline" (click)="closeAdd()">Cancel</button>
+        <button type="button" class="btn btn--primary" [disabled]="!canCreate" (click)="createStaff()">
+          {{ addSaving ? 'Creating...' : 'Create account' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+
+<!-- Temporary password, shown only once -->
+@if (credentials) {
+  <div class="modal-overlay" (click)="credentials = null">
+    <section class="modal modal--sm" role="dialog" aria-modal="true" aria-labelledby="credentials-title" (click)="$event.stopPropagation()">
+      <header class="modal__header">
+        <h2 id="credentials-title">{{ credentials.created ? 'Account created' : 'Password reset' }}</h2>
+        <button type="button" class="icon-btn" aria-label="Close" (click)="credentials = null"><svg lucideX [size]="18"></svg></button>
+      </header>
+      <div class="modal__body">
+        <p class="modal__text">
+          Send these sign-in details to <strong>{{ credentials.name }}</strong>. The password is shown only once
+          and must be changed at first sign-in.
+        </p>
+        <div class="field">
+          <span class="field__label">Email</span>
+          <div class="input input--readonly">{{ credentials.email }}</div>
+        </div>
+        <div class="field">
+          <span class="field__label">Temporary password</span>
+          <div class="secret">
+            <code>{{ credentials.password }}</code>
+            <button type="button" class="btn btn--outline btn--sm" (click)="copyPassword()">
+              @if (copied) { <svg lucideCheck [size]="14"></svg><span>Copied</span> }
+              @else { <svg lucideCopy [size]="14"></svg><span>Copy</span> }
+            </button>
+          </div>
+        </div>
+      </div>
+      <footer class="modal__footer">
+        <button type="button" class="btn btn--primary" (click)="credentials = null">Done</button>
+      </footer>
+    </section>
+  </div>
+}
+
+<!-- Change role -->
+@if (roleTarget; as target) {
+  <div class="modal-overlay" (click)="closeChangeRole()">
+    <section class="modal modal--sm" role="dialog" aria-modal="true" aria-labelledby="change-role-title" (click)="$event.stopPropagation()">
+      <header class="modal__header">
+        <h2 id="change-role-title">Change role · {{ target.profile_name }}</h2>
+        <button type="button" class="icon-btn" aria-label="Close" (click)="closeChangeRole()"><svg lucideX [size]="18"></svg></button>
+      </header>
+
+      <div class="modal__body">
+        <div class="role-change">
+          <span class="chip" [ngClass]="'chip--' + target.role">{{ roleLabel(target.role) }}</span>
+          <svg lucideChevronRight [size]="16"></svg>
+          @if (roleChoice) {
+            <span class="chip" [ngClass]="'chip--' + roleChoice">{{ roleLabel(roleChoice) }}</span>
+          } @else {
+            <span class="role-change__placeholder">Choose a new role</span>
+          }
+        </div>
+
+        <div class="field" role="radiogroup" aria-label="New role">
+          @for (option of roleOptions; track option.value) {
+            @if (option.value !== target.role) {
+              <label class="role-option" [class.is-selected]="roleChoice === option.value">
+                <input type="radio" name="change-role" [value]="option.value" [(ngModel)]="roleChoice" (ngModelChange)="roleError = ''" />
+                <span class="radio" aria-hidden="true"></span>
+                <span class="chip" [ngClass]="'chip--' + option.value">{{ option.label }}</span>
+                <span class="role-option__desc">{{ option.description }}</span>
+              </label>
+            }
+          }
+        </div>
+
+        @if (openWork?.open_chats) {
+          <div class="warning" role="status">
+            <svg lucideTriangleAlert [size]="16"></svg>
+            <p>
+              <strong>{{ firstName(target) }} has unfinished work:</strong>
+              {{ openWork!.open_chats }} open chat{{ openWork!.open_chats > 1 ? 's' : '' }}.
+              Reassign them before changing role, or they return to the queue.
+            </p>
+          </div>
+        }
+
+        @if (roleError) { <p class="form-error" role="alert">{{ roleError }}</p> }
+      </div>
+
+      <footer class="modal__footer">
+        <button type="button" class="btn btn--outline" (click)="closeChangeRole()">Cancel</button>
+        <button type="button" class="btn btn--primary" [disabled]="!roleChoice || roleSaving" (click)="saveRole()">
+          {{ roleSaving ? 'Saving...' : 'Change role' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+
+<!-- Disable / Enable / Reset password: shared confirmation modal -->
+<app-confirmation-modal
+  [isOpen]="!!confirmTarget"
+  [title]="confirmTitle"
+  [message]="confirmMessage"
+  [warningMessage]="confirmWarning"
+  [confirmText]="busyUserId ? 'Saving...' : confirmText"
+  cancelText="Cancel"
+  [type]="confirmType"
+  (confirm)="runConfirm()"
+  (cancel)="closeConfirm()"
+>
+  @if (confirmKind === 'disable') {
+    <label class="confirm-reason">
+      <span class="field__label">Reason</span>
+      <textarea
+        class="input input--area"
+        rows="3"
+        maxlength="500"
+        placeholder="Why is this account being disabled?"
+        [(ngModel)]="disableReason"
+        (ngModelChange)="confirmError = ''"
+      ></textarea>
+    </label>
+  }
+  @if (confirmError) { <p class="form-error confirm-error" role="alert">{{ confirmError }}</p> }
+</app-confirmation-modal>

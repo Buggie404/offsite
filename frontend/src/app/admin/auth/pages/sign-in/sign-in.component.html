@@ -38,91 +38,163 @@
 
   <main class="form-panel">
     <div class="form-container">
-      <header class="form-header">
-        <span class="admin-badge">
-          <svg lucideShieldCheck class="icon" aria-hidden="true" [size]="14"></svg>
-          Admin Access
-        </span>
-        <h1 class="form-title">Sign in</h1>
-        <p class="form-subtitle">Enter your admin credentials to continue.</p>
-      </header>
+      @if (pendingLogin) {
+        <header class="form-header">
+          <span class="admin-badge">
+            <svg lucideKeyRound class="icon" aria-hidden="true" [size]="14"></svg>
+            First sign-in
+          </span>
+          <h1 class="form-title">Set a new password</h1>
+          <p class="form-subtitle">Your account uses a temporary password. Choose your own to continue.</p>
+        </header>
 
-      <form class="login-form" (ngSubmit)="onSubmit($event)">
-        @if (formError) {
-          <p class="form-error" role="alert">{{ formError }}</p>
-        }
-
-        <div class="field">
-          <label class="field-label" for="admin-email">Email</label>
-          <div class="input-wrap">
-            <svg lucideMail class="input-icon" aria-hidden="true" [size]="18"></svg>
-            <input
-              id="admin-email"
-              name="email"
-              type="email"
-              class="input"
-              [class.input-error]="emailError"
-              placeholder="admin@offsite.vn"
-              autocomplete="email"
-              required
-              [(ngModel)]="email"
-              (ngModelChange)="onEmailInput()"
-              (blur)="onEmailBlur()"
-            />
+        <form class="login-form" (ngSubmit)="onSetNewPassword($event)">
+          <div class="field">
+            <label class="field-label" for="admin-new-password">New password</label>
+            <div class="input-wrap">
+              <svg lucideLock class="input-icon" aria-hidden="true" [size]="18"></svg>
+              <input
+                id="admin-new-password"
+                name="newPassword"
+                [type]="showPassword ? 'text' : 'password'"
+                class="input input--has-toggle"
+                [class.input-error]="newPasswordError"
+                placeholder="8-15 characters"
+                autocomplete="new-password"
+                required
+                [(ngModel)]="newPassword"
+                (ngModelChange)="newPasswordError = null"
+              />
+              <button
+                type="button"
+                class="toggle-password"
+                [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+                (click)="togglePassword()"
+              >
+                @if (showPassword) {
+                  <svg lucideEye class="icon-eye" aria-hidden="true" [size]="18"></svg>
+                } @else {
+                  <svg lucideEyeOff class="icon-eye" aria-hidden="true" [size]="18"></svg>
+                }
+              </button>
+            </div>
           </div>
-          @if (emailError) {
-            <p class="error-message" role="alert">{{ emailError }}</p>
-          }
-        </div>
 
-        <div class="field">
-          <label class="field-label" for="admin-password">Password</label>
-          <div class="input-wrap">
-            <svg lucideLock class="input-icon" aria-hidden="true" [size]="18"></svg>
-            <input
-              id="admin-password"
-              name="password"
-              [type]="showPassword ? 'text' : 'password'"
-              class="input input--has-toggle"
-              [class.input-error]="passwordError"
-              placeholder="Enter your password"
-              autocomplete="current-password"
-              required
-              [(ngModel)]="password"
-              (ngModelChange)="onPasswordInput()"
-              (blur)="onPasswordBlur()"
-            />
-            <button
-              type="button"
-              class="toggle-password"
-              [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
-              (click)="togglePassword()"
-            >
-              @if (showPassword) {
-                <svg lucideEye class="icon-eye" aria-hidden="true" [size]="18"></svg>
-              } @else {
-                <svg lucideEyeOff class="icon-eye" aria-hidden="true" [size]="18"></svg>
-              }
-            </button>
+          <div class="field">
+            <label class="field-label" for="admin-confirm-password">Confirm new password</label>
+            <div class="input-wrap">
+              <svg lucideLock class="input-icon" aria-hidden="true" [size]="18"></svg>
+              <input
+                id="admin-confirm-password"
+                name="confirmPassword"
+                [type]="showPassword ? 'text' : 'password'"
+                class="input"
+                [class.input-error]="newPasswordError"
+                placeholder="Repeat the new password"
+                autocomplete="new-password"
+                required
+                [(ngModel)]="confirmPassword"
+                (ngModelChange)="newPasswordError = null"
+              />
+            </div>
+            @if (newPasswordError) {
+              <p class="error-message" role="alert">{{ newPasswordError }}</p>
+            }
           </div>
-          @if (passwordError) {
-            <p class="error-message" role="alert">{{ passwordError }}</p>
+
+          <button type="submit" class="btn-primary" [disabled]="isSubmitting">
+            <svg lucideKeyRound aria-hidden="true" [size]="18"></svg>
+            {{ isSubmitting ? 'Saving...' : 'Save and continue' }}
+          </button>
+          <button type="button" class="btn-back" (click)="backToSignIn()">Back to sign in</button>
+        </form>
+      } @else {
+        <header class="form-header">
+          <span class="admin-badge">
+            <svg lucideShieldCheck class="icon" aria-hidden="true" [size]="14"></svg>
+            Admin Access
+          </span>
+          <h1 class="form-title">Sign in</h1>
+          <p class="form-subtitle">Enter your admin credentials to continue.</p>
+        </header>
+
+        <form class="login-form" (ngSubmit)="onSubmit($event)">
+          @if (formError) {
+            <p class="form-error" role="alert">{{ formError }}</p>
           }
-        </div>
 
-        <div class="form-row">
-          <label class="checkbox-label">
-            <input type="checkbox" name="remember" class="checkbox" [(ngModel)]="rememberMe" />
-            <span class="checkbox-box" aria-hidden="true"></span>
-            <span>Remember me</span>
-          </label>
-        </div>
+          <div class="field">
+            <label class="field-label" for="admin-email">Email</label>
+            <div class="input-wrap">
+              <svg lucideMail class="input-icon" aria-hidden="true" [size]="18"></svg>
+              <input
+                id="admin-email"
+                name="email"
+                type="email"
+                class="input"
+                [class.input-error]="emailError"
+                placeholder="admin@offsite.vn"
+                autocomplete="email"
+                required
+                [(ngModel)]="email"
+                (ngModelChange)="onEmailInput()"
+                (blur)="onEmailBlur()"
+              />
+            </div>
+            @if (emailError) {
+              <p class="error-message" role="alert">{{ emailError }}</p>
+            }
+          </div>
 
-        <button type="submit" class="btn-primary" [disabled]="isSubmitting">
-          <svg lucideLogIn aria-hidden="true" [size]="18"></svg>
-          {{ isSubmitting ? 'Signing in…' : 'Sign in' }}
-        </button>
-      </form>
+          <div class="field">
+            <label class="field-label" for="admin-password">Password</label>
+            <div class="input-wrap">
+              <svg lucideLock class="input-icon" aria-hidden="true" [size]="18"></svg>
+              <input
+                id="admin-password"
+                name="password"
+                [type]="showPassword ? 'text' : 'password'"
+                class="input input--has-toggle"
+                [class.input-error]="passwordError"
+                placeholder="Enter your password"
+                autocomplete="current-password"
+                required
+                [(ngModel)]="password"
+                (ngModelChange)="onPasswordInput()"
+                (blur)="onPasswordBlur()"
+              />
+              <button
+                type="button"
+                class="toggle-password"
+                [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+                (click)="togglePassword()"
+              >
+                @if (showPassword) {
+                  <svg lucideEye class="icon-eye" aria-hidden="true" [size]="18"></svg>
+                } @else {
+                  <svg lucideEyeOff class="icon-eye" aria-hidden="true" [size]="18"></svg>
+                }
+              </button>
+            </div>
+            @if (passwordError) {
+              <p class="error-message" role="alert">{{ passwordError }}</p>
+            }
+          </div>
+
+          <div class="form-row">
+            <label class="checkbox-label">
+              <input type="checkbox" name="remember" class="checkbox" [(ngModel)]="rememberMe" />
+              <span class="checkbox-box" aria-hidden="true"></span>
+              <span>Remember me</span>
+            </label>
+          </div>
+
+          <button type="submit" class="btn-primary" [disabled]="isSubmitting">
+            <svg lucideLogIn aria-hidden="true" [size]="18"></svg>
+            {{ isSubmitting ? 'Signing in…' : 'Sign in' }}
+          </button>
+        </form>
+      }
 
       <footer class="form-footer">
         <p>© 2026 Offsite. Authorized personnel only.</p>

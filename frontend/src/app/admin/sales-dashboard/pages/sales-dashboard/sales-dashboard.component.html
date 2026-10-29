@@ -1,6 +1,6 @@
 <section class="sales-dashboard" aria-label="Sales-Ops dashboard">
   <header class="page-header">
-    <div class="page-header__left"><h1>Dashboard</h1><p>{{ greeting }}, Offsite Official · Sales-Ops</p></div>
+    <div class="page-header__left"><h1>Dashboard</h1><p>{{ greeting }}, {{ accountName }} · Sales-Ops</p></div>
     <div class="range-tabs" aria-label="Time range">
       <button [class.active]="range === 'today'" (click)="selectRange('today')">Today</button>
       <button [class.active]="range === '7'" (click)="selectRange('7')">7 days</button>
@@ -17,18 +17,18 @@
   @else {
     @if (error) { <div class="inline-error">{{ error }} <button (click)="load()">Try again</button></div> }
     <div class="kpis">
-      <article class="kpi"><span>Orders to ship</span><strong>{{ data.kpis.orders_to_ship | number }}</strong></article>
-      <article class="kpi"><span>Refund requests</span><strong>{{ data.kpis.refund_requests | number }}</strong></article>
-      <article class="kpi"><span>Low stock variants</span><strong>{{ data.kpis.low_stock_variants | number }}</strong></article>
-      <article class="kpi"><span>Active vouchers</span><strong>{{ data.kpis.active_vouchers | number }}</strong></article>
+      <article class="kpi"><div class="kpi__top"><span>Orders to ship</span><i class="kpi__icon kpi__icon--green" aria-hidden="true"><svg lucidePackage [size]="18"></svg></i></div><strong>{{ data.kpis.orders_to_ship | number }}</strong></article>
+      <article class="kpi"><div class="kpi__top"><span>Refund requests</span><i class="kpi__icon kpi__icon--amber" aria-hidden="true"><svg lucideRotateCcw [size]="18"></svg></i></div><strong>{{ data.kpis.refund_requests | number }}</strong></article>
+      <article class="kpi"><div class="kpi__top"><span>Low stock variants</span><i class="kpi__icon kpi__icon--red" aria-hidden="true"><svg lucideTriangleAlert [size]="18"></svg></i></div><strong>{{ data.kpis.low_stock_variants | number }}</strong></article>
+      <article class="kpi"><div class="kpi__top"><span>Active vouchers</span><i class="kpi__icon kpi__icon--brown" aria-hidden="true"><svg lucideTicket [size]="18"></svg></i></div><strong>{{ data.kpis.active_vouchers | number }}</strong></article>
     </div>
     <article class="todo-panel"><div class="todo-title">To do today</div>
-      <button (click)="navigate('/admin/orders', orderQueryParams('processing'))"><span><svg lucidePackage [size]="16"></svg>Orders waiting to ship</span><b>{{ data.todos.orders_to_ship }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
-      <button (click)="navigate('/admin/orders', orderQueryParams('pending_refund'))"><span><svg lucideUndo2 [size]="16"></svg>Refund requests</span><b>{{ data.todos.refund_requests }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
-      <button (click)="navigate('/admin/community-reports')"><span><svg lucideFlag [size]="16"></svg>Reports to review</span><b>{{ data.todos.reports_to_review }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
-      <button (click)="navigate('/admin/chat', { status: 'waiting' })"><span><svg lucideMessagesSquare [size]="16"></svg>Chats waiting</span><b>{{ data.todos.chats_waiting }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
-      <button (click)="navigate('/admin/products')"><span><svg lucideTriangleAlert [size]="16"></svg>Low stock variants</span><b>{{ data.todos.low_stock_variants }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
-      <button (click)="ritualBoxFailedClick()"><span><svg lucideCreditCard [size]="16"></svg>Ritual Box payment failed</span><b>{{ data.todos.ritual_box_payment_failed }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+      <button type="button" class="todo-row" [class.is-empty]="!data.todos.orders_to_ship" (click)="navigate('/admin/orders', orderQueryParams('processing'))"><span class="todo-row__icon todo-row__icon--green" aria-hidden="true"><svg lucidePackage [size]="16"></svg></span><span class="todo-row__label">Orders waiting to ship</span><b class="todo-row__count">{{ data.todos.orders_to_ship }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
+      <button type="button" class="todo-row" [class.is-empty]="!data.todos.refund_requests" (click)="navigate('/admin/orders', orderQueryParams('pending_refund'))"><span class="todo-row__icon todo-row__icon--amber" aria-hidden="true"><svg lucideRotateCcw [size]="16"></svg></span><span class="todo-row__label">Refund requests</span><b class="todo-row__count">{{ data.todos.refund_requests }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
+      <button type="button" class="todo-row" [class.is-empty]="!data.todos.reports_to_review" (click)="navigate('/admin/community-reports')"><span class="todo-row__icon todo-row__icon--pink" aria-hidden="true"><svg lucideFlag [size]="16"></svg></span><span class="todo-row__label">Reports to review</span><b class="todo-row__count">{{ data.todos.reports_to_review }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
+      <button type="button" class="todo-row" [class.is-empty]="!data.todos.chats_waiting" (click)="navigate('/admin/chat', { status: 'waiting' })"><span class="todo-row__icon todo-row__icon--blue" aria-hidden="true"><svg lucideMessagesSquare [size]="16"></svg></span><span class="todo-row__label">Chats waiting</span><b class="todo-row__count">{{ data.todos.chats_waiting }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
+      <button type="button" class="todo-row" [class.is-empty]="!data.todos.low_stock_variants" (click)="navigate('/admin/products')"><span class="todo-row__icon todo-row__icon--amber" aria-hidden="true"><svg lucideTriangleAlert [size]="16"></svg></span><span class="todo-row__label">Low stock variants</span><b class="todo-row__count">{{ data.todos.low_stock_variants }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
+      <button type="button" class="todo-row" [class.is-empty]="!data.todos.ritual_box_payment_failed" [class.is-urgent]="data.todos.ritual_box_payment_failed > 0" (click)="ritualBoxFailedClick()"><span class="todo-row__icon todo-row__icon--red" aria-hidden="true"><svg lucideCreditCard [size]="16"></svg></span><span class="todo-row__label">Ritual Box payment failed</span><b class="todo-row__count">{{ data.todos.ritual_box_payment_failed }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
     </article>
   }
 </section>

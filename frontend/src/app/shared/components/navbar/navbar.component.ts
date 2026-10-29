@@ -622,6 +622,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
       this.router.navigate(['/account'], { queryParams: { tab: 'pantry' } });
     } else if (isOrderOrRefund) {
       this.router.navigate(['/order-tracking'], { queryParams: { orderId: notification.post_id } });
+    } else if (notification.type.startsWith('COMMUNITY_')) {
+      // Moderation notices: open the post when there is one (a hidden post shows its own notice)
+      if (notification.post_id) this.router.navigate(['/community/post', notification.post_id]);
     } else {
       this.router.navigate(['/community/post', notification.post_id]);
     }

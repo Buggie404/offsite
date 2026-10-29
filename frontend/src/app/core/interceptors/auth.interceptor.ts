@@ -33,6 +33,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     return next(request);
   }
 
+  // A caller that already set a token (e.g. first sign-in password change) keeps it.
+  if (request.headers.has('Authorization')) {
+    return next(request);
+  }
+
   const isAdminApi = request.url.includes('/api/admin/');
   const adminAuth = inject(AdminAuthService);
   const token = isAdminApi ? adminAuth.getToken() : localStorage.getItem('token');

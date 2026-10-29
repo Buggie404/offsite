@@ -1,0 +1,175 @@
+<section class="customer-page" aria-label="Customer">
+  @if (loading && !customer) {
+    <div class="state">Loading customer...</div>
+  } @else if (!customer) {
+    <div class="state state--error">
+      {{ error }}
+      <button type="button" (click)="backToList()">Back to customers</button>
+    </div>
+  } @else {
+    <header class="page-header">
+      <div class="page-header__left">
+        <h1>{{ customer.profile_name }}</h1>
+        <p>{{ subtitle }}</p>
+      </div>
+      <div class="page-actions">
+        @if (isLocked) {
+          <button type="button" class="btn btn--outline" (click)="openStatusConfirm()">
+            <svg lucideLockOpen [size]="14"></svg>
+            <span>Unlock account</span>
+          </button>
+        } @else {
+          <button type="button" class="btn btn--danger" (click)="openStatusConfirm()">
+            <svg lucideLock [size]="14"></svg>
+            <span>Lock account</span>
+          </button>
+        }
+        <button type="button" class="btn btn--outline" (click)="backToList()">
+          <svg lucideArrowLeft [size]="14"></svg>
+          <span>Back to customers</span>
+        </button>
+      </div>
+    </header>
+
+    @if (isLocked) {
+      <div class="locked-banner" role="status">
+        <svg lucideLock [size]="16"></svg>
+        <p>
+          <strong>Account locked{{ customer.suspended_at ? ' on ' + shortDate(customer.suspended_at) : '' }}.</strong>
+          The customer cannot sign in.
+          @if (customer.suspended_reason) { Reason: {{ customer.suspended_reason }} }
+        </p>
+      </div>
+    }
+
+    <article class="card">
+      <header class="card__header"><h2>Profile</h2></header>
+      <div class="profile">
+        <span class="avatar avatar--lg">
+          @if (customer.avatar_url && !avatarBroken) {
+            <img [src]="customer.avatar_url" alt="" (error)="avatarBroken = true" />
+          } @else {
+            {{ initials }}
+          }
+        </span>
+        <dl class="profile__facts">
+          <div><dt>Email</dt><dd>{{ customer.email || 'Not provided' }}</dd></div>
+          <div><dt>Phone</dt><dd>{{ customer.phone || 'Not provided' }}</dd></div>
+          <div><dt>Tier</dt><dd>{{ customer.membership_tier }} · {{ customer.points | number }} pts</dd></div>
+          <div><dt>Ritual Box</dt><dd>{{ customer.ritual_boxes ? customer.ritual_boxes + ' active' : 'None' }}</dd></div>
+          <div><dt>Total spent</dt><dd>{{ customer.total_spent | currency:'USD':'symbol':'1.2-2' }}</dd></div>
+          <div><dt>Customer ID</dt><dd class="mono">{{ customer.user_id }}</dd></div>
+        </dl>
+      </div>
+    </article>
+
+    <nav class="tabs" role="tablist" aria-label="Customer sections">
+      <button type="button" role="tab" [class.active]="tab === 'orders'" [attr.aria-selected]="tab === 'orders'" (click)="tab = 'orders'">
+        Purchase history ({{ customer.order_count }})
+      </button>
+      <button type="button" role="tab" [class.active]="tab === 'notes'" [attr.aria-selected]="tab === 'notes'" (click)="tab = 'notes'">
+        Internal notes ({{ customer.notes.length }})
+      </button>
+    </nav>
+
+    @if (tab === 'orders') {
+      <article class="card">
+        @if (!customer.recent_orders.length) {
+          <div class="state">This customer has not placed an order yet.</div>
+        } @else {
+          <div class="table-scroll">
+            <table class="orders-table">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th class="col-date">Date</th>
+                  <th class="col-items">Items</th>
+                  <th class="col-total">Total</th>
+                  <th class="col-status">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (order of customer.recent_orders; track order.order_id) {
+                  <tr tabindex="0" (click)="openOrder(order.order_id)" (keydown.enter)="openOrder(order.order_id)">
+                    <td class="order-id">#{{ order.order_id }}</td>
+                    <td class="col-date">{{ shortDate(order.created_at) }}</td>
+                    <td class="col-items">{{ order.item_count }}</td>
+                    <td class="col-total">{{ order.total | currency:'USD':'symbol':'1.2-2' }}</td>
+                    <td class="col-status"><span class="chip" [ngClass]="'chip--' + order.status">{{ orderStatusLabel(order.status) }}</span></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <footer class="card__footer">
+            <span>Showing {{ customer.recent_orders.length }} of {{ customer.order_count }} orders · click a row to open the order</span>
+            <button type="button" class="link-btn" (click)="viewAllOrders()">
+              View all orders
+              <svg lucideArrowRight [size]="14"></svg>
+            </button>
+          </footer>
+        }
+      </article>
+    } @else {
+      <article class="card">
+        <header class="card__header"><h2>Internal notes</h2></header>
+        <div class="notes">
+          <p class="notes__hint">Only staff can see these notes.</p>
+          @for (note of customer.notes; track note.note_id) {
+            <div class="note">
+              <div class="note__meta">
+                <strong>{{ shortName(note.author_name) }}</strong>
+                <span>{{ roleLabel(note.author_role) }} · {{ shortDate(note.created_at) }}</span>
+              </div>
+              <p>{{ note.content }}</p>
+            </div>
+          } @empty {
+            <p class="notes__empty">No notes yet.</p>
+          }
+
+          <textarea
+            class="textarea"
+            rows="3"
+            maxlength="1000"
+            placeholder="Add a note..."
+            aria-label="New internal note"
+            [(ngModel)]="noteDraft"
+            (ngModelChange)="noteError = ''"
+          ></textarea>
+          @if (noteError) { <p class="form-error" role="alert">{{ noteError }}</p> }
+          <div>
+            <button type="button" class="btn btn--primary" [disabled]="!noteDraft.trim() || noteSaving" (click)="addNote()">
+              {{ noteSaving ? 'Saving...' : 'Add note' }}
+            </button>
+          </div>
+        </div>
+      </article>
+    }
+
+    <app-confirmation-modal
+      [isOpen]="confirmOpen"
+      [title]="isLocked ? 'Unlock ' + customer.profile_name + '?' : 'Lock ' + customer.profile_name + '?'"
+      [message]="isLocked ? 'They can sign in and place orders again.' : 'They are signed out and cannot sign in until the account is unlocked.'"
+      [confirmText]="statusSaving ? 'Saving...' : (isLocked ? 'Unlock' : 'Lock account')"
+      cancelText="Cancel"
+      [type]="isLocked ? 'success' : 'danger'"
+      (confirm)="confirmStatus()"
+      (cancel)="closeStatusConfirm()"
+    >
+      @if (!isLocked) {
+        <label class="confirm-reason">
+          <span class="label">Reason</span>
+          <textarea
+            class="textarea"
+            rows="3"
+            maxlength="500"
+            placeholder="Why is this account being locked?"
+            [(ngModel)]="lockReason"
+            (ngModelChange)="confirmError = ''"
+          ></textarea>
+        </label>
+      }
+      @if (confirmError) { <p class="form-error confirm-error" role="alert">{{ confirmError }}</p> }
+    </app-confirmation-modal>
+  }
+</section>

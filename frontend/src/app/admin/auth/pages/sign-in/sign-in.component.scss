@@ -600,3 +600,21 @@
     align-items: flex-start;
   }
 }
+
+// "Back to sign in" under the first sign-in password form
+.btn-back {
+  align-self: center;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-warm-brown);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-forest-green);
+    text-decoration: underline;
+  }
+}

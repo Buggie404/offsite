@@ -9,9 +9,10 @@ import {
   LucideLock,
   LucideEye,
   LucideEyeOff,
-  LucideLogIn
+  LucideLogIn,
+  LucideKeyRound
 } from '@lucide/angular';
-import { AdminAuthService } from '../../services/admin-auth.service';
+import { AdminAuthService, AdminLoginResponse } from '../../services/admin-auth.service';
 
 @Component({
   selector: 'app-admin-sign-in',
@@ -24,7 +25,8 @@ import { AdminAuthService } from '../../services/admin-auth.service';
     LucideLock,
     LucideEye,
     LucideEyeOff,
-    LucideLogIn
+    LucideLogIn,
+    LucideKeyRound
   ],
   templateUrl: './sign-in.component.html',
   styleUrl: './sign-in.component.scss'
@@ -44,6 +46,12 @@ export class AdminSignInComponent implements OnInit {
   emailError: string | null = null;
   passwordError: string | null = null;
   formError: string | null = null;
+
+  // First sign-in with a temporary password (Staff page): set a new one before entering.
+  pendingLogin: AdminLoginResponse | null = null;
+  newPassword = '';
+  confirmPassword = '';
+  newPasswordError: string | null = null;
 
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
@@ -146,7 +154,12 @@ export class AdminSignInComponent implements OnInit {
     this.cdr.detectChanges();
 
     try {
-      await this.adminAuth.login(trimmedEmail, this.password, this.rememberMe);
+      const response = await this.adminAuth.requestLogin(trimmedEmail, this.password);
+      if (response.user.must_change_password) {
+        this.pendingLogin = response;
+        return;
+      }
+      this.adminAuth.storeSession(response, this.rememberMe);
       await this.router.navigateByUrl(this.adminAuth.getDefaultRoute(), { replaceUrl: true });
     } catch (err: any) {
       const status = err?.status as number | undefined;
@@ -161,6 +174,8 @@ export class AdminSignInComponent implements OnInit {
       } else if (status === 0) {
         this.formError =
           'Cannot connect to backend. Make sure backend is running on port 5000 (npm start or cd backend && npm run dev).';
+      } else if (errorCode === 'ACCOUNT_SUSPENDED') {
+        this.formError = 'This admin account has been disabled. Contact a Senior Admin.';
       } else if (errorCode === 'ACCOUNT_NOT_FOUND' || errorCode === 'NOT_ADMIN' || status === 403 || status === 404) {
         this.emailError = 'Invalid admin account';
       } else if (errorCode === 'INCORRECT_PASSWORD' || status === 401) {
@@ -176,5 +191,46 @@ export class AdminSignInComponent implements OnInit {
       this.isSubmitting = false;
       this.cdr.detectChanges();
     }
+  }
+
+  // ── First sign-in: replace the temporary password ─────────────
+
+  private validateNewPassword(): boolean {
+    if (this.newPassword.length < 8 || this.newPassword.length > 15 || /\s/.test(this.newPassword)) {
+      this.newPasswordError = 'Password must be 8-15 characters, without spaces';
+    } else if (this.newPassword === this.password) {
+      this.newPasswordError = 'Choose a password different from the temporary one';
+    } else if (this.newPassword !== this.confirmPassword) {
+      this.newPasswordError = 'Passwords do not match';
+    } else {
+      this.newPasswordError = null;
+    }
+    return !this.newPasswordError;
+  }
+
+  async onSetNewPassword(event: Event): Promise<void> {
+    event.preventDefault();
+    const pending = this.pendingLogin;
+    if (!pending || this.isSubmitting || !this.validateNewPassword()) return;
+    this.isSubmitting = true;
+    this.cdr.detectChanges();
+    try {
+      await this.adminAuth.changeTemporaryPassword(pending.token, this.password, this.newPassword);
+      this.adminAuth.storeSession({ ...pending, user: { ...pending.user, must_change_password: false } }, this.rememberMe);
+      await this.router.navigateByUrl(this.adminAuth.getDefaultRoute(), { replaceUrl: true });
+    } catch (err: any) {
+      this.newPasswordError = this.extractServerMessage(err?.error) || 'Could not update your password. Please try again.';
+    } finally {
+      this.isSubmitting = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  backToSignIn(): void {
+    this.pendingLogin = null;
+    this.password = '';
+    this.newPassword = '';
+    this.confirmPassword = '';
+    this.newPasswordError = null;
   }
 }

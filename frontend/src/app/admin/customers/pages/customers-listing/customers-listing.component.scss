@@ -1,0 +1,232 @@
+@use '../../customers-shared' as *;
+
+:host {
+  display: block;
+}
+
+// Figma: "3.2(new) Customers" list, without the CSKH-only chat / report columns.
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 320px;
+  height: 40px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid $border-strong;
+  border-radius: 6px;
+  background: var(--color-white);
+  color: var(--color-warm-brown);
+
+  &:focus-within {
+    border-color: var(--color-forest-green);
+    box-shadow: 0 0 0 2px rgba(55, 85, 52, 0.15);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-near-black);
+
+    &::placeholder {
+      color: rgba(84, 74, 64, 0.6);
+    }
+  }
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  &__label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-warm-brown);
+  }
+}
+
+.segmented {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid $border-strong;
+  border-radius: 6px;
+  background: $surface;
+
+  button {
+    padding: 9px 14px;
+    border: 0;
+    border-left: 1px solid $border-default;
+    background: transparent;
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--color-near-black);
+    cursor: pointer;
+
+    &:first-child {
+      border-left: 0;
+    }
+
+    &:hover:not(.active) {
+      background: var(--color-cream);
+    }
+
+    &.active {
+      background: var(--color-sage);
+      font-weight: 500;
+    }
+  }
+}
+
+.table-card {
+  overflow: hidden;
+  background: $surface;
+  border: 1px solid $border-default;
+  border-radius: 8px;
+  box-shadow: $shadow-card;
+
+  &.is-loading {
+    opacity: 0.6;
+  }
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.customers-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+
+  th {
+    padding: 12px 16px;
+    background: $muted;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 14px;
+    letter-spacing: 0.08em;
+    text-align: left;
+    text-transform: uppercase;
+    color: var(--color-warm-brown);
+  }
+
+  td {
+    padding: 12px 16px;
+    border-top: 1px solid $border-default;
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  tbody tr {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background: rgba(207, 225, 185, 0.35);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-forest-green);
+      outline-offset: -2px;
+    }
+  }
+
+  .col-tier,
+  .col-status {
+    width: 110px;
+  }
+
+  .col-points,
+  .col-orders {
+    width: 80px;
+  }
+
+  .col-last {
+    width: 140px;
+  }
+
+  .col-go {
+    width: 20px;
+    color: var(--color-warm-brown);
+  }
+}
+
+.person__sub {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-warm-brown);
+}
+
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid $border-default;
+  font-size: 12px;
+  color: var(--color-warm-brown);
+}
+
+.pagination {
+  display: flex;
+  gap: 6px;
+}
+
+.page-btn {
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border: 1px solid $border-strong;
+  border-radius: 4px;
+  background: $surface;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-warm-brown);
+  cursor: pointer;
+
+  &.is-active {
+    border-color: var(--color-forest-green);
+    background: var(--color-forest-green);
+    color: var(--color-white);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &--gap {
+    border-color: transparent;
+    background: transparent;
+    cursor: default;
+  }
+}
+
+@media (max-width: 700px) {
+  .search {
+    width: 100%;
+  }
+}

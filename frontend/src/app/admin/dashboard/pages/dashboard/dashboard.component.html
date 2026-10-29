@@ -1,12 +1,15 @@
 <section class="dashboard" aria-label="Senior Admin dashboard">
-  <header class="page-header dashboard__head">
-    <div class="page-header__left"><h1>Dashboard</h1><p>{{ greeting }}, {{ accountName }} · {{ roleLabel }}</p></div>
-    <div class="range-tabs" aria-label="Time range">
-      <button [class.active]="range === 'today'" (click)="selectRange('today')">Today</button>
-      <button [class.active]="range === '7'" (click)="selectRange('7')">7 days</button>
-      <button [class.active]="range === '30'" (click)="selectRange('30')">30 days</button>
-      <button [class.active]="range === '90'" (click)="selectRange('90')">90 days</button>
-      <button [class.active]="range === 'custom'" (click)="selectRange('custom')">Custom</button>
+  <header class="page-header">
+    <div class="page-header__left">
+      <h1>Dashboard</h1>
+      <p>{{ greeting }}, {{ accountName }} · {{ roleLabel }}</p>
+    </div>
+    <div class="range-tabs" role="tablist" aria-label="Time range">
+      <button type="button" role="tab" [class.active]="range === 'today'" (click)="selectRange('today')">Today</button>
+      <button type="button" role="tab" [class.active]="range === '7'" (click)="selectRange('7')">7 days</button>
+      <button type="button" role="tab" [class.active]="range === '30'" (click)="selectRange('30')">30 days</button>
+      <button type="button" role="tab" [class.active]="range === '90'" (click)="selectRange('90')">90 days</button>
+      <button type="button" role="tab" [class.active]="range === 'custom'" (click)="selectRange('custom')">Custom</button>
     </div>
   </header>
 
@@ -14,43 +17,128 @@
     <form class="custom-range" (ngSubmit)="applyCustom()">
       <label>From <input type="date" name="start" [(ngModel)]="customStart"></label>
       <label>To <input type="date" name="end" [(ngModel)]="customEnd" [min]="customStart"></label>
-      <button type="submit">Apply</button>
+      <button type="submit" class="btn-outline">Apply</button>
     </form>
   }
 
-  @if (initialLoading) { <div class="dashboard-skeleton" aria-label="Dashboard loading"><span></span><span></span><span></span><span></span></div> }
-  @else if (!data) { <div class="state state--error">{{ error || 'Dashboard data could not be loaded.' }} <button (click)="load()">Try again</button></div> }
-  @else {
-    @if (error) { <div class="inline-error" role="alert">{{ error }} <button (click)="load()">Try again</button></div> }
-    <div class="kpis">
+  @if (initialLoading) {
+    <div class="dashboard-skeleton" aria-label="Dashboard loading"><span></span><span></span><span></span><span></span></div>
+  } @else if (!data) {
+    <div class="state state--error">{{ error || 'Dashboard data could not be loaded.' }} <button type="button" (click)="load()">Try again</button></div>
+  } @else {
+    @if (error) { <div class="inline-error" role="alert">{{ error }} <button type="button" (click)="load()">Try again</button></div> }
+
+    <div class="kpis" [class.is-refreshing]="refreshing">
       @for (card of cards; track card.label) {
-        <article class="kpi-card">
-          <span>{{ card.label }}</span>
-          <strong>{{ card.currency ? (card.value | currency:'USD':'symbol':'1.2-2') : (card.value | number) }}</strong>
+        <article class="kpi-card" [ngClass]="'kpi-card--' + card.icon">
+          <div class="kpi-card__top">
+            <span class="kpi-card__label">{{ card.label }}</span>
+            <span class="kpi-card__icon" aria-hidden="true">
+              @switch (card.icon) {
+                @case ('revenue') { <svg lucideWallet [size]="18"></svg> }
+                @case ('orders') { <svg lucideShoppingBag [size]="18"></svg> }
+                @case ('aov') { <svg lucideReceipt [size]="18"></svg> }
+                @case ('customers') { <svg lucideUserPlus [size]="18"></svg> }
+              }
+            </span>
+          </div>
+          <strong class="kpi-card__value">{{ card.currency ? (card.value | currency:'USD':'symbol':'1.2-2') : (card.value | number) }}</strong>
         </article>
       }
     </div>
 
     <div class="dashboard-grid">
-      <article class="panel chart-panel">
-        <div class="panel__title"><h2>Revenue</h2><button (click)="exportRevenue()" [disabled]="!data.revenue_series.length">Export</button></div>
-        @if (data.revenue_series.length) {
-          <svg viewBox="0 0 760 270" role="img" aria-label="Revenue over selected period">
-            <polygon [attr.points]="chartArea" class="area"></polygon>
-            <polyline [attr.points]="chartPoints" class="line"></polyline>
-            @for (node of chartNodes; track node.date) { <circle [attr.cx]="node.x" [attr.cy]="node.y" r="7" class="chart-node"><title>{{ node.date }}: {{ node.revenue | currency:'USD':'symbol':'1.2-2' }}</title></circle> }
-            @for (label of chartLabels; track label.date) { <text [attr.x]="label.position" y="260">{{ label.date }}</text> }
-          </svg>
-        } @else { <div class="chart-empty">No recognised revenue in this period.</div> }
+      <article class="panel" [class.is-refreshing]="refreshing">
+        <header class="panel__header">
+          <div>
+            <h2 class="panel__title panel__title--mono">REVENUE</h2>
+            <p class="panel__sub">{{ periodRevenue | currency:'USD':'symbol':'1.2-2' }} recognised in this period</p>
+          </div>
+          <button type="button" class="btn-outline" (click)="exportRevenue()" [disabled]="!data.revenue_series.length">
+            <svg lucideDownload [size]="14"></svg>
+            Export
+          </button>
+        </header>
+        <div class="panel__body">
+          @if (data.revenue_series.length) {
+            <div class="chart">
+              <div class="chart__y" aria-hidden="true">
+                @for (tick of yTicks; track tick.top) {
+                  <span [style.top.%]="tick.top">{{ tick.value | currency:'USD':'symbol':'1.0-0' }}</span>
+                }
+              </div>
+              <div class="chart__plot" (mousemove)="onChartMove($event)" (mouseleave)="hoverIndex = null">
+                @for (tick of yTicks; track tick.top) {
+                  <span class="chart__grid" [class.is-base]="$last" [style.top.%]="tick.top"></span>
+                }
+                <svg viewBox="0 0 760 200" preserveAspectRatio="none" role="img" aria-label="Revenue over selected period">
+                  <defs>
+                    <linearGradient id="revenue-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#375534" stop-opacity="0.22" />
+                      <stop offset="100%" stop-color="#375534" stop-opacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <polygon [attr.points]="chartArea" fill="url(#revenue-fill)"></polygon>
+                  <polyline [attr.points]="chartPoints" class="chart__line"></polyline>
+                </svg>
+                @if (hoverPoint; as point) {
+                  <span class="chart__cursor" [style.left.%]="point.left"></span>
+                  <span class="chart__dot" [style.left.%]="point.left" [style.top.%]="point.top"></span>
+                  <div class="chart__tooltip" [style.left.%]="point.left" [style.top.%]="point.top" [class.is-right]="point.left > 70">
+                    <span>{{ point.date }}</span>
+                    <strong>{{ point.revenue | currency:'USD':'symbol':'1.2-2' }}</strong>
+                  </div>
+                }
+              </div>
+              <div class="chart__x">
+                @for (label of chartLabels; track $index) { <span>{{ label }}</span> }
+              </div>
+            </div>
+          } @else {
+            <div class="chart-empty">
+              <svg lucideWallet [size]="28"></svg>
+              <p>No recognised revenue in this period.</p>
+            </div>
+          }
+        </div>
       </article>
 
-      <article class="panel todo-panel"><div class="panel__title"><h2>To do today</h2></div>
-        <button class="todo" (click)="todoClick('/admin/orders', { status: 'processing', date: 'today' })"><span><svg lucidePackage [size]="16"></svg>Orders waiting to ship</span><b>{{ data.todos.waiting_to_ship }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
-        <button class="todo" (click)="todoClick('/admin/orders', { status: 'pending_refund', date: 'today' })"><span><svg lucideUndo2 [size]="16"></svg>Refund requests</span><b>{{ data.todos.refund_requests }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
-        <button class="todo" (click)="todoClick('/admin/community-reports')"><span><svg lucideFlag [size]="16"></svg>Reports to review</span><b>{{ data.todos.reports_to_review }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
-        <button class="todo" (click)="todoClick('/admin/chat', { status: 'waiting' })"><span><svg lucideMessagesSquare [size]="16"></svg>Chats waiting</span><b>{{ data.todos.chats_waiting }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
-        <button class="todo" (click)="todoClick('/admin/products')"><span><svg lucideTriangleAlert [size]="16"></svg>Low stock variants</span><b>{{ data.todos.low_stock_variants }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
-        <button class="todo" (click)="ritualBoxFailedClick()"><span><svg lucideCreditCard [size]="16"></svg>Ritual Box payment failed</span><b>{{ data.todos.ritual_box_payment_failed }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+      <article class="panel panel--todo">
+        <header class="panel__header">
+          <div>
+            <h2 class="panel__title">To do today</h2>
+            <p class="panel__sub">{{ openTodoCount ? openTodoCount + ' item' + (openTodoCount === 1 ? '' : 's') + ' need attention' : 'Nothing waiting right now' }}</p>
+          </div>
+        </header>
+        <div class="todo-list">
+          @for (todo of todos; track todo.key) {
+            <button
+              type="button"
+              class="todo"
+              [ngClass]="'todo--' + todo.tone"
+              [class.todo--empty]="!todo.count"
+              [class.todo--urgent]="todo.urgent && todo.count > 0"
+              (click)="todo.open()"
+            >
+              <span class="todo__icon" aria-hidden="true">
+                @switch (todo.icon) {
+                  @case ('package') { <svg lucidePackage [size]="16"></svg> }
+                  @case ('refund') { <svg lucideRotateCcw [size]="16"></svg> }
+                  @case ('flag') { <svg lucideFlag [size]="16"></svg> }
+                  @case ('chat') { <svg lucideMessagesSquare [size]="16"></svg> }
+                  @case ('stock') { <svg lucideTriangleAlert [size]="16"></svg> }
+                  @case ('card') { <svg lucideCreditCard [size]="16"></svg> }
+                }
+              </span>
+              <span class="todo__label">{{ todo.label }}</span>
+              <b class="todo__count">{{ todo.count }}</b>
+              <svg lucideChevronRight [size]="14" class="todo__chevron"></svg>
+            </button>
+          }
+          @if (!openTodoCount) {
+            <p class="todo-done"><svg lucideCircleCheck [size]="16"></svg> All caught up for today</p>
+          }
+        </div>
       </article>
     </div>
   }

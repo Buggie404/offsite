@@ -1,0 +1,122 @@
+<section class="customers-page" aria-label="Customers">
+  <header class="page-header">
+    <div class="page-header__left">
+      <h1>Customers</h1>
+      <p>{{ total | number }} account{{ total === 1 ? '' : 's' }} · guests are not listed</p>
+    </div>
+  </header>
+
+  <div class="filters">
+    <label class="search">
+      <svg lucideSearch [size]="16"></svg>
+      <input
+        type="search"
+        placeholder="Name, @username, email or phone"
+        aria-label="Search customers"
+        [ngModel]="q"
+        (ngModelChange)="onSearch($event)"
+      />
+    </label>
+
+    <div class="filter-group">
+      <span class="filter-group__label">Tier</span>
+      <div class="segmented" role="group" aria-label="Tier">
+        @for (t of tiers; track t) {
+          <button type="button" [class.active]="tier === t" (click)="setTier(t)">{{ t || 'All' }}</button>
+        }
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-group__label">Status</span>
+      <div class="segmented" role="group" aria-label="Status">
+        @for (s of statuses; track s.value) {
+          <button type="button" [class.active]="status === s.value" (click)="setStatus(s.value)">{{ s.label }}</button>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="table-card" [class.is-loading]="loading && rows.length">
+    @if (loading && !rows.length) {
+      <div class="state">Loading customers...</div>
+    } @else if (error) {
+      <div class="state state--error">{{ error }} <button type="button" (click)="load()">Try again</button></div>
+    } @else if (!rows.length) {
+      <div class="state">
+        <svg lucideUsers [size]="28"></svg>
+        <p>No customers match these filters.</p>
+      </div>
+    } @else {
+      <div class="table-scroll">
+        <table class="customers-table">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th class="col-tier">Tier</th>
+              <th class="col-points">Points</th>
+              <th class="col-status">Status</th>
+              <th class="col-orders">Orders</th>
+              <th class="col-last">Last order</th>
+              <th class="col-go"><span class="sr-only">Open</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows; track row.user_id) {
+              <tr tabindex="0" (click)="open(row)" (keydown.enter)="open(row)">
+                <td>
+                  <div class="person">
+                    <span class="avatar">
+                      @if (row.avatar_url && !brokenAvatars.has(row.user_id)) {
+                        <img [src]="row.avatar_url" alt="" (error)="brokenAvatars.add(row.user_id)" />
+                      } @else {
+                        {{ initials(row) }}
+                      }
+                    </span>
+                    <span class="person__text">
+                      <span class="person__name">{{ row.profile_name }}</span>
+                      <span class="person__sub">{{ handle(row) }}</span>
+                    </span>
+                  </div>
+                </td>
+                <td class="col-tier"><span class="chip" [ngClass]="'chip--tier-' + row.membership_tier.toLowerCase()">{{ row.membership_tier }}</span></td>
+                <td class="col-points">{{ row.points | number }}</td>
+                <td class="col-status">
+                  @if (row.status === 'suspended') {
+                    <span class="chip chip--locked" [attr.title]="row.suspended_reason || null">Locked</span>
+                  } @else {
+                    <span class="chip chip--active">Active</span>
+                  }
+                </td>
+                <td class="col-orders">{{ row.order_count }}</td>
+                <td class="col-last">{{ shortDate(row.last_order_at) }}</td>
+                <td class="col-go"><svg lucideChevronRight [size]="16"></svg></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <footer class="table-footer">
+        <span>{{ rangeText }}</span>
+        @if (pageCount > 1) {
+          <nav class="pagination" aria-label="Pages">
+            <button type="button" class="page-btn" aria-label="Previous page" [disabled]="page === 1" (click)="goTo(page - 1)">
+              <svg lucideChevronLeft [size]="14"></svg>
+            </button>
+            @for (p of pages; track $index) {
+              @if (p === null) {
+                <span class="page-btn page-btn--gap" aria-hidden="true"><svg lucideEllipsis [size]="14"></svg></span>
+              } @else {
+                <button type="button" class="page-btn" [class.is-active]="p === page" [attr.aria-current]="p === page ? 'page' : null" (click)="goTo(p)">{{ p }}</button>
+              }
+            }
+            <button type="button" class="page-btn" aria-label="Next page" [disabled]="page === pageCount" (click)="goTo(page + 1)">
+              <svg lucideChevronRight [size]="14"></svg>
+            </button>
+          </nav>
+        }
+      </footer>
+    }
+  </div>
+</section>

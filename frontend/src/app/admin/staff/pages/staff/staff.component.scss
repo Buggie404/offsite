@@ -1,0 +1,570 @@
+:host {
+  display: block;
+}
+
+// Figma: "2.1(new) Staff", "(new)Modal - Add staff", "(new)Modal - Change role".
+$border-default: var(--admin-divider, rgba(84, 74, 64, 0.18));
+$border-strong: rgba(84, 74, 64, 0.35);
+$surface: var(--admin-surface-card, #fffdf9);
+$muted: #faf0eb;
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+// -- Page header --
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 24px;
+
+  h1 {
+    margin: 0 0 4px;
+    font-family: var(--font-display);
+    font-size: var(--text-h2-size);
+    line-height: var(--text-h2-line-height);
+    letter-spacing: var(--text-h2-tracking);
+  }
+
+  p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--color-warm-brown);
+  }
+}
+
+// -- Buttons --
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &--primary {
+    background: var(--color-forest-green);
+    color: var(--color-white);
+
+    &:hover:not(:disabled) {
+      background: var(--color-forest-green-hover);
+    }
+  }
+
+  &--outline {
+    background: $surface;
+    border-color: $border-strong;
+    color: var(--color-near-black);
+
+    &:hover:not(:disabled) {
+      background: var(--color-cream);
+      border-color: var(--color-forest-green);
+    }
+  }
+
+  &--sm {
+    padding: 6px 10px;
+  }
+}
+
+.icon-btn {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-near-black);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-forest-green);
+  }
+}
+
+// -- Chips (role + status) --
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  &--admin_cc {
+    background: #1a1a1a;
+    color: var(--color-white);
+  }
+
+  &--qlsp {
+    background: var(--color-wheat, #e8d5b0);
+    color: #7a5a1e;
+  }
+
+  &--cskh {
+    background: #efb5d0;
+    color: #7d3b5e;
+  }
+
+  &--active {
+    background: var(--color-sage, #cfe1b9);
+    color: var(--color-forest-green);
+  }
+
+  &--neutral {
+    background: rgba(84, 74, 64, 0.14);
+    color: var(--color-warm-brown);
+  }
+}
+
+// -- Table --
+.table-card {
+  overflow-x: auto;
+  background: $surface;
+  border: 1px solid $border-default;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(84, 74, 64, 0.07);
+}
+
+.staff-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+
+  th {
+    padding: 12px 16px;
+    background: $muted;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 14px;
+    letter-spacing: 0.08em;
+    text-align: left;
+    text-transform: uppercase;
+    color: var(--color-warm-brown);
+  }
+
+  td {
+    padding: 12px 16px;
+    border-top: 1px solid $border-default;
+    font-size: 14px;
+    line-height: 20px;
+    vertical-align: middle;
+  }
+
+  .col-role,
+  .col-status {
+    width: 120px;
+  }
+
+  .col-signin {
+    width: 170px;
+  }
+
+  .col-actions {
+    width: 290px;
+  }
+
+  tr.is-disabled .person {
+    opacity: 0.65;
+  }
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  &__name {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+  }
+
+  &__email {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--color-warm-brown);
+  }
+}
+
+.avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-sage, #cfe1b9);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-forest-green);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.you-tag {
+  padding: 1px 6px;
+  border: 1px solid $border-default;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 14px;
+  color: var(--color-warm-brown);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--color-warm-brown);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    text-decoration: underline;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &--primary {
+    color: var(--color-forest-green);
+  }
+
+  &--danger {
+    color: var(--state-error, #c0392b);
+  }
+}
+
+.actions-note {
+  font-size: 12px;
+  color: var(--color-warm-brown);
+}
+
+.empty {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--color-warm-brown);
+}
+
+.state {
+  padding: 36px;
+  border: 1px dashed $border-strong;
+  border-radius: 8px;
+  text-align: center;
+  color: var(--color-warm-brown);
+
+  &--error {
+    color: var(--state-error, #a43e36);
+  }
+
+  button {
+    margin-left: 8px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+}
+
+// -- Modals (Add staff, Change role, temporary password) --
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(26, 26, 26, 0.4);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 460px;
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+  background: $surface;
+  border: 1px solid $border-default;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(26, 26, 26, 0.18);
+
+  &--sm {
+    max-width: 440px;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 24px;
+    background: $muted;
+    border-bottom: 1px solid $border-default;
+
+    h2 {
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 400;
+      line-height: 24px;
+    }
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+    overflow-y: auto;
+  }
+
+  &__text {
+    margin: 0;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--color-warm-brown);
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px;
+    border-top: 1px solid $border-default;
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  &__label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-warm-brown);
+  }
+
+  &__hint {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--color-warm-brown);
+  }
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid $border-strong;
+  border-radius: 6px;
+  background: var(--color-white);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-near-black);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-forest-green);
+    box-shadow: 0 0 0 2px rgba(55, 85, 52, 0.15);
+  }
+
+  &--readonly {
+    display: flex;
+    align-items: center;
+    background: rgba(84, 74, 64, 0.05);
+    color: var(--color-warm-brown);
+  }
+
+  &--area {
+    min-height: 84px;
+    padding: 10px 12px;
+    resize: vertical;
+  }
+}
+
+// Role radio cards
+.role-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid $border-default;
+  border-radius: 6px;
+  background: var(--color-white);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &:hover {
+    border-color: $border-strong;
+  }
+
+  &.is-selected {
+    background: var(--color-sage, #cfe1b9);
+    border-color: var(--color-forest-green);
+  }
+
+  &:focus-within {
+    box-shadow: 0 0 0 2px rgba(55, 85, 52, 0.2);
+  }
+
+  &__desc {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--color-warm-brown);
+  }
+}
+
+.radio {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 1.5px solid $border-strong;
+  border-radius: 999px;
+  background: var(--color-white);
+
+  .is-selected & {
+    border: 5px solid var(--color-forest-green);
+  }
+}
+
+.role-change {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-near-black);
+
+  &__placeholder {
+    font-size: 12px;
+    color: var(--color-warm-brown);
+  }
+}
+
+.warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(198, 154, 0, 0.5);
+  border-radius: 6px;
+  background: #fbf3d5;
+
+  svg {
+    flex: none;
+    margin-top: 1px;
+    color: #8a6a00;
+  }
+
+  p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 16px;
+  }
+}
+
+.secret {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  code {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px dashed $border-strong;
+    border-radius: 6px;
+    background: var(--color-white);
+    font-family: var(--font-mono);
+    font-size: 15px;
+    letter-spacing: 0.06em;
+  }
+}
+
+.form-error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--state-error, #c0392b);
+}
+
+// Content projected into the shared confirmation modal
+.confirm-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 12px;
+  text-align: left;
+}
+
+.confirm-error {
+  margin: -4px 0 12px;
+  text-align: left;
+}

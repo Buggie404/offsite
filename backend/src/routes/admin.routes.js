@@ -7,6 +7,10 @@ const authController = require('../controllers/auth.controller');
 const adminCommunityController = require('../controllers/admin-community.controller');
 const adminDashboardController = require('../controllers/admin-dashboard.controller');
 const contactMessagesController = require('../controllers/contact-messages.controller');
+const adminStaffController = require('../controllers/admin-staff.controller');
+const adminActivityLogController = require('../controllers/admin-activity-log.controller');
+const adminCustomersController = require('../controllers/admin-customers.controller');
+const adminModerationController = require('../controllers/admin-moderation.controller');
 const {
   authMiddleware,
   requireRole,
@@ -16,8 +20,28 @@ const {
 const { adminActivityLog } = require('../middleware/adminActivityLog.middleware');
 
 router.post('/login', authController.adminLogin);
+// Staff set their own password here (first sign-in with a temporary password, or any time later).
+router.put('/change-password', authMiddleware, requireRole('admin_cc', 'cskh', 'qlsp'), authController.changePassword);
 
-router.get('/activity-logs', authMiddleware, requireRole('admin_cc'), adminController.getActivityLogs);
+// Staff (Admin CC only): create, change role, disable / enable, reset password.
+router.get('/staff', authMiddleware, requireRole('admin_cc'), adminStaffController.listStaff);
+router.post('/staff', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStaffController.createStaff);
+router.get('/staff/:userId/open-work', authMiddleware, requireRole('admin_cc'), adminStaffController.getStaffOpenWork);
+router.patch('/staff/:userId/role', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStaffController.changeStaffRole);
+router.patch('/staff/:userId/status', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStaffController.setStaffStatus);
+router.post('/staff/:userId/reset-password', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStaffController.resetStaffPassword);
+
+// Customers (Admin CC, QLSP): list, profile, lock / unlock (reason required), internal notes.
+// Points / tier and orders are shown read-only.
+const CUSTOMER_ROLES = ['admin_cc', 'qlsp'];
+router.get('/customers', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.listCustomers);
+router.get('/customers/:userId', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.getCustomer);
+router.post('/customers/:userId/notes', authMiddleware, requireRole(...CUSTOMER_ROLES), adminActivityLog(), adminCustomersController.addCustomerNote);
+router.patch('/customers/:userId/status', authMiddleware, requireRole(...CUSTOMER_ROLES), adminActivityLog(), adminCustomersController.setCustomerStatus);
+
+// Activity log (Admin CC only, read-only): filter by who, role, action, time; CSV export.
+router.get('/activity-logs', authMiddleware, requireRole('admin_cc'), adminActivityLogController.listActivityLogs);
+router.get('/activity-logs/export', authMiddleware, requireRole('admin_cc'), adminActivityLogController.exportActivityLogs);
 router.get('/dashboard', authMiddleware, requireRole('admin_cc'), adminDashboardController.getDashboard);
 router.get('/sales-dashboard', authMiddleware, requireRole('admin_cc', 'qlsp'), adminDashboardController.getSalesDashboard);
 router.get('/services-dashboard', authMiddleware, requireRole('admin_cc', 'cskh'), adminDashboardController.getServicesDashboard);
@@ -40,6 +64,12 @@ router.patch('/products/:productId/batch-expiry', authMiddleware, requireRole(..
 router.get('/subscriptions', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminSubscriptionsController.getSubscriptions);
 router.get('/subscriptions/:id', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminSubscriptionsController.getSubscription);
 router.post('/subscriptions/:id/:action', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminActivityLog({ requireReasonForActions: ['pause', 'skip', 'cancel'] }), adminSubscriptionsController.runAction);
+
+// Community reports queue (Admin CC, CSKH; QLSP has no access): posts, comments and accounts with
+// pending reports; hide / restore / warn / lock / dismiss with a message to the author.
+router.get('/community/queue', authMiddleware, requireRole('admin_cc', 'cskh'), adminModerationController.listQueue);
+router.get('/community/handled', authMiddleware, requireRole('admin_cc', 'cskh'), adminModerationController.listHandled);
+router.post('/community/moderate', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminModerationController.moderate);
 
 // Community moderation (Admin CC, CSKH): reported / hidden posts.
 router.get('/community/reports', authMiddleware, requireRole('admin_cc', 'cskh'), adminCommunityController.listReportedPosts);

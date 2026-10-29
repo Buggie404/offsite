@@ -13,7 +13,8 @@ export interface Notification {
     | 'SUBSCRIPTION_PAUSED' | 'SUBSCRIPTION_RESUMED' | 'SUBSCRIPTION_CANCELLED' | 'SUBSCRIPTION_UPCOMING' | 'SUBSCRIPTION_PAYMENT_FAILED'
     | 'SUBSCRIPTION_SUSPENDED' | 'SUBSCRIPTION_OUT_OF_STOCK' | 'SUBSCRIPTION_SKIPPED' | 'SUBSCRIPTION_PROPOSAL' | 'SUBSCRIPTION_PROPOSAL_WITHDRAWN' | 'SUBSCRIPTION_NOT_STARTED'
     | 'SUBSCRIPTION_ADJUSTED'
-    | 'PANTRY_EXPIRY_SOON';
+    | 'PANTRY_EXPIRY_SOON'
+    | 'COMMUNITY_MODERATION' | 'COMMUNITY_REPORT_RESOLVED';
   /** Post / order id; null for Ritual Box notifications (older ones stored the subscription id here). */
   post_id: string | null;
   subscription_id?: string | null;

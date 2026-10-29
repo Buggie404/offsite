@@ -469,6 +469,13 @@ async function adminLogin(req, res) {
       return res.status(401).json({ error: 'Mật khẩu không chính xác.', code: 'INCORRECT_PASSWORD' });
     }
 
+    // Disabled staff (Staff page) cannot sign in; checked after the password so it does not leak which emails exist.
+    if (user.status === 'suspended') {
+      return res.status(403).json({ error: 'This admin account has been disabled.', code: 'ACCOUNT_SUSPENDED' });
+    }
+
+    await userCollection.updateOne({ _id: user._id }, { $set: { last_login_at: new Date() } });
+
     if (user.role !== adminRole || user.admin_role) {
       await userCollection.updateOne(
         { _id: user._id },
@@ -498,7 +505,9 @@ async function adminLogin(req, res) {
         user_id: user.user_id,
         email: user.email || '',
         profile_name: user.profile_name,
-        role: adminRole
+        role: adminRole,
+        // Temporary password from the Staff page: the client must ask for a new one first.
+        must_change_password: !!user.must_change_password
       }
     });
   } catch (error) {
@@ -682,7 +691,7 @@ async function changePassword(req, res) {
 
     await userCollection.updateOne(
       { _id: userId },
-      { $set: { password_hash: hashedNewPassword, updatedAt: new Date() } }
+      { $set: { password_hash: hashedNewPassword, must_change_password: false, updatedAt: new Date() } }
     );
 
     res.json({ message: 'Đổi mật khẩu thành công.' });

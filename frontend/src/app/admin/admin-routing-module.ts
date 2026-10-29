@@ -86,6 +86,21 @@ const routes: Routes = [
       },
 
       {
+        path: 'customers',
+        loadComponent: () =>
+          import('./customers/pages/customers-listing/customers-listing.component').then((m) => m.CustomersListingComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SALES_OPS_ROLES }
+      },
+      {
+        path: 'customers/:userId',
+        loadComponent: () =>
+          import('./customers/pages/customer-detail/customer-detail.component').then((m) => m.CustomerDetailComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SALES_OPS_ROLES }
+      },
+
+      {
         matcher: subscriptionsMatcher,
         loadComponent: () =>
           import('./subscriptions/pages/subscriptions-listing/subscriptions-listing.component').then((m) => m.SubscriptionsListingComponent),
@@ -115,6 +130,22 @@ const routes: Routes = [
           import('./community-reports/pages/community-reports/community-reports.component').then((m) => m.AdminCommunityReportsComponent),
         canActivate: [adminRoleGuard],
         data: { adminRoles: SERVICES_OPS_ROLES }
+      },
+
+      // ── System ────────────────────────────────────────────────────────────
+      {
+        path: 'staff',
+        loadComponent: () =>
+          import('./staff/pages/staff/staff.component').then((m) => m.AdminStaffComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SYSTEM_ROLES }
+      },
+      {
+        path: 'activity-log',
+        loadComponent: () =>
+          import('./activity-log/pages/activity-log/activity-log.component').then((m) => m.AdminActivityLogComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SYSTEM_ROLES }
       },
 
       // ── Error pages ───────────────────────────────────────────────────────

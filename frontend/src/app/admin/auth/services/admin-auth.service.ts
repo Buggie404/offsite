@@ -1,9 +1,10 @@
 import { Injectable, signal, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom, timeout } from 'rxjs';
 import { AdminRole, isAdminRole } from '../../../shared/models/admin-role.model';
 import { ADMIN_DEFAULT_ROUTES } from '../../admin-navigation.config';
+import { avatarInitials } from '../../../shared/utils/avatar';
 
 export interface AdminUser {
   _id: string;
@@ -11,6 +12,13 @@ export interface AdminUser {
   email: string;
   profile_name?: string;
   role: AdminRole;
+  /** Account created / reset on the Staff page: a new password is required before entering */
+  must_change_password?: boolean;
+}
+
+export interface AdminLoginResponse {
+  token: string;
+  user: AdminUser;
 }
 
 @Injectable({
@@ -88,6 +96,16 @@ export class AdminAuthService {
     }
   }
 
+  /** Name of the signed-in staff member (header, dashboard greeting) */
+  getDisplayName(): string {
+    const user = this.getUser();
+    return user?.profile_name?.trim() || user?.email?.split('@')[0] || 'Admin';
+  }
+
+  getInitials(): string {
+    return avatarInitials(this.getDisplayName()) || 'A';
+  }
+
   getAdminRole(): AdminRole | null {
     const role = this.getUser()?.role;
     return isAdminRole(role) ? role : null;
@@ -126,17 +144,33 @@ export class AdminAuthService {
     sessionStorage.removeItem(this.userKey);
   }
 
-  async login(
-    email: string,
-    password: string,
-    rememberMe = false
-  ): Promise<{ token: string; user: AdminUser }> {
-    const response = await firstValueFrom(
+  async login(email: string, password: string, rememberMe = false): Promise<AdminLoginResponse> {
+    const response = await this.requestLogin(email, password);
+    this.storeSession(response, rememberMe);
+    return response;
+  }
+
+  /** Checks the credentials without starting a session (used when a temporary password must be changed first). */
+  requestLogin(email: string, password: string): Promise<AdminLoginResponse> {
+    return firstValueFrom(
+      this.http.post<AdminLoginResponse>('/api/admin/login', { email, password }).pipe(timeout(10_000))
+    );
+  }
+
+  /** Sets a new password with the token from requestLogin, before the session is stored. */
+  changeTemporaryPassword(token: string, oldPassword: string, newPassword: string): Promise<{ message: string }> {
+    return firstValueFrom(
       this.http
-        .post<{ token: string; user: AdminUser }>('/api/admin/login', { email, password })
+        .put<{ message: string }>(
+          '/api/admin/change-password',
+          { oldPassword, newPassword },
+          { headers: new HttpHeaders({ Authorization: `Bearer ${token}` }) }
+        )
         .pipe(timeout(10_000))
     );
+  }
 
+  storeSession(response: AdminLoginResponse, rememberMe = false): void {
     if (isPlatformBrowser(this.platformId)) {
       this.clearStoredSession();
 
@@ -147,7 +181,6 @@ export class AdminAuthService {
     }
 
     this.isAuthenticatedSignal.set(true);
-    return response;
   }
 
   logout(): void {

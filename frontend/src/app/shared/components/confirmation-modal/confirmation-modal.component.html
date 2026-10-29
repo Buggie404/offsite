@@ -30,6 +30,8 @@
     <h3 class="modal-title">{{ title }}</h3>
     <p class="modal-message">{{ message }}</p>
     <p class="modal-warning" *ngIf="warningMessage">{{ warningMessage }}</p>
+    <!-- Optional extra fields from the caller, e.g. a required reason -->
+    <ng-content></ng-content>
 
     <div class="modal-actions">
       <button type="button" class="btn-cancel" (click)="cancel.emit()">{{ cancelText }}</button>

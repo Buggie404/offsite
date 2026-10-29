@@ -1,0 +1,203 @@
+<section class="activity-page" aria-label="Activity log">
+  <header class="page-header">
+    <div class="page-header__left">
+      <h1>Activity log</h1>
+      <p>Read-only · who did what, when</p>
+    </div>
+    <button type="button" class="btn btn--outline" [disabled]="exporting || !total" (click)="exportCsv()">
+      <svg lucideDownload [size]="14"></svg>
+      <span>{{ exporting ? 'Exporting...' : 'Export CSV' }}</span>
+    </button>
+  </header>
+
+  @if (unsavedCount) {
+    <div class="notice" role="status">
+      <svg lucideTriangleAlert [size]="16"></svg>
+      <span>{{ unsavedCount }} log entr{{ unsavedCount === 1 ? 'y is' : 'ies are' }} waiting to be saved and will appear after the next retry.</span>
+    </div>
+  }
+
+  <div class="filters">
+    <label class="search">
+      <svg lucideSearch [size]="16"></svg>
+      <input
+        type="search"
+        placeholder="Search target, ID or reason"
+        aria-label="Search target, ID or reason"
+        [ngModel]="q"
+        (ngModelChange)="onSearch($event)"
+      />
+    </label>
+
+    <select class="select select--wide" aria-label="Admin" [(ngModel)]="adminId" (ngModelChange)="applyFilters()">
+      <option value="">Anyone</option>
+      @for (actor of facets.actors; track actor.user_id) {
+        <option [value]="actor.user_id">{{ actor.name }}</option>
+      }
+    </select>
+
+    <select class="select" aria-label="Role" [(ngModel)]="adminRole" (ngModelChange)="applyFilters()">
+      <option value="">Any role</option>
+      @for (role of roleOptions; track role.value) {
+        <option [value]="role.value">{{ role.label }}</option>
+      }
+    </select>
+
+    <select class="select select--wide" aria-label="Action" [(ngModel)]="actionType" (ngModelChange)="applyFilters()">
+      <option value="">Any action</option>
+      @for (type of facets.action_types; track type) {
+        <option [value]="type">{{ actionLabel(type) }}</option>
+      }
+    </select>
+
+    <select class="select" aria-label="Time" [(ngModel)]="period" (ngModelChange)="applyFilters()">
+      @for (option of periodOptions; track option.value) {
+        <option [value]="option.value">{{ option.label }}</option>
+      }
+    </select>
+
+    @if (period === 'custom') {
+      <span class="custom-range">
+        <input type="date" class="select" aria-label="From" [(ngModel)]="customFrom" (ngModelChange)="applyFilters()" />
+        <svg lucideArrowRight [size]="14"></svg>
+        <input type="date" class="select" aria-label="To" [min]="customFrom" [(ngModel)]="customTo" (ngModelChange)="applyFilters()" />
+      </span>
+    }
+
+    @if (hasFilters) {
+      <button type="button" class="clear-btn" (click)="clearFilters()">
+        <svg lucideX [size]="14"></svg>
+        Clear
+      </button>
+    }
+  </div>
+
+  <div class="layout" [class.has-detail]="!!selected">
+    <div class="table-card" [class.is-loading]="loading && rows.length">
+      @if (loading && !rows.length) {
+        <div class="state">Loading activity...</div>
+      } @else if (error) {
+        <div class="state state--error">{{ error }} <button type="button" (click)="load()">Try again</button></div>
+      } @else if (!rows.length) {
+        <div class="state state--empty">
+          <svg lucideHistory [size]="28"></svg>
+          <p>No activity matches these filters.</p>
+          @if (hasFilters) { <button type="button" (click)="clearFilters()">Clear filters</button> }
+        </div>
+      } @else {
+        <div class="table-scroll">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th class="col-time">Time</th>
+                <th class="col-by">By</th>
+                <th class="col-action">Action</th>
+                <th>Target</th>
+                <th class="col-change">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows; track row.log_id) {
+                <tr
+                  tabindex="0"
+                  [class.is-selected]="selected?.log_id === row.log_id"
+                  (click)="select(row)"
+                  (keydown.enter)="select(row)"
+                >
+                  <td class="col-time">{{ shortTime(row.created_at) }}</td>
+                  <td class="col-by">
+                    <span class="by">
+                      <span class="by__name" [attr.title]="row.actor.name">{{ shortName(row.actor.name) }}</span>
+                      <span class="chip" [ngClass]="'chip--' + row.actor.role">{{ roleLabel(row.actor.role) }}</span>
+                    </span>
+                  </td>
+                  <td class="col-action">{{ actionLabel(row.action_type) }}</td>
+                  <td class="col-target">{{ targetText(row) }}</td>
+                  <td class="col-change">
+                    @if (summary(row); as s) {
+                      @if (s.change) {
+                        <span class="change">
+                          @if (s.change.before !== null) { <span class="change__old">{{ s.change.before }}</span> }
+                          @if (s.change.before !== null && s.change.after !== null) { <svg lucideArrowRight [size]="12"></svg> }
+                          @if (s.change.after !== null) { <span class="change__new">{{ s.change.after }}</span> }
+                          @if (s.more) { <span class="change__more">+{{ s.more }}</span> }
+                        </span>
+                      } @else {
+                        <span class="muted">{{ row.reason || 'No field changes' }}</span>
+                      }
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <footer class="table-footer">
+          <span>{{ rangeText }}</span>
+          @if (pageCount > 1) {
+            <nav class="pagination" aria-label="Pages">
+              <button type="button" class="page-btn" aria-label="Previous page" [disabled]="page === 1" (click)="goTo(page - 1)">
+                <svg lucideChevronLeft [size]="14"></svg>
+              </button>
+              @for (p of pages; track $index) {
+                @if (p === null) {
+                  <span class="page-btn page-btn--gap" aria-hidden="true"><svg lucideEllipsis [size]="14"></svg></span>
+                } @else {
+                  <button type="button" class="page-btn" [class.is-active]="p === page" [attr.aria-current]="p === page ? 'page' : null" (click)="goTo(p)">{{ p }}</button>
+                }
+              }
+              <button type="button" class="page-btn" aria-label="Next page" [disabled]="page === pageCount" (click)="goTo(page + 1)">
+                <svg lucideChevronRight [size]="14"></svg>
+              </button>
+            </nav>
+          }
+        </footer>
+      }
+    </div>
+
+    @if (selected; as entry) {
+      <aside class="detail" aria-label="Log entry details">
+        <header class="detail__header">
+          <h2>{{ actionLabel(entry.action_type) }}</h2>
+          <button type="button" class="icon-btn" aria-label="Close details" (click)="closeDetail()"><svg lucideX [size]="18"></svg></button>
+        </header>
+        <div class="detail__body">
+          <dl class="meta">
+            <div><dt>By</dt><dd>{{ entry.actor.name }} · {{ roleLabel(entry.actor.role) }}</dd></div>
+            @if (entry.actor.email) { <div><dt>Email</dt><dd>{{ entry.actor.email }}</dd></div> }
+            <div><dt>When</dt><dd>{{ fullTime(entry.created_at) }}</dd></div>
+            <div><dt>Target</dt><dd>{{ entityLabel(entry.target_entity) }} · {{ entry.target_id }}</dd></div>
+            @if (entry.target_label) { <div><dt>Name</dt><dd>{{ entry.target_label }}</dd></div> }
+            @if (entry.ticket_id) { <div><dt>Ticket</dt><dd>{{ entry.ticket_id }}</dd></div> }
+            <div><dt>Action code</dt><dd class="mono">{{ entry.action_type }}</dd></div>
+          </dl>
+
+          @if (entry.reason) {
+            <div class="reason">
+              <span class="label">Reason</span>
+              <p>{{ entry.reason }}</p>
+            </div>
+          }
+
+          @if (changes(entry); as list) {
+            @if (list.length) {
+              <div class="diff">
+                <div class="diff__col diff__col--old">
+                  <span class="label">Old</span>
+                  @for (c of list; track c.key) { <p><span>{{ c.key }}:</span> {{ c.before ?? 'none' }}</p> }
+                </div>
+                <div class="diff__col diff__col--new">
+                  <span class="label">New</span>
+                  @for (c of list; track c.key) { <p><span>{{ c.key }}:</span> {{ c.after ?? 'none' }}</p> }
+                </div>
+              </div>
+            } @else {
+              <p class="muted">No field values were recorded for this action.</p>
+            }
+          }
+        </div>
+      </aside>
+    }
+  </div>
+</section>
