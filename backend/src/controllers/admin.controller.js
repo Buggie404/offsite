@@ -91,7 +91,8 @@ function enrichOrders(orders) {
       order_status: order.order_status,
       total: order.pricing?.total ?? 0,
       currency: order.pricing?.currency ?? 'USD',
-      is_guest: order.is_guest
+      is_guest: order.is_guest,
+      subscription_start_failed: !!order.subscription_start_failed
     };
   });
 }
@@ -119,6 +120,11 @@ const ORDER_TYPE_FILTERS = {
 function orderTypeCondition(orderType) {
   return ORDER_TYPE_FILTERS[orderType] || null;
 }
+
+// "Needs attention" sub-filters (?attention=…) on flags the system sets on an order.
+const ATTENTION_FILTERS = {
+  ritual_box_not_started: { subscription_start_failed: true }
+};
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -278,6 +284,8 @@ async function buildOrderDetail(order) {
     })),
     subscription_id: order.subscription_id || null,
     subscription_cycle: order.subscription_cycle || null,
+    subscription_start_failed: !!order.subscription_start_failed,
+    subscription_start_failed_at: order.subscription_start_failed_at || null,
     ritual_boxes: ritualBoxes,
     pricing: order.pricing,
     payment: order.payment,
@@ -307,7 +315,10 @@ async function computeStats(createdAtFilter, orderScope = {}, typeFilter = null)
     Order.countDocuments({ ...baseFilter, order_status: 'shipping' }),
     Order.countDocuments({
       ...baseFilter,
-      order_status: { $in: ['refund', 'pending_refund', 'refund_rejected', 'delivery_failed'] }
+      $or: [
+        { order_status: { $in: ['refund', 'pending_refund', 'refund_rejected', 'delivery_failed'] } },
+        ATTENTION_FILTERS.ritual_box_not_started
+      ]
     })
   ]);
 
@@ -325,6 +336,7 @@ async function getAllOrders(req, res) {
       date_range = '30',
       date_from,
       date_to,
+      attention,
       limit = 50,
       page = 1
     } = req.query;
@@ -348,6 +360,10 @@ async function getAllOrders(req, res) {
       filter.payment_status = payment_status;
     }
 
+    if (ATTENTION_FILTERS[attention]) {
+      Object.assign(filter, ATTENTION_FILTERS[attention]);
+    }
+
     // Type and search both use $or, so each goes in its own $and clause.
     const typeFilter = orderTypeCondition(order_type);
     const searchFilter = searchCondition(search);
@@ -363,7 +379,7 @@ async function getAllOrders(req, res) {
         .sort({ created_at: -1, _id: -1 })
         .skip(skip)
         .limit(parsedLimit)
-        .select('order_id user_id delivery_info created_at order_status pricing is_guest subscription_id items.purchase_type')
+        .select('order_id user_id delivery_info created_at order_status pricing is_guest subscription_id subscription_start_failed items.purchase_type')
         .lean(),
       Order.countDocuments(filter),
       computeStats(createdAtFilter, orderScope, typeFilter)

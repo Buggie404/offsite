@@ -21,6 +21,7 @@ const cartItemSchema = new mongoose.Schema({
   },
   is_selected:  { type: Boolean, default: false },                   // checkbox state, default OFF
   bundle:       { type: mongoose.Schema.Types.Mixed, default: null }, // bundle metadata for sets/bundles
+  from_quiz_bundle: { type: Boolean, default: false },       // line was added from Starter Kit Quiz
   added_at:     { type: Date,    default: Date.now }
 }, { _id: false });
 

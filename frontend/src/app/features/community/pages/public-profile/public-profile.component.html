@@ -27,8 +27,16 @@
         <ul class="stats">
           <li><strong>{{ profile.post_count }}</strong><small>Posts</small></li>
           <li><strong>{{ profile.recipe_count }}</strong><small>Recipes</small></li>
-          <li><strong>{{ profile.follower_count }}</strong><small>Followers</small></li>
-          <li><strong>{{ profile.following_count }}</strong><small>Following</small></li>
+          <li>
+            <button type="button" class="stat-button" (click)="followList = 'followers'">
+              <strong>{{ profile.follower_count }}</strong><small>Followers</small>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="stat-button" (click)="followList = 'following'">
+              <strong>{{ profile.following_count }}</strong><small>Following</small>
+            </button>
+          </li>
         </ul>
       </div>
 
@@ -303,4 +311,16 @@
       </footer>
     </section>
   </div>
+}
+
+@if (followList && profile) {
+  <app-follow-modal
+    [userId]="profile.user_id"
+    [type]="followList"
+    [username]="profile.username"
+    [followersCount]="profile.follower_count"
+    [followingCount]="profile.following_count"
+    (close)="followList = null"
+    (followChanged)="onFollowChanged($event)"
+  ></app-follow-modal>
 }

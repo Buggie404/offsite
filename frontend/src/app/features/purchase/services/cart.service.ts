@@ -26,6 +26,7 @@ export interface CartItem {
   quantity: number;
   selected: boolean;
   bundle?: BundleCartMeta;
+  fromQuizBundle?: boolean;
   // Missing = 'one_time' (carts saved before Subscribe & Save existed).
   purchaseType?: PurchaseType;
   subscriptionFrequencyDays?: SubscriptionFrequencyDays | null;
@@ -132,6 +133,7 @@ export class CartService {
                 quantity: item.quantity,
                 selected: item.selected !== undefined ? item.selected : true,
                 bundle: item.bundle,
+                fromQuizBundle: !!item.fromQuizBundle,
                 ...normalizePurchaseOptions(item.product, item)
               })
             );
@@ -159,6 +161,7 @@ export class CartService {
                 quantity: item.quantity,
                 selected: item.selected !== undefined ? item.selected : true,
                 bundle: item.bundle,
+                fromQuizBundle: !!item.fromQuizBundle,
                 isComplement: item.isComplement,
                 ...normalizePurchaseOptions(item.product, item)
               }))
@@ -250,7 +253,7 @@ export class CartService {
     }
   }
 
-  addKitBundleToCart(bundle: BundleCartMeta, quantity = 1, openDrawer = true): void {
+  addKitBundleToCart(bundle: BundleCartMeta, quantity = 1, openDrawer = true, fromQuizBundle = false): void {
     if (isBundleOutOfStock(bundle)) return;
 
     const displayProduct = createBundleDisplayProduct(bundle);
@@ -268,6 +271,7 @@ export class CartService {
         ...existingItem,
         product: displayProduct,
         bundle,
+        fromQuizBundle: fromQuizBundle || existingItem.fromQuizBundle,
         quantity: Math.min(existingItem.quantity + addQty, maxStock),
         selected: true
       };
@@ -278,7 +282,8 @@ export class CartService {
         variantSku: sku,
         quantity: Math.min(addQty, maxStock),
         selected: true,
-        bundle
+        bundle,
+        fromQuizBundle
       });
     }
 
@@ -703,7 +708,8 @@ export class CartService {
           variantSku: item.variantSku,
           quantity: item.quantity,
           selected: true,
-          bundle: item.bundle
+          bundle: item.bundle,
+          fromQuizBundle: !!item.fromQuizBundle
         });
       }
     }
@@ -892,6 +898,7 @@ export class CartService {
     quantity: number;
     selected: boolean;
     bundle?: any;
+    fromQuizBundle?: boolean;
     purchaseType: PurchaseType;
     subscriptionFrequencyDays: SubscriptionFrequencyDays | null;
   }> {
@@ -901,6 +908,7 @@ export class CartService {
       quantity: item.quantity,
       selected: item.selected,
       bundle: item.bundle,
+      fromQuizBundle: !!item.fromQuizBundle,
       purchaseType: getPurchaseType(item),
       subscriptionFrequencyDays: item.subscriptionFrequencyDays ?? null
     }));
@@ -917,6 +925,7 @@ export class CartService {
         quantity: it.quantity,
         selected: it.selected !== undefined ? it.selected : true,
         bundle: it.bundle,
+        fromQuizBundle: !!it.fromQuizBundle,
         ...normalizePurchaseOptions(it.product, it)
       })
     );
@@ -984,6 +993,7 @@ export class CartService {
               quantity: item.quantity,
               selected: item.selected !== undefined ? item.selected : true,
               bundle: item.bundle,
+              fromQuizBundle: !!item.fromQuizBundle,
               ...normalizePurchaseOptions(item.product, item)
             })
           );

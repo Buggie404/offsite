@@ -145,6 +145,10 @@ const orderSchema = new mongoose.Schema({
   // Checkout with Ritual Box lines: saved card (Users.payment_methods._id) the subscription is billed to.
   subscription_payment_method_id: { type: String, default: null },
   subscription_cycle: { type: Number, default: null, min: 1 },      // lần giao thứ mấy của subscription
+  // Paid for its Ritual Box lines but no box could start (card removed / not Visa-Mastercard).
+  // Cleared once the box starts; drives Admin Orders › Needs attention and the CSKH to-do list.
+  subscription_start_failed: { type: Boolean, default: false, index: true },
+  subscription_start_failed_at: { type: Date, default: null },
   // true: stock was reserved when the order was placed (inventory.service), so the
   // status hooks below don't subtract it again and put it back on any cancel.
   stock_reserved: { type: Boolean, default: false },

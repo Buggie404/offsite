@@ -116,6 +116,7 @@ function presentSession(session) {
     success: true,
     session_id: session.session_id,
     status: session.status,
+    support_conversation_id: session.support_conversation_id || null,
     decision: decisionFor(session),
     created_at: session.created_at,
     last_activity_at: session.last_activity_at,

@@ -43,6 +43,8 @@ router.post('/subscriptions/:id/:action', authMiddleware, requireRole(...ADMIN_O
 
 // Community moderation (Admin CC, CSKH): reported / hidden posts.
 router.get('/community/reports', authMiddleware, requireRole('admin_cc', 'cskh'), adminCommunityController.listReportedPosts);
+router.post('/community/users/:id/warn', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog({ requireReason: true }), adminCommunityController.warnUser);
+router.post('/community/users/:id/suspend', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog({ requireReason: true }), adminCommunityController.suspendUser);
 router.post('/community/posts/:postId/hide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminCommunityController.hide);
 router.post('/community/posts/:postId/unhide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminCommunityController.unhide);
 router.post('/community/posts/:postId/dismiss', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminCommunityController.dismissReports);

@@ -6,19 +6,36 @@ const session = require('express-session');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const setupPassport = require('./config/passport');
-const { AUTH_TOKEN_TTL } = require('./config/auth');
+const {
+  AUTH_TOKEN_TTL,
+  JWT_SECRET,
+  SESSION_SECRET,
+  CLIENT_URL,
+  corsOptions,
+  isAllowedOrigin
+} = require('./config/auth');
 
 const app = express();
 
 // Middleware
 app.use(morgan('dev'));
-app.use(cors());
-app.use(express.json({ limit: '30mb' }));
-app.use(express.urlencoded({ limit: '30mb', extended: true }));
+// Only the frontend origin(s) in CLIENT_URL (+ localhost:4200 in dev) may call the API.
+app.use((req, res, next) => {
+  if (isAllowedOrigin(req.headers.origin)) return next();
+  return res.status(403).json({ error: 'Origin not allowed.' });
+});
+app.use(cors(corsOptions));
+
+// Bodies are small JSON by default. Refund requests carry their evidence photos / videos
+// as base64 data URLs (up to 10MB each), so only that route gets a large limit; it is
+// parsed first and the default parser then skips the already-parsed body.
+app.use('/api/orders/:id/refund', express.json({ limit: '30mb' }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
 // Session Configuration
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -49,11 +66,10 @@ app.get('/auth/callback/google',
         email: req.user.email,
         role: req.user.role
       },
-      process.env.JWT_SECRET || 'fallback-secret-key',
+      JWT_SECRET,
       { expiresIn: AUTH_TOKEN_TTL }
     );
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
-    res.redirect(`${clientUrl}/oauth-success?token=${token}`);
+    res.redirect(`${CLIENT_URL}/oauth-success?token=${token}`);
   }
 );
 
@@ -66,11 +82,10 @@ app.get('/auth/callback/facebook',
         email: req.user.email,
         role: req.user.role
       },
-      process.env.JWT_SECRET || 'fallback-secret-key',
+      JWT_SECRET,
       { expiresIn: AUTH_TOKEN_TTL }
     );
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
-    res.redirect(`${clientUrl}/oauth-success?token=${token}`);
+    res.redirect(`${CLIENT_URL}/oauth-success?token=${token}`);
   }
 );
 
@@ -98,6 +113,7 @@ app.use('/api/contact-messages', require('./routes/contact-messages.routes'));
 app.use('/api/loyalty', require('./routes/loyalty.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/ai-chat', require('./routes/ai-chat.routes'));
+app.use('/api/starter-quiz', require('./routes/starter-quiz.routes'));
 
 // Health check
 app.get('/api/health', (req, res) => {

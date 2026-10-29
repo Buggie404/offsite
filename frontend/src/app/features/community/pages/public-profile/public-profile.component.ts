@@ -40,6 +40,8 @@ import { CloudinaryService } from '../../services/cloudinary.service';
 import { PostCardComponent } from '../../components/post-card/post-card.component';
 import { CreatePostModalComponent } from '../../components/create-post-modal/create-post-modal.component';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { FollowModalComponent } from '../../components/follow-modal/follow-modal.component';
+import { avatarInitials } from '../../../../shared/utils/avatar';
 
 type ProfileTab = 'posts' | 'recipes';
 
@@ -63,6 +65,7 @@ const EMPTY_EDIT: EditableProfile = {
     PostCardComponent,
     CreatePostModalComponent,
     ConfirmationModalComponent,
+    FollowModalComponent,
     LucideEllipsis,
     LucideFlag,
     LucidePencil,
@@ -93,6 +96,7 @@ export class PublicProfileComponent implements OnInit {
   notFound = false;
   followBusy = false;
   activeTab: ProfileTab = 'posts';
+  followList: 'followers' | 'following' | null = null;
 
   // ── Profile menu + account-level modals ──
   menuOpen = false;
@@ -164,10 +168,7 @@ export class PublicProfileComponent implements OnInit {
   }
 
   initials(name: string): string {
-    return (name || '')
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .slice(0, 2)
-      .toUpperCase();
+    return avatarInitials(name);
   }
 
   setTab(tab: ProfileTab): void {
@@ -197,6 +198,7 @@ export class PublicProfileComponent implements OnInit {
     this.notFound = false;
     this.posts = [];
     this.menuOpen = false;
+    this.followList = null;
     this.community.getPublicProfile(userId).subscribe({
       next: (profile) => {
         this.profile = profile;
@@ -218,6 +220,24 @@ export class PublicProfileComponent implements OnInit {
   }
 
   // ── Follow ──
+
+  // Keeps the header counters in sync when someone is (un)followed from the follow modal
+  onFollowChanged(event: { userId: string; following: boolean }): void {
+    if (!this.profile) return;
+    if (this.profile.is_self) {
+      this.profile.following_count = Math.max(
+        0,
+        this.profile.following_count + (event.following ? 1 : -1),
+      );
+    }
+    if (this.profile.user_id === event.userId) {
+      this.profile.is_following = event.following;
+      this.profile.follower_count = Math.max(
+        0,
+        this.profile.follower_count + (event.following ? 1 : -1),
+      );
+    }
+  }
 
   toggleFollow(): void {
     if (!this.profile || this.followBusy) return;
@@ -316,7 +336,11 @@ export class PublicProfileComponent implements OnInit {
       error: (error) => {
         this.postReportSubmitting = false;
         this.reportingPostId = null;
-        this.toast.error(error?.error?.error || 'Failed to submit report. Please try again.');
+        this.toast.error(
+          error?.status === 409
+            ? 'You have already reported this'
+            : error?.error?.error || 'Failed to submit report. Please try again.',
+        );
         this.cdr.markForCheck();
       },
     });
@@ -468,7 +492,11 @@ export class PublicProfileComponent implements OnInit {
       },
       error: (error) => {
         this.reportSubmitting = false;
-        this.toast.error(error?.error?.error || 'Failed to submit report.');
+        this.toast.error(
+          error?.status === 409
+            ? 'You have already reported this'
+            : error?.error?.error || 'Failed to submit report.',
+        );
         this.cdr.markForCheck();
       },
     });

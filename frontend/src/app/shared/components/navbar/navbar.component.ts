@@ -1,3 +1,4 @@
+import { avatarInitials } from '../../utils/avatar';
 import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild, signal, effect, untracked, ChangeDetectorRef } from '@angular/core';
 import { SuccessModalComponent, SuccessModalConfig } from '../success-modal/success-modal.components';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
@@ -612,7 +613,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     // Navigate to post detail or order tracking
     const isOrderOrRefund = notification.type.startsWith('ORDER_') || notification.type.startsWith('REFUND_');
-    if (notification.type.startsWith('SUBSCRIPTION_')) {
+    if (notification.type === 'SUBSCRIPTION_NOT_STARTED' && notification.order_id) {
+      // No box exists yet: open the order, where the customer can start it with another card.
+      this.router.navigate(['/order-tracking'], { queryParams: { orderId: notification.order_id } });
+    } else if (notification.type.startsWith('SUBSCRIPTION_')) {
       this.router.navigate(['/account'], { queryParams: { tab: 'ritual-box' } });
     } else if (notification.type.startsWith('PANTRY_')) {
       this.router.navigate(['/account'], { queryParams: { tab: 'pantry' } });
@@ -1193,16 +1197,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   // ── User profile helpers for dropdown ──────────────────────────────────
 
-  /** Two-letter initials from profile_name */
+  /** Use the same public identity and initials as community comments. */
   getUserInitials(): string {
     const user = this.authService.currentUser() || this.authService.getUser();
-    const name: string = (user?.profile_name || user?.name || user?.email || '').trim();
-    if (!name) return '?';
-    const parts = name.split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
+    return avatarInitials(user?.community_name || user?.profile_name || user?.name || user?.email);
   }
 
   /** Full display name */

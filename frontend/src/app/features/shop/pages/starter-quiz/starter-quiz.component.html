@@ -1,0 +1,181 @@
+<section class="starter-quiz">
+  <div class="starter-deco" aria-hidden="true">
+    <span class="geo geo--blob"></span>
+    <span class="geo geo--ring"></span>
+    <span class="geo geo--ring-dashed"></span>
+    <span class="geo geo--diamond"></span>
+    <span class="geo geo--dot"></span>
+    <span class="geo geo--dot-sm"></span>
+    <span class="geo geo--dots"></span>
+    <span class="geo geo--plus"></span>
+  </div>
+  @if (errorMessage() && step() !== 'question') {
+    <p class="starter-alert" role="alert">{{ errorMessage() }}</p>
+  }
+
+  @if (step() === 'intro') {
+    <div class="starter-intro">
+      <article class="starter-card starter-intro__card">
+        <div class="starter-intro__wash" aria-hidden="true">
+          <span class="wash wash--ring"></span>
+          <span class="wash wash--dashed"></span>
+          <span class="wash wash--diamond"></span>
+          <span class="wash wash--dot"></span>
+          <span class="wash wash--dot-sm"></span>
+          <span class="wash wash--plus"></span>
+        </div>
+        <p class="starter-kicker">Starter Kit Quiz</p>
+        <h1>Find your starter kit</h1>
+        <p class="starter-lede">
+          Six short questions about how you like to drink. We match a ready-to-brew set from what is in stock, with the bundle price already applied.
+        </p>
+        <ul class="starter-facts">
+          <li>About a minute</li>
+          <li>No account needed</li>
+          <li>20% off the set</li>
+        </ul>
+        <button type="button" class="starter-btn starter-btn--primary" [disabled]="loading() || !questions().length" (click)="start()">
+          {{ loading() ? 'Loading' : 'Start' }}
+        </button>
+      </article>
+
+      <ol class="starter-steps">
+        <li>
+          <span>01</span>
+          <strong>Taste</strong>
+          <p>Bright, balanced, bold, or sweet.</p>
+        </li>
+        <li>
+          <span>02</span>
+          <strong>Ritual</strong>
+          <p>Hot, iced, or with milk.</p>
+        </li>
+        <li>
+          <span>03</span>
+          <strong>Kit</strong>
+          <p>A set you can edit or add in one click.</p>
+        </li>
+      </ol>
+    </div>
+  }
+
+  @if (step() === 'question') {
+    @if (currentQuestion(); as question) {
+      <article class="starter-card starter-question">
+        <header class="starter-question__top">
+          <p class="starter-kicker">Starter Kit Quiz</p>
+          <p class="starter-count">{{ questionIndex() + 1 }} / {{ visibleQuestions().length }}</p>
+          <div class="starter-progress" aria-hidden="true">
+            <span [style.width.%]="progress()"></span>
+          </div>
+        </header>
+
+        <h2>{{ question.question }}</h2>
+
+        <div class="starter-options" [attr.data-count]="question.options.length">
+          @for (option of question.options; track option.option_id) {
+            <button
+              type="button"
+              class="starter-option"
+              [class.is-selected]="isSelected(question.question_id, option.option_id)"
+              [attr.aria-pressed]="isSelected(question.question_id, option.option_id)"
+              (click)="selectOption(question.question_id, option.option_id)"
+            >
+              <span class="starter-option__mark" aria-hidden="true">{{ option.text.slice(0, 1) }}</span>
+              <span class="starter-option__copy">
+                <span class="starter-option__title">{{ option.text }}</span>
+                @if (option.hint) {
+                  <span class="starter-option__hint">{{ option.hint }}</span>
+                }
+              </span>
+            </button>
+          }
+        </div>
+
+        @if (errorMessage()) {
+          <p class="starter-alert" role="alert">{{ errorMessage() }}</p>
+        }
+
+        <footer class="starter-question__nav">
+          <button type="button" class="starter-text-btn" (click)="previous()">Previous question</button>
+          <a routerLink="/shop/best-seller" class="starter-text-btn">Exit to shop</a>
+          <button type="button" class="starter-btn starter-btn--primary" [disabled]="!canContinue() || submitting()" (click)="next()">
+            {{ submitting() ? 'Matching' : (questionIndex() === visibleQuestions().length - 1 ? 'See my kit' : 'Next') }}
+          </button>
+        </footer>
+      </article>
+    }
+  }
+
+  @if (step() === 'result') {
+    @if (kit(); as result) {
+      <div class="starter-result">
+        @if (added()) {
+          <p class="starter-banner">{{ result.items.length }} items added to your cart. Bundle price applied.</p>
+        }
+
+        <article class="starter-result__panel">
+          <div class="starter-result__wash" aria-hidden="true">
+            <span class="result-mark result-mark--ring"></span>
+            <span class="result-mark result-mark--dashed"></span>
+            <span class="result-mark result-mark--diamond"></span>
+            <span class="result-mark result-mark--dot"></span>
+            <span class="result-mark result-mark--plus"></span>
+          </div>
+          <div class="starter-result__copy">
+            <p class="starter-kicker">Your starter kit</p>
+            <h2>{{ result.title }}</h2>
+            <p class="starter-lede">{{ result.why }}</p>
+            @for (note of globalNotes(); track note) {
+              <p class="starter-note">{{ note }}</p>
+            }
+            <p class="starter-price">
+              <span class="starter-price__original">{{ formatPrice(result.pricing.original) }}</span>
+              <span class="starter-price__sale">{{ formatPrice(result.pricing.sale) }}</span>
+              <span class="starter-price__badge">Bundle −{{ result.discountPercent }}%</span>
+            </p>
+            <button type="button" class="starter-btn starter-btn--primary starter-btn--block" [disabled]="adding()" (click)="addKitToCart()">
+              Add the whole kit to cart
+            </button>
+            <button type="button" class="starter-btn starter-btn--ghost starter-btn--block" (click)="customize()">
+              Customize in Build Your Bundle
+            </button>
+
+            @if (!isAuthenticated()) {
+              <div class="starter-save">
+                <strong>Save this result</strong>
+                <p>Sign in to keep this kit on your account.</p>
+                <div class="starter-save__actions">
+                  <button type="button" class="starter-btn starter-btn--tiny" (click)="openAuth('login')">Sign in</button>
+                  <button type="button" class="starter-btn starter-btn--tiny starter-btn--ghost" (click)="openAuth('signup')">Create account</button>
+                </div>
+              </div>
+            }
+          </div>
+
+          <ul class="starter-products">
+            @for (item of result.items; track item.slotKey) {
+              <li class="starter-product">
+                <div class="starter-product__image">
+                  @if (item.image) {
+                    <img [src]="item.image" [alt]="item.name" />
+                  }
+                </div>
+                <div class="starter-product__meta">
+                  <span>{{ item.slotLabel }}</span>
+                  <strong>{{ item.name }}</strong>
+                  <em>{{ formatPrice(item.price) }}</em>
+                  @if (item.note) {
+                    <small>{{ item.note }}</small>
+                  }
+                </div>
+              </li>
+            }
+          </ul>
+        </article>
+
+        <button type="button" class="starter-text-btn starter-result__again" (click)="start()">Retake the quiz</button>
+      </div>
+    }
+  }
+</section>

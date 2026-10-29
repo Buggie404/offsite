@@ -5,13 +5,24 @@ import { Observable, map } from 'rxjs';
 import { Post, ProductTag } from '../models/post.model';
 import { Comment } from '../models/comment.model';
 import { Notification } from '../models/notification.model';
-import { FollowListResponse, FollowStatus } from '../models/follow.model';
+import { FollowStatus } from '../models/follow.model';
 
 export interface FeedResponse {
   data: Post[];
   total: number;
   page: number;
   limit: number;
+}
+
+export interface FollowListResponse { data: FollowUser[]; has_more: boolean; total: number; }
+
+export interface FollowUser {
+  membership_tier: string;
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  is_following: boolean;
+  is_self: boolean;
 }
 
 export interface PublicProfile {
@@ -184,26 +195,14 @@ export class CommunityService {
     return this.http.get<FollowStatus>(`/api/follows/${userId}/status`);
   }
 
+  /** Followers / Following list of a profile, with search (used by the follow modal) */
+  getFollowList(userId: string, type: 'followers' | 'following', page = 1, q = ''): Observable<FollowListResponse> {
+    return this.http.get<FollowListResponse>(`/api/follows/${encodeURIComponent(userId)}/${type}`, { params: { page, q } });
+  }
+
   /** user_ids the signed-in user follows — for follow buttons on feed cards */
   getFollowingIds(): Observable<{ data: string[] }> {
     return this.http.get<{ data: string[] }>('/api/follows/ids');
-  }
-
-  /** People the signed-in user follows (Following list of the Feed) */
-  getMyFollowing(page: number = 1, limit: number = 20): Observable<FollowListResponse> {
-    return this.http.get<FollowListResponse>('/api/follows/following', { params: { page, limit } });
-  }
-
-  getUserFollowing(userId: string, page: number = 1, limit: number = 20): Observable<FollowListResponse> {
-    return this.http.get<FollowListResponse>(`/api/follows/${userId}/following`, {
-      params: { page, limit },
-    });
-  }
-
-  getUserFollowers(userId: string, page: number = 1, limit: number = 20): Observable<FollowListResponse> {
-    return this.http.get<FollowListResponse>(`/api/follows/${userId}/followers`, {
-      params: { page, limit },
-    });
   }
 
   // ── Comments ──

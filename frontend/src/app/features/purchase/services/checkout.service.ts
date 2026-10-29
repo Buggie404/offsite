@@ -198,6 +198,16 @@ export class CheckoutService {
     );
   }
 
+  /** Starts the Ritual Box of a paid order whose box couldn't start at checkout (card removed). */
+  async startRitualBoxFromOrder(orderId: string, paymentMethodId: string): Promise<{ order_id: string; subscriptions: any[] }> {
+    return await firstValueFrom(
+      this.http.post<{ order_id: string; subscriptions: any[] }>(
+        `/api/subscriptions/start-from-order/${encodeURIComponent(orderId)}`,
+        { payment_method_id: paymentMethodId }
+      )
+    );
+  }
+
   async deleteUserPaymentMethod(id: string): Promise<any> {
     return await firstValueFrom(
       this.http.delete<any>(`/api/auth/payment-methods/${id}`)

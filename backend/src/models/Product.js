@@ -87,6 +87,8 @@ const productSchema = new mongoose.Schema({
   createdAt: { type: String, required: true },
   updatedAt: { type: String, required: true },
   is_active: { type: Boolean, default: true },
+  // Merchandising can hide a SKU from Starter Kit Quiz without unpublishing it.
+  quiz_eligible: { type: Boolean, default: true },
   
   // Category-specific details
   matcha: { type: matchaDetailsSchema },

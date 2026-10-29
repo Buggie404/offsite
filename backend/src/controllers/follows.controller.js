@@ -1,4 +1,7 @@
+const Follow = require('../models/Follow');
+const User = require('../models/User');
 const followService = require('../services/follow.service');
+const { visibleFollowStages } = require('../services/follow-list');
 
 // Shared checks for follow / unfollow / toggle. Returns { me, targetId } or sends the error response.
 async function resolveFollowPair(req, res) {
@@ -89,22 +92,33 @@ async function getMyFollowing(req, res) {
   }
 }
 
-// GET /api/follows/:userId/following and /:userId/followers -> public lists
-function listFor(direction) {
-  return async (req, res) => {
-    try {
-      const userId = String(req.params.userId || '');
-      if (!(await followService.findActiveUser(userId))) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-      const viewerId = await followService.resolveCommunityUserId(req);
-      const paging = followService.parsePaging(req.query);
-      res.json(await followService.listConnections(userId, direction, { ...paging, viewerId }));
-    } catch (error) {
-      console.error(`Error loading ${direction} list:`, error);
-      res.status(500).json({ error: `Failed to load ${direction}` });
-    }
-  };
+// GET /api/follows/:userId/followers|following?page=&q= -> public lists with search (used by the follow modal)
+async function getFollowList(req, res) {
+  try {
+    const { userId, type } = req.params;
+    if (!['followers', 'following'].includes(type)) return res.status(400).json({ error: 'Invalid list type' });
+    if (!await User.exists({ user_id: userId, status: 'active' })) return res.status(404).json({ error: 'Profile not found' });
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = 20;
+    const me = await followService.resolveCommunityUserId(req);
+    const search = String(req.query.q || '').trim().slice(0, 80);
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const result = await Follow.aggregate([
+      ...visibleFollowStages(userId, type),
+      { $project: { _id: 0, user_id: '$person.user_id', username: { $cond: ['$person.community_name', '$person.community_name', '$person.profile_name'] }, avatar_url: '$person.avatar_url', membership_tier: '$person.membership_tier' } },
+      ...(search ? [{ $match: { username: { $regex: escaped, $options: 'i' } } }] : []),
+      { $facet: { data: [{ $skip: (page - 1) * limit }, { $limit: limit + 1 }], count: [{ $count: 'total' }] } }
+    ]);
+    const rows = result[0]?.data || [];
+    const total = result[0]?.count[0]?.total || 0;
+    const users = rows.slice(0, limit);
+    const following = me ? await Follow.find({ follower_id: me, following_id: { $in: users.map(user => user.user_id) } }, 'following_id').lean() : [];
+    const ids = new Set(following.map(row => row.following_id));
+    res.json({ data: users.map(user => ({ ...user, is_self: user.user_id === me, is_following: ids.has(user.user_id) })), has_more: rows.length > limit, total });
+  } catch (error) {
+    console.error('Error loading follow list:', error);
+    res.status(500).json({ error: 'Failed to load follow list' });
+  }
 }
 
 module.exports = {
@@ -114,6 +128,5 @@ module.exports = {
   getFollowStatus,
   getFollowingIds,
   getMyFollowing,
-  getUserFollowing: listFor('following'),
-  getUserFollowers: listFor('followers')
+  getFollowList
 };

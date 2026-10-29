@@ -17,6 +17,8 @@ export interface Notification {
   /** Post / order id; null for Ritual Box notifications (older ones stored the subscription id here). */
   post_id: string | null;
   subscription_id?: string | null;
+  /** Ritual Box notifications about an order (SUBSCRIPTION_NOT_STARTED). */
+  order_id?: string | null;
   message?: string | null;
   comment_id?: string | null;
   comment_content?: string | null;

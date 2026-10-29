@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const reviewsController = require('../controllers/reviews.controller');
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config/auth');
 
 // Helper middleware to allow guest requests
 function optionalAuth(req, res, next) {
@@ -12,7 +13,7 @@ function optionalAuth(req, res, next) {
     return next();
   }
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-key');
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
   } catch (error) {

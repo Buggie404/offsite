@@ -112,6 +112,9 @@ async function claimConversation(req, res) {
     conversation.agent_id = req.user.user_id;
     conversation.status = 'open';
     await conversation.save();
+    if (conversation.ai_session_id) await require('../models/AiChatSession').updateOne({ session_id: conversation.ai_session_id }, {
+      $set: { status: 'in_progress', assigned_admin_id: req.user.user_id }
+    });
     const sys = await appendMessage(conversation, { sender_type: 'system', content: 'Một nhân viên CSKH đã tham gia cuộc trò chuyện.' });
     emitChatEvent('chat_updated', conversation.toObject());
     if (sys) emitChatEvent('chat_message', sys.toObject(), conversation);
@@ -129,6 +132,13 @@ async function closeConversation(req, res) {
     if (!(await canAccessConversation(req.user, conversation))) return res.status(403).json({ error: 'Access denied' });
     conversation.status = 'closed';
     await conversation.save();
+    if (conversation.ai_session_id) {
+      await require('../models/AiChatSession').updateOne({ session_id: conversation.ai_session_id }, {
+        $set: { status: 'ai_active', assigned_admin_id: null }
+      });
+      const message = await appendMessage(conversation, { sender_type: 'system', content: 'The support conversation has ended. You can continue with the AI Concierge.' });
+      if (message) emitChatEvent('chat_message', message.toObject(), conversation);
+    }
     emitChatEvent('chat_updated', conversation.toObject());
     res.json({ data: conversation });
   } catch (error) {

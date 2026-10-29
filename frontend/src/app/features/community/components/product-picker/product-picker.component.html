@@ -16,9 +16,9 @@
   </div>
 
   <div class="picker__chips" *ngIf="selected.length">
-    <div class="picker__chip" *ngFor="let p of selected">
+    <div class="picker__chip" [class.picker__chip--ai]="p.source === 'ai'" *ngFor="let p of selected">
       <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
-      <span>{{ p.name }}</span>
+      <span>{{ p.name }}</span><span class="picker__badge" *ngIf="p.source === 'ai'">AI</span>
       <button type="button" (click)="remove(p)" aria-label="Remove product"><svg lucideX [size]="12"></svg></button>
     </div>
   </div>

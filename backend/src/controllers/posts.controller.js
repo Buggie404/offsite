@@ -3,7 +3,7 @@ const User = require('../models/User');
 const Recipe = require('../models/Recipe');
 const PostReport = require('../models/PostReport');
 const Product = require('../models/Product');
-const { getFollowingIds, resolveCommunityUserId } = require('../services/follow.service');
+const { getFollowingIds } = require('../services/follow.service');
 const { maybeAutoHide } = require('../services/post-moderation.service');
 const mongoose = require('mongoose');
 
@@ -54,7 +54,8 @@ async function getAllPosts(req, res) {
 
     // Hide violating (hidden) posts and posts of suspended accounts from public feeds.
     // A user browsing their own posts still sees everything they wrote.
-    const isOwnFeed = !!req.user && !!user_id && user_id === req.user.user_id;
+    const viewerId = await require('./profiles.controller').currentCommunityUserId(req);
+    const isOwnFeed = !!viewerId && !!user_id && user_id === viewerId;
     if (!isOwnFeed) {
       query.status = { $ne: 'hidden' };
       const suspendedUsers = await User.find({ status: 'suspended' }, 'user_id').lean();
@@ -71,8 +72,7 @@ async function getAllPosts(req, res) {
     // "Following" chip: only posts from accounts the signed-in user follows.
     if (following === 'true') {
       if (!req.user) return res.json({ data: [], total: 0, page: parseInt(page, 10), limit: parseInt(limit, 10) });
-      // Follows store User.user_id, the token carries the Mongo _id, so resolve first.
-      const followedIds = await getFollowingIds(await resolveCommunityUserId(req));
+      const followedIds = await getFollowingIds(viewerId);
       const blocked = query.user_id && query.user_id.$nin ? query.user_id.$nin : [];
       query.user_id = { $in: followedIds.filter(id => !blocked.includes(id)) };
     }
@@ -106,8 +106,10 @@ async function getAllPosts(req, res) {
 
     const productCards = await loadProductCards(posts);
 
-    const data = posts.map(p => ({
+    const authors = await require('../services/community-author.service').hydrateAuthors(posts);
+    const data = posts.map((p, index) => ({
       ...p.toObject(),
+      author: authors[index].author,
       liked: likedPostIds.has(p.post_id),
       saved: savedPostIds.has(p.post_id),
       products: cardsForPost(p, productCards)
@@ -156,7 +158,7 @@ async function getPostById(req, res) {
       recipeDetails = await Recipe.findOne({ recipe_id: post.recipe_id });
     }
 
-    const isOwner = !!req.user && req.user.user_id === post.user_id;
+    const isOwner = (await require('./profiles.controller').currentCommunityUserId(req)) === post.user_id;
     const isModerator = ['admin_cc', 'cskh'].includes(req.user?.role);
     if (post.status === 'hidden' && !isOwner && !isModerator) {
       return res.status(404).json({ error: 'Post not found' });
@@ -166,6 +168,7 @@ async function getPostById(req, res) {
 
     res.json({
       ...post.toObject(),
+      author: (await require('../services/community-author.service').hydrateAuthors([post]))[0].author,
       liked,
       saved,
       recipe: recipeDetails,
@@ -327,10 +330,15 @@ async function deletePost(req, res) {
       return res.status(403).json({ error: 'You are not authorized to delete this post' });
     }
 
-    await Post.deleteOne({ _id: post._id });
-    
-    const Comment = require('../models/Comment');
-    await Comment.deleteMany({ post_id: post.post_id });
+    const session = await Post.db.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await Post.deleteOne({ _id: post._id }, { session });
+        await require('../services/points.service').reverseCommunityPoints(post.post_id, session);
+        const Comment = require('../models/Comment');
+        await Comment.deleteMany({ post_id: post.post_id }, { session });
+      });
+    } finally { await session.endSession(); }
 
     res.json({ message: 'Post and associated comments deleted successfully' });
   } catch (error) {
@@ -541,20 +549,21 @@ async function reportPost(req, res) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    if (post.user_id === req.user.user_id) {
+    const reporterId = await require('./profiles.controller').currentCommunityUserId(req);
+    if (post.user_id === reporterId) {
       return res.status(400).json({ error: 'You cannot report your own post' });
     }
 
     try {
       await PostReport.create({
         post_id: post.post_id,
-        reporter_id: req.user.user_id,
+        reporter_id: reporterId,
         reason,
         note: String(note).trim().slice(0, 500)
       });
     } catch (err) {
       if (err.code === 11000) {
-        return res.status(409).json({ error: 'You have already reported this post' });
+        return res.status(409).json({ error: 'You have already reported this' });
       }
       throw err;
     }

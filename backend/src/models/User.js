@@ -99,6 +99,10 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['customer', 'admin_cc', 'cskh', 'qlsp'], default: 'customer' },
   assigned_chat_customer_ids: { type: [String], default: [] },
   status: { type: String, enum: ['active', 'suspended'], default: 'active' },
+  community_warnings: [{ reason: { type: String, required: true }, admin_id: String, created_at: { type: Date, default: Date.now } }],
+  suspended_reason: { type: String, default: null },
+  suspended_by: { type: String, default: null },
+  suspended_at: { type: Date, default: null },
   // Membership: tier multiplies earned points and is never downgraded.
   membership_tier: { type: String, enum: ['Seed', 'Leaf', 'Bloom', 'Zen'], default: 'Seed' },
   // Posted (spendable) points; may go negative after a reversal and is made up by later credits.

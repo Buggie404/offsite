@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Post = require('../models/Post');
 const Follow = require('../models/Follow');
+const { countVisibleFollows } = require('../services/follow-list');
 const AccountReport = require('../models/AccountReport');
 const { REPORT_REASONS } = require('../models/PostReport');
 
@@ -21,8 +22,8 @@ async function getPublicProfile(req, res) {
     const [postCount, recipeCount, followerCount, followingCount, followRow] = await Promise.all([
       Post.countDocuments({ user_id: userId, post_type: { $ne: 'recipe' }, status: { $ne: 'hidden' } }),
       Post.countDocuments({ user_id: userId, post_type: 'recipe', status: { $ne: 'hidden' } }),
-      Follow.countDocuments({ following_id: userId }),
-      Follow.countDocuments({ follower_id: userId }),
+      countVisibleFollows(userId, 'followers'),
+      countVisibleFollows(userId, 'following'),
       currentUserId && !isSelf ? Follow.exists({ follower_id: currentUserId, following_id: userId }) : null
     ]);
 
@@ -60,7 +61,7 @@ async function reportAccount(req, res) {
     try {
       await AccountReport.create({ reported_user_id: targetId, reporter_id: reporterId, reason, note });
     } catch (error) {
-      if (error.code === 11000) return res.status(409).json({ error: 'You have already reported this account' });
+      if (error.code === 11000) return res.status(409).json({ error: 'You have already reported this' });
       throw error;
     }
     res.status(201).json({ message: 'Report submitted' });
@@ -70,4 +71,5 @@ async function reportAccount(req, res) {
   }
 }
 
-module.exports = { getPublicProfile, reportAccount };
+// currentCommunityUserId is still imported by posts/comments controllers
+module.exports = { getPublicProfile, reportAccount, currentCommunityUserId };

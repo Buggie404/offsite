@@ -135,6 +135,29 @@ $ease: cubic-bezier(0.16, 1, 0.3, 1);
     text-transform: uppercase;
     color: var(--color-warm-brown);
   }
+
+  // Followers / Following counters open the follow modal
+  .stat-button {
+    display: grid;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover small {
+      color: var(--color-forest-green);
+      text-decoration: underline;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-forest-green);
+      outline-offset: 4px;
+    }
+  }
 }
 
 .actions {

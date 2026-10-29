@@ -1,3 +1,4 @@
+import { avatarInitials } from '../../../../shared/utils/avatar';
 import { Component, ElementRef, EventEmitter, HostListener, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideBookmark, LucideEllipsis, LucideFlag, LucideHeart, LucideMessageCircle, LucidePencil, LucideShare2, LucideTrash2 } from '@lucide/angular';
@@ -45,8 +46,7 @@ export class PostCardComponent {
   }
 
   get initials(): string {
-    const name = (this.post?.author?.username || '').replace(/[^a-zA-Z0-9]/g, '');
-    return name.slice(0, 2).toUpperCase();
+    return avatarInitials(this.post?.author?.username);
   }
 
   // Alternate avatar fallback tones (sage / pink) per user, stable across renders.

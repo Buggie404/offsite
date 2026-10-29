@@ -25,6 +25,20 @@
     </div>
   </div>
 
+  @if (order.subscription_start_failed) {
+    <div class="ritual-box-banner ritual-box-banner--attention" role="note">
+      <svg lucideInfo class="ritual-box-banner__icon" aria-hidden="true" [size]="18"></svg>
+      <p class="ritual-box-banner__text">
+        <strong>Ritual Box not started</strong>
+        @if (order.subscription_start_failed_at) {
+          ({{ formatDateTime(order.subscription_start_failed_at) }})
+        }
+        · the card chosen at checkout is no longer saved. Ask the customer to add a Visa / Mastercard and
+        press “Start Ritual Box” on their order, or refund the order.
+      </p>
+    </div>
+  }
+
   @for (box of order.ritual_boxes ?? []; track box.subscription_id) {
     <div class="ritual-box-banner" role="note">
       <svg lucideInfo class="ritual-box-banner__icon" aria-hidden="true" [size]="18"></svg>

@@ -54,8 +54,8 @@
         </div>
       </header>
 
-      @if (active.handoff_summary) {
-        <div class="chat-summary"><strong>Bot summary:</strong> {{ active.handoff_summary }}</div>
+      @if (active.summary || active.handoff_summary) {
+        <div class="chat-summary"><strong>Bot summary:</strong> {{ active.summary || active.handoff_summary }}@if (active.handover_reason) { <div><strong>Handover reason:</strong> {{ active.handover_reason }}</div> }</div>
       }
 
       <div class="chat-thread" #thread>

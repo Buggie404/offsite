@@ -8,8 +8,7 @@ router.get('/ids', authMiddleware, followsController.getFollowingIds);
 router.get('/following', authMiddleware, followsController.getMyFollowing);
 
 router.get('/:userId/status', authMiddleware, followsController.getFollowStatus);
-router.get('/:userId/following', optionalAuthMiddleware, followsController.getUserFollowing);
-router.get('/:userId/followers', optionalAuthMiddleware, followsController.getUserFollowers);
+router.get('/:userId/:type', optionalAuthMiddleware, followsController.getFollowList);
 
 router.put('/:userId', authMiddleware, followsController.followUser);
 router.delete('/:userId', authMiddleware, followsController.unfollowUser);

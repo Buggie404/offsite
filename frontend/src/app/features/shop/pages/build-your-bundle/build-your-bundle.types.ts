@@ -21,4 +21,5 @@ export interface BundleBuilderSnapshot {
   activeSlotKey: SlotKey | null;
   categoryFilter: BundleCategoryFilter;
   slots: Partial<Record<SlotKey, PersistedSlotSelection>>;
+  slotProductOrder?: Partial<Record<SlotKey, number[]>>;
 }

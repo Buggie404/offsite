@@ -1,4 +1,4 @@
-import { Component, EventEmitter, HostListener, OnInit, Output, inject, signal } from '@angular/core';
+import { Component, EventEmitter, HostListener, OnInit, Output, effect, inject, input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -98,6 +98,22 @@ export class RitualBoxComponent implements OnInit {
   readonly actionNotice = signal<{ id: string; message: string } | null>(null);
   readonly cancelTarget = signal<RitualSubscription | null>(null);
   cancelReason = '';
+
+  /** ?sub=SUB0003 (links from Order detail): highlight that box and scroll to it once loaded. */
+  readonly focusSubscriptionId = input<string | null>(null);
+  private focusedOnce: string | null = null;
+
+  constructor() {
+    effect(() => {
+      const id = this.focusSubscriptionId();
+      const data = this.box.data();
+      if (!id || !data || this.focusedOnce === id) return;
+      if (!data.subscriptions.some(sub => sub.subscription_id === id)) return;
+      this.focusedOnce = id;
+      // Wait for the cards to render before scrolling.
+      setTimeout(() => document.getElementById(`sub-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    });
+  }
 
   ngOnInit(): void {
     // The account page already loads it for the sidebar badge.

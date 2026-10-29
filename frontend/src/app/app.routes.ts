@@ -117,6 +117,13 @@ export const routes: Routes = [
     pathMatch: 'full'
   },
   {
+    path: 'starter-quiz',
+    loadComponent: () =>
+      import('./features/shop/pages/starter-quiz/starter-quiz.component').then(
+        (m) => m.StarterQuizComponent
+      )
+  },
+  {
     path: 'shop/build-your-bundle',
     loadComponent: () =>
       import('./features/shop/pages/build-your-bundle/build-your-bundle.component').then(

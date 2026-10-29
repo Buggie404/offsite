@@ -186,8 +186,6 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
   // Nội dung dùng để gợi ý sản phẩm: tiêu đề + mô tả + nguyên liệu + dụng cụ
   get suggestContent(): string {
     return [
-      this.title,
-      this.description,
       ...this.ingredients.map(i => i.name),
       ...this.tools.map(t => t.name),
     ].filter(s => s && s.trim()).join(' ');

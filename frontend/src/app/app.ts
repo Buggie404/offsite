@@ -9,12 +9,11 @@ import { FooterComponent } from './shared/components/footer/footer.component';
 import { AuthModalComponent } from './shared/components/auth-modal/auth-modal.component';
 import { AuthPromptModalComponent } from './shared/components/auth-prompt-modal/auth-prompt-modal.component';
 import { ToastComponent } from './shared/services/toast.component';
-import { SupportChatComponent } from './shared/components/support-chat/support-chat.component';
 import { AiChatDrawerComponent } from './shared/components/ai-chat-drawer/ai-chat-drawer.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, NavbarComponent, FooterComponent, AuthModalComponent, AuthPromptModalComponent, ToastComponent, SupportChatComponent, AiChatDrawerComponent],
+  imports: [RouterOutlet, NavbarComponent, FooterComponent, AuthModalComponent, AuthPromptModalComponent, ToastComponent, AiChatDrawerComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })

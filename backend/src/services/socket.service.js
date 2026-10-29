@@ -1,10 +1,11 @@
 // backend/src/services/socket.service.js
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET, corsOptions, isAllowedOrigin } = require('../config/auth');
 const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const ChatConversation = require('../models/ChatConversation');
-const { AGENT_ROLES, canAccessConversation, appendMessage } = require('./chat.service');
+const { AGENT_ROLES, canAccessConversation, appendMessage, resolveChatUserId } = require('./chat.service');
 const {
   hasAdminRole,
   ADMIN_ORDER_UNSCOPED_ROLES,
@@ -15,10 +16,9 @@ let io = null;
 
 function initSocket(server) {
   io = new Server(server, {
-    cors: {
-      origin: '*', // Allow all origins for dev / flexibility
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-    }
+    // Same origins as the REST API (CLIENT_URL + localhost:4200 in dev).
+    cors: corsOptions,
+    allowRequest: (req, callback) => callback(null, isAllowedOrigin(req.headers.origin))
   });
 
   // Socket.IO Handshake Authentication Middleware (JWT Decode)
@@ -33,7 +33,7 @@ function initSocket(server) {
 
       if (token) {
         try {
-          const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-key');
+          const decoded = jwt.verify(token, JWT_SECRET);
           socket.user = decoded; // { user_id, email, role }
         } catch (err) {
           console.warn('[Socket.IO Auth] Invalid or expired JWT token supplied during handshake:', err.message);
@@ -119,10 +119,11 @@ function initSocket(server) {
           socket.emit('error', { message: 'Cannot send to this chat.' });
           return;
         }
-        const isCustomer = conversation.customer_id === socket.user.user_id;
+        const senderId = await resolveChatUserId(socket.user.user_id);
+        const isCustomer = conversation.customer_id === senderId;
         const message = await appendMessage(conversation, {
           sender_type: isCustomer ? 'customer' : 'agent',
-          sender_id: socket.user.user_id,
+          sender_id: senderId,
           content: data.content
         });
         if (message) emitChatEvent('chat_message', message.toObject(), conversation);
