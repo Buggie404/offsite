@@ -5,6 +5,7 @@ import { Observable, map } from 'rxjs';
 import { Post, ProductTag } from '../models/post.model';
 import { Comment } from '../models/comment.model';
 import { Notification } from '../models/notification.model';
+import { FollowListResponse, FollowStatus } from '../models/follow.model';
 
 export interface FeedResponse {
   data: Post[];
@@ -26,6 +27,21 @@ export interface PublicProfile {
   following_count: number;
   is_following: boolean;
   is_self: boolean;
+}
+
+export interface EditableProfile {
+  profile_name: string;
+  community_name: string;
+  email: string;
+  phone: string;
+  avatar_url: string;
+}
+
+export interface UpdatedProfileUser {
+  user_id: string;
+  profile_name: string;
+  community_name?: string;
+  avatar_url?: string | null;
 }
 
 export interface CommentsResponse {
@@ -144,14 +160,50 @@ export class CommunityService {
     return this.http.post<{ message: string }>(`/api/profiles/${userId}/report`, { reason, note });
   }
 
-  // ── Follow ──
-
-  toggleFollow(userId: string): Observable<{ following: boolean }> {
-    return this.http.post<{ following: boolean }>(`/api/follows/${userId}`, {});
+  updateMyProfile(payload: EditableProfile): Observable<{ user: UpdatedProfileUser }> {
+    return this.http.put<{ user: UpdatedProfileUser }>('/api/auth/profile', payload);
   }
 
+  // ── Follow ──
+
+  toggleFollow(userId: string): Observable<FollowStatus> {
+    return this.http.post<FollowStatus>(`/api/follows/${userId}`, {});
+  }
+
+  /** Idempotent: following an account you already follow still returns { following: true } */
+  follow(userId: string): Observable<FollowStatus> {
+    return this.http.put<FollowStatus>(`/api/follows/${userId}`, {});
+  }
+
+  /** Idempotent: returns { following: false } even if you did not follow */
+  unfollow(userId: string): Observable<FollowStatus> {
+    return this.http.delete<FollowStatus>(`/api/follows/${userId}`);
+  }
+
+  getFollowStatus(userId: string): Observable<FollowStatus> {
+    return this.http.get<FollowStatus>(`/api/follows/${userId}/status`);
+  }
+
+  /** user_ids the signed-in user follows — for follow buttons on feed cards */
   getFollowingIds(): Observable<{ data: string[] }> {
     return this.http.get<{ data: string[] }>('/api/follows/ids');
+  }
+
+  /** People the signed-in user follows (Following list of the Feed) */
+  getMyFollowing(page: number = 1, limit: number = 20): Observable<FollowListResponse> {
+    return this.http.get<FollowListResponse>('/api/follows/following', { params: { page, limit } });
+  }
+
+  getUserFollowing(userId: string, page: number = 1, limit: number = 20): Observable<FollowListResponse> {
+    return this.http.get<FollowListResponse>(`/api/follows/${userId}/following`, {
+      params: { page, limit },
+    });
+  }
+
+  getUserFollowers(userId: string, page: number = 1, limit: number = 20): Observable<FollowListResponse> {
+    return this.http.get<FollowListResponse>(`/api/follows/${userId}/followers`, {
+      params: { page, limit },
+    });
   }
 
   // ── Comments ──

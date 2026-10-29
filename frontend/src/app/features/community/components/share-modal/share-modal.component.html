@@ -1,5 +1,5 @@
 <div class="share-overlay" (click)="onBackdropClick()">
-  <div class="share-modal" (click)="$event.stopPropagation()">
+  <div class="share-modal" [class.share-modal--compact]="compact" (click)="$event.stopPropagation()">
 
     <button class="btn-close" type="button" (click)="onRequestClose()" aria-label="Close">
       <svg width="28" height="28" viewBox="0 0 24 24" style="fill: none;">

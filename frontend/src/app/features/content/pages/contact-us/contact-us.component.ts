@@ -1,9 +1,16 @@
-import { Component, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, AfterViewInit, OnDestroy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, NgForm } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { LucideMail, LucidePhone, LucideMapPin, LucideChevronDown } from '@lucide/angular';
 import { InlineValidator, FieldConfig } from '../../../../shared/utils/inline-validator';
 import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
+import { ContactMessageService } from '../../../../shared/services/contact-message.service';
+import {
+  CONTACT_SUBJECTS,
+  ContactMessageError,
+  ContactSubject
+} from '../../../../shared/models/contact-message.model';
 
 @Component({
   selector: 'app-contact-us',
@@ -21,22 +28,20 @@ import { BackToTopComponent } from '../../../../shared/components/back-to-top/ba
   styleUrl: './contact-us.component.scss'
 })
 export class ContactUsComponent implements AfterViewInit, OnDestroy {
+  private contactMessageService = inject(ContactMessageService);
+  private cdr = inject(ChangeDetectorRef);
+
   fullName = '';
   email = '';
-  subject = 'General Inquiry';
+  subject: ContactSubject = 'General Inquiry';
   message = '';
 
-  subjects = [
-    'General Inquiry',
-    'Order Status',
-    'Product Support',
-    'Partnership',
-    'Feedback'
-  ];
+  subjects = CONTACT_SUBJECTS;
 
   isSubmitting = false;
   submitSuccess = false;
   submitError = false;
+  submitErrorMessage = '';
   isSubjectDropdownOpen = false;
 
   contactValidator: InlineValidator | null = null;
@@ -45,7 +50,7 @@ export class ContactUsComponent implements AfterViewInit, OnDestroy {
     this.isSubjectDropdownOpen = !this.isSubjectDropdownOpen;
   }
 
-  selectSubject(opt: string): void {
+  selectSubject(opt: ContactSubject): void {
     this.subject = opt;
     this.isSubjectDropdownOpen = false;
   }
@@ -94,30 +99,48 @@ export class ContactUsComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  submitMessage(form: any): void {
+  submitMessage(form: NgForm): void {
     if (this.contactValidator && !this.contactValidator.validateAll()) {
       return;
     }
-    if (form.invalid) {
+    if (form.invalid || this.isSubmitting) {
       return;
     }
 
     this.isSubmitting = true;
     this.submitSuccess = false;
     this.submitError = false;
+    this.submitErrorMessage = '';
 
-    // Simulate API request
-    setTimeout(() => {
-      this.isSubmitting = false;
-      this.submitSuccess = true;
-      this.fullName = '';
-      this.email = '';
-      this.subject = 'General Inquiry';
-      this.message = '';
-      form.resetForm({ subject: 'General Inquiry' });
-      if (this.contactValidator) {
-        this.contactValidator.clearAll();
+    this.contactMessageService.send({
+      full_name: this.fullName.trim(),
+      email: this.email.trim(),
+      subject: this.subject,
+      message: this.message.trim(),
+      source: 'contact_form'
+    }).subscribe({
+      next: () => {
+        this.isSubmitting = false;
+        this.submitSuccess = true;
+        this.fullName = '';
+        this.email = '';
+        this.subject = 'General Inquiry';
+        this.message = '';
+        form.resetForm({ subject: 'General Inquiry' });
+        if (this.contactValidator) {
+          this.contactValidator.clearAll();
+        }
+        this.cdr.markForCheck();
+      },
+      error: (err: HttpErrorResponse) => {
+        const body = (err.error && typeof err.error === 'object' ? err.error : {}) as Partial<ContactMessageError>;
+        this.isSubmitting = false;
+        this.submitError = true;
+        this.submitErrorMessage = err.status === 400 && body.message
+          ? body.message
+          : 'Oops! Something went wrong. Please try again.';
+        this.cdr.markForCheck();
       }
-    }, 1500);
+    });
   }
 }

@@ -4,12 +4,7 @@ const Follow = require('../models/Follow');
 const AccountReport = require('../models/AccountReport');
 const { REPORT_REASONS } = require('../models/PostReport');
 
-async function currentCommunityUserId(req) {
-  const tokenId = String(req.user?.user_id || '');
-  if (!tokenId) return null;
-  const user = await User.findById(tokenId, 'user_id').lean().catch(() => null);
-  return user?.user_id || tokenId;
-}
+const { resolveCommunityUserId: currentCommunityUserId } = require('../services/follow.service');
 
 // GET /api/profiles/:userId  – public, no email/phone/address. Suspended accounts are not shown.
 async function getPublicProfile(req, res) {
@@ -75,4 +70,4 @@ async function reportAccount(req, res) {
   }
 }
 
-module.exports = { getPublicProfile, reportAccount, currentCommunityUserId };
+module.exports = { getPublicProfile, reportAccount };

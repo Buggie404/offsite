@@ -154,6 +154,8 @@ Trình duyệt ─────────────────────�
 | `/api/posts` | `posts.routes.js` | Bài viết cộng đồng |
 | `/api/comments` | `comments.routes.js` | Bình luận |
 | `/api/notifications` | `notifications.routes.js` | Thông báo |
+| `/api/follows` | `follows.routes.js` | Follow / unfollow, danh sách Following / Followers (logic ở `services/follow.service.js`) |
+| `/api/contact-messages` | `contact-messages.routes.js` | Tin nhắn Contact Us và form dự phòng của chatbot. CSKH xử lý qua `/api/admin/contact-messages` |
 | `/api/admin` | `admin.routes.js` | Quản trị (xem mục 7.7) |
 | `/auth/callback/google`, `/auth/callback/facebook` | khai báo trực tiếp trong `app.js` | Redirect về `${CLIENT_URL}/oauth-success?token=...` |
 | `/api/health` | khai báo trực tiếp trong `app.js` | Health check |

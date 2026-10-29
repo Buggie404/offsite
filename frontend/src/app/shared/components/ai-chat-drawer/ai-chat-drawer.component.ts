@@ -28,6 +28,7 @@ import {
 import { AiChatService } from './ai-chat.service';
 import { CartService } from '../../../features/purchase/services/cart.service';
 import { ToastService } from '../../services/toast.service';
+import { ContactMessageService } from '../../services/contact-message.service';
 import { ChatMessage, ChatHistoryItem, ChatMessageOrder, ChatMessageProduct, ChatSupportAction } from './ai-chat.types';
 
 @Component({
@@ -60,6 +61,7 @@ export class AiChatDrawerComponent {
   protected readonly chatService = inject(AiChatService);
   private readonly cartService = inject(CartService);
   private readonly toastService = inject(ToastService);
+  private readonly contactMessageService = inject(ContactMessageService);
   private readonly router = inject(Router);
 
   @ViewChild('messagesContainer') private messagesContainer?: ElementRef<HTMLDivElement>;
@@ -313,12 +315,38 @@ export class AiChatDrawerComponent {
           this.contactMessageError = body.message || 'This chat is closed.';
           return;
         }
+        // Chat service down (network / 5xx): keep the message in ContactMessages instead of losing it
+        if (!err?.status || err.status >= 500) {
+          this.saveContactFallback(msg, email, text);
+          return;
+        }
         const message = body.message || 'Could not send your message. Please try again.';
         if (body.field === 'email') {
           this.contactEmailError = message;
         } else {
           this.contactMessageError = message;
         }
+      }
+    });
+  }
+
+  private saveContactFallback(msg: ChatMessage, email: string, text: string): void {
+    this.isSendingContact = true;
+    this.contactMessageService.send({
+      email,
+      message: text,
+      source: 'chatbot',
+      chat_session_id: this.chatService.sessionId() || null
+    }).subscribe({
+      next: () => {
+        this.isSendingContact = false;
+        this.chatService.markContactSubmitted(msg.id);
+        this.contactEmail = '';
+        this.contactMessage = '';
+      },
+      error: () => {
+        this.isSendingContact = false;
+        this.contactMessageError = 'Could not send your message. Please try again.';
       }
     });
   }

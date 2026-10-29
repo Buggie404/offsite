@@ -71,6 +71,7 @@
               #messageInput="ngModel"
               required 
               rows="5"
+              maxlength="2000"
               placeholder="How can we help you today?"
               [class.error]="messageInput.touched && messageInput.invalid"></textarea>
             <span class="error-msg" *ngIf="messageInput.touched && messageInput.invalid">Message cannot be empty</span>
@@ -81,7 +82,7 @@
               Thank you! Your message has been sent successfully. We'll get back to you shortly.
             </div>
             <div class="alert error-alert" *ngIf="submitError">
-              Oops! Something went wrong. Please try again.
+              {{ submitErrorMessage }}
             </div>
           </div>
 

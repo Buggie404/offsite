@@ -6,6 +6,7 @@ const adminProductsController = require('../controllers/admin-products.controlle
 const authController = require('../controllers/auth.controller');
 const adminCommunityController = require('../controllers/admin-community.controller');
 const adminDashboardController = require('../controllers/admin-dashboard.controller');
+const contactMessagesController = require('../controllers/contact-messages.controller');
 const {
   authMiddleware,
   requireRole,
@@ -48,5 +49,10 @@ router.post('/community/posts/:postId/dismiss', authMiddleware, requireRole('adm
 router.get('/community/comment-reports', authMiddleware, requireRole('admin_cc', 'cskh'), adminCommunityController.listReportedComments);
 router.post('/community/comments/:commentId/hide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminCommunityController.hideComment);
 router.post('/community/comments/:commentId/unhide', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminCommunityController.unhideComment);
+
+// Contact Us inbox (Admin CC, CSKH): messages from the Contact page and the chatbot fallback form.
+router.get('/contact-messages', authMiddleware, requireRole('admin_cc', 'cskh'), contactMessagesController.listContactMessages);
+router.get('/contact-messages/:contactId', authMiddleware, requireRole('admin_cc', 'cskh'), contactMessagesController.getContactMessage);
+router.patch('/contact-messages/:contactId', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), contactMessagesController.updateContactMessage);
 
 module.exports = router;

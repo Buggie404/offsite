@@ -3,7 +3,7 @@ const User = require('../models/User');
 const Recipe = require('../models/Recipe');
 const PostReport = require('../models/PostReport');
 const Product = require('../models/Product');
-const Follow = require('../models/Follow');
+const { getFollowingIds, resolveCommunityUserId } = require('../services/follow.service');
 const { maybeAutoHide } = require('../services/post-moderation.service');
 const mongoose = require('mongoose');
 
@@ -71,8 +71,8 @@ async function getAllPosts(req, res) {
     // "Following" chip: only posts from accounts the signed-in user follows.
     if (following === 'true') {
       if (!req.user) return res.json({ data: [], total: 0, page: parseInt(page, 10), limit: parseInt(limit, 10) });
-      const rows = await Follow.find({ follower_id: req.user.user_id }, 'following_id').lean();
-      const followedIds = rows.map(r => r.following_id);
+      // Follows store User.user_id, the token carries the Mongo _id, so resolve first.
+      const followedIds = await getFollowingIds(await resolveCommunityUserId(req));
       const blocked = query.user_id && query.user_id.$nin ? query.user_id.$nin : [];
       query.user_id = { $in: followedIds.filter(id => !blocked.includes(id)) };
     }

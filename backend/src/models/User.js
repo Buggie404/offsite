@@ -93,6 +93,9 @@ const userSchema = new mongoose.Schema({
   profile_name: { type: String, required: true },
   community_name: { type: String, unique: true, sparse: true, default: null },
   avatar_url: { type: String, default: null },
+  // Cached counters, kept in sync by follow.service; is_following is computed per viewer, never stored.
+  followers_count: { type: Number, default: 0, min: 0 },
+  following_count: { type: Number, default: 0, min: 0 },
   role: { type: String, enum: ['customer', 'admin_cc', 'cskh', 'qlsp'], default: 'customer' },
   assigned_chat_customer_ids: { type: [String], default: [] },
   status: { type: String, enum: ['active', 'suspended'], default: 'active' },

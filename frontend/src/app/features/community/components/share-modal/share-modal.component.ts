@@ -17,6 +17,8 @@ export class ShareModalComponent {
   @Input() shareText = '';
   @Input() referralCode = '';
   @Input() showReferralLink = true;
+  // Smaller variant so the modal matches the report / edit modals on the same page
+  @Input() compact = false;
 
   @Output() close = new EventEmitter<void>();
 

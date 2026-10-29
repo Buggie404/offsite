@@ -1,32 +1,306 @@
 <main class="profile-page">
   <a class="back-link" routerLink="/community">← Community</a>
-  @if (loading) { <p class="state">Loading profile…</p> }
-  @else if (notFound || !profile) { <p class="state">This profile isn't available.</p> }
-  @else {
+
+  @if (loading) {
+    <p class="state">Loading profile…</p>
+  } @else if (notFound || !profile) {
+    <p class="state">This profile isn't available.</p>
+  } @else {
     <header class="profile-head">
-      <div class="avatar">@if (profile.avatar_url) { <img [src]="profile.avatar_url" [alt]="profile.username"> } @else { <span>{{ initials(profile.username) }}</span> }</div>
-      <div class="profile-info"><div class="identity"><h1>@{{ profile.username }}</h1><span class="badge badge--tier">{{ profile.membership_tier }}</span>@if (profile.ritual_dna_completed) { <span class="badge badge--dna">Zen purist</span> }</div>
-        <p class="owner-note" *ngIf="profile.is_self">Your public profile · only community info is shown</p>
-        <ul class="stats"><li><strong>{{ profile.post_count }}</strong><small>Posts</small></li><li><strong>{{ profile.recipe_count }}</strong><small>Recipes</small></li><li><strong>{{ profile.follower_count }}</strong><small>Followers</small></li><li><strong>{{ profile.following_count }}</strong><small>Following</small></li></ul>
+      <div class="avatar">
+        @if (profile.avatar_url) {
+          <img [src]="profile.avatar_url" [alt]="profile.username" />
+        } @else {
+          <span>{{ initials(profile.username) }}</span>
+        }
       </div>
-      <div class="actions">@if (profile.is_self) { <button class="edit-btn" (click)="editProfile()">Edit profile</button> } @else { <button class="follow-btn" [class.follow-btn--on]="profile.is_following" [disabled]="followBusy" (click)="toggleFollow()">{{ profile.is_following ? 'Following' : 'Follow' }}</button> }
-        <div class="menu-wrap"><button class="more-btn" (click)="menuOpen = !menuOpen" aria-label="Profile actions">•••</button>@if (menuOpen) { <div class="menu">@if (!profile.is_self) { <button (click)="menuOpen = false; reportOpen = true">Report account</button> }<button (click)="menuOpen = false; shareOpen = true">Share account</button></div> }</div>
+
+      <div class="profile-info">
+        <div class="identity">
+          <h1 class="username">&#64;{{ profile.username }}</h1>
+          <span class="badge badge--tier">{{ profile.membership_tier }}</span>
+          @if (profile.ritual_dna_completed) {
+            <span class="badge badge--dna">Zen purist</span>
+          }
+        </div>
+
+        <ul class="stats">
+          <li><strong>{{ profile.post_count }}</strong><small>Posts</small></li>
+          <li><strong>{{ profile.recipe_count }}</strong><small>Recipes</small></li>
+          <li><strong>{{ profile.follower_count }}</strong><small>Followers</small></li>
+          <li><strong>{{ profile.following_count }}</strong><small>Following</small></li>
+        </ul>
+      </div>
+
+      <div class="actions">
+        @if (profile.is_self) {
+          <button type="button" class="btn btn--outline" (click)="editProfile()">
+            <svg lucidePencil [size]="15"></svg>
+            <span>Edit profile</span>
+          </button>
+        } @else if (profile.is_following) {
+          <button
+            type="button"
+            class="btn btn--outline btn--following"
+            [disabled]="followBusy"
+            (click)="toggleFollow()"
+          >
+            <span class="label-default">Following</span>
+            <span class="label-hover">Unfollow</span>
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="btn btn--primary"
+            [disabled]="followBusy"
+            (click)="toggleFollow()"
+          >
+            <svg lucidePlus [size]="15"></svg>
+            <span>Follow</span>
+          </button>
+        }
+
+        <div class="menu-wrap">
+          <button
+            type="button"
+            class="btn btn--icon"
+            [class.is-active]="menuOpen"
+            aria-label="Profile actions"
+            aria-haspopup="menu"
+            [attr.aria-expanded]="menuOpen"
+            (click)="toggleMenu()"
+          >
+            <svg lucideEllipsis [size]="18"></svg>
+          </button>
+          @if (menuOpen) {
+            <div class="menu" role="menu">
+              <button type="button" role="menuitem" (click)="openShareAccount()">
+                <svg lucideShare2 [size]="15"></svg>
+                <span>Share account</span>
+              </button>
+              @if (!profile.is_self) {
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="menu-item--danger"
+                  (click)="openReportAccount()"
+                >
+                  <svg lucideFlag [size]="15"></svg>
+                  <span>Report account</span>
+                </button>
+              }
+            </div>
+          }
+        </div>
       </div>
     </header>
-    <nav class="tabs" aria-label="Profile content"><button [class.active]="activeTab === 'posts'" (click)="activeTab = 'posts'">Posts ({{ profile.post_count }})</button><button [class.active]="activeTab === 'recipes'" (click)="activeTab = 'recipes'">Recipes ({{ profile.recipe_count }})</button></nav>
-    @if (displayedPosts.length) { <section class="community-grid">@for (post of displayedPosts; track post.post_id) { <app-post-card [post]="post" [isOwner]="!!post.user_id && post.user_id === currentUserId()" (like)="likePost($event)" (save)="savePost($event)" (share)="sharePost($event)" (openDetail)="goToDetail($event)" (delete)="promptDeletePost($event)" (report)="openReport($event)" (edit)="openEdit($event)"></app-post-card> }</section> }
-    @else if (profile.is_self && profile.post_count === 0 && profile.recipe_count === 0) { <section class="empty-owner"><strong>Share your first post</strong><p>Your posts and recipes will appear here. Visitors see “No posts yet”.</p><button (click)="openCreatePost()">+ Create post</button></section> }
-    @else { <p class="state">No {{ activeTab }} yet.</p> }
+
+    <nav class="tabs" aria-label="Profile content">
+      <button type="button" [class.active]="activeTab === 'posts'" (click)="setTab('posts')">
+        Posts ({{ profile.post_count }})
+      </button>
+      <button type="button" [class.active]="activeTab === 'recipes'" (click)="setTab('recipes')">
+        Recipes ({{ profile.recipe_count }})
+      </button>
+    </nav>
+
+    @if (displayedPosts.length) {
+      <section class="community-grid">
+        @for (post of displayedPosts; track post.post_id) {
+          <app-post-card
+            [post]="post"
+            [isOwner]="!!post.user_id && post.user_id === currentUserId()"
+            (like)="likePost($event)"
+            (save)="savePost($event)"
+            (share)="sharePost($event)"
+            (openDetail)="goToDetail($event)"
+            (delete)="promptDeletePost($event)"
+            (report)="openReport($event)"
+            (edit)="openEdit($event)"
+          ></app-post-card>
+        }
+      </section>
+    } @else if (profile.is_self && profile.post_count === 0 && profile.recipe_count === 0) {
+      <section class="empty-owner">
+        <strong>Share your first post</strong>
+        <p>Your posts and recipes will appear here. Visitors see “No posts yet”.</p>
+        <button type="button" class="btn btn--primary" (click)="openCreatePost()">
+          <svg lucidePlus [size]="15"></svg>
+          <span>Create post</span>
+        </button>
+      </section>
+    } @else {
+      <p class="state">No {{ activeTab }} yet.</p>
+    }
   }
 </main>
-@if (postShareOpen) { <app-share-modal [shareUrl]="postShareUrl" (close)="postShareOpen = false"></app-share-modal> }
-@if (reportingPost; as rp) { <app-report-post-modal [authorUsername]="rp.author.username" [postExcerpt]="rp.content" [submitting]="postReportSubmitting" (cancel)="reportingPostId = null" (submitReport)="submitPostReport($event)"></app-report-post-modal> }
-@if (pendingDeletePost; as dp) { <app-confirmation-modal [isOpen]="true" [title]="dp.post_type === 'recipe' ? 'Delete Recipe?' : 'Delete Post?'" [message]="dp.post_type === 'recipe' ? 'Are you sure you want to delete this recipe?' : 'Are you sure you want to delete this post?'" warningMessage="This action cannot be undone." confirmText="DELETE" cancelText="CANCEL" type="danger" (confirm)="confirmDeletePost()" (cancel)="pendingDeletePost = null"></app-confirmation-modal> }
-@if (editPostOpen) { <app-create-post-modal [post]="editingPost" (saved)="onPostEdited($event)" (close)="closeEdit()"></app-create-post-modal> }
-@if (shareOpen) { <app-share-modal [shareUrl]="shareUrl" title="Share this account" linkLabel="Profile link" [shareText]="profile ? '@' + profile.username : ''" (close)="shareOpen = false"></app-share-modal> }
-@if (reportOpen && profile) { <app-report-post-modal target="account" [authorUsername]="profile.username" [submitting]="reportSubmitting" (cancel)="reportOpen = false" (submitReport)="submitAccountReport($event)"></app-report-post-modal> }
-@if (editOpen) { <div class="edit-overlay" (click)="editOpen = false"><section class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="edit-title" (click)="$event.stopPropagation()"><button class="edit-close" (click)="editOpen = false" aria-label="Close">×</button><h2 id="edit-title">Edit Profile</h2>
-  <div class="edit-avatar">@if (edit.avatar_url) { <img [src]="edit.avatar_url" alt="Your avatar"> } @else { <span>{{ initials(edit.community_name || edit.profile_name) }}</span> }</div><input #avatarInput type="file" accept="image/*" hidden (change)="onAvatarSelected($event)"><div class="photo-actions"><button class="photo-upload" (click)="avatarInput.click()">↥ Upload photo</button><button class="photo-remove" (click)="edit.avatar_url = ''">♧ Remove photo</button></div>
-  <label>Name<input [(ngModel)]="edit.profile_name" maxlength="80"></label><label>Community name<input [(ngModel)]="edit.community_name" maxlength="80"></label><label>Email<div class="readonly"><span>{{ edit.email || 'Not provided' }}</span><button type="button" (click)="editOpen = false; editProfile()">Change</button></div></label><label>Phone<div class="readonly"><span>{{ edit.phone || 'Not provided' }}</span><button type="button" (click)="editOpen = false; editProfile()">Change</button></div></label>
-  @if (editError) { <p class="edit-error">{{ editError }}</p> }<footer><button class="cancel" (click)="editOpen = false">Cancel</button><button class="save" [disabled]="editSaving || !edit.profile_name.trim() || !edit.community_name.trim()" (click)="saveProfile()">{{ editSaving ? 'Saving…' : 'Save changes' }}</button></footer>
-</section></div> }
+
+@if (postShareOpen) {
+  <app-share-modal
+    [compact]="true"
+    [shareUrl]="postShareUrl"
+    (close)="postShareOpen = false"
+  ></app-share-modal>
+}
+
+@if (reportingPost; as rp) {
+  <app-report-post-modal
+    [authorUsername]="rp.author.username"
+    [postExcerpt]="rp.content"
+    [submitting]="postReportSubmitting"
+    (cancel)="reportingPostId = null"
+    (submitReport)="submitPostReport($event)"
+  ></app-report-post-modal>
+}
+
+@if (pendingDeletePost; as dp) {
+  <app-confirmation-modal
+    [isOpen]="true"
+    [title]="dp.post_type === 'recipe' ? 'Delete Recipe?' : 'Delete Post?'"
+    [message]="
+      dp.post_type === 'recipe'
+        ? 'Are you sure you want to delete this recipe?'
+        : 'Are you sure you want to delete this post?'
+    "
+    warningMessage="This action cannot be undone."
+    confirmText="DELETE"
+    cancelText="CANCEL"
+    type="danger"
+    (confirm)="confirmDeletePost()"
+    (cancel)="pendingDeletePost = null"
+  ></app-confirmation-modal>
+}
+
+@if (editPostOpen) {
+  <app-create-post-modal
+    [post]="editingPost"
+    (saved)="onPostEdited($event)"
+    (close)="closeEdit()"
+  ></app-create-post-modal>
+}
+
+@if (shareOpen) {
+  <app-share-modal
+    [compact]="true"
+    [shareUrl]="shareUrl"
+    title="Share this account"
+    linkLabel="Profile link"
+    [shareText]="profile ? '@' + profile.username : ''"
+    (close)="shareOpen = false"
+  ></app-share-modal>
+}
+
+@if (reportOpen && profile) {
+  <app-report-post-modal
+    target="account"
+    [authorUsername]="profile.username"
+    [submitting]="reportSubmitting"
+    (cancel)="reportOpen = false"
+    (submitReport)="submitAccountReport($event)"
+  ></app-report-post-modal>
+}
+
+@if (editOpen) {
+  <div class="modal-overlay" (click)="closeEditProfile()">
+    <section
+      class="modal-card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-profile-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="modal-header">
+        <h3 class="modal-title" id="edit-profile-title">Edit profile</h3>
+        <button type="button" class="close-btn" aria-label="Close" (click)="closeEditProfile()">
+          <svg lucideX [size]="18"></svg>
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <div class="edit-avatar-block">
+          <div class="edit-avatar" [class.is-loading]="avatarUploading">
+            @if (edit.avatar_url) {
+              <img [src]="edit.avatar_url" alt="Your avatar" />
+            } @else {
+              <span>{{ initials(edit.community_name || edit.profile_name) }}</span>
+            }
+          </div>
+          <input #avatarInput type="file" accept="image/*" hidden (change)="onAvatarSelected($event)" />
+          <div class="photo-actions">
+            <button
+              type="button"
+              class="btn btn--primary btn--sm"
+              [disabled]="avatarUploading"
+              (click)="avatarInput.click()"
+            >
+              <svg lucideUpload [size]="14"></svg>
+              <span>{{ avatarUploading ? 'Uploading…' : 'Upload photo' }}</span>
+            </button>
+            @if (edit.avatar_url) {
+              <button type="button" class="btn btn--danger btn--sm" (click)="removeAvatar()">
+                <svg lucideTrash2 [size]="14"></svg>
+                <span>Remove</span>
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="edit-profile-name">Name</label>
+          <input
+            id="edit-profile-name"
+            class="field-input"
+            maxlength="80"
+            placeholder="Enter your full name"
+            [(ngModel)]="edit.profile_name"
+          />
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="edit-community-name">Community name</label>
+          <input
+            id="edit-community-name"
+            class="field-input"
+            maxlength="80"
+            placeholder="Shown as @name in the community"
+            [(ngModel)]="edit.community_name"
+          />
+        </div>
+
+        <div class="field">
+          <span class="field-label">Email</span>
+          <div class="field-readonly">
+            <span>{{ edit.email || 'Not provided' }}</span>
+            <button type="button" class="link-btn" (click)="goToAccountSettings()">Change</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Phone</span>
+          <div class="field-readonly">
+            <span>{{ edit.phone || 'Not provided' }}</span>
+            <button type="button" class="link-btn" (click)="goToAccountSettings()">Change</button>
+          </div>
+        </div>
+
+        @if (editError) {
+          <p class="field-error">{{ editError }}</p>
+        }
+      </div>
+
+      <footer class="modal-footer">
+        <button type="button" class="btn btn--outline btn--sm" (click)="closeEditProfile()">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn btn--primary btn--sm"
+          [disabled]="!canSaveProfile"
+          (click)="saveProfile()"
+        >
+          {{ editSaving ? 'Saving…' : 'Save changes' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}
