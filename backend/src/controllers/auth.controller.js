@@ -625,6 +625,7 @@ async function updateProfile(req, res) {
     if (phone) updateFields.phone = phone.trim();
     if (community_name !== undefined) updateFields.community_name = community_name ? community_name.trim() : null;
     if (req.body.avatar_url !== undefined) updateFields.avatar_url = req.body.avatar_url;
+    if (req.body.bio !== undefined) updateFields.bio = String(req.body.bio || '').trim().slice(0, 160);
 
     await userCollection.updateOne(
       { _id: userId },

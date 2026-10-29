@@ -8,7 +8,9 @@ export interface DashboardData {
   revenue_series: { date: string; revenue: number }[];
   todos: {
     waiting_to_ship: number; refund_requests: number; reports_to_review: number; chats_waiting: number;
-    low_stock_variants: number; ritual_box_payment_failed: number;
+    low_stock_variants: number;
+    /** Failed renewals + Ritual Boxes whose first charge failed (subscription_start_failed) */
+    ritual_box_payment_failed: number; ritual_box_start_failed: number;
   };
 }
 

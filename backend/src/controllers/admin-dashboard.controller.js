@@ -136,6 +136,16 @@ function revenueSeries(range, timezone) {
   });
 }
 
+// "Ritual Box payment failed" to-do: renewals that could not be charged plus orders whose
+// first Ritual Box charge failed at checkout (subscription_start_failed, never started).
+async function countRitualBoxPaymentFailed() {
+  const [renewals, notStarted] = await Promise.all([
+    Subscription.countDocuments({ status: 'payment_failed' }),
+    Order.countDocuments({ subscription_start_failed: true })
+  ]);
+  return { total: renewals + notStarted, notStarted };
+}
+
 async function getTodos() {
   const { start: todayStart, end: tomorrowStart } = getBusinessDayBounds();
   const createdToday = { $gte: todayStart, $lt: tomorrowStart };
@@ -150,7 +160,7 @@ async function getTodos() {
     // Products has no configurable low-stock threshold. Reuse the established
     // stock rule used by subscriptions and checkout: a variant at <= 0 needs action.
     Product.aggregate([{ $match: { is_active: true } }, { $unwind: '$variants' }, { $match: { 'variants.stock': { $lte: 0 } } }, { $count: 'count' }]),
-    Subscription.countDocuments({ status: 'payment_failed' })
+    countRitualBoxPaymentFailed()
   ]);
   return {
     waiting_to_ship: waitingToShip,
@@ -158,7 +168,8 @@ async function getTodos() {
     reports_to_review: posts.length + comments.length,
     chats_waiting: chats,
     low_stock_variants: lowStock[0]?.count || 0,
-    ritual_box_payment_failed: paymentFailed
+    ritual_box_payment_failed: paymentFailed.total,
+    ritual_box_start_failed: paymentFailed.notStarted
   };
 }
 
@@ -219,7 +230,7 @@ async function getSalesDashboard(req, res) {
         valid_to: { $gte: today },
         $expr: { $or: [{ $eq: ['$usage_limit', null] }, { $lt: ['$used_count', '$usage_limit'] }] }
       }),
-      Subscription.countDocuments({ status: 'payment_failed' })
+      countRitualBoxPaymentFailed()
     ]);
     const lowStockVariants = lowStock[0]?.count || 0;
     const reportsToReview = reportedPosts.length + reportedComments.length;
@@ -238,7 +249,8 @@ async function getSalesDashboard(req, res) {
         reports_to_review: reportsToReview,
         chats_waiting: waitingChats,
         low_stock_variants: lowStockVariants,
-        ritual_box_payment_failed: failedRitualBoxes
+        ritual_box_payment_failed: failedRitualBoxes.total,
+        ritual_box_start_failed: failedRitualBoxes.notStarted
       }
     });
   } catch (error) {

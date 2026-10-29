@@ -93,6 +93,8 @@ const userSchema = new mongoose.Schema({
   profile_name: { type: String, required: true },
   community_name: { type: String, unique: true, sparse: true, default: null },
   avatar_url: { type: String, default: null },
+  // Short public bio shown on the community profile
+  bio: { type: String, default: '', maxlength: 160 },
   // Cached counters, kept in sync by follow.service; is_following is computed per viewer, never stored.
   followers_count: { type: Number, default: 0, min: 0 },
   following_count: { type: Number, default: 0, min: 0 },

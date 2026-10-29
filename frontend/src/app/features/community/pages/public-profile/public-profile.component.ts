@@ -13,6 +13,8 @@ import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import {
+  LucideArrowLeft,
+  LucideCheck,
   LucideEllipsis,
   LucideFlag,
   LucidePencil,
@@ -24,6 +26,7 @@ import {
 } from '@lucide/angular';
 import {
   CommunityService,
+  ContactType,
   EditableProfile,
   PublicProfile,
 } from '../../services/community.service';
@@ -51,7 +54,25 @@ const EMPTY_EDIT: EditableProfile = {
   email: '',
   phone: '',
   avatar_url: '',
+  bio: '',
 };
+
+export const BIO_MAX_LENGTH = 160;
+const OTP_RESEND_SECONDS = 2 * 60;
+
+// Inline "Change email / phone" step inside the Edit profile modal
+interface ContactChange {
+  type: ContactType;
+  step: 'input' | 'otp';
+  value: string;
+  otp: string;
+  maskedContact: string;
+  mockOtp: string;
+  sending: boolean;
+  verifying: boolean;
+  error: string;
+  countdown: number;
+}
 
 @Component({
   selector: 'app-public-profile',
@@ -66,6 +87,8 @@ const EMPTY_EDIT: EditableProfile = {
     CreatePostModalComponent,
     ConfirmationModalComponent,
     FollowModalComponent,
+    LucideArrowLeft,
+    LucideCheck,
     LucideEllipsis,
     LucideFlag,
     LucidePencil,
@@ -110,6 +133,10 @@ export class PublicProfileComponent implements OnInit {
   avatarUploading = false;
   editError = '';
   edit: EditableProfile = { ...EMPTY_EDIT };
+  readonly bioMaxLength = BIO_MAX_LENGTH;
+  contactChange: ContactChange | null = null;
+  verifiedContacts = new Set<ContactType>();
+  private otpTimer: ReturnType<typeof setInterval> | null = null;
 
   // ── Post cards (same card + actions as the All Stories feed) ──
   currentUserId = computed<string | undefined>(() => this.auth.currentUser()?.user_id);
@@ -120,6 +147,10 @@ export class PublicProfileComponent implements OnInit {
   pendingDeletePost: Post | null = null;
   editingPost: Post | null = null;
   editPostOpen = false;
+
+  constructor() {
+    this.destroyRef.onDestroy(() => this.stopOtpTimer());
+  }
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
@@ -148,7 +179,7 @@ export class PublicProfileComponent implements OnInit {
     return (
       !this.editSaving &&
       !this.avatarUploading &&
-      !!this.edit.profile_name.trim() &&
+      !this.contactChange &&
       !!this.edit.community_name.trim()
     );
   }
@@ -164,6 +195,7 @@ export class PublicProfileComponent implements OnInit {
   @HostListener('document:keydown.escape')
   onEscape(): void {
     if (this.menuOpen) this.menuOpen = false;
+    else if (this.contactChange) this.cancelContactChange();
     else if (this.editOpen && !this.editSaving) this.editOpen = false;
   }
 
@@ -404,8 +436,11 @@ export class PublicProfileComponent implements OnInit {
         email: user.email || '',
         phone: user.phone || '',
         avatar_url: user.avatar_url || '',
+        bio: user.bio || '',
       };
       this.editError = '';
+      this.cancelContactChange();
+      this.verifiedContacts.clear();
       this.editOpen = true;
       this.cdr.markForCheck();
     } catch {
@@ -415,13 +450,124 @@ export class PublicProfileComponent implements OnInit {
 
   closeEditProfile(): void {
     if (this.editSaving) return;
+    this.cancelContactChange();
     this.editOpen = false;
   }
 
-  // Email / phone changes need OTP verification, which lives in the Account page
-  goToAccountSettings(): void {
-    this.editOpen = false;
-    void this.router.navigate(['/account']);
+  // ── Change email / phone inline (OTP verified, saved with "Save changes") ──
+
+  startContactChange(type: ContactType): void {
+    this.stopOtpTimer();
+    this.contactChange = {
+      type,
+      step: 'input',
+      value: '',
+      otp: '',
+      maskedContact: '',
+      mockOtp: '',
+      sending: false,
+      verifying: false,
+      error: '',
+      countdown: 0,
+    };
+  }
+
+  cancelContactChange(): void {
+    this.stopOtpTimer();
+    this.contactChange = null;
+  }
+
+  private contactError(change: ContactChange): string {
+    const value = change.value.trim();
+    if (change.type === 'email') {
+      if (!value) return 'Email is required.';
+      if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) return 'Invalid email format.';
+      if (value.toLowerCase() === this.edit.email.toLowerCase()) return 'This is already your email.';
+    } else {
+      if (!value) return 'Phone number is required.';
+      if (!/^[0-9]{10,11}$/.test(value)) return 'Phone number must be 10-11 digits.';
+      if (value === this.edit.phone) return 'This is already your phone number.';
+    }
+    return '';
+  }
+
+  sendContactOtp(): void {
+    const change = this.contactChange;
+    if (!change || change.sending || change.countdown > 0) return;
+    change.error = this.contactError(change);
+    if (change.error) return;
+    change.sending = true;
+    this.community.sendProfileOtp(change.type, change.value.trim()).subscribe({
+      next: (res) => {
+        change.sending = false;
+        change.step = 'otp';
+        change.otp = '';
+        change.maskedContact = res.maskedContact || change.value.trim();
+        change.mockOtp = res.__mock || '';
+        this.startOtpTimer(change);
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        change.sending = false;
+        change.error = error?.error?.error || 'Failed to send the code.';
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  onOtpInput(value: string): void {
+    if (!this.contactChange) return;
+    this.contactChange.otp = value.replace(/\D/g, '').slice(0, 6);
+    this.contactChange.error = '';
+  }
+
+  verifyContactOtp(): void {
+    const change = this.contactChange;
+    if (!change || change.verifying || change.otp.length !== 6) return;
+    change.verifying = true;
+    change.error = '';
+    const value = change.value.trim();
+    this.community.verifyProfileOtp(change.type, value, change.otp).subscribe({
+      next: (res) => {
+        if (change.type === 'email') this.edit.email = value.toLowerCase();
+        else this.edit.phone = value;
+        this.verifiedContacts.add(change.type);
+        this.cancelContactChange();
+        const linked = Array.isArray(res?.linked_guest_orders) ? res.linked_guest_orders.length : 0;
+        if (linked) {
+          this.toast.success(
+            `We found ${linked} earlier order${linked > 1 ? 's' : ''} placed as a guest, now in your order history.`,
+          );
+        }
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        change.verifying = false;
+        change.otp = '';
+        change.error = error?.error?.error || 'Verification failed.';
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  get otpCountdownLabel(): string {
+    const seconds = this.contactChange?.countdown || 0;
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+
+  private startOtpTimer(change: ContactChange): void {
+    this.stopOtpTimer();
+    change.countdown = OTP_RESEND_SECONDS;
+    this.otpTimer = setInterval(() => {
+      change.countdown = Math.max(0, change.countdown - 1);
+      if (!change.countdown) this.stopOtpTimer();
+      this.cdr.markForCheck();
+    }, 1000);
+  }
+
+  private stopOtpTimer(): void {
+    if (this.otpTimer) clearInterval(this.otpTimer);
+    this.otpTimer = null;
   }
 
   onAvatarSelected(event: Event): void {
@@ -455,8 +601,8 @@ export class PublicProfileComponent implements OnInit {
     this.community
       .updateMyProfile({
         ...this.edit,
-        profile_name: this.edit.profile_name.trim(),
         community_name: this.edit.community_name.trim(),
+        bio: this.edit.bio.trim(),
       })
       .subscribe({
         next: (response) => {
@@ -466,6 +612,7 @@ export class PublicProfileComponent implements OnInit {
           if (this.profile) {
             this.profile.username = response.user.community_name || response.user.profile_name;
             this.profile.avatar_url = response.user.avatar_url || null;
+            this.profile.bio = response.user.bio || '';
           }
           this.toast.success('Profile updated.');
           this.cdr.markForCheck();

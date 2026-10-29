@@ -45,12 +45,12 @@
       </article>
 
       <article class="panel todo-panel"><div class="panel__title"><h2>To do today</h2></div>
-        <button class="todo" (click)="todoClick('/admin/orders', { status: 'processing', date: 'today' })"><span>◈ Orders waiting to ship</span><b>{{ data.todos.waiting_to_ship }}</b><i>›</i></button>
-        <button class="todo" (click)="todoClick('/admin/orders', { status: 'pending_refund', date: 'today' })"><span>↶ Refund requests</span><b>{{ data.todos.refund_requests }}</b><i>›</i></button>
-        <button class="todo" (click)="todoClick('/admin/community-reports')"><span>⚑ Reports to review</span><b>{{ data.todos.reports_to_review }}</b><i>›</i></button>
-        <button class="todo" (click)="todoClick('/admin/chat', { status: 'waiting' })"><span>◧ Chats waiting</span><b>{{ data.todos.chats_waiting }}</b><i>›</i></button>
-        <button class="todo" (click)="todoClick('/admin/products')"><span>△ Low stock variants</span><b>{{ data.todos.low_stock_variants }}</b><i>›</i></button>
-        <button class="todo" (click)="todoClick('/admin/subscriptions', { status: 'needs_action' })"><span>▤ Ritual Box payment failed</span><b>{{ data.todos.ritual_box_payment_failed }}</b><i>›</i></button>
+        <button class="todo" (click)="todoClick('/admin/orders', { status: 'processing', date: 'today' })"><span><svg lucidePackage [size]="16"></svg>Orders waiting to ship</span><b>{{ data.todos.waiting_to_ship }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+        <button class="todo" (click)="todoClick('/admin/orders', { status: 'pending_refund', date: 'today' })"><span><svg lucideUndo2 [size]="16"></svg>Refund requests</span><b>{{ data.todos.refund_requests }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+        <button class="todo" (click)="todoClick('/admin/community-reports')"><span><svg lucideFlag [size]="16"></svg>Reports to review</span><b>{{ data.todos.reports_to_review }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+        <button class="todo" (click)="todoClick('/admin/chat', { status: 'waiting' })"><span><svg lucideMessagesSquare [size]="16"></svg>Chats waiting</span><b>{{ data.todos.chats_waiting }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+        <button class="todo" (click)="todoClick('/admin/products')"><span><svg lucideTriangleAlert [size]="16"></svg>Low stock variants</span><b>{{ data.todos.low_stock_variants }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+        <button class="todo" (click)="ritualBoxFailedClick()"><span><svg lucideCreditCard [size]="16"></svg>Ritual Box payment failed</span><b>{{ data.todos.ritual_box_payment_failed }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
       </article>
     </div>
   }

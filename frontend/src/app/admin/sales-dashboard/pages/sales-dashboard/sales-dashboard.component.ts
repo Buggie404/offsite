@@ -2,6 +2,7 @@ import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { LucideChevronRight, LucideCreditCard, LucideFlag, LucideMessagesSquare, LucidePackage, LucideTriangleAlert, LucideUndo2 } from '@lucide/angular';
 import { SalesDashboardData, SalesDashboardService } from '../../services/sales-dashboard.service';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 
@@ -10,7 +11,7 @@ type RangeKey = 'today' | '7' | '30' | '90' | 'custom';
 @Component({
   selector: 'app-sales-dashboard',
   standalone: true,
-  imports: [CommonModule, DecimalPipe, FormsModule],
+  imports: [CommonModule, DecimalPipe, FormsModule, LucideChevronRight, LucideCreditCard, LucideFlag, LucideMessagesSquare, LucidePackage, LucideTriangleAlert, LucideUndo2],
   templateUrl: './sales-dashboard.component.html',
   styleUrl: './sales-dashboard.component.scss'
 })
@@ -81,6 +82,14 @@ export class SalesDashboardComponent implements OnInit {
     // Services-Ops modules simply by using a dashboard shortcut.
     if (this.adminAuth.getAdminRole() === 'qlsp' && ['/admin/chat', '/admin/community-reports'].includes(path)) return;
     void this.router.navigate([path], { queryParams });
+  }
+
+  // Failed renewals live on Subscriptions; Ritual Boxes that never started live on Orders.
+  ritualBoxFailedClick(): void {
+    const todos = this.data?.todos;
+    const renewals = (todos?.ritual_box_payment_failed || 0) - (todos?.ritual_box_start_failed || 0);
+    if (!renewals && todos?.ritual_box_start_failed) this.navigate('/admin/orders', { attention: 'ritual_box_not_started' });
+    else this.navigate('/admin/subscriptions', { status: 'needs_action' });
   }
 
   orderQueryParams(status: 'processing' | 'pending_refund'): Record<string, string> {

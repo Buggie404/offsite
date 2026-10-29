@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 
 export interface SalesDashboardData {
   kpis: { orders_to_ship: number; refund_requests: number; low_stock_variants: number; active_vouchers: number };
-  todos: { orders_to_ship: number; refund_requests: number; reports_to_review: number; chats_waiting: number; low_stock_variants: number; ritual_box_payment_failed: number };
+  todos: { orders_to_ship: number; refund_requests: number; reports_to_review: number; chats_waiting: number; low_stock_variants: number; ritual_box_payment_failed: number; ritual_box_start_failed: number };
 }
 
 @Injectable({ providedIn: 'root' })

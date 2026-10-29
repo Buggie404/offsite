@@ -13,7 +13,7 @@ async function getPublicProfile(req, res) {
     const { userId } = req.params;
     const user = await User.findOne(
       { user_id: userId, status: 'active' },
-      'user_id community_name profile_name avatar_url membership_tier ritual_dna_quiz_completed createdAt'
+      'user_id community_name profile_name avatar_url bio membership_tier ritual_dna_quiz_completed createdAt'
     ).lean();
     if (!user) return res.status(404).json({ error: 'Profile not found' });
 
@@ -31,6 +31,7 @@ async function getPublicProfile(req, res) {
       user_id: user.user_id,
       username: user.community_name || user.profile_name,
       avatar_url: user.avatar_url || null,
+      bio: user.bio || '',
       membership_tier: user.membership_tier || 'Seed',
       ritual_dna_completed: !!user.ritual_dna_quiz_completed,
       joined_at: user.createdAt,

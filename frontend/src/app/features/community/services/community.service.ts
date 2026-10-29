@@ -29,6 +29,7 @@ export interface PublicProfile {
   user_id: string;
   username: string;
   avatar_url: string | null;
+  bio: string;
   membership_tier: 'Seed' | 'Leaf' | 'Bloom' | 'Zen';
   ritual_dna_completed: boolean;
   joined_at: string;
@@ -46,6 +47,15 @@ export interface EditableProfile {
   email: string;
   phone: string;
   avatar_url: string;
+  bio: string;
+}
+
+export type ContactType = 'email' | 'phone';
+
+export interface ProfileOtpSent {
+  maskedContact?: string;
+  /** OTP echoed back outside production, for testing without email/SMS */
+  __mock?: string;
 }
 
 export interface UpdatedProfileUser {
@@ -53,6 +63,7 @@ export interface UpdatedProfileUser {
   profile_name: string;
   community_name?: string;
   avatar_url?: string | null;
+  bio?: string;
 }
 
 export interface CommentsResponse {
@@ -173,6 +184,15 @@ export class CommunityService {
 
   updateMyProfile(payload: EditableProfile): Observable<{ user: UpdatedProfileUser }> {
     return this.http.put<{ user: UpdatedProfileUser }>('/api/auth/profile', payload);
+  }
+
+  /** Same OTP flow as the Account page: verify first, the new value is saved with updateMyProfile */
+  sendProfileOtp(type: ContactType, value: string): Observable<ProfileOtpSent> {
+    return this.http.post<ProfileOtpSent>('/api/auth/send-profile-otp', { type, value });
+  }
+
+  verifyProfileOtp(type: ContactType, value: string, otp: string): Observable<{ linked_guest_orders?: unknown[] }> {
+    return this.http.post<{ linked_guest_orders?: unknown[] }>('/api/auth/verify-profile-otp', { type, value, otp });
   }
 
   // ── Follow ──

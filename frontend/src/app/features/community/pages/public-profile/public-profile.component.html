@@ -1,8 +1,11 @@
 <main class="profile-page">
-  <a class="back-link" routerLink="/community">← Community</a>
+  <a class="back-link" routerLink="/community">
+    <svg lucideArrowLeft [size]="15"></svg>
+    <span>Community</span>
+  </a>
 
   @if (loading) {
-    <p class="state">Loading profile…</p>
+    <p class="state">Loading profile...</p>
   } @else if (notFound || !profile) {
     <p class="state">This profile isn't available.</p>
   } @else {
@@ -23,6 +26,15 @@
             <span class="badge badge--dna">Zen purist</span>
           }
         </div>
+
+        @if (profile.bio) {
+          <p class="bio">{{ profile.bio }}</p>
+        } @else if (profile.is_self) {
+          <button type="button" class="bio bio--empty" (click)="editProfile()">
+            <svg lucidePencil [size]="13"></svg>
+            <span>Add a short bio</span>
+          </button>
+        }
 
         <ul class="stats">
           <li><strong>{{ profile.post_count }}</strong><small>Posts</small></li>
@@ -242,7 +254,7 @@
               (click)="avatarInput.click()"
             >
               <svg lucideUpload [size]="14"></svg>
-              <span>{{ avatarUploading ? 'Uploading…' : 'Upload photo' }}</span>
+              <span>{{ avatarUploading ? 'Uploading...' : 'Upload photo' }}</span>
             </button>
             @if (edit.avatar_url) {
               <button type="button" class="btn btn--danger btn--sm" (click)="removeAvatar()">
@@ -251,17 +263,6 @@
               </button>
             }
           </div>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="edit-profile-name">Name</label>
-          <input
-            id="edit-profile-name"
-            class="field-input"
-            maxlength="80"
-            placeholder="Enter your full name"
-            [(ngModel)]="edit.profile_name"
-          />
         </div>
 
         <div class="field">
@@ -276,20 +277,24 @@
         </div>
 
         <div class="field">
-          <span class="field-label">Email</span>
-          <div class="field-readonly">
-            <span>{{ edit.email || 'Not provided' }}</span>
-            <button type="button" class="link-btn" (click)="goToAccountSettings()">Change</button>
-          </div>
+          <label class="field-label" for="edit-bio">Bio</label>
+          <textarea
+            id="edit-bio"
+            class="field-input field-textarea"
+            rows="3"
+            [maxlength]="bioMaxLength"
+            placeholder="Tell the community a little about your tea ritual"
+            [(ngModel)]="edit.bio"
+          ></textarea>
+          <span class="field-hint field-hint--end">{{ edit.bio.length }}/{{ bioMaxLength }}</span>
         </div>
 
-        <div class="field">
-          <span class="field-label">Phone</span>
-          <div class="field-readonly">
-            <span>{{ edit.phone || 'Not provided' }}</span>
-            <button type="button" class="link-btn" (click)="goToAccountSettings()">Change</button>
-          </div>
-        </div>
+        <ng-container
+          *ngTemplateOutlet="contactField; context: { type: 'email', label: 'Email', value: edit.email }"
+        ></ng-container>
+        <ng-container
+          *ngTemplateOutlet="contactField; context: { type: 'phone', label: 'Phone', value: edit.phone }"
+        ></ng-container>
 
         @if (editError) {
           <p class="field-error">{{ editError }}</p>
@@ -306,12 +311,99 @@
           [disabled]="!canSaveProfile"
           (click)="saveProfile()"
         >
-          {{ editSaving ? 'Saving…' : 'Save changes' }}
+          {{ editSaving ? 'Saving...' : 'Save changes' }}
         </button>
       </footer>
     </section>
   </div>
 }
+
+<ng-template #contactField let-type="type" let-label="label" let-value="value">
+  <div class="field">
+    <span class="field-label">{{ label }}</span>
+
+    @if (contactChange?.type === type && contactChange; as change) {
+      <div class="contact-change">
+        @if (change.step === 'input') {
+          <div class="contact-row">
+            <input
+              class="field-input"
+              [type]="type === 'email' ? 'email' : 'tel'"
+              [attr.inputmode]="type === 'phone' ? 'numeric' : null"
+              [placeholder]="type === 'email' ? 'New email address' : 'New phone number'"
+              [(ngModel)]="change.value"
+              (ngModelChange)="change.error = ''"
+              (keydown.enter)="sendContactOtp()"
+            />
+            <button
+              type="button"
+              class="btn btn--primary btn--sm"
+              [disabled]="change.sending || !change.value.trim()"
+              (click)="sendContactOtp()"
+            >
+              {{ change.sending ? 'Sending...' : 'Send code' }}
+            </button>
+          </div>
+        } @else {
+          <p class="field-hint">
+            Enter the 6-digit code sent to <strong>{{ change.maskedContact }}</strong>
+            @if (change.mockOtp) {
+              <span class="mock-otp">(dev code: {{ change.mockOtp }})</span>
+            }
+          </p>
+          <div class="contact-row">
+            <input
+              class="field-input otp-input"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              maxlength="6"
+              placeholder="000000"
+              [ngModel]="change.otp"
+              (ngModelChange)="onOtpInput($event)"
+              (keydown.enter)="verifyContactOtp()"
+            />
+            <button
+              type="button"
+              class="btn btn--primary btn--sm"
+              [disabled]="change.verifying || change.otp.length !== 6"
+              (click)="verifyContactOtp()"
+            >
+              {{ change.verifying ? 'Verifying...' : 'Verify' }}
+            </button>
+          </div>
+          <button
+            type="button"
+            class="link-btn link-btn--inline"
+            [disabled]="change.countdown > 0 || change.sending"
+            (click)="sendContactOtp()"
+          >
+            {{ change.countdown > 0 ? 'Resend code in ' + otpCountdownLabel : 'Resend code' }}
+          </button>
+        }
+
+        @if (change.error) {
+          <p class="field-error">{{ change.error }}</p>
+        }
+        <button type="button" class="link-btn link-btn--inline link-btn--muted" (click)="cancelContactChange()">
+          Cancel
+        </button>
+      </div>
+    } @else {
+      <div class="field-readonly">
+        <span>{{ value || 'Not provided' }}</span>
+        <button type="button" class="link-btn" [disabled]="!!contactChange" (click)="startContactChange(type)">
+          Change
+        </button>
+      </div>
+      @if (verifiedContacts.has(type)) {
+        <span class="field-hint field-hint--success">
+          <svg lucideCheck [size]="13"></svg>
+          Verified. Click Save changes to apply.
+        </span>
+      }
+    }
+  </div>
+</ng-template>
 
 @if (followList && profile) {
   <app-follow-modal

@@ -23,12 +23,12 @@
       <article class="kpi"><span>Active vouchers</span><strong>{{ data.kpis.active_vouchers | number }}</strong></article>
     </div>
     <article class="todo-panel"><div class="todo-title">To do today</div>
-      <button (click)="navigate('/admin/orders', orderQueryParams('processing'))"><span>◈ Orders waiting to ship</span><b>{{ data.todos.orders_to_ship }}</b><i>›</i></button>
-      <button (click)="navigate('/admin/orders', orderQueryParams('pending_refund'))"><span>↶ Refund requests</span><b>{{ data.todos.refund_requests }}</b><i>›</i></button>
-      <button (click)="navigate('/admin/community-reports')"><span>⚑ Reports to review</span><b>{{ data.todos.reports_to_review }}</b><i>›</i></button>
-      <button (click)="navigate('/admin/chat', { status: 'waiting' })"><span>◧ Chats waiting</span><b>{{ data.todos.chats_waiting }}</b><i>›</i></button>
-      <button (click)="navigate('/admin/products')"><span>△ Low stock variants</span><b>{{ data.todos.low_stock_variants }}</b><i>›</i></button>
-      <button (click)="navigate('/admin/subscriptions', { status: 'needs_action' })"><span>▤ Ritual Box payment failed</span><b>{{ data.todos.ritual_box_payment_failed }}</b><i>›</i></button>
+      <button (click)="navigate('/admin/orders', orderQueryParams('processing'))"><span><svg lucidePackage [size]="16"></svg>Orders waiting to ship</span><b>{{ data.todos.orders_to_ship }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+      <button (click)="navigate('/admin/orders', orderQueryParams('pending_refund'))"><span><svg lucideUndo2 [size]="16"></svg>Refund requests</span><b>{{ data.todos.refund_requests }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+      <button (click)="navigate('/admin/community-reports')"><span><svg lucideFlag [size]="16"></svg>Reports to review</span><b>{{ data.todos.reports_to_review }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+      <button (click)="navigate('/admin/chat', { status: 'waiting' })"><span><svg lucideMessagesSquare [size]="16"></svg>Chats waiting</span><b>{{ data.todos.chats_waiting }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+      <button (click)="navigate('/admin/products')"><span><svg lucideTriangleAlert [size]="16"></svg>Low stock variants</span><b>{{ data.todos.low_stock_variants }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
+      <button (click)="ritualBoxFailedClick()"><span><svg lucideCreditCard [size]="16"></svg>Ritual Box payment failed</span><b>{{ data.todos.ritual_box_payment_failed }}</b><i><svg lucideChevronRight [size]="16"></svg></i></button>
     </article>
   }
 </section>

@@ -111,6 +111,34 @@ $ease: cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
+// Bio sits between the name and the counters
+.bio {
+  max-width: 560px;
+  margin: 8px 0 0;
+  font-size: var(--text-body-sm-size);
+  line-height: 1.5;
+  color: var(--color-near-black);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+
+  &--empty {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: var(--font-body);
+    color: var(--color-warm-brown);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-forest-green);
+      text-decoration: underline;
+    }
+  }
+}
+
 .stats {
   display: flex;
   gap: var(--space-5);
@@ -612,6 +640,65 @@ $ease: cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
+.field-textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.field-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-warm-brown);
+
+  &--end {
+    align-self: flex-end;
+  }
+
+  &--success {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--color-forest-green);
+  }
+}
+
+.mock-otp {
+  font-family: var(--font-mono);
+}
+
+// Inline "Change email / phone" step
+.contact-change {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid $border-default;
+  border-radius: var(--radius-input);
+  background: var(--color-white);
+}
+
+.contact-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+
+  .field-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .btn {
+    height: 42px;
+  }
+}
+
+.otp-input {
+  font-family: var(--font-mono);
+  letter-spacing: 0.4em;
+}
+
 .link-btn {
   flex: none;
   padding: 6px 10px;
@@ -627,8 +714,28 @@ $ease: cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
   transition: background-color 0.2s ease;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: $forest-tint;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &--inline {
+    padding: 4px 0;
+    text-transform: none;
+    letter-spacing: 0;
+
+    &:hover:not(:disabled) {
+      background: transparent;
+      text-decoration: underline;
+    }
+  }
+
+  &--muted {
+    color: var(--color-warm-brown);
   }
 }
 

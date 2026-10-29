@@ -2,6 +2,7 @@ import { CommonModule, DecimalPipe, CurrencyPipe } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { LucideChevronRight, LucideCreditCard, LucideFlag, LucideMessagesSquare, LucidePackage, LucideTriangleAlert, LucideUndo2 } from '@lucide/angular';
 import { AdminDashboardService, DashboardData, DashboardResponse } from '../../services/admin-dashboard.service';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { ADMIN_ROLE_LABELS } from '../../../../shared/models/admin-role.model';
@@ -11,7 +12,7 @@ type RangeKey = 'today' | '7' | '30' | '90' | 'custom';
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, DecimalPipe, CurrencyPipe],
+  imports: [CommonModule, FormsModule, DecimalPipe, CurrencyPipe, LucideChevronRight, LucideCreditCard, LucideFlag, LucideMessagesSquare, LucidePackage, LucideTriangleAlert, LucideUndo2],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })
@@ -134,6 +135,14 @@ export class AdminDashboardComponent implements OnInit {
 
   todoClick(path: string, queryParams?: Record<string, string>): void {
     void this.router.navigate([path], { queryParams });
+  }
+
+  // Failed renewals live on Subscriptions; Ritual Boxes that never started live on Orders.
+  ritualBoxFailedClick(): void {
+    const todos = this.data?.todos;
+    const renewals = (todos?.ritual_box_payment_failed || 0) - (todos?.ritual_box_start_failed || 0);
+    if (!renewals && todos?.ritual_box_start_failed) this.todoClick('/admin/orders', { attention: 'ritual_box_not_started' });
+    else this.todoClick('/admin/subscriptions', { status: 'needs_action' });
   }
 
   exportRevenue(): void {

@@ -1,9 +1,10 @@
 import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule, DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
+import { LucideChefHat, LucideChevronRight, LucideFlag, LucideMessagesSquare, LucideTicket } from '@lucide/angular';
 import { ServicesDashboardData, ServicesDashboardService } from '../../services/services-dashboard.service';
 
-@Component({ selector: 'app-services-dashboard', standalone: true, imports: [CommonModule, DecimalPipe], templateUrl: './services-dashboard.component.html', styleUrl: './services-dashboard.component.scss' })
+@Component({ selector: 'app-services-dashboard', standalone: true, imports: [CommonModule, DecimalPipe, LucideChefHat, LucideChevronRight, LucideFlag, LucideMessagesSquare, LucideTicket], templateUrl: './services-dashboard.component.html', styleUrl: './services-dashboard.component.scss' })
 export class ServicesDashboardComponent implements OnInit {
   private readonly service = inject(ServicesDashboardService);
   private readonly router = inject(Router);
