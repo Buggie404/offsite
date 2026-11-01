@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
 const ActivityLog = require('../models/ActivityLog');
 const User = require('../models/User');
-const { unsavedActivityLogCount } = require('../services/activity-log.service');
+const {
+  unsavedActivityLogCount, canonicalActionType, actionTypeQuery, targetEntityQuery, presentActivityLog
+} = require('../services/activity-log.service');
 
 // Activity log (Admin CC only, read-only): filter by who, role, action and time; search target.
 // Logs are append-only, so this controller never updates or deletes.
@@ -27,8 +29,9 @@ async function buildFilter(query) {
   const filter = {};
   if (query.admin_id) filter.admin_id = { $in: await actorIdsFor(String(query.admin_id)) };
   if (ADMIN_ROLES.includes(query.admin_role)) filter.admin_role = query.admin_role;
-  if (query.action_type) filter.action_type = String(query.action_type);
-  if (query.target_entity) filter.target_entity = String(query.target_entity);
+  // Legacy names (written before the entity.action convention) match their current name.
+  if (query.action_type) filter.action_type = actionTypeQuery(query.action_type);
+  if (query.target_entity) filter.target_entity = targetEntityQuery(query.target_entity);
   if (query.target_id) filter.target_id = String(query.target_id);
 
   const from = asDate(query.from);
@@ -48,7 +51,8 @@ function staffName(user) {
 }
 
 // Name / email for the admins who acted and for user targets (staff, customers), in two queries.
-async function enrich(logs) {
+async function enrich(storedLogs) {
+  const logs = storedLogs.map(presentActivityLog); // current names; nothing is written back
   const actorIds = [...new Set(logs.map((log) => log.admin_id))];
   const objectIds = actorIds.filter((id) => mongoose.isValidObjectId(id) && /^[0-9a-f]{24}$/i.test(id));
   const userTargetIds = [...new Set(logs.filter((log) => /^users?$/i.test(log.target_entity)).map((log) => log.target_id))];
@@ -118,7 +122,7 @@ async function getFacets() {
     if (user.user_id) people.set(user.user_id, { user_id: user.user_id, name: staffName(user) || user.user_id });
   }
   return {
-    action_types: actionTypes.filter(Boolean).sort(),
+    action_types: [...new Set(actionTypes.filter(Boolean).map(canonicalActionType))].sort(),
     actors: [...people.values()].sort((a, b) => a.name.localeCompare(b.name))
   };
 }

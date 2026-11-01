@@ -78,4 +78,59 @@ async function writeActivityLogReliably(entry) {
 
 const unsavedActivityLogCount = () => unsavedLogs.length;
 
-module.exports = { writeActivityLog, writeActivityLogReliably, unsavedActivityLogCount, normalizeReason };
+// ─── Legacy names, mapped when READING ─────────────────────────────────────────
+// ActivityLogs are append-only (never updated or deleted), so Ritual Box logs written before
+// the entity.action convention keep their stored SUBSCRIPTION_* action_type and 'subscription'
+// target_entity. Lists, exports and filters show / match them under the current names instead.
+const LEGACY_ACTION_TYPE_ALIASES = Object.freeze({
+  SUBSCRIPTION_PAUSED: 'subscription.pause',
+  SUBSCRIPTION_SKIPPED: 'subscription.skip',
+  SUBSCRIPTION_RESUMED: 'subscription.unpause',
+  SUBSCRIPTION_PROPOSAL_SENT: 'subscription.propose',
+  SUBSCRIPTION_PROPOSAL_WITHDRAWN: 'subscription.withdraw_proposal',
+  SUBSCRIPTION_CANCELLED: 'subscription.cancel',
+  SUBSCRIPTION_NOTE_UPDATED: 'subscription.note',
+  // Removed admin actions keep their meaning under the new scheme.
+  SUBSCRIPTION_FREQUENCY_CHANGED: 'subscription.frequency',
+  SUBSCRIPTION_REACTIVATED: 'subscription.reactivate'
+});
+const LEGACY_TARGET_ENTITY_ALIASES = Object.freeze({ subscription: 'Subscriptions' });
+
+function legacyNamesFor(aliases, current) {
+  return Object.keys(aliases).filter((legacy) => aliases[legacy] === current);
+}
+
+const canonicalActionType = (value) => LEGACY_ACTION_TYPE_ALIASES[value] || value;
+const canonicalTargetEntity = (value) => LEGACY_TARGET_ENTITY_ALIASES[value] || value;
+
+// Query value for a stored field: the name asked for plus any legacy name that maps to it.
+function aliasQuery(aliases, value) {
+  const name = String(value);
+  const current = aliases[name] || name;
+  const legacy = legacyNamesFor(aliases, current);
+  return legacy.length ? { $in: [current, ...legacy] } : current;
+}
+const actionTypeQuery = (value) => aliasQuery(LEGACY_ACTION_TYPE_ALIASES, value);
+const targetEntityQuery = (value) => aliasQuery(LEGACY_TARGET_ENTITY_ALIASES, value);
+
+// A copy of a stored log with current names; the stored document is left untouched.
+function presentActivityLog(log) {
+  if (!log) return log;
+  return {
+    ...log,
+    action_type: canonicalActionType(log.action_type),
+    target_entity: canonicalTargetEntity(log.target_entity)
+  };
+}
+
+module.exports = {
+  writeActivityLog,
+  writeActivityLogReliably,
+  unsavedActivityLogCount,
+  normalizeReason,
+  LEGACY_ACTION_TYPE_ALIASES,
+  canonicalActionType,
+  actionTypeQuery,
+  targetEntityQuery,
+  presentActivityLog
+};

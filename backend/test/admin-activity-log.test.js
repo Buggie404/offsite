@@ -31,7 +31,7 @@ function loadApi(logs) {
       findOne: () => ({ lean: async () => ({ _id: ADMIN_MONGO_ID, user_id: 'USR00007' }) }),
       find: () => ({ lean: async () => [{ _id: ADMIN_MONGO_ID, user_id: 'USR00007', profile_name: 'Khoa Nguyen', email: 'khoa@offsite.vn' }] })
     },
-    '../services/activity-log.service': { unsavedActivityLogCount: () => 0 }
+    '../services/activity-log.service': { ...require('../src/services/activity-log.service'), unsavedActivityLogCount: () => 0 }
   });
   return { api, seen };
 }
