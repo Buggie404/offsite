@@ -78,4 +78,47 @@ async function writeActivityLogReliably(entry) {
 
 const unsavedActivityLogCount = () => unsavedLogs.length;
 
-module.exports = { writeActivityLog, writeActivityLogReliably, unsavedActivityLogCount, normalizeReason };
+// Logs are append-only, so a renamed action never touches old rows: add the old name here instead.
+// Reads then show the new name, and filtering by the new name also finds the old rows.
+const LEGACY_ACTION_TYPE_ALIASES = {
+  SUBSCRIPTION_PAUSED: 'subscription.pause',
+  SUBSCRIPTION_SKIPPED: 'subscription.skip',
+  SUBSCRIPTION_RESUMED: 'subscription.unpause',
+  SUBSCRIPTION_PROPOSAL_SENT: 'subscription.propose',
+  SUBSCRIPTION_PROPOSAL_WITHDRAWN: 'subscription.withdraw_proposal',
+  SUBSCRIPTION_CANCELLED: 'subscription.cancel',
+  SUBSCRIPTION_NOTE_UPDATED: 'subscription.note',
+  // Removed admin actions (before 9e34316) keep their meaning under the new scheme.
+  SUBSCRIPTION_FREQUENCY_CHANGED: 'subscription.frequency',
+  SUBSCRIPTION_REACTIVATED: 'subscription.reactivate'
+};
+// The SUBSCRIPTION_* logs above were written with this target_entity.
+const LEGACY_TARGET_ENTITY = 'subscription';
+const TARGET_ENTITY = 'Subscriptions';
+
+const canonicalActionType = (type) => (Object.hasOwn(LEGACY_ACTION_TYPE_ALIASES, type) ? LEGACY_ACTION_TYPE_ALIASES[type] : type);
+
+// Mongo condition matching an action under its current name and every older one.
+function actionTypeQuery(type) {
+  const canonical = canonicalActionType(type);
+  const legacy = Object.keys(LEGACY_ACTION_TYPE_ALIASES).filter((name) => LEGACY_ACTION_TYPE_ALIASES[name] === canonical);
+  return legacy.length ? { $in: [canonical, ...legacy] } : canonical;
+}
+
+function targetEntityQuery(entity) {
+  return entity === TARGET_ENTITY || entity === LEGACY_TARGET_ENTITY ? { $in: [TARGET_ENTITY, LEGACY_TARGET_ENTITY] } : entity;
+}
+
+// The row as it is shown or exported; the stored log stays as written.
+function presentActivityLog(log) {
+  return {
+    ...log,
+    action_type: canonicalActionType(log.action_type),
+    target_entity: log.target_entity === LEGACY_TARGET_ENTITY ? TARGET_ENTITY : log.target_entity
+  };
+}
+
+module.exports = {
+  writeActivityLog, writeActivityLogReliably, unsavedActivityLogCount, normalizeReason,
+  LEGACY_ACTION_TYPE_ALIASES, canonicalActionType, actionTypeQuery, targetEntityQuery, presentActivityLog
+};

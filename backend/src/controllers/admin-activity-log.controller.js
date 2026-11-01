@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const ActivityLog = require('../models/ActivityLog');
 const User = require('../models/User');
-const { unsavedActivityLogCount } = require('../services/activity-log.service');
+const { unsavedActivityLogCount, actionTypeQuery, targetEntityQuery, presentActivityLog } = require('../services/activity-log.service');
 const { ACTION_TYPES, actionLabel } = require('../constants/action-types');
 
 // Activity log (Admin CC only, read-only): filter by role, action and time; search names and target.
@@ -37,8 +37,8 @@ async function usersMatching(text) {
 async function buildFilter(query) {
   const filter = {};
   if (ADMIN_ROLES.includes(query.admin_role)) filter.admin_role = query.admin_role;
-  if (query.action_type) filter.action_type = String(query.action_type);
-  if (query.target_entity) filter.target_entity = String(query.target_entity);
+  if (query.action_type) filter.action_type = actionTypeQuery(String(query.action_type));
+  if (query.target_entity) filter.target_entity = targetEntityQuery(String(query.target_entity));
   if (query.target_id) filter.target_id = String(query.target_id);
 
   const from = asDate(query.from);
@@ -80,7 +80,7 @@ async function enrich(logs) {
   }
   const targetById = new Map(targets.map((target) => [target.user_id, target]));
 
-  return logs.map((log) => {
+  return logs.map(presentActivityLog).map((log) => {
     const actor = actorById.get(log.admin_id);
     const target = targetById.get(log.target_id);
     return {

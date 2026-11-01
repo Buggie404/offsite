@@ -31,7 +31,7 @@ function loadApi(logs) {
       findOne: () => ({ lean: async () => ({ _id: ADMIN_MONGO_ID, user_id: 'USR00007' }) }),
       find: () => ({ lean: async () => [{ _id: ADMIN_MONGO_ID, user_id: 'USR00007', profile_name: 'Khoa Nguyen', email: 'khoa@offsite.vn' }] })
     },
-    '../services/activity-log.service': { unsavedActivityLogCount: () => 0 }
+    '../services/activity-log.service': { ...require('../src/services/activity-log.service'), unsavedActivityLogCount: () => 0 }
   });
   return { api, seen };
 }
@@ -70,6 +70,24 @@ test('the action filter lists every known action, logged or not, and rows carry 
   await api.listActivityLogs({ query: { include_facets: 'true' } }, res);
   assert.deepEqual(res.body.facets.action_types, ACTION_TYPES);
   assert.equal(res.body.data[0].action_label, 'Password reset');
+});
+
+test('old action names read as the new name; filtering by the new name also finds old logs', async () => {
+  const stored = {
+    log_id: 'L1', admin_id: ADMIN_MONGO_ID, admin_role: 'admin_cc', action_type: 'SUBSCRIPTION_PAUSED',
+    target_entity: 'subscription', target_id: 'SUB0001', created_at: new Date()
+  };
+  const { api, seen } = loadApi([stored]);
+  const res = response();
+  await api.listActivityLogs({ query: { action_type: 'subscription.pause', target_entity: 'Subscriptions', include_facets: 'true' } }, res);
+
+  assert.deepEqual(seen.filter.action_type, { $in: ['subscription.pause', 'SUBSCRIPTION_PAUSED'] });
+  assert.deepEqual(seen.filter.target_entity, { $in: ['Subscriptions', 'subscription'] });
+  assert.equal(res.body.data[0].action_type, 'subscription.pause');
+  assert.equal(res.body.data[0].action_label, 'Ritual Box paused');
+  assert.equal(res.body.data[0].target_entity, 'Subscriptions');
+  assert.ok(res.body.facets.action_types.every((type) => !type.value.startsWith('SUBSCRIPTION_')));
+  assert.equal(stored.action_type, 'SUBSCRIPTION_PAUSED');
 });
 
 test('every action written by a controller is listed in ACTION_TYPES, with a unique name', () => {
