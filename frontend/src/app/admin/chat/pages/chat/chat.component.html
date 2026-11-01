@@ -70,7 +70,7 @@
       </div>
 
       <footer class="chat-compose">
-        <textarea rows="2" [(ngModel)]="draft" (input)="onDraftInput()" (keydown)="onKey($event)"
+        <textarea rows="2" [value]="draft" (input)="draft = $any($event.target).value; onDraftInput()" (keydown)="onKey($event)"
           [disabled]="!canReply"
           [placeholder]="canReply ? 'Type a reply — Enter to send' : (active.status === 'closed' ? 'Conversation closed' : 'Take over this chat to reply')"></textarea>
         <button type="button" class="btn btn-primary" (click)="send()" [disabled]="!canReply || !draft.trim()">Send</button>

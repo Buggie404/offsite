@@ -1,6 +1,5 @@
 import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription, forkJoin } from 'rxjs';
 import { customerKey, groupChats } from './chat-grouping';
@@ -12,7 +11,7 @@ type StatusFilter = 'all' | 'waiting' | 'open' | 'closed';
 @Component({
   selector: 'app-admin-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe],
+  imports: [CommonModule, DatePipe],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
 })
@@ -202,6 +201,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
     this.chat.send(this.active!.conversation_id, text);
     this.chat.typing(this.active!.conversation_id, false);
     this.draft = '';
+    this.cdr.markForCheck();
   }
 
   onKey(e: KeyboardEvent): void {

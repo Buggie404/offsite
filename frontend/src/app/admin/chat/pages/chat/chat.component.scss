@@ -45,7 +45,8 @@ $cream: #fffdf9;
 }
 .unread { background: #c0392b; color: #fff; border-radius: 999px; font-size: 11px; min-width: 18px; text-align: center; padding: 1px 5px; }
 
-.chat-pane { display: flex; flex-direction: column; min-width: 0; }
+.chat-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.chat-pane__head, .chat-summary, .chat-compose { flex-shrink: 0; }
 .chat-pane__head {
   display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid $border;
   small { display: block; color: #8b8378; font-size: 11px; }
@@ -54,8 +55,9 @@ $cream: #fffdf9;
 .tier { margin-left: 8px; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #e8efe3; color: $forest; }
 .chat-summary { padding: 10px 16px; background: #f6f1e7; font-size: 13px; border-bottom: 1px solid $border; }
 
-.chat-thread { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.chat-thread { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
 .bubble {
+  flex-shrink: 0;
   max-width: 70%; padding: 8px 12px; border-radius: 12px; background: #f1ece3; align-self: flex-start;
   p { margin: 0; white-space: pre-wrap; word-break: break-word; }
   time, small { display: block; font-size: 10px; color: #8b8378; margin-top: 2px; }
@@ -66,14 +68,26 @@ $cream: #fffdf9;
 .typing { font-size: 12px; color: #8b8378; }
 
 .chat-compose {
-  display: flex; gap: 8px; padding: 12px; border-top: 1px solid $border;
-  textarea { flex: 1; resize: none; border: 1px solid $border; border-radius: 10px; padding: 8px 10px; font: inherit; }
+  display: flex; align-items: center; gap: 8px; padding: 12px; border-top: 1px solid $border;
+  textarea {
+    flex: 1;
+    min-width: 0;
+    height: 60px;
+    box-sizing: border-box;
+    resize: none;
+    border: 1px solid $border;
+    border-radius: 10px;
+    padding: 18px 10px;
+    font: inherit;
+    line-height: 22px;
+  }
 }
 .chat-empty { padding: 20px; color: #8b8378; font-size: 13px; &--center { margin: auto; } }
 
 @media (max-width: 900px) {
   .chat-layout { grid-template-columns: 1fr; height: auto; }
   .chat-list { max-height: 260px; border-right: 0; border-bottom: 1px solid $border; }
+  .chat-pane { height: 65dvh; min-height: 360px; }
 }
 
 .page-header { margin-bottom: 20px; }

@@ -32,5 +32,6 @@ router.post('/leave-message', optionalAuthMiddleware, aiChatController.leaveMess
 
 // 5. Customer asked to talk to CSKH from the drawer
 router.post('/handover', optionalAuthMiddleware, aiChatController.requestHandover);
+router.post('/return-to-bot', optionalAuthMiddleware, aiChatController.returnToBot);
 
 module.exports = router;

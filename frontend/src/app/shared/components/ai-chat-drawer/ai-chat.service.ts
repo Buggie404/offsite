@@ -277,7 +277,7 @@ export class AiChatService {
   }
 
   private applyLoaded(res: any, source: 'current' | 'history'): void {
-    this.humanChatActive.set(!!res?.support_conversation_id && ['waiting', 'in_progress'].includes(res?.status));
+    this.humanChatActive.set(res?.human_chat === true || ['waiting', 'in_progress'].includes(res?.status));
     const decision: ChatDecision = res?.decision || 'continue';
     this.currentDecision.set(decision);
     if (decision === 'rotate' && source === 'current') {
@@ -373,6 +373,7 @@ export class AiChatService {
       const message: ChatMessage = {
         id: row?.message_id || ('m-' + Math.random().toString(36).slice(2)),
         sender,
+        agentInfo: sender === 'agent' ? meta.agentInfo : undefined,
         deliveryStatus: sender === 'user' ? (meta.delivery_status || 'sent') : undefined,
         text,
         formattedHtml: sender === 'ai' && text ? this.formatMarkdown(text) : undefined,
@@ -737,6 +738,24 @@ export class AiChatService {
           return;
         }
         this.pushAssistantText(body.message || 'Could not connect you to the team. Please try again.');
+      }
+    });
+  }
+
+  returnToBot(): void {
+    if (!this.humanChatActive() || this.composerBlocked()) return;
+    const epoch = this.requestEpoch, view = this.viewToken;
+    this.interaction.set('loading');
+    this.http.post<any>(`${environment.apiUrl}/ai-chat/return-to-bot`, { session_id: this.sessionId() }).subscribe({
+      next: res => {
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
+        this.conversationId.set('');
+        this.applyLoaded(res, 'current');
+      },
+      error: () => {
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
+        this.interaction.set('ready');
+        this.pushAssistantText('Could not switch to the chatbot. Please try again.');
       }
     });
   }
