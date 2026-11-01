@@ -15,8 +15,8 @@ export class StarterQuizService {
   private readonly platformId = inject(PLATFORM_ID);
   private readonly api = `${environment.apiUrl}/starter-quiz`;
 
-  getQuestions(): Observable<{ questions: QuizQuestion[] }> {
-    return this.http.get<{ questions: QuizQuestion[] }>(`${this.api}/questions`);
+  getQuestions(): Observable<{ questions: QuizQuestion[]; enabled?: boolean }> {
+    return this.http.get<{ questions: QuizQuestion[]; enabled?: boolean }>(`${this.api}/questions`);
   }
 
   submit(

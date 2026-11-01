@@ -2,6 +2,7 @@ const QuizConfig = require('../models/QuizConfig');
 const QuizResult = require('../models/QuizResult');
 const Counter = require('../models/Counter');
 const Product = require('../models/Product');
+const QuizSettings = require('../models/QuizSettings');
 const { STARTER_QUESTIONS } = require('../services/starter-quiz.questions');
 const { matchStarterKit } = require('../services/starter-quiz.matcher');
 const { resolveUserIdString } = require('./cart.controller');
@@ -162,10 +163,17 @@ async function buildKit(questions, answers, previousSnapshot) {
   return matched.kit;
 }
 
+async function starterQuizEnabled() {
+  const settings = await QuizSettings.findById('starter_kit').lean();
+  return !settings || settings.enabled !== false;
+}
+
 async function getQuestions(_req, res) {
   try {
+    const enabled = await starterQuizEnabled();
+    if (!enabled) return res.json({ enabled: false, questions: [] });
     const questions = await loadQuestions();
-    return res.json({ questions: questions.map(publicQuestion) });
+    return res.json({ enabled: true, questions: questions.map(publicQuestion) });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -173,6 +181,9 @@ async function getQuestions(_req, res) {
 
 async function createResult(req, res) {
   try {
+    if (!(await starterQuizEnabled())) {
+      return res.status(403).json({ error: 'The starter quiz is turned off.' });
+    }
     const answers = Array.isArray(req.body?.answers) ? req.body.answers : [];
     if (!answers.length) {
       return res.status(400).json({ error: 'Answers are required.' });

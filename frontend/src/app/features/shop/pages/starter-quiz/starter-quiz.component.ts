@@ -81,6 +81,9 @@ export class StarterQuizComponent implements OnInit {
       next: (response) => {
         this.questions.set(response.questions || []);
         this.loading.set(false);
+        if (response.enabled === false) {
+          this.errorMessage.set('The starter quiz is turned off.');
+        }
       },
       error: () => {
         this.loading.set(false);

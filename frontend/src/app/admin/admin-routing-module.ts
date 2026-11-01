@@ -156,6 +156,13 @@ const routes: Routes = [
         canActivate: [adminRoleGuard],
         data: { adminRoles: SYSTEM_ROLES }
       },
+      {
+        path: 'starter-quiz',
+        loadComponent: () =>
+          import('./starter-quiz/pages/starter-quiz/starter-quiz.component').then((m) => m.AdminStarterQuizComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SYSTEM_ROLES }
+      },
 
       // ── Error pages ───────────────────────────────────────────────────────
       {
