@@ -292,27 +292,39 @@ async function scenarioE() {
   const secondInstance = require(chargeServicePath);
   require.cache[chargeServicePath].exports = chargeService;
   scopeUser = user.userId;
+  let parallel;
   try {
-    await Promise.all([
+    parallel = await Promise.all([
       chargeService.runSubscriptionChargeJob({ now: T0 }),
       secondInstance.runSubscriptionChargeJob({ now: T0 })
     ]);
   } finally {
     scopeUser = null;
   }
-  check('e1', 'two job instances in parallel → exactly 1 order', (await ordersOf(sub1)) === 1, `orders=${await ordersOf(sub1)}`);
+  const charged1 = parallel.reduce((n, s) => n + (s.charged || 0), 0);
+  check('e1', 'two job instances in parallel → charged exactly once, 1 order',
+    charged1 === 1 && (await ordersOf(sub1)) === 1, `charged=${charged1}, orders=${await ordersOf(sub1)}`);
   check('e2', 'lease released after the run', !(await reload(sub1)).charge_locked_until);
 
-  // Same process: Promise.all of two calls.
-  await Subscription.deleteOne({ _id: sub1._id });
-  const sub2 = await createSubscription(user, product, { nextChargeAt: at(T0, -units(1)) });
-  scopeUser = user.userId;
+  // Same process: Promise.all of two calls. A separate user and box: deleting the first box
+  // and creating another would reuse its subscription_id (ids continue from the latest one), and
+  // the job would then treat e1's order as an orphan charge of the new box instead of charging it.
+  const user2 = await createUser('E2');
+  const sub2 = await createSubscription(user2, product, { nextChargeAt: at(T0, -units(1)) });
+  check('e3a', 'second box has its own subscription_id', sub2.subscription_id !== sub1.subscription_id,
+    `${sub1.subscription_id} / ${sub2.subscription_id}`);
+  scopeUser = user2.userId;
+  let summaries;
   try {
-    await Promise.all([chargeService.runSubscriptionChargeJob({ now: T0 }), chargeService.runSubscriptionChargeJob({ now: T0 })]);
+    summaries = await Promise.all([chargeService.runSubscriptionChargeJob({ now: T0 }), chargeService.runSubscriptionChargeJob({ now: T0 })]);
   } finally {
     scopeUser = null;
   }
-  check('e3', 'same process, Promise.all of two runs → exactly 1 order', (await ordersOf(sub2)) === 1, `orders=${await ordersOf(sub2)}`);
+  const charged = summaries.reduce((n, s) => n + (s.charged || 0), 0);
+  const recovered = summaries.reduce((n, s) => n + (s.recovered || 0), 0);
+  check('e3', 'same process, Promise.all of two runs → charged exactly once, 1 order',
+    charged === 1 && recovered === 0 && (await ordersOf(sub2)) === 1,
+    `charged=${charged}, recovered=${recovered}, orders=${await ordersOf(sub2)}`);
 }
 
 // f. SUBSCRIPTION_UPCOMING sent exactly once, 72 units before the charge.
