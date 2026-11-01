@@ -91,7 +91,9 @@ function enrichOrders(orders) {
       total: order.pricing?.total ?? 0,
       currency: order.pricing?.currency ?? 'USD',
       is_guest: order.is_guest,
-      subscription_start_failed: !!order.subscription_start_failed
+      subscription_start_failed: !!order.subscription_start_failed,
+      attention_reasons: attentionReasons(order),
+      needs_attention: attentionReasons(order).length > 0
     };
   });
 }
@@ -120,8 +122,33 @@ function orderTypeCondition(orderType) {
   return ORDER_TYPE_FILTERS[orderType] || null;
 }
 
-// "Needs attention" sub-filters (?attention=…) on flags the system sets on an order.
+// Urgent orders ("Needs attention"): a refund request waiting on staff, a failed delivery, or a
+// paid Ritual Box that couldn't start. One definition for the stat card, the filter, the
+// urgent-first sort and the row flag. Cancelled orders never reach the listing at all.
+const URGENT_STATUSES = ['pending_refund', 'delivery_failed'];
+const NEEDS_ATTENTION_FILTER = {
+  $or: [{ order_status: { $in: URGENT_STATUSES } }, { subscription_start_failed: true }]
+};
+// Same rule as an aggregation expression (1 = urgent), for sorting in the database.
+const URGENT_SORT_KEY = {
+  $cond: [
+    { $or: [{ $in: ['$order_status', URGENT_STATUSES] }, { $eq: ['$subscription_start_failed', true] }] },
+    1,
+    0
+  ]
+};
+
+// Why an order is urgent, in the order the badges are shown.
+function attentionReasons(order) {
+  const reasons = [];
+  if (URGENT_STATUSES.includes(order.order_status)) reasons.push(order.order_status);
+  if (order.subscription_start_failed) reasons.push('ritual_box_not_started');
+  return reasons;
+}
+
+// "Needs attention" filters (?attention=…): every urgent order, or one flag the system sets.
 const ATTENTION_FILTERS = {
+  needs_attention: NEEDS_ATTENTION_FILTER,
   ritual_box_not_started: { subscription_start_failed: true }
 };
 
@@ -312,17 +339,16 @@ async function computeStats(createdAtFilter, orderScope = {}, typeFilter = null)
     Order.countDocuments(baseFilter),
     Order.countDocuments({ ...baseFilter, order_status: { $in: ['pending', 'processing'] } }),
     Order.countDocuments({ ...baseFilter, order_status: 'shipping' }),
-    Order.countDocuments({
-      ...baseFilter,
-      $or: [
-        { order_status: { $in: ['refund', 'pending_refund', 'refund_rejected', 'delivery_failed'] } },
-        ATTENTION_FILTERS.ritual_box_not_started
-      ]
-    })
+    Order.countDocuments({ ...baseFilter, ...NEEDS_ATTENTION_FILTER })
   ]);
 
   return { total, processing, shipped, needsAttention };
 }
+
+const LIST_FIELDS = [
+  'order_id', 'user_id', 'delivery_info', 'created_at', 'order_status', 'pricing', 'is_guest',
+  'subscription_id', 'subscription_start_failed', 'items.purchase_type'
+];
 
 // Admin - View all orders (GET /api/admin/orders)
 async function getAllOrders(req, res) {
@@ -373,13 +399,26 @@ async function getAllOrders(req, res) {
     const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
     const skip = (parsedPage - 1) * parsedLimit;
 
-    const [orders, total, stats] = await Promise.all([
-      Order.find(filter)
+    // Default listing (no status filter): urgent orders first, then newest first, paged in the
+    // database. A status filter keeps the plain newest-first order.
+    const listQuery = statusFilter
+      ? Order.find(filter)
         .sort({ created_at: -1, _id: -1 })
         .skip(skip)
         .limit(parsedLimit)
-        .select('order_id user_id delivery_info created_at order_status pricing is_guest subscription_id subscription_start_failed items.purchase_type')
-        .lean(),
+        .select(LIST_FIELDS.join(' '))
+        .lean()
+      : Order.aggregate([
+        { $match: filter },
+        { $addFields: { _urgent: URGENT_SORT_KEY } },
+        { $sort: { _urgent: -1, created_at: -1, _id: -1 } },
+        { $skip: skip },
+        { $limit: parsedLimit },
+        { $project: Object.fromEntries(LIST_FIELDS.map((field) => [field, 1])) }
+      ]);
+
+    const [orders, total, stats] = await Promise.all([
+      listQuery,
       Order.countDocuments(filter),
       computeStats(createdAtFilter, orderScope, typeFilter)
     ]);

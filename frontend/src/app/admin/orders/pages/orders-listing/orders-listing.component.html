@@ -11,50 +11,78 @@
   </div>
 </header>
 
-<section class="stats-grid" aria-label="Order statistics">
-  <article class="stat-card">
-    <p class="stat-card__label">Total Orders</p>
-    <p class="stat-card__value">{{ stats.total | number }}</p>
-    <p class="stat-card__meta">{{ statsPeriodLabel }}</p>
-  </article>
-  <article class="stat-card stat-card--accent">
-    <p class="stat-card__label">Processing</p>
-    <p class="stat-card__value">{{ stats.processing | number }}</p>
-    <p class="stat-card__meta">Needs fulfillment</p>
-  </article>
-  <article class="stat-card">
-    <p class="stat-card__label">Shipping</p>
-    <p class="stat-card__value">{{ stats.shipped | number }}</p>
-    <p class="stat-card__meta">In transit</p>
-  </article>
-  <article class="stat-card stat-card--attention">
-    <p class="stat-card__label">Needs Attention</p>
-    <p class="stat-card__value">{{ stats.needsAttention | number }}</p>
-    <p class="stat-card__meta">Failed deliveries, refunds or Ritual Box not started</p>
-  </article>
+<section class="stats-grid" aria-label="Order statistics — click a card to filter the table">
+  <button
+    type="button"
+    class="stat-card"
+    [class.stat-card--active]="isStatActive('total')"
+    [attr.aria-pressed]="isStatActive('total')"
+    (click)="toggleStat('total')"
+  >
+    <span class="stat-card__label">Total Orders</span>
+    <span class="stat-card__value">{{ stats.total | number }}</span>
+    <span class="stat-card__meta">{{ statsPeriodLabel }}</span>
+  </button>
+  <button
+    type="button"
+    class="stat-card stat-card--accent"
+    [class.stat-card--active]="isStatActive('processing')"
+    [attr.aria-pressed]="isStatActive('processing')"
+    (click)="toggleStat('processing')"
+  >
+    <span class="stat-card__label">Processing</span>
+    <span class="stat-card__value">{{ stats.processing | number }}</span>
+    <span class="stat-card__meta">Needs fulfillment</span>
+  </button>
+  <button
+    type="button"
+    class="stat-card"
+    [class.stat-card--active]="isStatActive('shipping')"
+    [attr.aria-pressed]="isStatActive('shipping')"
+    (click)="toggleStat('shipping')"
+  >
+    <span class="stat-card__label">Shipping</span>
+    <span class="stat-card__value">{{ stats.shipped | number }}</span>
+    <span class="stat-card__meta">In transit</span>
+  </button>
+  <button
+    type="button"
+    class="stat-card stat-card--attention"
+    [class.stat-card--active]="isStatActive('attention')"
+    [attr.aria-pressed]="isStatActive('attention')"
+    (click)="toggleStat('attention')"
+  >
+    <span class="stat-card__label">Needs Attention</span>
+    <span class="stat-card__value">{{ stats.needsAttention | number }}</span>
+    <span class="stat-card__meta">Refund requests, failed deliveries or Ritual Box not started</span>
+  </button>
 </section>
 
-<div class="filter-bar">
-  <div class="filter-bar__group">
-    <span class="filter-label">Status</span>
-    @for (filter of statusFilters; track filter.value) {
-      <button
-        type="button"
-        class="filter-pill"
-        [class.filter-pill--active]="activeStatus === filter.value"
-        (click)="setStatusFilter(filter.value)"
+<!-- Search stays in the header bar above; this row holds the table filters. -->
+<div class="filter-row" role="group" aria-label="Filter orders">
+  <div class="filter-field">
+    <label class="filter-label" for="orders-filter-status">Status</label>
+    <div class="select-wrap">
+      <select
+        id="orders-filter-status"
+        class="filter-select"
+        [value]="activeStatus"
+        (change)="setStatusFilter($any($event.target).value)"
       >
-        {{ filter.label }}
-      </button>
-    }
+        @for (filter of statusFilters; track filter.value) {
+          <option [value]="filter.value" [selected]="filter.value === activeStatus">{{ filter.label }}</option>
+        }
+      </select>
+      <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+    </div>
   </div>
 
-  <div class="filter-bar__group filter-bar__group--type">
-    <span class="filter-label">Order type</span>
-    <div class="select-wrap select-wrap--filter">
+  <div class="filter-field">
+    <label class="filter-label" for="orders-filter-type">Order type</label>
+    <div class="select-wrap">
       <select
+        id="orders-filter-type"
         class="filter-select"
-        aria-label="Filter by order type"
         [value]="orderType"
         (change)="setOrderType($any($event.target).value)"
       >
@@ -66,38 +94,21 @@
     </div>
   </div>
 
-  <div class="filter-bar__group filter-bar__group--type">
-    <span class="filter-label">Needs attention</span>
-    <div class="select-wrap select-wrap--filter">
-      <select
-        class="filter-select"
-        aria-label="Filter orders needing attention"
-        [value]="attention"
-        (change)="setAttention($any($event.target).value)"
-      >
-        @for (option of attentionOptions; track option.value) {
-          <option [value]="option.value" [selected]="option.value === attention">{{ option.label }}</option>
-        }
-      </select>
-      <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
-    </div>
-  </div>
-
-  <div class="filter-bar__group filter-bar__group--date">
-    <span class="filter-label">Date</span>
+  <div class="filter-field filter-field--date">
+    <label class="filter-label" for="orders-filter-date">Date</label>
     <div class="date-filter">
-      <div class="select-wrap select-wrap--filter">
+      <div class="select-wrap">
         <select
+          id="orders-filter-date"
           class="filter-select"
-          aria-label="Filter by date range"
           [value]="dateRange"
           (change)="onDateChange($any($event.target).value)"
         >
-          <option value="today">Today</option>
-          <option value="7">Last 7 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="90">Last 90 days</option>
-          <option value="custom">Custom range</option>
+          <option value="today" [selected]="dateRange === 'today'">Today</option>
+          <option value="7" [selected]="dateRange === '7'">Last 7 days</option>
+          <option value="30" [selected]="dateRange === '30'">Last 30 days</option>
+          <option value="90" [selected]="dateRange === '90'">Last 90 days</option>
+          <option value="custom" [selected]="dateRange === 'custom'">{{ customRangeOptionLabel }}</option>
         </select>
         <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
       </div>
@@ -156,6 +167,20 @@
       }
     </div>
   </div>
+
+  <button
+    type="button"
+    class="filter-toggle"
+    [class.filter-toggle--active]="attention !== 'all'"
+    [attr.aria-pressed]="attention !== 'all'"
+    (click)="toggleNeedsAttention()"
+  >
+    <svg lucideAlertTriangle aria-hidden="true" [size]="14"></svg>
+    {{ attention === 'ritual_box_not_started' ? 'Ritual Box not started' : 'Needs attention' }}
+    @if (attention !== 'ritual_box_not_started') {
+      <span class="filter-toggle__count">{{ stats.needsAttention | number }}</span>
+    }
+  </button>
 </div>
 
 @if (loading) {
@@ -180,13 +205,16 @@
       </thead>
       <tbody>
         @for (order of orders; track order._id) {
-          <tr>
+          <tr [class.data-table__row--attention]="isUrgent(order)">
             <td>
               <a [routerLink]="['/admin/orders', order.order_id]" class="data-table__link">
                 #{{ order.order_id }}
               </a>
-              @if (order.subscription_start_failed) {
-                <div class="attention-tag">Ritual Box not started</div>
+              @for (reason of attentionReasons(order); track reason) {
+                <div class="attention-tag">
+                  <svg lucideAlertTriangle aria-hidden="true" [size]="12"></svg>
+                  {{ attentionReasonLabel(reason) }}
+                </div>
               }
             </td>
             <td>
