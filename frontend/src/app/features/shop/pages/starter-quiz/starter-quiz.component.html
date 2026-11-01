@@ -79,6 +79,7 @@
               class="starter-option"
               [class.is-selected]="isSelected(question.question_id, option.option_id)"
               [attr.aria-pressed]="isSelected(question.question_id, option.option_id)"
+              [disabled]="submitting()"
               (click)="selectOption(question.question_id, option.option_id)"
             >
               <span class="starter-option__mark" aria-hidden="true">{{ option.text.slice(0, 1) }}</span>
@@ -99,9 +100,9 @@
         <footer class="starter-question__nav">
           <button type="button" class="starter-text-btn" (click)="previous()">Previous question</button>
           <a routerLink="/shop/best-seller" class="starter-text-btn">Exit to shop</a>
-          <button type="button" class="starter-btn starter-btn--primary" [disabled]="!canContinue() || submitting()" (click)="next()">
-            {{ submitting() ? 'Matching' : (questionIndex() === visibleQuestions().length - 1 ? 'See my kit' : 'Next') }}
-          </button>
+          @if (submitting()) {
+            <p class="starter-question__status">Matching</p>
+          }
         </footer>
       </article>
     }

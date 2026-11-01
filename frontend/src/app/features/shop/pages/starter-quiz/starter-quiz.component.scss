@@ -521,6 +521,16 @@ h2 {
   justify-self: center;
 }
 
+.starter-question__status {
+  margin: 0;
+  justify-self: end;
+  color: var(--color-forest-green);
+  font-family: var(--font-mono);
+  font-size: var(--text-label-size);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .starter-btn,
 .starter-text-btn {
   font-family: var(--font-body);

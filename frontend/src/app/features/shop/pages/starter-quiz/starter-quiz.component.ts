@@ -101,7 +101,9 @@ export class StarterQuizComponent implements OnInit {
   }
 
   selectOption(questionId: string, optionId: string): void {
+    if (this.submitting()) return;
     this.answers.update((current) => this.pruneHiddenAnswers({ ...current, [questionId]: optionId }));
+    this.next();
   }
 
   isSelected(questionId: string, optionId: string): boolean {
