@@ -68,7 +68,10 @@ export const ACTION_LABELS: Record<string, string> = {
   'subscription.propose': 'Change proposed',
   'subscription.withdraw_proposal': 'Proposal withdrawn',
   'subscription.cancel': 'Ritual Box cancelled',
-  'subscription.note': 'Ritual Box note added'
+  'subscription.note': 'Ritual Box note added',
+  // Only on older logs (actions since removed); stored as SUBSCRIPTION_* and shown under these names.
+  'subscription.frequency': 'Ritual Box frequency changed',
+  'subscription.reactivate': 'Ritual Box reactivated'
 };
 
 export function actionLabel(type: string): string {
