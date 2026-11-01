@@ -148,6 +148,13 @@ const subscriptionSchema = new mongoose.Schema({
 
 // Charge job query: active subscriptions due for a charge
 subscriptionSchema.index({ status: 1, next_charge_at: 1 });
+// One Ritual Box per checkout line: two concurrent starts can't both create it. Only boxes that
+// came from an order (source_order_id is a string) are covered. Run
+// scripts/check-duplicate-subscriptions.js first — the index can't be built over duplicates.
+subscriptionSchema.index(
+  { source_order_id: 1, product_id: 1, variant_id: 1 },
+  { unique: true, partialFilterExpression: { source_order_id: { $type: 'string' } } }
+);
 
 subscriptionSchema.pre('validate', async function(next) {
   // 1. Auto-generate sequential subscription_id: SUB0001, SUB0002, ...

@@ -376,26 +376,69 @@ async function createSubscriptionsFromOrder(order, { paymentMethodId = null } = 
       last_charged_at: now,
       source_order_id: order.order_id
     });
-    await sub.save();
+    try {
+      await sub.save();
+    } catch (err) {
+      // Second line of defence (unique source_order_id + product_id + variant_id index): another
+      // request created this line's box first — hand that one back instead of making another.
+      if (!isDuplicateSourceLine(err)) throw err;
+      const existing = await Subscription.findOne({
+        source_order_id: order.order_id, product_id: line.product_id, variant_id: line.variant_id
+      });
+      if (!existing) throw err;
+      created.push(existing);
+      continue;
+    }
     created.push(sub);
   }
   return created;
+}
+
+// E11000 on the source-line index (not e.g. a subscription_id collision, which must surface).
+function isDuplicateSourceLine(err) {
+  return err?.code === 11000 && (Boolean(err.keyPattern?.source_order_id) || /source_order_id/.test(err.message || ''));
 }
 
 // POST /api/subscriptions/start-from-order/:orderId — the customer starts the Ritual Box of a
 // flagged order (subscription_start_failed) with a card saved since. Clears the flag on success.
 async function startFromOrder(userIdStr, orderId, paymentMethodId) {
   if (!paymentMethodId) throw new SubscriptionActionError('Choose a card for your Ritual Box.');
-  const order = await Order.findOne({ order_id: orderId, user_id: userIdStr });
-  if (!order) throw new SubscriptionActionError('Order not found.', 404);
-  if (!order.subscription_start_failed) {
-    throw new SubscriptionActionError('The Ritual Box of this order has already started.', 409);
-  }
-  if (order.payment_status !== 'paid' || ['canceled', 'refund', 'pending_refund'].includes(order.order_status)) {
+  // Claim the order atomically: of two concurrent requests (two tabs) only one clears the flag
+  // and goes on to create the box; the other gets the same 409 as a box already started.
+  const claimed = await Order.findOneAndUpdate(
+    {
+      order_id: orderId,
+      user_id: userIdStr,
+      subscription_start_failed: true,
+      payment_status: 'paid',
+      order_status: { $nin: ['canceled', 'refund', 'pending_refund'] }
+    },
+    { $set: { subscription_start_failed: false, subscription_start_failed_at: null } },
+    { new: false }
+  );
+  if (!claimed) {
+    const order = await Order.findOne({ order_id: orderId, user_id: userIdStr }, 'subscription_start_failed').lean();
+    if (!order) throw new SubscriptionActionError('Order not found.', 404);
+    if (!order.subscription_start_failed) {
+      throw new SubscriptionActionError('The Ritual Box of this order has already started.', 409);
+    }
     throw new SubscriptionActionError('This order can no longer start a Ritual Box.', 409);
   }
 
-  await createSubscriptionsFromOrder(order, { paymentMethodId });
+  // Put the flag back if no box came out of it, so the customer / CSKH can try again.
+  const restoreFlag = () => Order.updateOne(
+    { order_id: orderId, subscription_start_failed: false },
+    { $set: { subscription_start_failed: true, subscription_start_failed_at: claimed.subscription_start_failed_at } }
+  ).catch(err => console.error(`Order ${orderId}: could not restore subscription_start_failed.`, err));
+  try {
+    const created = await createSubscriptionsFromOrder(claimed, { paymentMethodId });
+    if (!created.length && !(await Subscription.exists({ source_order_id: orderId }))) {
+      throw new SubscriptionActionError('This order can no longer start a Ritual Box.', 409);
+    }
+  } catch (err) {
+    await restoreFlag();
+    throw err;
+  }
   const fresh = await Order.findOne({ order_id: orderId }, 'internal_notes').lean();
   await Order.updateOne(
     { order_id: orderId },
