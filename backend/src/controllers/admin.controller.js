@@ -814,6 +814,30 @@ async function markItemsOutOfStock(req, res) {
     await notifyCustomer(order, 'ORDER_CANCELED_BY_STORE', `${names.join(', ')} ${names.length > 1 ? 'are' : 'is'} out of stock`
       + (wasPaid ? '. Your payment will be refunded in full.' : '.'));
 
+    // A Ritual Box delivery order: the box stays active (next_charge_at is already the next cycle),
+    // but this cycle is recorded as skipped and the customer told. Cancelling the box itself is
+    // done on purpose from Admin › Subscriptions, never here. The order is already cancelled, so a
+    // failure here is logged rather than failing the request.
+    if (order.subscription_id) {
+      try {
+        const skipped = await subscriptionService.skipCycleForCanceledOrder(order, {
+          adminId, reason, itemNames: names, refunded: wasPaid
+        });
+        if (skipped) {
+          await req.writeActivityLog({
+            actionType: 'subscription.skip',
+            targetEntity: 'Subscriptions',
+            targetId: skipped.sub.subscription_id,
+            oldValue: skipped.oldValue,
+            newValue: skipped.newValue,
+            reason
+          });
+        }
+      } catch (err) {
+        console.error(`Order ${order.order_id}: could not record the skipped Ritual Box cycle.`, err);
+      }
+    }
+
     const data = await buildOrderDetail(order);
     res.json({ message: 'Order cancelled: items out of stock', data });
   } catch (error) {

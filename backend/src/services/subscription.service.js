@@ -399,6 +399,60 @@ function isDuplicateSourceLine(err) {
   return err?.code === 11000 && (Boolean(err.keyPattern?.source_order_id) || /source_order_id/.test(err.message || ''));
 }
 
+// Staff cancelled a Ritual Box delivery order because its item ran out after the charge
+// (Admin Orders › mark out of stock; the order is refunded there). The charge job already moved
+// next_charge_at to the following cycle, so this only records the lost cycle on the box:
+// a skipped delivery (shown in Delivery history) plus a staff entry in admin_messages, and tells
+// the customer. Like a staff skip it does NOT count toward the customer's 2-consecutive-skips
+// limit (consecutive_skips is untouched). The box stays as it is; cancelling it is a separate,
+// deliberate action in Admin › Subscriptions.
+// Returns { sub, oldValue } for the activity log, or null when there's nothing to record.
+async function skipCycleForCanceledOrder(order, { adminId, reason, itemNames = [], refunded = false } = {}) {
+  if (!order?.subscription_id) return null;
+  const cycleDate = new Date(order.created_at || Date.now());
+  const before = await Subscription.findOne({ subscription_id: order.subscription_id }).lean();
+  if (!before) return null;
+
+  // $push in one conditional update: never overwrites what the charge job / customer changed
+  // meanwhile, and the same cycle is recorded once.
+  const sub = await Subscription.findOneAndUpdate(
+    { subscription_id: order.subscription_id, skipped_deliveries: { $ne: cycleDate } },
+    {
+      $push: {
+        skipped_deliveries: cycleDate,
+        admin_messages: {
+          action: 'skip',
+          reason: reason || null,
+          message: `Delivery order ${order.order_id} cancelled: out of stock${refunded ? ', refunded in full' : ''}.`,
+          sent_by: String(adminId || 'system'),
+          sent_at: new Date()
+        }
+      }
+    },
+    { new: true }
+  );
+  if (!sub) return null;
+
+  const items = itemNames.length ? itemNames.join(', ') : 'An item';
+  const next = sub.status === 'active' && sub.next_charge_at
+    ? ` Your next box is scheduled for ${new Date(sub.next_charge_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: 'numeric', month: 'short', year: 'numeric' })}.`
+    : '';
+  await notificationService.notifySubscription(
+    { user_id: sub.user_id, subscription_id: sub.subscription_id, order_id: order.order_id },
+    'SUBSCRIPTION_SKIPPED',
+    `${items} ran out of stock, so we cancelled this delivery (order ${order.order_id})`
+      + `${refunded ? ' and refunded your payment in full' : ''}.${next}`
+  );
+
+  const snapshot = (doc) => ({
+    status: doc.status,
+    next_charge_at: doc.next_charge_at,
+    consecutive_skips: doc.consecutive_skips,
+    skipped_deliveries: doc.skipped_deliveries
+  });
+  return { sub, oldValue: snapshot(before), newValue: { ...snapshot(sub), order_id: order.order_id } };
+}
+
 // POST /api/subscriptions/start-from-order/:orderId — the customer starts the Ritual Box of a
 // flagged order (subscription_start_failed) with a card saved since. Clears the flag on success.
 async function startFromOrder(userIdStr, orderId, paymentMethodId) {
@@ -953,6 +1007,7 @@ module.exports = {
   createSubscriptionsFromOrder,
   startFromOrder,
   suggestAdjustmentsForOrder,
+  skipCycleForCanceledOrder,
   withdrawSuggestionsForOrder,
   getOrderSubscriptions,
   getOrderRitualBoxes,
