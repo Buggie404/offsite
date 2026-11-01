@@ -51,6 +51,9 @@ const chargeService = require(chargeServicePath);
 const UNIT_MS = chargeService.TIME_UNIT_MS;            // 60 000 with SUB_TIME_UNIT=minute
 const DAY_MS = 24 * 60 * 60 * 1000;
 const units = (n) => n * UNIT_MS;
+// A cycle "day" is 24 units (as the 24/48/72 retries and the 72-unit = 3-day windows): with
+// SUB_TIME_UNIT=minute a 14-day box charges again after 14 × 24 = 336 minutes.
+const cycleDays = (n) => units(24 * n);
 const at = (base, ms) => new Date(base.getTime() + ms);
 const fmt = (d) => (d ? new Date(d).toISOString().replace('.000Z', 'Z') : String(d));
 const deltaLabel = (from, to) => {
@@ -185,8 +188,8 @@ async function scenarioA() {
     order ? `payment_status=${order.payment_status}, last4=${order.payment?.card_info?.last4}, stock 10→${await stockOf(product)}` : '');
   check('a4', 'last_charged_at = now, failed_attempts = 0',
     after.last_charged_at && +after.last_charged_at === +now && after.failed_attempts === 0);
-  const expected = at(now, units(14));
-  check('a5', 'next_charge_at = now + frequency_days in units (minutes)', +after.next_charge_at === +expected,
+  const expected = at(now, cycleDays(14));
+  check('a5', 'next_charge_at = now + frequency_days cycle days (14 × 24 units)', +after.next_charge_at === +expected,
     `expected ${fmt(expected)}, got ${fmt(after.next_charge_at)} (= now + ${deltaLabel(now, after.next_charge_at)})`);
 }
 
@@ -272,10 +275,8 @@ async function scenarioD() {
     `skipped_deliveries=${s.skipped_deliveries.map(fmt).join(',') || '[]'}`);
   check('d4', 'never charged (no order), SUBSCRIPTION_SKIPPED sent',
     (await ordersOf(sub)) === 0 && (await noticesOf(user, 'SUBSCRIPTION_SKIPPED')) === 1);
-  // Same frequency rule as a5 (units vs real days is checked there once).
-  check('d5', 'next_charge_at moved one cycle (due + frequency_days)',
-    +s.next_charge_at === +at(due, units(s.frequency_days)) || +s.next_charge_at === +at(due, s.frequency_days * DAY_MS),
-    `due + ${deltaLabel(due, s.next_charge_at)}`);
+  check('d5', 'next_charge_at moved one cycle (due + frequency_days × 24 units)',
+    +s.next_charge_at === +at(due, cycleDays(s.frequency_days)), `due + ${deltaLabel(due, s.next_charge_at)}`);
   check('d6', 'system skip does not count toward the 2-skip limit (consecutive_skips unchanged)', s.consecutive_skips === 0,
     `consecutive_skips=${s.consecutive_skips}`);
 }
@@ -376,6 +377,7 @@ async function scenarioG() {
   check('g3', 'after the next charge frequency_days is still 14 (permanent)',
     s.frequency_days === 14 && (await ordersOf(sub)) === 1,
     `frequency_days=${s.frequency_days}, orders=${await ordersOf(sub)}, next charge + ${deltaLabel(chargeNow, s.next_charge_at)}`);
+  check('g4', 'and the following charge is 14 cycle days later', +s.next_charge_at === +at(chargeNow, cycleDays(14)));
 }
 
 // ─── Main ─────────────────────────────────────────────────────

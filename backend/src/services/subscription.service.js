@@ -6,6 +6,7 @@ const User = require('../models/User');
 const notificationService = require('./notification.service');
 const inventoryService = require('./inventory.service');
 const { appendInternalNote } = require('../utils/internal-notes');
+const { addCycleDays } = require('../utils/subscription-time');
 
 // Business rules: "Project Planning & Prep 2" — Subscription conventions.
 const FREQUENCIES = [7, 14, 30];
@@ -26,7 +27,7 @@ const round2 = n => Math.round(n * 100) / 100;
 // A shorter frequency moves the next charge earlier, but never closer than the 48h notice window.
 const shiftedChargeAt = (sub, days, now) => new Date(Math.max(
   now.getTime() + LOCK_WINDOW_HOURS * HOUR_MS,
-  addDays(sub.next_charge_at, days - sub.frequency_days).getTime()
+  addCycleDays(sub.next_charge_at, days - sub.frequency_days).getTime()
 ));
 
 class SubscriptionActionError extends Error {
@@ -237,7 +238,7 @@ async function chargeSubscription(sub, { now = new Date() } = {}) {
   }
 
   sub.last_charged_at = now;
-  sub.next_charge_at = addDays(now, sub.frequency_days);
+  sub.next_charge_at = addCycleDays(now, sub.frequency_days);
   sub.failed_attempts = 0;
   sub.last_failure_reason = null;
   sub.next_retry_at = null;
@@ -259,11 +260,11 @@ function applyPendingAfterCharge(sub, now) {
   }
   if (p.frequency_days) {
     sub.frequency_days = p.frequency_days;
-    sub.next_charge_at = addDays(now, p.frequency_days);
+    sub.next_charge_at = addCycleDays(now, p.frequency_days);
   }
   if (p.skip) {
     sub.skipped_deliveries.push(sub.next_charge_at);
-    sub.next_charge_at = addDays(sub.next_charge_at, sub.frequency_days);
+    sub.next_charge_at = addCycleDays(sub.next_charge_at, sub.frequency_days);
     sub.consecutive_skips = 1;
   }
   if (p.pause_option) {
@@ -363,7 +364,7 @@ async function createSubscriptionsFromOrder(order, { paymentMethodId = null } = 
       variant_id: line.variant_id,
       quantity: line.quantity,
       frequency_days: frequency,
-      next_charge_at: addDays(now, frequency),
+      next_charge_at: addCycleDays(now, frequency),
       status: 'active',
       pricing_snapshot: pricing || {
         original_price: line.unit_price,
@@ -847,7 +848,7 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
         sub.pending_changes.skip = true;
       } else {
         sub.skipped_deliveries.push(sub.next_charge_at);
-        sub.next_charge_at = addDays(sub.next_charge_at, sub.frequency_days);
+        sub.next_charge_at = addCycleDays(sub.next_charge_at, sub.frequency_days);
         sub.consecutive_skips = (sub.consecutive_skips || 0) + 1;
       }
       break;

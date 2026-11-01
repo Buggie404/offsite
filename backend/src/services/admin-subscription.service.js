@@ -5,6 +5,7 @@ const Product = require('../models/Product');
 const mongoose = require('mongoose');
 const ChatConversation = require('../models/ChatConversation');
 const notificationService = require('./notification.service');
+const { addCycleDays } = require('../utils/subscription-time');
 const {
   SubscriptionActionError,
   FREQUENCIES,
@@ -309,7 +310,7 @@ async function getSubscriptionDetail(subscriptionId, role = null) {
     resume_at: plain.resume_at,
     upcoming_delivery_at: plain.next_charge_at,
     // The delivery after the upcoming one — for "from the following delivery" / "after the next delivery".
-    following_delivery_at: addDays(plain.next_charge_at, plain.frequency_days),
+    following_delivery_at: addCycleDays(plain.next_charge_at, plain.frequency_days),
     pending_changes: shapePendingChanges(plain),
     failed_attempts: plain.failed_attempts || 0,
     last_failure_reason: plain.last_failure_reason,
@@ -437,7 +438,7 @@ async function applyAdminAction(subscriptionId, action, payload, adminId, role) 
       const reason = cleanText(payload.reason, 200);
       requireReason(rules.skip_reasons, reason, 'skip this delivery');
       sub.skipped_deliveries.push(sub.next_charge_at);
-      sub.next_charge_at = addDays(sub.next_charge_at, sub.frequency_days);
+      sub.next_charge_at = addCycleDays(sub.next_charge_at, sub.frequency_days);
       log('skip', reason);
       await sub.save();
       await notifyCustomer(sub, 'SUBSCRIPTION_SKIPPED', message || reason);
