@@ -9,17 +9,16 @@ const subscriptionService = require('./subscription.service');
 // - Charge error: retry after 24h → 48h → 72h; if the last retry fails too → suspended.
 // - Out of stock: the customer has 3 days to accept the replacement; otherwise the cycle is skipped.
 // - SUBSCRIPTION_UPCOMING is sent 3 days before next_charge_at.
+// - A system skip (out of stock) does not count toward the customer's 2-consecutive-skips limit.
 // Demo mode: SUB_TIME_UNIT=minute turns every "hour" above into a minute (job interval,
-// retry delays, out-of-stock window, upcoming notice) so the flow can be watched live.
-const TIME_UNIT_MS = process.env.SUB_TIME_UNIT === 'minute' ? 60 * 1000 : 60 * 60 * 1000;
+// retry delays, out-of-stock window, upcoming notice) and every cycle "day" into 24 minutes,
+// so the flow can be watched live (see utils/subscription-time).
+const { TIME_UNIT_MS, addUnits, addCycleDays } = require('../utils/subscription-time');
 const RETRY_DELAYS_UNITS = [24, 48, 72];
 const OUT_OF_STOCK_WINDOW_UNITS = 72;   // 3 days
 const UPCOMING_NOTICE_UNITS = 72;       // 3 days
 const CHARGE_LEASE_MS = 10 * 60 * 1000; // a crashed run frees its claim after 10 minutes
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const addUnits = (date, units) => new Date(new Date(date).getTime() + units * TIME_UNIT_MS);
-const addDays = (date, days) => new Date(new Date(date).getTime() + days * DAY_MS);
 
 async function notify(sub, type, message) {
   await notificationService.notifySubscription(sub, type, message);
@@ -58,7 +57,7 @@ async function recoverOrphanCharge(sub) {
   ).lean();
   if (!order) return false;
   sub.last_charged_at = order.created_at;
-  sub.next_charge_at = addDays(order.created_at, sub.frequency_days);
+  sub.next_charge_at = addCycleDays(order.created_at, sub.frequency_days);
   sub.failed_attempts = 0;
   sub.last_failure_reason = null;
   sub.next_retry_at = null;
@@ -71,8 +70,9 @@ async function handleOutOfStock(sub, result, now) {
   const deadline = addUnits(sub.next_charge_at, OUT_OF_STOCK_WINDOW_UNITS);
   if (now >= deadline) {
     sub.skipped_deliveries.push(sub.next_charge_at);
-    sub.next_charge_at = addDays(sub.next_charge_at, sub.frequency_days);
-    sub.consecutive_skips = Math.min((sub.consecutive_skips || 0) + 1, 2);
+    sub.next_charge_at = addCycleDays(sub.next_charge_at, sub.frequency_days);
+    // Like a staff skip, a skip the system makes (nothing in stock) doesn't use up the
+    // customer's 2-consecutive-skips allowance: consecutive_skips is left as it is.
     sub.last_failure_reason = null;
     sub.last_failed_at = null;
     await notify(sub, 'SUBSCRIPTION_SKIPPED', 'The item was out of stock and no replacement was chosen, so this delivery was skipped. You were not charged.');

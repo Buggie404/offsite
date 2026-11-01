@@ -9,6 +9,7 @@ const voucherService = require('../services/voucher.service');
 const subscriptionService = require('../services/subscription.service');
 const pointsService = require('../services/points.service');
 const inventoryService = require('../services/inventory.service');
+const pendingOrderExpiry = require('../services/pending-order-expiry.service');
 const { hasAdminRole, isAdminRole, ADMIN_ORDER_VIEW_ROLES } = require('../middleware/auth.middleware');
 
 const REFUND_REASONS = ['Damaged item', 'Wrong item', 'Size/color mismatch', 'Other'];
@@ -697,7 +698,7 @@ async function getOrderById(req, res) {
       query = { order_id: id };
     }
 
-    const order = await Order.findOne(query);
+    let order = await Order.findOne(query);
     if (!order) {
       return res.status(404).json({ error: 'Order not found.' });
     }
@@ -709,30 +710,8 @@ async function getOrderById(req, res) {
       return res.status(403).json({ error: 'Access denied', code: 'ROLE_FORBIDDEN' });
     }
 
-    // Auto cancel pending payment order after 24h
-    const createdTime = new Date(order.created_at || order.createdAt).getTime();
-    const twentyFourHours = 24 * 60 * 60 * 1000;
-    if (order.order_status === 'pending' && order.payment?.method !== 'cod' && (Date.now() - createdTime) >= twentyFourHours) {
-      order.order_status = 'canceled';
-      order._changedBy = 'system';
-      order._statusChangeNote = 'Order automatically canceled: Payment pending for more than 24 hours';
-      await order.save();
-
-      // Trigger ORDER_CANCELED notification if registered customer
-      if (order.user_id) {
-        try {
-          const notificationService = require('../services/notification.service');
-          await notificationService.createNotification({
-            recipient_id: order.user_id,
-            sender: null,
-            type: 'ORDER_CANCELED',
-            post_id: order.order_id
-          });
-        } catch (notifError) {
-          console.error('Error creating order auto-cancel notification:', notifError);
-        }
-      }
-    }
+    // Auto-cancel a stale pending online-payment order (rule lives in pending-order-expiry.service)
+    order = await pendingOrderExpiry.expireIfStale(order);
 
     // Access control: only admin or the order owner can view the details
     if (!isAdminRole(req.user.role)) {
@@ -1023,35 +1002,13 @@ async function getOrderStatus(req, res) {
       query = { order_id: id };
     }
 
-    const order = await Order.findOne(query);
+    let order = await Order.findOne(query);
     if (!order) {
       return res.status(404).json({ error: 'Order not found.' });
     }
 
-    // Auto cancel pending payment order after 24h
-    const createdTime = new Date(order.created_at || order.createdAt).getTime();
-    const twentyFourHours = 24 * 60 * 60 * 1000;
-    if (order.order_status === 'pending' && order.payment?.method !== 'cod' && (Date.now() - createdTime) >= twentyFourHours) {
-      order.order_status = 'canceled';
-      order._changedBy = 'system';
-      order._statusChangeNote = 'Order automatically canceled: Payment pending for more than 24 hours';
-      await order.save();
-
-      // Trigger ORDER_CANCELED notification if registered customer
-      if (order.user_id) {
-        try {
-          const notificationService = require('../services/notification.service');
-          await notificationService.createNotification({
-            recipient_id: order.user_id,
-            sender: null,
-            type: 'ORDER_CANCELED',
-            post_id: order.order_id
-          });
-        } catch (notifError) {
-          console.error('Error creating order auto-cancel notification:', notifError);
-        }
-      }
-    }
+    // Auto-cancel a stale pending online-payment order (rule lives in pending-order-expiry.service)
+    order = await pendingOrderExpiry.expireIfStale(order);
 
     const { authorized } = await authorizeOrderAccess(req, order);
     if (!authorized) {

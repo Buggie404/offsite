@@ -106,6 +106,8 @@ const subscriptionSchema = new mongoose.Schema({
   // chỉ áp dụng khi khách xác nhận; quá 3 ngày thì bỏ gợi ý.
   suggested_frequency_days: { type: Number, enum: [7, 14, null], default: null },
   suggested_at:             { type: Date, default: null },
+  // One-time order that raised the suggestion; canceling / refunding it withdraws the suggestion.
+  suggested_by_order_id:    { type: String, default: null },
 
   failed_attempts:     { type: Number, default: 0, min: 0 },
   last_failure_reason: { type: String, default: null },
@@ -146,6 +148,13 @@ const subscriptionSchema = new mongoose.Schema({
 
 // Charge job query: active subscriptions due for a charge
 subscriptionSchema.index({ status: 1, next_charge_at: 1 });
+// One Ritual Box per checkout line: two concurrent starts can't both create it. Only boxes that
+// came from an order (source_order_id is a string) are covered. Run
+// scripts/check-duplicate-subscriptions.js first — the index can't be built over duplicates.
+subscriptionSchema.index(
+  { source_order_id: 1, product_id: 1, variant_id: 1 },
+  { unique: true, partialFilterExpression: { source_order_id: { $type: 'string' } } }
+);
 
 subscriptionSchema.pre('validate', async function(next) {
   // 1. Auto-generate sequential subscription_id: SUB0001, SUB0002, ...

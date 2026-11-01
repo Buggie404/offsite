@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angul
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { LucideDownload, LucideEye, LucideChevronDown, LucideCalendar } from '@lucide/angular';
+import { LucideDownload, LucideEye, LucideChevronDown, LucideCalendar, LucideAlertTriangle } from '@lucide/angular';
 import { Subject, catchError, distinctUntilChanged, interval, map, of, switchMap } from 'rxjs';
 import { AdminOrderService } from '../../services/admin-order.service';
 import { AdminRefreshService } from '../../../shared/services/admin-refresh.service';
@@ -10,6 +10,7 @@ import { OrderSocketService } from '../../../../core/services/order-socket.servi
 import {
   AdminDateRange,
   AdminOrderAttentionFilter,
+  AdminOrderAttentionReason,
   AdminOrderListItem,
   AdminOrderStats,
   AdminOrderStatusFilter,
@@ -22,12 +23,35 @@ interface StatusFilterOption {
   label: string;
 }
 
+/** Stat cards double as filters: Total clears them, the others apply their own. */
+type StatCardKey = 'total' | 'processing' | 'shipping' | 'attention';
+
+/** Everything the table is filtered by; mirrored in the URL (?status=&type=&attention=&date=&from=&to=). */
+interface ListFilters {
+  search: string;
+  status: AdminOrderStatusFilter;
+  type: AdminOrderTypeFilter;
+  attention: AdminOrderAttentionFilter;
+  date: AdminDateRange;
+  from: string;
+  to: string;
+}
+
+const DATE_RANGES: readonly AdminDateRange[] = ['today', '7', '30', '90', 'custom'];
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+const ATTENTION_REASON_LABEL: Record<AdminOrderAttentionReason, string> = {
+  pending_refund: 'Refund requested',
+  delivery_failed: 'Delivery failed',
+  ritual_box_not_started: 'Ritual Box not started'
+};
+
 import { ORDER_TYPE_LABEL } from '../../../../shared/utils/order-type';
 import { OrderTypeBadgeComponent } from '../../../../shared/components/order-type-badge/order-type-badge.component';
 @Component({
   selector: 'app-orders-listing',
   standalone: true,
-  imports: [CommonModule, RouterLink, LucideDownload, LucideEye, LucideChevronDown, LucideCalendar, OrderTypeBadgeComponent],
+  imports: [CommonModule, RouterLink, LucideDownload, LucideEye, LucideChevronDown, LucideCalendar, LucideAlertTriangle, OrderTypeBadgeComponent],
   templateUrl: './orders-listing.component.html',
   styleUrl: './orders-listing.component.scss'
 })
@@ -68,7 +92,7 @@ export class OrdersListingComponent implements OnInit {
   readonly maxDate = new Date().toISOString().slice(0, 10);
 
   readonly statusFilters: StatusFilterOption[] = [
-    { value: 'all', label: 'All' },
+    { value: 'all', label: 'All statuses' },
     { value: 'processing', label: 'Processing' },
     { value: 'shipping', label: 'Shipping' },
     { value: 'delivery_failed', label: 'Delivery Failed' },
@@ -87,6 +111,7 @@ export class OrdersListingComponent implements OnInit {
 
   readonly attentionOptions: { value: AdminOrderAttentionFilter; label: string }[] = [
     { value: 'all', label: 'All orders' },
+    { value: 'needs_attention', label: 'Needs attention' },
     { value: 'ritual_box_not_started', label: 'Ritual Box not started' }
   ];
 
@@ -104,12 +129,7 @@ export class OrdersListingComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    const initial = this.route.snapshot.queryParams;
-    this.search = initial['search'] || '';
-    this.activeStatus = this.toStatusFilter(initial['status']);
-    this.orderType = this.toOrderTypeFilter(initial['type']);
-    this.attention = this.toAttentionFilter(initial['attention']);
-    this.dateRange = (initial['date'] as AdminDateRange) || '30';
+    this.applyFilterState(this.readFilters(this.route.snapshot.queryParams));
 
     this.loadTrigger$
       .pipe(
@@ -144,51 +164,16 @@ export class OrdersListingComponent implements OnInit {
         this.cdr.markForCheck();
       });
 
+    // Header search, stat cards, back / forward and shared links all arrive through the URL.
     this.route.queryParams
       .pipe(
-        map((params) => params['search'] || ''),
-        distinctUntilChanged(),
+        map((params) => this.readFilters(params)),
+        distinctUntilChanged((a, b) => this.sameFilters(a, b)),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe((search) => {
-        if (search === this.search) return;
-        this.search = search;
-        this.loadTrigger$.next({});
-      });
-
-    this.route.queryParams
-      .pipe(
-        map((params) => this.toStatusFilter(params['status'])),
-        distinctUntilChanged(),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((status) => {
-        if (status === this.activeStatus) return;
-        this.activeStatus = status;
-        this.loadTrigger$.next({});
-      });
-
-    this.route.queryParams
-      .pipe(
-        map((params) => this.toOrderTypeFilter(params['type'])),
-        distinctUntilChanged(),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((type) => {
-        if (type === this.orderType) return;
-        this.orderType = type;
-        this.loadTrigger$.next({});
-      });
-
-    this.route.queryParams
-      .pipe(
-        map((params) => this.toAttentionFilter(params['attention'])),
-        distinctUntilChanged(),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((attention) => {
-        if (attention === this.attention) return;
-        this.attention = attention;
+      .subscribe((next) => {
+        if (this.sameFilters(next, this.currentFilters())) return;
+        this.applyFilterState(next);
         this.loadTrigger$.next({});
       });
 
@@ -212,35 +197,137 @@ export class OrdersListingComponent implements OnInit {
     this.loadTrigger$.next({});
   }
 
-  setStatusFilter(status: AdminOrderStatusFilter): void {
-    if (this.activeStatus === status) return;
-    this.activeStatus = status;
-    this.loadTrigger$.next({});
+  setStatusFilter(value: string): void {
+    this.updateFilters({ status: this.toStatusFilter(value) });
   }
 
-  /** Kept in ?type= so the filtered list can be reloaded or shared. */
   setOrderType(value: string): void {
-    const next = this.toOrderTypeFilter(value);
-    if (next === this.orderType) return;
-    this.orderType = next;
-    this.loadTrigger$.next({});
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { type: next === 'all' ? null : next },
-      queryParamsHandling: 'merge',
-      replaceUrl: true
-    });
+    this.updateFilters({ type: this.toOrderTypeFilter(value) });
   }
 
-  /** Kept in ?attention= so CSKH can bookmark / share the to-do list. */
-  setAttention(value: string): void {
-    const next = this.toAttentionFilter(value);
-    if (next === this.attention) return;
-    this.attention = next;
+  /** Filter-row button: all urgent orders on / off (also clears the Ritual Box-only view). */
+  toggleNeedsAttention(): void {
+    this.updateFilters({ attention: this.attention === 'all' ? 'needs_attention' : 'all' });
+  }
+
+  isStatActive(card: StatCardKey): boolean {
+    switch (card) {
+      case 'total': return this.activeStatus === 'all' && this.attention === 'all';
+      case 'processing': return this.activeStatus === 'processing';
+      case 'shipping': return this.activeStatus === 'shipping';
+      case 'attention': return this.attention !== 'all';
+    }
+  }
+
+  /** Clicking a card applies its filter; clicking the active card again removes it. */
+  toggleStat(card: StatCardKey): void {
+    const active = this.isStatActive(card);
+    switch (card) {
+      case 'total':
+        this.updateFilters({ status: 'all', attention: 'all' });
+        break;
+      case 'processing':
+      case 'shipping':
+        this.updateFilters(active ? { status: 'all' } : { status: card, attention: 'all' });
+        break;
+      case 'attention':
+        this.updateFilters(active ? { attention: 'all' } : { attention: 'needs_attention', status: 'all' });
+        break;
+    }
+  }
+
+  isUrgent(order: AdminOrderListItem): boolean {
+    return order.needs_attention ?? this.attentionReasons(order).length > 0;
+  }
+
+  attentionReasons(order: AdminOrderListItem): AdminOrderAttentionReason[] {
+    return order.attention_reasons ?? (order.subscription_start_failed ? ['ritual_box_not_started'] : []);
+  }
+
+  attentionReasonLabel(reason: AdminOrderAttentionReason): string {
+    return ATTENTION_REASON_LABEL[reason] ?? reason;
+  }
+
+  get customRangeOptionLabel(): string {
+    return this.dateRange === 'custom' && this.appliedCustomFrom && this.appliedCustomTo
+      ? `${this.formatInputDate(this.appliedCustomFrom)} – ${this.formatInputDate(this.appliedCustomTo)}`
+      : 'Custom range';
+  }
+
+  private currentFilters(): ListFilters {
+    return {
+      search: this.search,
+      status: this.activeStatus,
+      type: this.orderType,
+      attention: this.attention,
+      date: this.dateRange === 'custom' && !(this.appliedCustomFrom && this.appliedCustomTo)
+        ? this.previousDateRange
+        : this.dateRange,
+      from: this.dateRange === 'custom' ? this.appliedCustomFrom : '',
+      to: this.dateRange === 'custom' ? this.appliedCustomTo : ''
+    };
+  }
+
+  /** Unknown values (e.g. an old ?status=cancelled link) fall back to the defaults. */
+  private readFilters(params: Record<string, unknown>): ListFilters {
+    const from = ISO_DATE.test(String(params['from'] ?? '')) ? String(params['from']) : '';
+    const to = ISO_DATE.test(String(params['to'] ?? '')) ? String(params['to']) : '';
+    let date = (DATE_RANGES as readonly unknown[]).includes(params['date']) ? params['date'] as AdminDateRange : '30';
+    if (date === 'custom' && !(from && to && from <= to)) date = '30';
+    return {
+      search: typeof params['search'] === 'string' ? params['search'] : '',
+      status: this.toStatusFilter(params['status']),
+      type: this.toOrderTypeFilter(params['type']),
+      attention: this.toAttentionFilter(params['attention']),
+      date,
+      from: date === 'custom' ? from : '',
+      to: date === 'custom' ? to : ''
+    };
+  }
+
+  private sameFilters(a: ListFilters, b: ListFilters): boolean {
+    return a.search === b.search && a.status === b.status && a.type === b.type && a.attention === b.attention &&
+      a.date === b.date && a.from === b.from && a.to === b.to;
+  }
+
+  private applyFilterState(f: ListFilters): void {
+    this.search = f.search;
+    this.activeStatus = f.status;
+    this.orderType = f.type;
+    this.attention = f.attention;
+    this.dateRange = f.date;
+    this.appliedCustomFrom = f.from;
+    this.appliedCustomTo = f.to;
+    if (f.date === 'custom') {
+      this.customDateFrom = f.from;
+      this.customDateTo = f.to;
+    } else {
+      this.previousDateRange = f.date;
+      this.showCustomRange = false;
+    }
+  }
+
+  /** Apply a filter change: reload the table and keep the URL in step (reload / share / back). */
+  private updateFilters(patch: Partial<ListFilters>): void {
+    const current = this.currentFilters();
+    const next = { ...current, ...patch };
+    if (this.sameFilters(next, current)) return;
+    this.applyFilterState(next);
     this.loadTrigger$.next({});
+    this.syncUrl(next);
+  }
+
+  private syncUrl(f: ListFilters): void {
     void this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { attention: next === 'all' ? null : next },
+      queryParams: {
+        status: f.status === 'all' ? null : f.status,
+        type: f.type === 'all' ? null : f.type,
+        attention: f.attention === 'all' ? null : f.attention,
+        date: f.date === '30' ? null : f.date,
+        from: f.date === 'custom' ? f.from : null,
+        to: f.date === 'custom' ? f.to : null
+      },
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
@@ -268,10 +355,11 @@ export class OrdersListingComponent implements OnInit {
 
     this.showCustomRange = false;
     this.customRangeError = null;
-
-    if (this.dateRange === next) return;
-    this.dateRange = next;
-    this.loadTrigger$.next({});
+    // Custom was picked but never applied: the list is still on the previous range.
+    if (this.dateRange === 'custom' && !(this.appliedCustomFrom && this.appliedCustomTo)) {
+      this.dateRange = this.previousDateRange;
+    }
+    this.updateFilters({ date: next, from: '', to: '' });
   }
 
   applyCustomRange(): void {
@@ -287,9 +375,8 @@ export class OrdersListingComponent implements OnInit {
       return;
     }
 
-    this.appliedCustomFrom = this.customDateFrom;
-    this.appliedCustomTo = this.customDateTo;
-    this.loadTrigger$.next({});
+    this.showCustomRange = false;
+    this.updateFilters({ date: 'custom', from: this.customDateFrom, to: this.customDateTo });
   }
 
   cancelCustomRange(): void {
@@ -303,8 +390,8 @@ export class OrdersListingComponent implements OnInit {
       return;
     }
 
+    // Nothing was applied yet: the list never left the previous range.
     this.dateRange = this.previousDateRange;
-    this.loadTrigger$.next({});
   }
 
   onCustomDateFromChange(value: string): void {

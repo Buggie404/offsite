@@ -319,6 +319,11 @@ orderSchema.pre('save', async function(next) {
       this._pantryEvent = 'refund';
       this.$locals.pantryEvent = 'refund';
     }
+    // Canceled / refunded / refund requested: a Ritual Box suggestion this one-time order raised
+    // is withdrawn after the save (post-save hook below).
+    if (!this.isNew && ['canceled', 'refund', 'pending_refund'].includes(newStatus) && originalStatus !== newStatus) {
+      this.$locals.withdrawSuggestions = true;
+    }
   }
 
   next();
@@ -340,6 +345,17 @@ orderSchema.post('save', function pantrySync(doc) {
       : pantry.addItemsForDeliveredOrder(doc);
     task.catch(error => console.error('Pantry sync failed:', error));
   });
+});
+
+// Runs only once the status change is saved; a failure here never fails saving the order.
+orderSchema.post('save', async function withdrawSubscriptionSuggestions(doc) {
+  if (!this.$locals?.withdrawSuggestions) return;
+  this.$locals.withdrawSuggestions = false;
+  try {
+    await require('../services/subscription.service').withdrawSuggestionsForOrder(doc.order_id);
+  } catch (error) {
+    console.error(`Withdrawing Ritual Box suggestions for order ${doc.order_id} failed:`, error);
+  }
 });
 
 module.exports = mongoose.model('Order', orderSchema);
