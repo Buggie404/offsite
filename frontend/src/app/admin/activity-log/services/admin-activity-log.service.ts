@@ -7,6 +7,8 @@ export interface ActivityLogEntry {
   log_id: string;
   created_at: string;
   action_type: string;
+  /** Display name, from constants/action-types.js on the backend */
+  action_label: string;
   target_entity: string;
   target_id: string;
   /** Name / @handle when the target is a user (staff or customer) */
@@ -25,16 +27,20 @@ export interface ActivityLogEntry {
   };
 }
 
+export interface ActionTypeOption {
+  value: string;
+  label: string;
+  group: string;
+}
+
 export interface ActivityLogFacets {
-  action_types: string[];
-  actors: { user_id: string; name: string }[];
+  action_types: ActionTypeOption[];
 }
 
 export interface ActivityLogQuery {
   page: number;
   limit: number;
   q?: string;
-  admin_id?: string;
   admin_role?: string;
   action_type?: string;
   from?: string;

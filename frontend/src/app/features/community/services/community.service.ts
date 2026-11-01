@@ -73,6 +73,11 @@ export interface CommentsResponse {
   limit: number;
 }
 
+export interface CommunityRestriction {
+  level: number;
+  until: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -172,6 +177,11 @@ export class CommunityService {
     return this.http.post<{ message: string }>(
       `${this.apiUrl}/${id}/report`, { reason, note }
     );
+  }
+
+  getMyRestriction(): Observable<CommunityRestriction | null> {
+    return this.http.get<{ user: { community_restriction?: CommunityRestriction | null } }>('/api/auth/me')
+      .pipe(map((res) => res.user?.community_restriction || null));
   }
 
   getPublicProfile(userId: string): Observable<PublicProfile> {

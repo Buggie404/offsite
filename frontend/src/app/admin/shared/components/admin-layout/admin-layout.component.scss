@@ -137,23 +137,6 @@
   box-shadow: var(--admin-shadow-sm);
 }
 
-.sidebar-link__badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  margin-left: auto;
-  padding: 0 4px;
-  border-radius: var(--radius-pill);
-  background: var(--color-white);
-  color: var(--color-near-black);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1;
-}
-
 .sidebar-sign-out {
   display: flex;
   align-items: center;

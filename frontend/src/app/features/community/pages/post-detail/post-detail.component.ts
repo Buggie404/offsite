@@ -18,11 +18,12 @@ import {
   LucideHeart, LucideMessageCircle, LucidePlay, LucideShare2, LucideStar, LucideTrash2, LucideUser, LucidePencil
 } from '@lucide/angular';
 
+import { RestrictionBannerComponent } from '../../components/restriction-banner/restriction-banner.component';
 @Component({
   selector: 'app-post-detail',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, RouterModule, CommentSectionComponent, ShareModalComponent, ConfirmationModalComponent,
+    CommonModule, FormsModule, RouterModule, RestrictionBannerComponent, CommentSectionComponent, ShareModalComponent, ConfirmationModalComponent,
     ReportPostModalComponent, CreatePostModalComponent, LucideArrowLeft, LucideArrowRight, LucideBookmark, LucideClock,
     LucideEllipsis, LucideFlag, LucideHeart, LucideMessageCircle, LucidePencil, LucidePlay, LucideShare2, LucideStar,
     LucideTrash2, LucideUser

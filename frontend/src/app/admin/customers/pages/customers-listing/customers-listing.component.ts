@@ -30,7 +30,7 @@ export class CustomersListingComponent implements OnInit {
   readonly statuses: { value: CustomerStatus | ''; label: string }[] = [
     { value: '', label: 'All' },
     { value: 'active', label: 'Active' },
-    { value: 'suspended', label: 'Locked' }
+    { value: 'suspended', label: 'Suspended' }
   ];
 
   q = '';

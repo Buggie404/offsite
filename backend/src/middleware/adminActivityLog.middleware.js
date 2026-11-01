@@ -1,4 +1,5 @@
 const { writeActivityLogReliably, normalizeReason } = require('../services/activity-log.service');
+const { isKnownActionType } = require('../constants/action-types');
 
 // Makes the ActivityLogs writer available to authenticated admin controllers.
 // Controllers call it right after a sensitive change is saved successfully. The change is already
@@ -12,10 +13,13 @@ function adminActivityLog({ requireReason = false, requireReasonForActions = [],
       || (typeof requireReasonWhen === 'function' && requireReasonWhen(req));
     if (actionRequiresReason && !reason) return res.status(400).json({ error: 'A valid reason is required.' });
 
-    req.writeActivityLog = ({ actionType, targetEntity, targetId, oldValue, newValue, reason: explicitReason, ticketId } = {}) =>
-      writeActivityLogReliably({
+    req.writeActivityLog = ({ actionType, targetEntity, targetId, oldValue, newValue, reason: explicitReason, ticketId } = {}) => {
+      // The change is already saved, so an unlisted type is still logged, just flagged for the developer.
+      if (!isKnownActionType(actionType)) console.warn(`ActivityLog: "${actionType}" is missing from constants/action-types.js`);
+      return writeActivityLogReliably({
         admin: req.user, actionType, targetEntity, targetId, oldValue, newValue, reason: explicitReason ?? reason, ticketId
       });
+    };
 
     next();
   };

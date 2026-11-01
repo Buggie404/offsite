@@ -1,17 +1,17 @@
 import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { LucideArrowLeft, LucideArrowRight, LucideLock, LucideLockOpen } from '@lucide/angular';
-import { AdminRole } from '../../../../shared/models/admin-role.model';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { LucideArrowRight, LucideLock, LucideLockOpen } from '@lucide/angular';
+import { ADMIN_ROLE_LABELS, AdminRole } from '../../../../shared/models/admin-role.model';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { avatarInitials } from '../../../../shared/utils/avatar';
+import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { AdminCustomersService, CustomerDetail } from '../../services/admin-customers.service';
 
 type Tab = 'orders' | 'notes';
 
-const ROLE_LABELS: Record<AdminRole, string> = { admin_cc: 'Admin CC', qlsp: 'QLSP', cskh: 'CSKH' };
 const ORDER_STATUS_LABELS: Record<string, string> = {
   pending: 'Pending', processing: 'Processing', shipping: 'Shipping', delivery_failed: 'Delivery failed',
   delivered: 'Delivered', canceled: 'Canceled', refund: 'Refunded', pending_refund: 'Refund requested', refund_rejected: 'Refund rejected'
@@ -20,7 +20,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-admin-customer-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmationModalComponent, LucideArrowLeft, LucideArrowRight, LucideLock, LucideLockOpen],
+  imports: [CommonModule, FormsModule, RouterLink, ConfirmationModalComponent, LucideArrowRight, LucideLock, LucideLockOpen],
   templateUrl: './customer-detail.component.html',
   styleUrl: './customer-detail.component.scss'
 })
@@ -29,6 +29,7 @@ export class CustomerDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private toast = inject(ToastService);
+  private adminAuth = inject(AdminAuthService);
   private cdr = inject(ChangeDetectorRef);
 
   customer: CustomerDetail | null = null;
@@ -42,9 +43,8 @@ export class CustomerDetailComponent implements OnInit {
   noteSaving = false;
   noteError = '';
 
-  // Lock / unlock (shared confirmation modal)
+  // Unlock (shared confirmation modal)
   confirmOpen = false;
-  lockReason = '';
   statusSaving = false;
   confirmError = '';
 
@@ -73,10 +73,6 @@ export class CustomerDetailComponent implements OnInit {
     });
   }
 
-  backToList(): void {
-    void this.router.navigate(['/admin/customers'], { queryParamsHandling: 'preserve' });
-  }
-
   // ── Display ──
 
   get initials(): string {
@@ -93,7 +89,7 @@ export class CustomerDetailComponent implements OnInit {
   }
 
   roleLabel(role: AdminRole): string {
-    return ROLE_LABELS[role] || role;
+    return ADMIN_ROLE_LABELS[role] || role;
   }
 
   orderStatusLabel(status: string): string {
@@ -145,14 +141,17 @@ export class CustomerDetailComponent implements OnInit {
     });
   }
 
-  // ── Lock / unlock ──
+  // ── Unlock (Senior Admin only): no admin can lock a customer, this is for accounts locked earlier ──
 
   get isLocked(): boolean {
     return this.customer?.status === 'suspended';
   }
 
+  get canUnlock(): boolean {
+    return this.isLocked && this.adminAuth.getAdminRole() === 'admin_cc';
+  }
+
   openStatusConfirm(): void {
-    this.lockReason = '';
     this.confirmError = '';
     this.confirmOpen = true;
   }
@@ -164,18 +163,13 @@ export class CustomerDetailComponent implements OnInit {
   confirmStatus(): void {
     const c = this.customer;
     if (!c || this.statusSaving) return;
-    const locking = !this.isLocked;
-    if (locking && !this.lockReason.trim()) {
-      this.confirmError = 'Please enter a reason.';
-      return;
-    }
     this.statusSaving = true;
-    this.customersService.setStatus(c.user_id, locking ? 'suspended' : 'active', this.lockReason.trim()).subscribe({
+    this.customersService.setStatus(c.user_id, 'active').subscribe({
       next: (res) => {
         if (this.customer) this.customer = { ...this.customer, ...res.data };
         this.statusSaving = false;
         this.confirmOpen = false;
-        this.toast.success(locking ? `${c.profile_name}'s account is locked.` : `${c.profile_name}'s account is unlocked.`);
+        this.toast.success(`${c.profile_name}'s account is unlocked.`);
         this.cdr.markForCheck();
       },
       error: (err) => {

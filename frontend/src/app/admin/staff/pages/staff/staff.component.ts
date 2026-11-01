@@ -1,6 +1,8 @@
 import { ChangeDetectorRef, Component, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, catchError, debounceTime, map, of, switchMap } from 'rxjs';
 import {
   LucideCheck,
   LucideChevronRight,
@@ -9,7 +11,7 @@ import {
   LucideUserPlus,
   LucideX
 } from '@lucide/angular';
-import { AdminRole } from '../../../../shared/models/admin-role.model';
+import { ADMIN_ROLE_LABELS, AdminRole } from '../../../../shared/models/admin-role.model';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { avatarInitials } from '../../../../shared/utils/avatar';
@@ -24,12 +26,35 @@ interface RoleOption {
 
 // Chip labels and scope follow the role table (Staff 2.1 in Figma).
 export const STAFF_ROLE_OPTIONS: readonly RoleOption[] = [
-  { value: 'admin_cc', label: 'Admin CC', description: 'Staff, revenue, logs, everything' },
-  { value: 'qlsp', label: 'QLSP', description: 'Orders, products, customers, vouchers' },
-  { value: 'cskh', label: 'CSKH', description: 'Recipes, reports, chat, reviews' }
+  { value: 'admin_cc', label: ADMIN_ROLE_LABELS.admin_cc, description: 'Staff, revenue, logs, everything' },
+  { value: 'qlsp', label: ADMIN_ROLE_LABELS.qlsp, description: 'Orders, products, customers, vouchers' },
+  { value: 'cskh', label: ADMIN_ROLE_LABELS.cskh, description: 'Recipes, reports, chat, reviews' }
 ];
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// firstname.lastname@offsite.vn; a trailing number separates two people with the same name.
+const STAFF_EMAIL_REGEX = /^[a-z]+\.[a-z]+\d*@offsite\.vn$/;
+const NAME_WORD_REGEX = /^\p{L}+(?:['’-]\p{L}+)*$/u;
+
+function nameWords(name: string): string[] {
+  return name.normalize('NFC').trim().split(/\s+/).filter(Boolean);
+}
+
+/** Lowercase a-z only: "Đặng" -> "dang", "Anh-Thư" -> "anhthu" */
+function emailPart(word: string): string {
+  return word
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .toLowerCase()
+    .replace(/[^a-z]/g, '');
+}
+
+/** First and last word of the name as typed; middle names are left out. */
+function suggestStaffEmail(name: string): string {
+  const words = nameWords(name).map(emailPart).filter(Boolean);
+  if (words.length < 2) return '';
+  return `${words[0]}.${words[words.length - 1]}@offsite.vn`;
+}
 
 type ConfirmKind = 'disable' | 'enable' | 'reset';
 
@@ -69,7 +94,16 @@ export class AdminStaffComponent implements OnInit {
   addOpen = false;
   addSaving = false;
   addError = '';
-  newStaff = { profile_name: '', email: '', role: 'cskh' as AdminRole };
+  newStaff = { profile_name: '', email: '', role: null as AdminRole | null };
+  /** Fields left at least once; the submit attempt shows every error */
+  touched = { name: false, email: false };
+  addSubmitted = false;
+  /** Once the email is edited by hand, the name no longer overwrites it */
+  emailEdited = false;
+  emailChecking = false;
+  /** From the server: email already in use */
+  emailTakenError = '';
+  private emailCheck$ = new Subject<string>();
 
   // ── Temporary password, shown once after create / reset ──
   credentials: { name: string; email: string; password: string; created: boolean } | null = null;
@@ -85,8 +119,25 @@ export class AdminStaffComponent implements OnInit {
   // ── Disable / enable / reset password (shared confirmation modal) ──
   confirmTarget: StaffMember | null = null;
   confirmKind: ConfirmKind | null = null;
-  disableReason = '';
+  statusReason = '';
   confirmError = '';
+
+  constructor() {
+    this.emailCheck$.pipe(
+      debounceTime(300),
+      switchMap((email) => this.staffService.checkEmail(email).pipe(
+        // A failed check does not block the form: the server checks again on create.
+        catchError(() => of({ available: true, error: null })),
+        map((res) => ({ email, error: res.available ? '' : res.error || 'This email is already in use.' }))
+      )),
+      takeUntilDestroyed()
+    ).subscribe(({ email, error }) => {
+      if (email !== this.newStaff.email.trim().toLowerCase()) return;
+      this.emailChecking = false;
+      this.emailTakenError = error;
+      this.cdr.markForCheck();
+    });
+  }
 
   ngOnInit(): void {
     this.load();
@@ -165,8 +216,13 @@ export class AdminStaffComponent implements OnInit {
   // ── Add staff ──
 
   openAdd(): void {
-    this.newStaff = { profile_name: '', email: '', role: 'cskh' };
+    this.newStaff = { profile_name: '', email: '', role: null };
     this.addError = '';
+    this.touched = { name: false, email: false };
+    this.addSubmitted = false;
+    this.emailEdited = false;
+    this.emailChecking = false;
+    this.emailTakenError = '';
     this.addOpen = true;
   }
 
@@ -174,18 +230,66 @@ export class AdminStaffComponent implements OnInit {
     if (!this.addSaving) this.addOpen = false;
   }
 
-  get canCreate(): boolean {
-    return !this.addSaving && !!this.newStaff.profile_name.trim() && EMAIL_REGEX.test(this.newStaff.email.trim());
+  onNameChange(): void {
+    this.addError = '';
+    if (this.emailEdited) return;
+    this.newStaff.email = suggestStaffEmail(this.newStaff.profile_name);
+    this.checkEmailIfValid();
+  }
+
+  onEmailChange(): void {
+    this.addError = '';
+    // Clearing the field hands it back to the suggestion.
+    this.emailEdited = !!this.newStaff.email.trim();
+    this.checkEmailIfValid();
+  }
+
+  private checkEmailIfValid(): void {
+    this.emailTakenError = '';
+    const email = this.newStaff.email.trim().toLowerCase();
+    this.emailChecking = STAFF_EMAIL_REGEX.test(email);
+    if (this.emailChecking) this.emailCheck$.next(email);
+  }
+
+  private get nameValidationError(): string {
+    const words = nameWords(this.newStaff.profile_name);
+    if (!words.length) return 'Full name is required';
+    if (!words.every((word) => NAME_WORD_REGEX.test(word))) return 'Full name can only contain letters';
+    if (words.length < 2) return 'Please enter both first and last name';
+    return '';
+  }
+
+  private get emailValidationError(): string {
+    const email = this.newStaff.email.trim().toLowerCase();
+    if (!email) return 'Email is required';
+    if (!STAFF_EMAIL_REGEX.test(email)) return 'Email must follow firstname.lastname@offsite.vn';
+    return this.emailTakenError;
+  }
+
+  get nameError(): string {
+    return this.touched.name || this.addSubmitted ? this.nameValidationError : '';
+  }
+
+  // A duplicate is shown right away, even when the email was only suggested.
+  get emailError(): string {
+    return this.touched.email || this.addSubmitted ? this.emailValidationError : this.emailTakenError;
+  }
+
+  get newRoleError(): string {
+    return this.addSubmitted && !this.newStaff.role ? 'Please choose a role' : '';
   }
 
   createStaff(): void {
-    if (!this.canCreate) return;
+    if (this.addSaving || this.emailChecking) return;
+    this.addSubmitted = true;
+    const role = this.newStaff.role;
+    if (this.nameValidationError || this.emailValidationError || !role) return;
     this.addSaving = true;
     this.addError = '';
     this.staffService.create({
-      profile_name: this.newStaff.profile_name.trim(),
-      email: this.newStaff.email.trim(),
-      role: this.newStaff.role
+      profile_name: nameWords(this.newStaff.profile_name).join(' '),
+      email: this.newStaff.email.trim().toLowerCase(),
+      role
     }).subscribe({
       next: (res) => {
         this.addSaving = false;
@@ -196,7 +300,9 @@ export class AdminStaffComponent implements OnInit {
       },
       error: (err) => {
         this.addSaving = false;
-        this.addError = err?.error?.error || 'Could not create the account.';
+        const message = err?.error?.error || 'Could not create the account.';
+        if (err?.status === 409 && err?.error?.field === 'email') this.emailTakenError = message;
+        else this.addError = message;
         this.cdr.markForCheck();
       }
     });
@@ -265,7 +371,7 @@ export class AdminStaffComponent implements OnInit {
     if (kind === 'disable' && this.isLastAdminCc(member)) return;
     this.confirmTarget = member;
     this.confirmKind = kind;
-    this.disableReason = '';
+    this.statusReason = '';
     this.confirmError = '';
     this.openWork = null;
     if (kind === 'disable') {
@@ -320,7 +426,7 @@ export class AdminStaffComponent implements OnInit {
     const target = this.confirmTarget;
     const kind = this.confirmKind;
     if (!target || !kind || this.busyUserId) return;
-    if (kind === 'disable' && !this.disableReason.trim()) {
+    if (kind !== 'reset' && !this.statusReason.trim()) {
       this.confirmError = 'Please enter a reason.';
       return;
     }
@@ -352,7 +458,7 @@ export class AdminStaffComponent implements OnInit {
     }
 
     const status = kind === 'disable' ? 'disabled' : 'active';
-    this.staffService.setStatus(target.user_id, status, this.disableReason.trim()).subscribe({
+    this.staffService.setStatus(target.user_id, status, this.statusReason.trim()).subscribe({
       next: (res) => {
         this.replaceRow(res.data);
         done();

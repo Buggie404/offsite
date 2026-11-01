@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { authMiddleware } = require('../middleware/auth.middleware');
+const { requireCommunityAccess } = require('../middleware/community-restriction.middleware');
 
 router.post('/register', authController.register);
 router.post('/login', authController.login);
@@ -35,7 +36,7 @@ router.post('/saved-recipes', authMiddleware, authController.toggleSavedRecipe);
 router.patch('/saved-recipes/:recipeId', authMiddleware, authController.updateSavedRecipe);
 router.patch('/done-recipes/:recipeId', authMiddleware, authController.updateDoneRecipe);
 router.post('/saved-blogs', authMiddleware, authController.toggleSavedBlog);
-router.post('/saved-posts', authMiddleware, authController.toggleSavedPost);
+router.post('/saved-posts', authMiddleware, requireCommunityAccess('interact'), authController.toggleSavedPost);
 router.post('/saved-items-batch-delete', authMiddleware, authController.deleteSavedItemsBatch);
 
 module.exports = router;

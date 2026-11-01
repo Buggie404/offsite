@@ -13,6 +13,7 @@ function configuredAdmins() {
     const email = String(process.env[definition.emailKey] || '').trim().toLowerCase();
     const password = String(process.env[definition.passwordKey] || '');
     if (!email || !password) throw new Error(`Missing ${definition.emailKey} or ${definition.passwordKey}.`);
+    if (!/^[a-z]+\.[a-z]+\d*@offsite\.vn$/.test(email)) throw new Error(`${definition.emailKey} must follow firstname.lastname@offsite.vn.`);
     if (password.length < 8) throw new Error(`${definition.passwordKey} must be at least 8 characters.`);
     return { ...definition, email, password };
   });

@@ -137,13 +137,14 @@ test('creating staff leaves null sparse-unique fields out and reports a customer
     '../models/AiChatSession': {},
     '../services/socket.service': { emitChatEvent: () => {} }
   });
-  const req = { body: { profile_name: 'Thuy Zy', email: 'New@Offsite.vn', role: 'cskh' }, user: { user_id: 'mongo-ME', role: 'admin_cc' },
+  const req = { body: { profile_name: 'Thuy  Zy', email: 'Thuy.Zy@Offsite.vn', role: 'cskh' }, user: { user_id: 'mongo-ME', role: 'admin_cc' },
     writeActivityLog: async entry => { logs.push(entry); } };
 
   const res = response();
   await api.createStaff(req, res);
   assert.equal(res.statusCode, 201);
-  assert.equal(inserted[0].email, 'new@offsite.vn');
+  assert.equal(inserted[0].email, 'thuy.zy@offsite.vn');
+  assert.equal(inserted[0].profile_name, 'Thuy Zy');
   for (const field of ['phone', 'community_name', 'referral_code']) assert.equal(field in inserted[0], false);
   assert.equal(inserted[0].must_change_password, true);
   assert.ok(res.body.temp_password);
@@ -154,4 +155,104 @@ test('creating staff leaves null sparse-unique fields out and reports a customer
   await api.createStaff(req, dup);
   assert.equal(dup.statusCode, 409);
   assert.match(dup.body.error, /customer account/);
+});
+
+test('creating staff enforces required fields, the name format and the email format', async () => {
+  const { api, req } = loadStaffApi({ staff: null });
+  const valid = { profile_name: 'Nguyễn Đặng Thư', email: 'nguyen.thu@offsite.vn', role: 'cskh' };
+  const cases = [
+    [{ profile_name: '' }, 'profile_name'],
+    [{ profile_name: 'Thu' }, 'profile_name'],
+    [{ profile_name: 'Thu 123' }, 'profile_name'],
+    [{ email: '' }, 'email'],
+    [{ email: 'thu@offsite.vn' }, 'email'],
+    [{ email: 'nguyen.thu@gmail.com' }, 'email'],
+    [{ email: 'nguyễn.thu@offsite.vn' }, 'email'],
+    [{ role: '' }, 'role']
+  ];
+  for (const [change, field] of cases) {
+    const res = response();
+    await api.createStaff(req({ ...valid, ...change }), res);
+    assert.equal(res.statusCode, 400, JSON.stringify(change));
+    assert.equal(res.body.field, field);
+  }
+});
+
+test('check-email reports a taken email and rejects a bad format', async () => {
+  const api = load('../src/controllers/admin-staff.controller.js', {
+    '../models/User': { findOne: (query) => ({ lean: async () => (query.email.test('thao.vo@offsite.vn') ? { role: 'qlsp' } : null) }) },
+    '../models/ChatConversation': {},
+    '../models/AiChatSession': {},
+    '../services/socket.service': { emitChatEvent: () => {} }
+  });
+
+  const used = response();
+  await api.checkStaffEmail({ query: { email: 'Thao.Vo@offsite.vn' } }, used);
+  assert.equal(used.body.available, false);
+  assert.match(used.body.error, /staff account/);
+
+  const free = response();
+  await api.checkStaffEmail({ query: { email: 'thao.vo2@offsite.vn' } }, free);
+  assert.equal(free.body.available, true);
+
+  const bad = response();
+  await api.checkStaffEmail({ query: { email: 'thao@offsite.vn' } }, bad);
+  assert.equal(bad.statusCode, 400);
+});
+
+test('enabling an account also requires a reason and is logged with it', async () => {
+  const agent = staffDoc({ user_id: 'USR00005', role: 'qlsp', status: 'suspended', suspended_reason: 'Leave' });
+  const { api, req, logs } = loadStaffApi({ staff: agent });
+
+  const missing = response();
+  await api.setStaffStatus(req({ status: 'active', reason: ' ' }), missing);
+  assert.equal(missing.statusCode, 400);
+  assert.equal(agent.status, 'suspended');
+
+  const res = response();
+  await api.setStaffStatus(req({ status: 'active', reason: 'Back from leave' }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(agent.status, 'active');
+  assert.equal(logs[0].actionType, 'staff.enable');
+  assert.equal(logs[0].reason, 'Back from leave');
+});
+
+function loadAuthMiddleware(account) {
+  const jwt = { verify: () => ({ user_id: 'USR00009', role: 'cskh' }) };
+  return load('../src/middleware/auth.middleware.js', {
+    jsonwebtoken: jwt,
+    '../config/auth': { JWT_SECRET: 'test' },
+    '../models/User': { findOne: () => ({ lean: async () => account }) }
+  }).authMiddleware;
+}
+
+async function runAuth(account, method, originalUrl) {
+  const req = { method, originalUrl, headers: { authorization: 'Bearer token' } };
+  const res = response();
+  let passed = false;
+  await loadAuthMiddleware(account)(req, res, () => { passed = true; });
+  return { passed, res };
+}
+
+test('a temporary password only opens PUT /api/admin/change-password', async () => {
+  const account = { status: 'active', role: 'cskh', must_change_password: true };
+
+  assert.equal((await runAuth(account, 'PUT', '/api/admin/change-password')).passed, true);
+  assert.equal((await runAuth(account, 'PUT', '/api/admin/change-password?x=1')).passed, true);
+
+  for (const [method, url] of [
+    ['GET', '/api/admin/orders'],
+    ['GET', '/api/admin/change-password'],
+    ['PUT', '/api/auth/change-password'],
+    ['PUT', '/api/admin/change-password/x'],
+    ['GET', '/api/chat/conversations']
+  ]) {
+    const { passed, res } = await runAuth(account, method, url);
+    assert.equal(passed, false, `${method} ${url}`);
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.body.code, 'PASSWORD_CHANGE_REQUIRED');
+  }
+
+  const changed = await runAuth({ ...account, must_change_password: false }, 'GET', '/api/admin/orders');
+  assert.equal(changed.passed, true);
 });

@@ -154,10 +154,6 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     return role === 'admin_cc' || role === 'cskh' || role === 'qlsp';
   }
 
-  get processingOrderCount(): number {
-    return this.adminNotifications.processingOrderCount;
-  }
-
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
     if (this.sidebarOpen) {

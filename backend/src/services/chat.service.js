@@ -16,13 +16,16 @@ async function resolveChatUserId(id) {
   return user?.user_id || value;
 }
 
-// customer owns it; admin_cc sees all; cskh only assigned customers (read fresh from DB, not the JWT).
+// customer owns it; admin_cc sees all; cskh sees the waiting queue, chats they claimed
+// and assigned customers (read fresh from DB, not the JWT).
+// agent_id holds the JWT id of the agent, which is the Mongo _id for staff accounts.
 async function canAccessConversation(authUser, conversation) {
   if (!authUser || !conversation) return false;
   const userId = await resolveChatUserId(authUser.user_id);
   if (conversation.customer_id === userId) return true;
   if (authUser.role === 'admin_cc') return true;
   if (authUser.role === 'cskh') {
+    if (conversation.status === 'waiting' || conversation.agent_id === String(authUser.user_id)) return true;
     const agent = await User.findOne({ user_id: userId }, 'assigned_chat_customer_ids').lean();
     return (agent?.assigned_chat_customer_ids || []).includes(conversation.customer_id);
   }

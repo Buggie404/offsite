@@ -4,7 +4,6 @@ const Recipe = require('../models/Recipe');
 const PostReport = require('../models/PostReport');
 const Product = require('../models/Product');
 const { getFollowingIds } = require('../services/follow.service');
-const { maybeAutoHide } = require('../services/post-moderation.service');
 const mongoose = require('mongoose');
 
 const MAX_LINKED_PRODUCTS = 3;
@@ -567,9 +566,6 @@ async function reportPost(req, res) {
       }
       throw err;
     }
-
-    // Enough pending reports hide the post automatically; admins can unhide it later.
-    await maybeAutoHide(post.post_id);
 
     res.status(201).json({ message: 'Report submitted' });
   } catch (error) {

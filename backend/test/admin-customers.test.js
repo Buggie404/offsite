@@ -59,8 +59,24 @@ test('list filters by tier and status and searches name, @handle, email or phone
   assert.equal(res.statusCode, 200);
   assert.equal(seen.listQuery.role, 'customer');
   assert.equal(seen.listQuery.membership_tier, 'Bloom');
-  assert.equal(seen.listQuery.status, 'suspended');
+  assert.equal(seen.listQuery.$and[0].$or[0].status, 'suspended');
+  assert.ok(seen.listQuery.$and[0].$or[1]['community_restriction.until'].$gt instanceof Date);
   assert.equal(seen.listQuery.$or[1].community_name.source, 'mai\\.matcha');
+});
+
+test('a customer restricted in Community counts as suspended until it runs out', async () => {
+  const users = [
+    customerDoc({ user_id: 'U1', community_restriction: { until: new Date(Date.now() + 86400000), reason: 'Spam' } }),
+    customerDoc({ user_id: 'U2', community_restriction: { until: new Date(Date.now() - 1000), reason: 'Old' } })
+  ];
+  const { api, req, seen } = loadApi({ users });
+  const res = response();
+  await api.listCustomers(req({}, { status: 'active' }), res);
+  assert.equal(seen.listQuery.status.$ne, 'suspended');
+  assert.ok(seen.listQuery['community_restriction.until'].$not.$gt instanceof Date);
+  assert.equal(res.body.data[0].restricted_reason, 'Spam');
+  assert.ok(res.body.data[0].restricted_until);
+  assert.equal(res.body.data[1].restricted_until, null);
 });
 
 test('an unknown tier is ignored instead of matching nothing', async () => {
@@ -69,22 +85,15 @@ test('an unknown tier is ignored instead of matching nothing', async () => {
   assert.equal('membership_tier' in seen.listQuery, false);
 });
 
-test('locking a customer needs a reason, then is saved and logged as user.suspend', async () => {
+test('no admin can lock a customer account', async () => {
   const { api, req, logs, customer } = loadApi();
-
-  const missing = response();
-  await api.setCustomerStatus(req({ status: 'suspended', reason: ' ' }), missing);
-  assert.equal(missing.statusCode, 400);
-  assert.equal(customer.saved, false);
-
   const res = response();
   await api.setCustomerStatus(req({ status: 'suspended', reason: 'Chargeback fraud' }), res);
-  assert.equal(res.statusCode, 200);
-  assert.equal(customer.status, 'suspended');
-  assert.equal(customer.suspended_reason, 'Chargeback fraud');
-  assert.equal(res.body.data.status, 'suspended');
-  assert.equal(logs[0].actionType, 'user.suspend');
-  assert.equal(logs[0].reason, 'Chargeback fraud');
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.code, 'CUSTOMER_LOCK_DISABLED');
+  assert.equal(customer.status, 'active');
+  assert.equal(customer.saved, false);
+  assert.equal(logs.length, 0);
 });
 
 test('unlocking clears the suspension and is logged as user.unsuspend', async () => {

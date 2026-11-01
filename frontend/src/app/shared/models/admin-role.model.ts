@@ -5,8 +5,8 @@ export type AdminRole = (typeof ADMIN_ROLES)[number];
 // Labels hiển thị trên UI (sidebar badge, 403 page, user menu...)
 export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
   admin_cc: 'Senior Admin',
-  cskh:     'Services-Ops',
-  qlsp:     'Sales-Ops',
+  cskh:     'Services Ops',
+  qlsp:     'Sales Ops',
 };
 
 // Badge‑only role labels – chỉ dùng để hiển thị trên UI, không ảnh hưởng vào auth

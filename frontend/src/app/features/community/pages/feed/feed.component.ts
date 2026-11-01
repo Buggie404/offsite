@@ -20,10 +20,12 @@ import { ShareModalComponent } from '../../components/share-modal/share-modal.co
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { LucideLeaf, LucideCoffee, LucideSparkles, LucideDroplet, LucideDessert, LucideStar, LucideHeart } from '@lucide/angular';
 
+import { RestrictionBannerComponent } from '../../components/restriction-banner/restriction-banner.component';
 @Component({
   selector: 'app-feed',
   standalone: true,
   imports: [
+    RestrictionBannerComponent,
     CommonModule,
     HeroBannerComponent,
     FeedToolbarComponent,

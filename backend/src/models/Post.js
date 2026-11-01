@@ -35,8 +35,10 @@ const postSchema = new mongoose.Schema({
   },
   // 'hidden' posts are removed from public feeds; the owner still sees them with a banner.
   status: { type: String, enum: ['visible', 'hidden'], default: 'visible' },
-  // Why/when/who hid it: 'manual' (admin) or 'auto_reports' (enough pending reports).
+  // Why/when/who hid it: 'manual' (admin) or 'auto_reports' (older posts, reports no longer hide a post).
   hidden_reason: { type: String, enum: ['manual', 'auto_reports', null], default: null },
+  // Set once staff hide or penalize the post: its points never come back, even if it is restored.
+  points_forfeited: { type: Boolean, default: false },
   hidden_at: { type: Date, default: null },
   hidden_by: { type: String, default: null }
 }, {

@@ -3,6 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import {
+  LucideBan,
+  LucideCheck,
+  LucideChevronDown,
   LucideChevronLeft,
   LucideChevronRight,
   LucideCircleCheck,
@@ -14,13 +17,14 @@ import {
   LucideTriangleAlert,
   LucideX
 } from '@lucide/angular';
-import { AdminRole } from '../../../../shared/models/admin-role.model';
+import { ADMIN_ROLE_LABELS, AdminRole } from '../../../../shared/models/admin-role.model';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { avatarInitials } from '../../../../shared/utils/avatar';
 import {
   AdminModerationService,
   HandledItem,
   ModerationActionType,
+  PenaltyAction,
   QueueItem,
   ReportTargetType
 } from '../../services/admin-moderation.service';
@@ -36,13 +40,40 @@ interface PendingAction {
   excerpt: string;
   reporterCount: number;
   hidden: boolean;
+  /** Older full account lock, as opposed to a Community restriction */
+  locked: boolean;
+  reason: string;
+  recommended?: PenaltyAction;
+  restrictedUntil?: string | null;
+  pointsForfeited?: boolean;
 }
+
+interface Penalty {
+  action: PenaltyAction;
+  level: number;
+  label: string;
+  days: number;
+}
+
+const PENALTIES: Penalty[] = [
+  { action: 'warn', level: 1, label: 'Warn', days: 0 },
+  { action: 'suspend_3d', level: 2, label: 'Restrict 3 days', days: 3 },
+  { action: 'suspend_7d', level: 3, label: 'Restrict 7 days', days: 7 }
+];
+
+const LADDER = [{ level: 0, label: 'Clean' }, ...PENALTIES.map(({ level, label }) => ({ level, label }))];
+
+const SEVERITY_BY_LEVEL: Record<number, string> = { 1: 'Low', 2: 'Medium', 3: 'High' };
+
+const RESULT_LABELS: Record<HandledItem['action'], string> = {
+  hide: 'Hidden', restore: 'Restored', warn: 'Warned', suspend_3d: 'Restricted 3 days', suspend_7d: 'Restricted 7 days',
+  lift: 'Restriction lifted', lock: 'Account locked', unlock: 'Account unlocked', dismiss: 'Dismissed'
+};
 
 const REASON_LABELS: Record<string, string> = {
   spam: 'Spam', inappropriate: 'Inappropriate', off_topic: 'Off topic', misleading: 'Misleading', other: 'Other'
 };
 const TYPE_LABELS: Record<ReportTargetType, string> = { post: 'post', comment: 'comment', account: 'account' };
-const ROLE_LABELS: Record<AdminRole, string> = { admin_cc: 'Admin CC', cskh: 'CSKH', qlsp: 'QLSP' };
 const HANDLED_PAGE_SIZE = 20;
 
 @Component({
@@ -50,7 +81,7 @@ const HANDLED_PAGE_SIZE = 20;
   standalone: true,
   imports: [
     CommonModule, FormsModule, RouterModule,
-    LucideChevronLeft, LucideChevronRight, LucideCircleCheck, LucideEye, LucideEyeOff, LucideInbox,
+    LucideBan, LucideCheck, LucideChevronDown, LucideChevronLeft, LucideChevronRight, LucideCircleCheck, LucideEye, LucideEyeOff, LucideInbox,
     LucideLock, LucideLockOpen, LucideTriangleAlert, LucideX
   ],
   templateUrl: './community-reports.component.html',
@@ -61,10 +92,13 @@ export class AdminCommunityReportsComponent implements OnInit {
   private toast = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
 
+  readonly penalties = PENALTIES;
+  readonly ladder = LADDER;
+
   tab: Tab = 'waiting';
   type: ReportTargetType | '' = '';
   readonly typeOptions: { value: ReportTargetType | ''; label: string }[] = [
-    { value: '', label: 'Posts, comments & accounts' },
+    { value: '', label: 'All' },
     { value: 'post', label: 'Posts' },
     { value: 'comment', label: 'Comments' },
     { value: 'account', label: 'Accounts' }
@@ -81,8 +115,7 @@ export class AdminCommunityReportsComponent implements OnInit {
   // Confirmation modal
   pending: PendingAction | null = null;
   message = '';
-  alsoHide = false;
-  notifyReporters = true;
+  sendToReporters = true;
   saving = false;
   modalError = '';
 
@@ -147,7 +180,7 @@ export class AdminCommunityReportsComponent implements OnInit {
   }
 
   roleLabel(role: AdminRole): string {
-    return ROLE_LABELS[role] || role;
+    return ADMIN_ROLE_LABELS[role] || role;
   }
 
   reasonSummary(item: QueueItem): string {
@@ -157,8 +190,38 @@ export class AdminCommunityReportsComponent implements OnInit {
       .join(' · ');
   }
 
-  topReason(item: QueueItem): string {
-    return Object.entries(item.reasons).sort((a, b) => b[1] - a[1])[0]?.[0] || 'other';
+  reasonLabel(reason: string): string {
+    return REASON_LABELS[reason] || reason;
+  }
+
+  // ── Severity panel ──
+
+  suggested(item: QueueItem): Penalty {
+    return PENALTIES.find((penalty) => penalty.action === item.recommended_action) || PENALTIES[0];
+  }
+
+  severity(item: QueueItem): string {
+    return SEVERITY_BY_LEVEL[this.suggested(item).level];
+  }
+
+  /** Where the author stands today: one step per earlier violation */
+  currentLevel(item: QueueItem): number {
+    return Math.min(item.owner_warnings, PENALTIES.length);
+  }
+
+  historyText(item: QueueItem): string {
+    const last = item.last_violation;
+    if (!last) return 'no prior violations.';
+    const penalty = PENALTIES.find((p) => p.level === last.level);
+    const date = new Date(last.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const total = item.owner_warnings > 1 ? ` (${item.owner_warnings} violations in total)` : '';
+    return `L${last.level} ${penalty?.label || ''} on ${date}${total}.`;
+  }
+
+  suggestionWhy(item: QueueItem): string {
+    const violation = item.owner_warnings + 1;
+    const byHistory = Math.min(violation, PENALTIES.length);
+    return `Violation no. ${violation} is L${byHistory}. ${this.reasonLabel(item.top_reason)} starts at L${item.reason_level}. The higher one applies.`;
   }
 
   dateTime(value: string | null): string {
@@ -174,12 +237,19 @@ export class AdminCommunityReportsComponent implements OnInit {
     return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1].charAt(0)}.` : name;
   }
 
+  resultLabel(action: HandledItem['action']): string {
+    return RESULT_LABELS[action];
+  }
+
   handledSummary(row: HandledItem): string {
-    const verb: Record<HandledItem['action'], string> = {
-      hide: 'Hidden', restore: 'Restored', warn: row.also_hidden ? 'Warned + hidden' : 'Warned',
-      lock: row.also_hidden ? 'Account locked + hidden' : 'Account locked', unlock: 'Account unlocked', dismiss: 'Dismissed'
-    };
-    return `${verb[row.action]} by ${this.shortName(row.admin_name)} (${this.roleLabel(row.admin_role)}) · ${this.dateTime(row.created_at)}`;
+    const verb = `${RESULT_LABELS[row.action]}${row.also_hidden ? ' + hidden' : ''}`;
+    const until = row.restricted_until ? ` until ${this.dateTime(row.restricted_until)}` : '';
+    return `${verb}${until} by ${this.shortName(row.admin_name)} (${this.roleLabel(row.admin_role)}) · ${this.dateTime(row.created_at)}`;
+  }
+
+  /** Can this decision's Community restriction still be lifted? */
+  canLift(row: HandledItem): boolean {
+    return row.owner_restricted && (row.action === 'suspend_3d' || row.action === 'suspend_7d');
   }
 
   get waitingCount(): number {
@@ -196,32 +266,40 @@ export class AdminCommunityReportsComponent implements OnInit {
       ownerName: item.owner_name,
       excerpt: item.content,
       reporterCount: item.reporter_count,
-      hidden: item.content_status === 'hidden' || (item.target_type === 'account' && item.owner_status === 'locked')
-    }, this.topReason(item));
+      hidden: item.content_status === 'hidden' || (item.target_type === 'account' && item.owner_status === 'locked'),
+      locked: item.owner_status === 'locked',
+      reason: item.top_reason,
+      recommended: item.recommended_action,
+      restrictedUntil: item.owner_restricted_until,
+      pointsForfeited: item.points_forfeited
+    });
   }
 
-  /** Undo from the Handled tab: restore hidden content or unlock the account */
+  /** Undo from the Handled tab: restore the hidden content */
   undo(row: HandledItem): void {
     this.openFor({
-      action: 'restore',
-      type: row.content_hidden ? row.target_type : 'account',
-      targetId: row.content_hidden ? row.target_id : row.owner_id || row.target_id,
-      ownerName: row.owner_name || '',
-      excerpt: '',
-      reporterCount: 0,
-      hidden: true
-    }, 'other');
+      action: 'restore', type: row.target_type, targetId: row.target_id, ownerName: row.owner_name || '',
+      excerpt: '', reporterCount: 0, hidden: true, locked: false, reason: 'other', pointsForfeited: row.action !== 'dismiss'
+    });
   }
 
-  private openFor(pending: PendingAction, reason: string): void {
+  /** Undo from the Handled tab: lift the restriction, or unlock an account locked earlier */
+  liftAccount(row: HandledItem): void {
+    this.openFor({
+      action: 'restore', type: 'account', targetId: row.owner_id || row.target_id, ownerName: row.owner_name || '',
+      excerpt: '', reporterCount: 0, hidden: true, locked: row.owner_locked, reason: 'other'
+    });
+  }
+
+  private openFor(pending: PendingAction): void {
     this.pending = pending;
-    this.message = this.template(pending, reason);
-    this.alsoHide = pending.action === 'lock' && pending.type !== 'account' && !pending.hidden;
-    this.notifyReporters = pending.reporterCount > 0;
+    this.message = this.template(pending);
+    this.sendToReporters = true;
     this.modalError = '';
   }
 
-  private template(p: PendingAction, reason: string): string {
+  private template(p: PendingAction): string {
+    const reason = p.reason;
     const what = p.type === 'comment' ? 'comment' : 'post';
     const why: Record<string, string> = {
       spam: 'it looks like spam or advertising',
@@ -232,13 +310,19 @@ export class AdminCommunityReportsComponent implements OnInit {
     };
     switch (p.action) {
       case 'hide': return `Your ${what} was hidden because ${why[reason] || why['other']}.`;
-      case 'warn': return `This is a warning: your ${p.type === 'account' ? 'profile' : what} was reported because ${why[reason] || why['other']}. Repeated violations can lead to your account being locked.`;
-      case 'lock': return `Your account has been locked because ${why[reason] || why['other']}. Contact us if you think this is a mistake.`;
+      case 'warn': return `This is a warning: your ${p.type === 'account' ? 'profile' : what} was reported because ${why[reason] || why['other']}. Please review our community guidelines.`;
+      case 'suspend_3d': return `Your ${p.type === 'account' ? 'profile' : what} was reported because ${why[reason] || why['other']}. You cannot post or comment for 3 days.`;
+      case 'suspend_7d': return `Your ${p.type === 'account' ? 'profile' : what} was reported because ${why[reason] || why['other']}. You can only view Community for 7 days.`;
       case 'restore': return p.type === 'account'
-        ? 'Your account has been unlocked after review. Welcome back.'
+        ? (p.locked ? 'Your account has been unlocked after review. Welcome back.' : 'Your Community access is back to normal after review.')
         : `Your ${what} is visible again after review.`;
       default: return '';
     }
+  }
+
+  /** The penalty being applied, null for hide, restore and dismiss */
+  get modalPenalty(): Penalty | null {
+    return PENALTIES.find((penalty) => penalty.action === this.pending?.action) || null;
   }
 
   get modalTitle(): string {
@@ -246,13 +330,33 @@ export class AdminCommunityReportsComponent implements OnInit {
     if (!p) return '';
     const handle = `@${p.ownerName}`;
     const what = TYPE_LABELS[p.type];
+    const penalty = this.modalPenalty;
+    if (penalty) return `Apply L${penalty.level} · ${penalty.days ? 'Restrict' : 'Warn'} ${handle}`;
     switch (p.action) {
       case 'hide': return `Hide ${what} by ${handle}`;
-      case 'restore': return p.type === 'account' ? `Unlock ${handle}` : `Restore ${what} by ${handle}`;
-      case 'warn': return `Warn ${handle}`;
-      case 'lock': return `Lock ${handle}`;
+      case 'restore':
+        if (p.type !== 'account') return `Restore ${what} by ${handle}`;
+        return p.locked ? `Unlock ${handle}` : `Lift restriction for ${handle}`;
       default: return `Dismiss reports on ${handle}`;
     }
+  }
+
+  get modalSubtitle(): string {
+    const p = this.pending;
+    if (!this.modalPenalty || !p) return 'Please confirm before applying';
+    if (p.recommended === p.action) return 'Suggested level · normal confirmation';
+    const suggested = PENALTIES.find((penalty) => penalty.action === p.recommended);
+    return `Not the suggested level (L${suggested?.level}) · check before applying`;
+  }
+
+  /** "Post "Matcha cures..." will be hidden" */
+  get modalContent(): string {
+    const p = this.pending;
+    if (!p?.excerpt) return '';
+    const name = p.type === 'account' ? 'Profile' : TYPE_LABELS[p.type].charAt(0).toUpperCase() + TYPE_LABELS[p.type].slice(1);
+    const text = p.excerpt.length > 60 ? `${p.excerpt.slice(0, 60)}...` : p.excerpt;
+    const hides = (p.action === 'hide' || !!this.modalPenalty) && p.type !== 'account' && !p.hidden;
+    return `${name} "${text}"${hides ? ' will be hidden' : ''}`;
   }
 
   get modalEffect(): string {
@@ -260,29 +364,46 @@ export class AdminCommunityReportsComponent implements OnInit {
     if (!p) return '';
     const what = TYPE_LABELS[p.type];
     switch (p.action) {
-      case 'hide': return `The ${what} is hidden from the community and its reports are closed.`;
-      case 'restore': return p.type === 'account' ? 'The customer can sign in again.' : `The ${what} is visible again.`;
-      case 'warn': return 'A warning is added to the account. They can still post.';
-      case 'lock': return 'The customer is signed out and cannot sign in until unlocked.';
+      case 'hide': return `The ${what} is hidden from the community and its reports are closed. ${this.pointsNote(p)}`;
+      case 'restore':
+        if (p.type === 'post') return `The post is visible again. ${p.pointsForfeited ? 'Its points stay taken back.' : 'Its points come back.'}`;
+        if (p.type === 'comment') return 'The comment is visible again.';
+        return p.locked ? 'The customer can sign in again.' : 'Their Community access is back to normal right away.';
+      case 'warn': return `A warning is added to the account. They can still post, comment and shop normally. ${this.pointsNote(p)}`;
+      case 'suspend_3d': return `Cannot post or comment until ${this.restrictedUntil(p, 3)}, and earns 50% fewer points until then. Can still read, and shop normally. ${this.pointsNote(p)}`;
+      case 'suspend_7d': return `Can only view Community until ${this.restrictedUntil(p, 7)}, and earns 50% fewer points until then. Can still shop normally. ${this.pointsNote(p)}`;
       default: return 'The reports are closed and nothing changes for the author.';
     }
   }
 
+  private pointsNote(p: PendingAction): string {
+    return p.type === 'post' ? 'Its points are taken back for good, even if it is restored later.' : '';
+  }
+
+  /** A new penalty never shortens a running restriction */
+  private restrictedUntil(p: PendingAction, days: number): string {
+    const fromNow = Date.now() + days * 24 * 60 * 60 * 1000;
+    const until = Math.max(fromNow, p.restrictedUntil ? new Date(p.restrictedUntil).getTime() : 0);
+    return new Date(until).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
   get confirmLabel(): string {
-    const labels: Record<ModerationActionType, string> = {
-      hide: 'Hide', restore: this.pending?.type === 'account' ? 'Unlock' : 'Restore', warn: 'Send warning', lock: 'Lock account', dismiss: 'Dismiss'
-    };
-    return this.pending ? labels[this.pending.action] : '';
-  }
-
-  /** Hide / warn / lock must carry a message (it is also the logged reason) */
-  get messageRequired(): boolean {
-    return !!this.pending && ['hide', 'warn', 'lock'].includes(this.pending.action);
-  }
-
-  get canHideToo(): boolean {
     const p = this.pending;
-    return !!p && ['warn', 'lock'].includes(p.action) && p.type !== 'account' && !p.hidden;
+    const penalty = this.modalPenalty;
+    if (penalty) return `Apply L${penalty.level}`;
+    const restoreLabel = p?.type !== 'account' ? 'Restore' : p.locked ? 'Unlock' : 'Lift restriction';
+    const labels: Record<'hide' | 'restore' | 'dismiss', string> = { hide: 'Hide', restore: restoreLabel, dismiss: 'Dismiss' };
+    return p ? labels[p.action as 'hide' | 'restore' | 'dismiss'] : '';
+  }
+
+  /** Hide and the penalties must carry a message (it is also the logged reason) */
+  get messageRequired(): boolean {
+    return !!this.pending && this.pending.action !== 'restore' && this.pending.action !== 'dismiss';
+  }
+
+  /** Dismissed reports stay quiet; other results can go to the reporters */
+  get canNotifyReporters(): boolean {
+    return !!this.pending?.reporterCount && this.messageRequired;
   }
 
   closeModal(): void {
@@ -303,8 +424,7 @@ export class AdminCommunityReportsComponent implements OnInit {
       target_id: p.targetId,
       action: p.action,
       message: p.action === 'dismiss' ? '' : this.message.trim(),
-      also_hide: this.canHideToo && this.alsoHide,
-      notify_reporters: this.notifyReporters
+      notify_reporters: this.sendToReporters
     }).subscribe({
       next: () => {
         this.saving = false;
@@ -323,9 +443,12 @@ export class AdminCommunityReportsComponent implements OnInit {
   private successText(p: PendingAction): string {
     switch (p.action) {
       case 'hide': return 'Content hidden and the author notified.';
-      case 'restore': return p.type === 'account' ? 'Account unlocked.' : 'Content restored.';
+      case 'restore':
+        if (p.type !== 'account') return 'Content restored.';
+        return p.locked ? 'Account unlocked.' : 'Restriction lifted.';
       case 'warn': return 'Warning sent.';
-      case 'lock': return 'Account locked.';
+      case 'suspend_3d': return 'Restricted in Community for 3 days.';
+      case 'suspend_7d': return 'Restricted in Community for 7 days.';
       default: return 'Reports dismissed.';
     }
   }

@@ -64,14 +64,18 @@ async function startConversation(req, res) {
   }
 }
 
-// GET /api/chat/conversations  (cskh: assigned customers only; admin_cc: all)
+// GET /api/chat/conversations  (cskh: waiting queue, own chats, assigned customers; admin_cc: all)
 async function listConversations(req, res) {
   try {
     const query = {};
     if (req.query.status) query.status = req.query.status;
     if (req.user.role === 'cskh') {
-      const agent = await User.findOne({ user_id: req.user.user_id }, 'assigned_chat_customer_ids').lean();
-      query.customer_id = { $in: agent?.assigned_chat_customer_ids || [] };
+      const agent = await User.findById(req.user.user_id, 'assigned_chat_customer_ids').lean();
+      query.$or = [
+        { status: 'waiting' },
+        { agent_id: String(req.user.user_id) },
+        { customer_id: { $in: agent?.assigned_chat_customer_ids || [] } }
+      ];
     }
     const data = await ChatConversation.find(query).sort({ last_message_at: -1 }).limit(100).lean();
     const users = await User.find({ user_id: { $in: data.map(c => c.customer_id) } }, 'user_id profile_name avatar_url membership_tier').lean();

@@ -3,8 +3,9 @@ const User = require('../models/User');
 const Order = require('../models/Order');
 const Subscription = require('../models/Subscription');
 const CustomerNote = require('../models/CustomerNote');
+const { activeRestriction } = require('../services/community-restriction.service');
 
-// Admin Customers (1.4): list, profile, lock / unlock, internal notes.
+// Admin Customers (1.4): list, profile, unlock, internal notes.
 // Points / tier (group 6) and orders (group 3) are read here only, never changed.
 
 const TIERS = ['Seed', 'Leaf', 'Bloom', 'Zen'];
@@ -15,6 +16,7 @@ const ACTIVE_SUBSCRIPTION_STATUSES = ['active', 'paused', 'payment_failed'];
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function customerRow(user, stats = {}) {
+  const restriction = activeRestriction(user);
   return {
     user_id: user.user_id,
     profile_name: user.profile_name,
@@ -27,6 +29,8 @@ function customerRow(user, stats = {}) {
     status: user.status === 'suspended' ? 'suspended' : 'active',
     suspended_reason: user.suspended_reason || null,
     suspended_at: user.suspended_at || null,
+    restricted_until: restriction?.until || null,
+    restricted_reason: restriction?.reason || null,
     created_at: user.createdAt || null,
     order_count: stats.order_count || 0,
     last_order_at: stats.last_order_at || null
@@ -43,8 +47,15 @@ async function listCustomers(req, res) {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const query = { role: 'customer' };
     if (TIERS.includes(req.query.tier)) query.membership_tier = req.query.tier;
-    if (req.query.status === 'suspended') query.status = 'suspended';
-    if (req.query.status === 'active') query.status = { $ne: 'suspended' };
+    // Suspended: restricted in Community right now, or locked before locking was removed.
+    const now = new Date();
+    if (req.query.status === 'suspended') {
+      query.$and = [{ $or: [{ status: 'suspended' }, { 'community_restriction.until': { $gt: now } }] }];
+    }
+    if (req.query.status === 'active') {
+      query.status = { $ne: 'suspended' };
+      query['community_restriction.until'] = { $not: { $gt: now } };
+    }
 
     const q = String(req.query.q || '').trim().replace(/^@/, '').slice(0, 80);
     if (q) {
@@ -58,7 +69,7 @@ async function listCustomers(req, res) {
 
     const [total, users] = await Promise.all([
       User.countDocuments(query),
-      User.find(query, 'user_id profile_name community_name email phone avatar_url membership_tier points status suspended_reason suspended_at createdAt')
+      User.find(query, 'user_id profile_name community_name email phone avatar_url membership_tier points status suspended_reason suspended_at community_restriction createdAt')
         .sort({ createdAt: -1 }).skip((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).lean()
     ]);
 
@@ -164,36 +175,28 @@ async function addCustomerNote(req, res) {
   }
 }
 
-// PATCH /api/admin/customers/:userId/status  { status: 'suspended' | 'active', reason }
-// A suspended customer is blocked at sign-in and on every authenticated request (auth.middleware).
+// PATCH /api/admin/customers/:userId/status  { status: 'active', reason }
+// No admin can lock a customer account. Unlocking stays, for accounts locked before this rule.
 async function setCustomerStatus(req, res) {
   try {
     const status = String(req.body?.status || '');
-    if (!['suspended', 'active'].includes(status)) return res.status(400).json({ error: 'Invalid status.' });
+    if (status === 'suspended') return res.status(403).json({ error: 'Customer accounts cannot be locked.', code: 'CUSTOMER_LOCK_DISABLED' });
+    if (status !== 'active') return res.status(400).json({ error: 'Invalid status.' });
     const reason = String(req.body?.reason || '').trim().slice(0, 500);
-    if (status === 'suspended' && !reason) return res.status(400).json({ error: 'A reason is required to lock an account.' });
 
     const customer = await findCustomer(req.params.userId);
     if (!customer) return res.status(404).json({ error: 'Customer not found.' });
-    const oldStatus = customer.status === 'suspended' ? 'suspended' : 'active';
-    if (oldStatus === status) return res.json({ data: customerRow(customer.toObject()) });
+    if (customer.status !== 'suspended') return res.json({ data: customerRow(customer.toObject()) });
 
-    if (status === 'suspended') {
-      customer.status = 'suspended';
-      customer.suspended_reason = reason;
-      customer.suspended_by = String(req.user.user_id);
-      customer.suspended_at = new Date();
-    } else {
-      customer.status = 'active';
-      customer.suspended_reason = null;
-      customer.suspended_by = null;
-      customer.suspended_at = null;
-    }
+    customer.status = 'active';
+    customer.suspended_reason = null;
+    customer.suspended_by = null;
+    customer.suspended_at = null;
     await customer.save();
 
     await req.writeActivityLog({
-      actionType: status === 'suspended' ? 'user.suspend' : 'user.unsuspend', targetEntity: 'user', targetId: customer.user_id,
-      oldValue: { status: oldStatus }, newValue: { status }, reason: reason || null
+      actionType: 'user.unsuspend', targetEntity: 'user', targetId: customer.user_id,
+      oldValue: { status: 'suspended' }, newValue: { status }, reason: reason || null
     });
     res.json({ data: customerRow(customer.toObject()) });
   } catch (error) {

@@ -593,6 +593,14 @@ async function updateProfile(req, res) {
     const { userCollection } = await getCollections();
     const userId = new ObjectId(req.user.user_id);
 
+    // Staff emails follow firstname.lastname@offsite.vn and are set on the Staff page only.
+    if (email && ADMIN_ROLES.has(req.user.role)) {
+      const current = await userCollection.findOne({ _id: userId }, { projection: { email: 1 } });
+      if (email.trim().toLowerCase() !== String(current?.email || '').toLowerCase()) {
+        return res.status(403).json({ error: 'Staff emails cannot be changed here.', code: 'STAFF_EMAIL_LOCKED' });
+      }
+    }
+
     // Kiểm tra trùng email
     if (email) {
       const emailUser = await userCollection.findOne({
@@ -683,7 +691,12 @@ async function changePassword(req, res) {
         return res.status(401).json({ error: 'Mật khẩu cũ không chính xác.' });
       }
     } else {
-      return res.status(400).json({ error: 'Tài khoản này đăng nhập qua MXH và chưa tạo mật khẩu.' });  
+      return res.status(400).json({ error: 'Tài khoản này đăng nhập qua MXH và chưa tạo mật khẩu.' });
+    }
+
+    // The temporary password is known to the Admin CC who issued it, so it cannot be kept.
+    if (user.must_change_password && newPassword === oldPassword) {
+      return res.status(400).json({ error: 'Choose a password different from the temporary one.' });
     }
 
     const saltRounds = 10;

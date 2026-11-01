@@ -1,9 +1,6 @@
 const Post = require('../models/Post');
 const PostReport = require('../models/PostReport');
 
-// A post is auto-hidden once it has this many pending (unreviewed) reports.
-const AUTO_HIDE_THRESHOLD = Math.max(1, parseInt(process.env.POST_AUTO_HIDE_THRESHOLD, 10) || 5);
-
 async function transitionPost(postId, hide, { reason, adminId = null } = {}) {
   const session = await Post.db.startSession();
   let post = null;
@@ -11,7 +8,7 @@ async function transitionPost(postId, hide, { reason, adminId = null } = {}) {
     await session.withTransaction(async () => {
       post = await Post.findOneAndUpdate(
         { post_id: postId, status: hide ? { $ne: 'hidden' } : 'hidden' },
-        { $set: hide ? { status: 'hidden', hidden_reason: reason, hidden_at: new Date(), hidden_by: adminId }
+        { $set: hide ? { status: 'hidden', hidden_reason: reason, hidden_at: new Date(), hidden_by: adminId, ...(reason === 'manual' ? { points_forfeited: true } : {}) }
           : { status: 'visible', hidden_reason: null, hidden_at: null, hidden_by: null } },
         { new: true, session }
       );
@@ -19,7 +16,8 @@ async function transitionPost(postId, hide, { reason, adminId = null } = {}) {
       const points = require('./points.service');
       if (hide) await points.reverseCommunityPoints(postId, session);
       else {
-        await points.restoreCommunityPoints(postId, session);
+        // Only posts auto-hidden in the past can get points back: no staff member judged them.
+        if (!post.points_forfeited) await points.restoreCommunityPoints(postId, session);
         await PostReport.updateMany({ post_id: postId, status: 'pending' }, { $set: { status: 'dismissed' } }, { session });
       }
     });
@@ -29,12 +27,7 @@ async function transitionPost(postId, hide, { reason, adminId = null } = {}) {
 
 const hidePost = (postId, options) => transitionPost(postId, true, options);
 const unhidePost = postId => transitionPost(postId, false);
+// A penalty on a post that was already hidden: the points are gone already, keep them gone.
+const forfeitPostPoints = postId => Post.updateOne({ post_id: postId }, { $set: { points_forfeited: true } });
 
-// Called after a new report is saved. Returns the post if it was just auto-hidden.
-async function maybeAutoHide(postId) {
-  const pending = await PostReport.countDocuments({ post_id: postId, status: 'pending' });
-  if (pending < AUTO_HIDE_THRESHOLD) return null;
-  return hidePost(postId, { reason: 'auto_reports' });
-}
-
-module.exports = { AUTO_HIDE_THRESHOLD, hidePost, unhidePost, maybeAutoHide };
+module.exports = { hidePost, unhidePost, forfeitPostPoints };

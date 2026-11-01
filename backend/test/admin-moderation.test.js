@@ -18,10 +18,10 @@ function response() {
 }
 
 // A post by USR00009 with 2 pending reports from USR00001 / USR00002.
-function setup({ postStatus = 'visible', ownerStatus = 'active' } = {}) {
-  const calls = { hidden: [], restored: [], notifications: [], reportUpdates: [], records: [], logs: [] };
+function setup({ postStatus = 'visible', ownerStatus = 'active', restriction = null } = {}) {
+  const calls = { hidden: [], restored: [], forfeited: [], notifications: [], reportUpdates: [], records: [], logs: [], abuseChecks: [] };
   const owner = {
-    user_id: 'USR00009', role: 'customer', status: ownerStatus, community_name: 'green.tea.deals', community_warnings: [],
+    user_id: 'USR00009', role: 'customer', status: ownerStatus, email: 'mai@example.com', community_name: 'green.tea.deals', community_warnings: [], community_restriction: restriction,
     saved: 0, async save() { this.saved += 1; }, toObject() { return { ...this }; }
   };
   const api = load('../src/controllers/admin-moderation.controller.js', {
@@ -29,7 +29,7 @@ function setup({ postStatus = 'visible', ownerStatus = 'active' } = {}) {
     '../models/Comment': {},
     '../models/User': {
       findOne: (query, fields) => {
-        if (query.user_id === 'USR00009') return Promise.resolve(owner);
+        if (query.user_id === 'USR00009') return Object.assign(Promise.resolve(owner), { lean: async () => owner });
         const admin = { profile_name: 'Ha Pham' };
         return Object.assign(Promise.resolve(admin), { lean: async () => admin });
       }
@@ -41,10 +41,12 @@ function setup({ postStatus = 'visible', ownerStatus = 'active' } = {}) {
     '../models/ModerationAction': { create: async (doc) => { calls.records.push(doc); return { action_id: 'A1', ...doc }; } },
     '../services/post-moderation.service': {
       hidePost: async (id) => { calls.hidden.push(id); return {}; },
-      unhidePost: async (id) => { calls.restored.push(id); return {}; }
+      unhidePost: async (id) => { calls.restored.push(id); return {}; },
+      forfeitPostPoints: async (id) => { calls.forfeited.push(id); }
     },
     '../services/comment-moderation.service': { hideComment: async () => ({}), unhideComment: async () => ({}) },
-    '../services/notification.service': { createNotification: async (n) => { calls.notifications.push(n); } }
+    '../services/notification.service': { createNotification: async (n) => { calls.notifications.push(n); } },
+    '../services/report-abuse.service': { warnReportAbusers: async (ids) => { calls.abuseChecks.push(ids); } }
   });
   const req = (body) => ({
     body: { target_type: 'post', target_id: 'P1', ...body },
@@ -54,8 +56,8 @@ function setup({ postStatus = 'visible', ownerStatus = 'active' } = {}) {
   return { api, req, calls, owner };
 }
 
-test('hide, warn and lock need the message the author receives', async () => {
-  for (const action of ['hide', 'warn', 'lock']) {
+test('hide and every penalty need the message the author receives', async () => {
+  for (const action of ['hide', 'warn', 'suspend_3d', 'suspend_7d']) {
     const { api, req, calls } = setup();
     const res = response();
     await api.moderate(req({ action, message: '  ' }), res);
@@ -67,7 +69,7 @@ test('hide, warn and lock need the message the author receives', async () => {
 test('hiding uses the group 4 post service, closes reports, notifies the author and reporters, and logs', async () => {
   const { api, req, calls } = setup();
   const res = response();
-  await api.moderate(req({ action: 'hide', message: 'Your post was hidden because it contains misleading claims.', notify_reporters: true }), res);
+  await api.moderate(req({ action: 'hide', message: 'Your post was hidden because it contains misleading claims.' }), res);
 
   assert.equal(res.statusCode, 200);
   assert.deepEqual(calls.hidden, ['P1']);
@@ -82,28 +84,133 @@ test('hiding uses the group 4 post service, closes reports, notifies the author 
   assert.match(calls.logs[0].reason, /misleading/);
 });
 
-test('warning adds a warning to the account and can also hide the post', async () => {
+test('a warning records level 1, hides the content and does not suspend', async () => {
   const { api, req, calls, owner } = setup();
   const res = response();
-  await api.moderate(req({ action: 'warn', message: 'Please keep it kind.', also_hide: true }), res);
+  await api.moderate(req({ action: 'warn', message: 'Please keep it kind.' }), res);
   assert.equal(res.statusCode, 200);
-  assert.equal(owner.community_warnings.length, 1);
+  assert.equal(owner.community_warnings[0].level, 1);
   assert.equal(owner.saved, 1);
+  assert.equal(owner.community_restriction, null);
   assert.deepEqual(calls.hidden, ['P1']);
   assert.equal(calls.records[0].also_hidden, true);
+  assert.equal(calls.notifications.filter((n) => n.type === 'COMMUNITY_REPORT_RESOLVED').length, 2);
 });
 
-test('locking suspends the author; a locked author cannot be locked again', async () => {
+test('suspensions last 3 or 7 days, hide the content, leave the account active and are logged', async () => {
+  for (const [action, level, days] of [['suspend_3d', 2, 3], ['suspend_7d', 3, 7]]) {
+    const { api, req, calls, owner } = setup();
+    const before = Date.now();
+    const res = response();
+    await api.moderate(req({ action, message: 'Repeated spam.' }), res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(owner.status, 'active');
+    assert.equal(owner.community_restriction.level, level);
+    const span = owner.community_restriction.until.getTime() - before;
+    assert.ok(Math.abs(span - days * 86400000) < 5000, action);
+    assert.deepEqual(calls.hidden, ['P1']);
+    assert.equal(calls.records[0].action, action);
+    assert.equal(calls.logs[0].actionType, `community.${action}`);
+    assert.ok(calls.logs[0].newValue.restricted_until);
+  }
+});
+
+test('reporters get the confirmation unless staff untick the box', async () => {
+  const told = setup();
+  await told.api.moderate(told.req({ action: 'warn', message: 'Please stop.' }), response());
+  const sent = told.calls.notifications.filter((n) => n.type === 'COMMUNITY_REPORT_RESOLVED');
+  assert.equal(sent.length, 2);
+  assert.match(sent[0].message, /confirmed and applied/);
+
+  const quiet = setup();
+  await quiet.api.moderate(quiet.req({ action: 'warn', message: 'Please stop.', notify_reporters: false }), response());
+  assert.equal(quiet.calls.notifications.filter((n) => n.type === 'COMMUNITY_REPORT_RESOLVED').length, 0);
+  assert.equal(quiet.calls.notifications.filter((n) => n.recipient_id === 'USR00009').length, 1);
+});
+
+test('only rejected reports count towards report abuse', async () => {
+  for (const [action, postStatus, counted] of [['dismiss', 'visible', true], ['restore', 'hidden', true], ['warn', 'visible', false], ['hide', 'visible', false]]) {
+    const { api, req, calls } = setup({ postStatus });
+    await api.moderate(req({ action, message: 'Reviewed.' }), response());
+    assert.equal(calls.reportUpdates[0].update.$set.status, counted ? 'dismissed' : 'reviewed', action);
+    assert.deepEqual(calls.abuseChecks, counted ? [['USR00001', 'USR00002']] : [], action);
+  }
+});
+
+test('a penalty on an auto-hidden post keeps its points taken back', async () => {
+  const { api, req, calls } = setup({ postStatus: 'hidden' });
+  await api.moderate(req({ action: 'suspend_3d', message: 'Spam again.' }), response());
+  assert.deepEqual(calls.hidden, []);
+  assert.deepEqual(calls.forfeited, ['P1']);
+});
+
+// Runs the real hide / restore transitions on one post, counting what happens to its points.
+function postService(initial = {}) {
+  const post = { post_id: 'P1', status: 'visible', points_forfeited: false, ...initial };
+  const points = { reversed: 0, restored: 0 };
+  const session = { withTransaction: (fn) => fn(), endSession: async () => {} };
+  const Post = {
+    db: { startSession: async () => session },
+    findOneAndUpdate: async (query, update) => {
+      const hiding = update.$set.status === 'hidden';
+      if ((post.status === 'hidden') === hiding) return null;
+      Object.assign(post, update.$set);
+      return post;
+    }
+  };
+  const service = load('../src/services/post-moderation.service.js', {
+    '../models/Post': Post,
+    '../models/PostReport': { updateMany: async () => ({}) },
+    './points.service': {
+      reverseCommunityPoints: async () => { points.reversed += 1; },
+      restoreCommunityPoints: async () => { points.restored += 1; }
+    }
+  });
+  return { service, post, points };
+}
+
+test('points taken back by staff stay gone after a restore', async () => {
+  const { service, post, points } = postService();
+  await service.hidePost('P1', { reason: 'manual', adminId: 'A1' });
+  await service.unhidePost('P1');
+  assert.equal(post.status, 'visible');
+  assert.equal(points.restored, 0);
+});
+
+test('an older auto-hidden post gets its points back when restored', async () => {
+  const { service, points } = postService({ status: 'hidden', hidden_reason: 'auto_reports' });
+  await service.unhidePost('P1');
+  assert.equal(points.restored, 1);
+});
+
+test('a lighter penalty never shortens a running suspension', async () => {
+  const until = new Date(Date.now() + 6 * 86400000);
+  const { api, req, owner } = setup({ restriction: { level: 3, until } });
+  await api.moderate(req({ action: 'suspend_3d', message: 'Again.' }), response());
+  assert.equal(owner.community_restriction.level, 3);
+  assert.equal(owner.community_restriction.until.getTime(), until.getTime());
+});
+
+test('lifting ends the suspension; an account with none cannot be lifted', async () => {
+  const active = setup({ restriction: { level: 2, until: new Date(Date.now() + 86400000) } });
+  const res = response();
+  await active.api.moderate(active.req({ action: 'restore', target_type: 'account', target_id: 'USR00009' }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(active.owner.community_restriction, null);
+  assert.equal(active.calls.records[0].action, 'lift');
+
+  const expired = setup({ restriction: { level: 2, until: new Date(Date.now() - 1000) } });
+  const res2 = response();
+  await expired.api.moderate(expired.req({ action: 'restore', target_type: 'account', target_id: 'USR00009' }), res2);
+  assert.equal(res2.statusCode, 409);
+});
+
+test('no admin can lock the author from the reports queue', async () => {
   const { api, req, owner } = setup();
   const res = response();
   await api.moderate(req({ action: 'lock', message: 'Repeated scams.' }), res);
-  assert.equal(owner.status, 'suspended');
-  assert.equal(owner.suspended_reason, 'Repeated scams.');
-
-  const again = setup({ ownerStatus: 'suspended' });
-  const res2 = response();
-  await again.api.moderate(again.req({ action: 'lock', message: 'Again' }), res2);
-  assert.equal(res2.statusCode, 409);
+  assert.equal(res.statusCode, 400);
+  assert.equal(owner.status, 'active');
 });
 
 test('restore only applies to hidden content; dismiss closes reports without notifying', async () => {
