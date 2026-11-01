@@ -106,6 +106,8 @@ const subscriptionSchema = new mongoose.Schema({
   // chỉ áp dụng khi khách xác nhận; quá 3 ngày thì bỏ gợi ý.
   suggested_frequency_days: { type: Number, enum: [7, 14, null], default: null },
   suggested_at:             { type: Date, default: null },
+  // One-time order that raised the suggestion; canceling / refunding it withdraws the suggestion.
+  suggested_by_order_id:    { type: String, default: null },
 
   failed_attempts:     { type: Number, default: 0, min: 0 },
   last_failure_reason: { type: String, default: null },

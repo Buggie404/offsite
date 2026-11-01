@@ -445,7 +445,7 @@ async function suggestAdjustmentsForOrder(order) {
       // Conditional write so a concurrent order can't suggest (and notify) twice.
       const sub = await Subscription.findOneAndUpdate(
         { _id: candidate._id, frequency_days: candidate.frequency_days, $or: filter.$or },
-        { $set: { suggested_frequency_days: days, suggested_at: now } },
+        { $set: { suggested_frequency_days: days, suggested_at: now, suggested_by_order_id: order.order_id } },
         { new: true }
       );
       if (!sub) continue;
@@ -461,6 +461,21 @@ async function suggestAdjustmentsForOrder(order) {
 }
 
 // Ritual Boxes started by a checkout order (for the order confirmation page).
+// The one-time order behind a suggestion was canceled, refunded or is being refunded: the
+// customer didn't end up buying it, so the "get your next box sooner" suggestion is withdrawn.
+// An adjustment the customer already accepted is NOT reverted — accepting is a decision the
+// customer made and was applied (frequency / next charge already changed); only a suggestion
+// still waiting on them is removed. The SUBSCRIPTION_ADJUSTED notification stays in the list
+// (Notifications have no "expired" state); the Ritual Box page no longer shows Accept for it.
+async function withdrawSuggestionsForOrder(orderId) {
+  if (!orderId) return 0;
+  const result = await Subscription.updateMany(
+    { suggested_by_order_id: orderId },
+    { $set: { suggested_frequency_days: null, suggested_at: null, suggested_by_order_id: null } }
+  );
+  return result.modifiedCount || 0;
+}
+
 async function shapeOrderSubscription(sub) {
   const product = await findProduct(sub.product_id);
   const variant = (product?.variants || []).find(v => v.sku === sub.variant_id) || null;
@@ -524,6 +539,7 @@ async function applyDueTransitions(sub, now) {
   if (sub.suggested_frequency_days && sub.suggested_at && addDays(sub.suggested_at, SUGGESTION_TTL_DAYS) <= now) {
     sub.suggested_frequency_days = null;
     sub.suggested_at = null;
+    sub.suggested_by_order_id = null;
     dirty = true;
   }
   // Staff proposal not answered within 3 days → it lapses and nothing changes.
@@ -781,6 +797,7 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
       }
       sub.suggested_frequency_days = null;
       sub.suggested_at = null;
+      sub.suggested_by_order_id = null;
       break;
     }
 
@@ -859,11 +876,13 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
       }
       sub.suggested_frequency_days = null;
       sub.suggested_at = null;
+      sub.suggested_by_order_id = null;
       break;
     }
     case 'dismiss_adjustment': {
       sub.suggested_frequency_days = null;
       sub.suggested_at = null;
+      sub.suggested_by_order_id = null;
       break;
     }
 
@@ -891,6 +910,7 @@ module.exports = {
   createSubscriptionsFromOrder,
   startFromOrder,
   suggestAdjustmentsForOrder,
+  withdrawSuggestionsForOrder,
   getOrderSubscriptions,
   getOrderRitualBoxes,
   applyAction,
