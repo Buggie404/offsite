@@ -13,8 +13,8 @@
       }
     </div>
 
-    @for (c of visible; track c.conversation_id) {
-      <button type="button" class="chat-item" [class.active]="active?.conversation_id === c.conversation_id" (click)="select(c)">
+    @for (c of visible; track c.customer?.user_id || c.customer_id) {
+      <button type="button" class="chat-item" [class.active]="(active?.customer?.user_id || active?.customer_id) === (c.customer?.user_id || c.customer_id)" (click)="select(c)">
         <span class="chat-item__avatar">
           @if (c.customer?.avatar_url) { <img [src]="c.customer?.avatar_url" [alt]="customerName(c)"> }
           @else { {{ customerName(c).slice(0, 2).toUpperCase() }} }
@@ -32,7 +32,7 @@
         </span>
       </button>
     } @empty {
-      <p class="chat-empty">No conversations.</p>
+      <p class="chat-empty" [attr.role]="loadError ? 'alert' : null">{{ loadError || 'No conversations.' }}</p>
     }
   </aside>
 

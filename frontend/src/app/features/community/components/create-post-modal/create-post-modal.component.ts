@@ -62,8 +62,8 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
   tagInput = '';
   tags: TagChip[] = [];
   files: File[] = [];
-  previews: MediaPreview[] = []; // object URL (hoặc url Cloudinary khi sửa bài)
-  activeIndex = 0;               // ảnh/video đang hiện ở khung lớn
+  previews: MediaPreview[] = []; 
+  activeIndex = 0;               
   isSubmitting = false;
   errorMessage = '';
 
@@ -363,7 +363,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
   }
 
   // content + hashtag — cùng định dạng sẽ gửi lên khi đăng
-  private get composedContent(): string {
+  get composedContent(): string {
     const hashtags = this.hashtags.map(t => `#${t.label}`).join(' ');
     const text = this.content.trim();
     return hashtags ? `${text} ${hashtags}`.trim() : text;

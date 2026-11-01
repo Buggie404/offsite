@@ -54,25 +54,32 @@ export class ChatService {
   readonly listHint$ = this.hintSubject.asObservable();
 
   private readonly api = '/api/chat';
+  private requestOptions() {
+    const token = this.asAgent ? this.adminAuth.getToken() : null;
+    return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+  }
 
   // ── REST ──
   getMine() { return this.http.get<{ data: ChatConversation | null }>(`${this.api}/me`); }
   start() { return this.http.post<{ data: ChatConversation }>(`${this.api}/start`, {}); }
   list(status?: string) {
-    return this.http.get<{ data: ChatConversation[] }>(`${this.api}/conversations${status ? '?status=' + status : ''}`);
+    return this.http.get<{ data: ChatConversation[] }>(`${this.api}/conversations${status ? '?status=' + status : ''}`, this.requestOptions());
   }
-  messages(id: string) { return this.http.get<{ data: ChatMessage[] }>(`${this.api}/conversations/${id}/messages`); }
-  claim(id: string) { return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/claim`, {}); }
-  close(id: string) { return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/close`, {}); }
+  messages(id: string) { return this.http.get<{ data: ChatMessage[] }>(`${this.api}/conversations/${id}/messages`, this.requestOptions()); }
+  claim(id: string) { return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/claim`, {}, this.requestOptions()); }
+  receipt(id: string, status: 'delivered' | 'seen', through: string) {
+    return this.http.post(`${this.api}/conversations/${id}/receipt`, { status, through }, this.requestOptions());
+  }
+  close(id: string) { return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/close`, {}, this.requestOptions()); }
 
   // ── Socket ──
   connect(): void {
     if (!isPlatformBrowser(this.platformId) || this.socket) return;
-    const { protocol, hostname, port, origin, pathname } = window.location;
+    const { protocol, hostname, port, origin } = window.location;
     const url = port === '4200' ? `${protocol}//${hostname}:5000` : origin;
     this.socket = io(url, {
       transports: ['websocket', 'polling'],
-      auth: { token: pathname.startsWith('/admin') ? this.adminAuth.getToken() : localStorage.getItem('token') },
+      auth: callback => callback({ token: this.asAgent ? this.adminAuth.getToken() : localStorage.getItem('token') }),
       reconnection: true
     });
     this.socket.on('chat_message', (m: ChatMessage) => this.messageSubject.next(m));
@@ -92,7 +99,12 @@ export class ChatService {
     this.joined.forEach(id => this.socket?.emit('join_chat', { conversation_id: id }));
   }
 
-  joinAgents(): void { this.connect(); this.asAgent = true; this.socket?.emit('join_chat_agents'); }
+  joinAgents(): void {
+    if (!this.asAgent && this.socket) this.disconnect();
+    this.asAgent = true;
+    this.connect();
+    this.socket?.emit('join_chat_agents');
+  }
   joinConversation(id: string): void {
     this.connect();
     this.joined.add(id);

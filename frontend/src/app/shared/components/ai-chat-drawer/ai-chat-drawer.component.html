@@ -345,6 +345,11 @@
           <div class="msg-row msg-row--user">
             <div class="msg-bubble msg-bubble--user">
               <p>{{ msg.text }}</p>
+              @if (msg.deliveryStatus) {
+                <small class="message-receipt" role="status">
+                  {{ msg.deliveryStatus === 'sending' ? '◷ Sending' : msg.deliveryStatus === 'sent' ? '✓ Sent' : msg.deliveryStatus === 'delivered' ? '✓✓ Delivered' : msg.deliveryStatus === 'seen' ? '✓✓ Seen' : '⚠ Not sent' }}
+                </small>
+              }
             </div>
           </div>
         }

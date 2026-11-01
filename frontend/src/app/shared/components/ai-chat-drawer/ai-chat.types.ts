@@ -58,6 +58,7 @@ export interface ChatHistoryItem {
 }
 
 export interface ChatMessage {
+  deliveryStatus?: 'sending' | 'sent' | 'delivered' | 'seen' | 'failed';
   id: string;
   sender: 'ai' | 'user' | 'agent' | 'system';
   text?: string;

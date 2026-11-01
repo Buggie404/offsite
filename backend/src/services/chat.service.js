@@ -16,16 +16,15 @@ async function resolveChatUserId(id) {
   return user?.user_id || value;
 }
 
-// customer owns it; admin_cc sees all; cskh sees the waiting queue, chats they claimed
-// and assigned customers (read fresh from DB, not the JWT).
-// agent_id holds the JWT id of the agent, which is the Mongo _id for staff accounts.
+// CSKH can pick up waiting chats; claimed threads stay scoped to their agent/customer.
 async function canAccessConversation(authUser, conversation) {
   if (!authUser || !conversation) return false;
   const userId = await resolveChatUserId(authUser.user_id);
   if (conversation.customer_id === userId) return true;
   if (authUser.role === 'admin_cc') return true;
   if (authUser.role === 'cskh') {
-    if (conversation.status === 'waiting' || conversation.agent_id === String(authUser.user_id)) return true;
+    if (conversation.status === 'waiting' && !conversation.agent_id) return true;
+    if ([userId, String(authUser.user_id)].includes(conversation.agent_id)) return true;
     const agent = await User.findOne({ user_id: userId }, 'assigned_chat_customer_ids').lean();
     return (agent?.assigned_chat_customer_ids || []).includes(conversation.customer_id);
   }
@@ -44,7 +43,8 @@ async function appendMessage(conversation, { sender_type, sender_id = null, cont
     await session.withTransaction(async () => {
       [message] = await ChatMessage.create([{
         conversation_id: conversation.conversation_id, sender_type, sender_id, content: text,
-        source_session_id: conversation.ai_session_id || null, source_message_id: sourceMessageId
+        source_session_id: conversation.ai_session_id || null, source_message_id: sourceMessageId,
+        metadata: sender_type === 'customer' ? { delivery_status: 'sent' } : {}
       }], { session });
       await ChatConversation.updateOne(
         { conversation_id: conversation.conversation_id },
@@ -54,7 +54,8 @@ async function appendMessage(conversation, { sender_type, sender_id = null, cont
         await require('../models/AiChatSession').updateOne({ session_id: conversation.ai_session_id }, {
           $push: { messages: {
             message_id: sourceMessageId, sender: ({ customer: 'user', agent: 'agent', bot: 'ai', system: 'system' })[sender_type],
-            text, created_at: message.created_at, agent_id: sender_type === 'agent' ? sender_id : null
+            text, created_at: message.created_at, agent_id: sender_type === 'agent' ? sender_id : null,
+            metadata: sender_type === 'customer' ? { delivery_status: 'sent' } : {}
           } }, $set: { last_activity_at: message.created_at }
         }, { session });
       }

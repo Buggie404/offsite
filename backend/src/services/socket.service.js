@@ -22,7 +22,7 @@ function initSocket(server) {
   });
 
   // Socket.IO Handshake Authentication Middleware (JWT Decode)
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     try {
       const authHeader = socket.handshake.headers.authorization;
       let token = socket.handshake.auth?.token;
@@ -34,7 +34,16 @@ function initSocket(server) {
       if (token) {
         try {
           const decoded = jwt.verify(token, JWT_SECRET);
-          socket.user = decoded; // { user_id, email, role }
+          const User = require('../models/User');
+          const id = String(decoded.user_id || '');
+          const query = /^[0-9a-fA-F]{24}$/.test(id) ? { _id: id } : { user_id: id };
+          const account = await User.findOne(query, 'user_id status role assigned_chat_customer_ids').lean();
+          socket.user = account && account.status !== 'suspended' ? {
+            ...decoded,
+            user_id: account.user_id,
+            role: account.role === 'admin' ? 'admin_cc' : account.role,
+            assigned_chat_customer_ids: account.assigned_chat_customer_ids || []
+          } : null;
         } catch (err) {
           console.warn('[Socket.IO Auth] Invalid or expired JWT token supplied during handshake:', err.message);
           socket.user = null;
