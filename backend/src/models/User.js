@@ -101,7 +101,15 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['customer', 'admin_cc', 'cskh', 'qlsp'], default: 'customer' },
   assigned_chat_customer_ids: { type: [String], default: [] },
   status: { type: String, enum: ['active', 'suspended'], default: 'active' },
-  community_warnings: [{ reason: { type: String, required: true }, admin_id: String, created_at: { type: Date, default: Date.now } }],
+  // One entry per penalty (level 1-3); its length is the customer's violation count.
+  community_warnings: [{ reason: { type: String, required: true }, admin_id: String, level: { type: Number, default: 1 }, created_at: { type: Date, default: Date.now } }],
+  // Community suspension, separate from status: it ends by itself once `until` has passed.
+  community_restriction: {
+    type: new mongoose.Schema({ level: Number, until: Date, reason: String, admin_id: String, created_at: Date }, { _id: false }),
+    default: null
+  },
+  // Set after 5 dismissed reports in a row: the report limit drops to 3 every 30 days.
+  report_warned_at: { type: Date, default: null },
   suspended_reason: { type: String, default: null },
   suspended_by: { type: String, default: null },
   suspended_at: { type: Date, default: null },

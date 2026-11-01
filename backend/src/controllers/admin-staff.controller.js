@@ -11,8 +11,37 @@ const { emitChatEvent } = require('../services/socket.service');
 
 const STAFF_ROLES = ['admin_cc', 'cskh', 'qlsp'];
 const STAFF_FIELDS = 'user_id email profile_name avatar_url role status suspended_reason suspended_at must_change_password last_login_at createdAt';
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// firstname.lastname@offsite.vn; a trailing number separates two people with the same name.
+const STAFF_EMAIL_REGEX = /^[a-z]+\.[a-z]+\d*@offsite\.vn$/;
+const NAME_WORD_REGEX = /^\p{L}+(?:['’-]\p{L}+)*$/u;
 const SPARSE_UNIQUE_FIELDS = ['phone', 'community_name', 'referral_code'];
+
+function normalizeFullName(value) {
+  return String(value || '').normalize('NFC').trim().replace(/\s+/g, ' ').slice(0, 80);
+}
+
+function fullNameError(name) {
+  if (!name) return 'Full name is required.';
+  const words = name.split(' ');
+  if (!words.every((word) => NAME_WORD_REGEX.test(word))) return 'Full name can only contain letters.';
+  if (words.length < 2) return 'Please enter both first and last name.';
+  return null;
+}
+
+function staffEmailError(email) {
+  if (!email) return 'Email is required.';
+  if (!STAFF_EMAIL_REGEX.test(email)) return 'Email must follow firstname.lastname@offsite.vn.';
+  return null;
+}
+
+// Null when the email is free, otherwise the message to show.
+async function emailTakenError(email) {
+  const pattern = new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+  const existing = await User.findOne({ email: pattern }, 'role').lean();
+  if (!existing) return null;
+  const owner = STAFF_ROLES.includes(existing.role) || existing.role === 'admin' ? 'a staff account' : 'a customer account';
+  return `This email is already used by ${owner}.`;
+}
 
 // 12 characters (login accepts 8-15, no spaces), always with upper, lower and a digit.
 function generateTempPassword() {
@@ -106,20 +135,33 @@ async function listStaff(req, res) {
   }
 }
 
+// GET /api/admin/staff/check-email?email= -> checked while the Add staff form is filled in
+async function checkStaffEmail(req, res) {
+  try {
+    const email = String(req.query.email || '').trim().toLowerCase();
+    const formatError = staffEmailError(email);
+    if (formatError) return res.status(400).json({ error: formatError });
+    const takenError = await emailTakenError(email);
+    res.json({ available: !takenError, error: takenError });
+  } catch (error) {
+    console.error('Error checking staff email:', error);
+    res.status(500).json({ error: 'Failed to check the email.' });
+  }
+}
+
 // POST /api/admin/staff  { profile_name, email, role } -> returns the temporary password once
 async function createStaff(req, res) {
   try {
-    const profileName = String(req.body?.profile_name || '').trim().slice(0, 80);
+    const profileName = normalizeFullName(req.body?.profile_name);
     const email = String(req.body?.email || '').trim().toLowerCase();
     const role = String(req.body?.role || '');
-    if (!profileName) return res.status(400).json({ error: 'Full name is required.' });
-    if (!EMAIL_REGEX.test(email)) return res.status(400).json({ error: 'Please enter a valid email address.' });
-    if (!STAFF_ROLES.includes(role)) return res.status(400).json({ error: 'Please choose a role.' });
-    const existing = await User.findOne({ email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }, 'role').lean();
-    if (existing) {
-      const owner = STAFF_ROLES.includes(existing.role) || existing.role === 'admin' ? 'a staff account' : 'a customer account';
-      return res.status(409).json({ error: `This email is already used by ${owner}.`, code: 'EMAIL_EXISTS' });
-    }
+    const nameError = fullNameError(profileName);
+    if (nameError) return res.status(400).json({ error: nameError, field: 'profile_name' });
+    const emailError = staffEmailError(email);
+    if (emailError) return res.status(400).json({ error: emailError, field: 'email' });
+    if (!STAFF_ROLES.includes(role)) return res.status(400).json({ error: 'Please choose a role.', field: 'role' });
+    const takenError = await emailTakenError(email);
+    if (takenError) return res.status(409).json({ error: takenError, code: 'EMAIL_EXISTS', field: 'email' });
 
     const tempPassword = generateTempPassword();
     const staff = new User({
@@ -153,7 +195,8 @@ async function createStaff(req, res) {
       console.error(`Duplicate ${field} while creating staff:`, error.keyValue);
       return res.status(409).json({
         error: field === 'email' ? 'This email is already used by another account.' : `Could not create the account: duplicate ${field}.`,
-        code: 'DUPLICATE_KEY'
+        code: 'DUPLICATE_KEY',
+        ...(field === 'email' ? { field } : {})
       });
     }
     console.error('Error creating staff:', error);
@@ -185,7 +228,7 @@ async function changeStaffRole(req, res) {
     const oldRole = staff.role === 'admin' ? 'admin_cc' : staff.role;
     if (oldRole === role) return res.status(400).json({ error: 'This account already has that role.' });
     if (oldRole === 'admin_cc' && await isLastActiveAdminCc(staff)) {
-      return res.status(409).json({ error: 'There must always be at least one active Admin CC.', code: 'LAST_ADMIN_CC' });
+      return res.status(409).json({ error: 'There must always be at least one active Senior Admin.', code: 'LAST_ADMIN_CC' });
     }
 
     staff.role = role;
@@ -211,7 +254,7 @@ async function setStaffStatus(req, res) {
     const status = String(req.body?.status || '');
     if (!['disabled', 'active'].includes(status)) return res.status(400).json({ error: 'Invalid status.' });
     const reason = String(req.body?.reason || '').trim().slice(0, 500);
-    if (status === 'disabled' && !reason) return res.status(400).json({ error: 'A reason is required to disable an account.' });
+    if (!reason) return res.status(400).json({ error: `A reason is required to ${status === 'disabled' ? 'disable' : 'enable'} an account.` });
 
     const staff = await findStaff(req.params.userId);
     if (!staff) return res.status(404).json({ error: 'Staff member not found.' });
@@ -220,7 +263,7 @@ async function setStaffStatus(req, res) {
     const oldStatus = staff.status === 'suspended' ? 'disabled' : 'active';
     if (oldStatus === status) return res.json({ data: toStaffRow(staff.toObject()), returned_chats: 0 });
     if (status === 'disabled' && await isLastActiveAdminCc(staff)) {
-      return res.status(409).json({ error: 'There must always be at least one active Admin CC.', code: 'LAST_ADMIN_CC' });
+      return res.status(409).json({ error: 'There must always be at least one active Senior Admin.', code: 'LAST_ADMIN_CC' });
     }
 
     let returnedChats = 0;
@@ -272,6 +315,7 @@ async function resetStaffPassword(req, res) {
 
 module.exports = {
   listStaff,
+  checkStaffEmail,
   createStaff,
   getStaffOpenWork,
   changeStaffRole,

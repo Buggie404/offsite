@@ -497,7 +497,9 @@ async function createOrder(req, res) {
       const vResult = await voucherService.validateAndCalculateVoucher({
         code: coupon.code,
         subtotal: serverSubtotal,
-        shippingMethod: shipping.method
+        shippingMethod: shipping.method,
+        userId: user_id,
+        userTier: userDoc?.membership_tier || null
       });
 
       if (!vResult.isValid) {

@@ -3,17 +3,23 @@ const Comment = require('../models/Comment');
 const User = require('../models/User');
 const Report = require('../models/Report');
 const ModerationAction = require('../models/ModerationAction');
-const { hidePost, unhidePost } = require('../services/post-moderation.service');
+const { hidePost, unhidePost, forfeitPostPoints } = require('../services/post-moderation.service');
 const { hideComment, unhideComment } = require('../services/comment-moderation.service');
 const { createNotification } = require('../services/notification.service');
+const { warnReportAbusers } = require('../services/report-abuse.service');
+const {
+  PENALTIES, activeRestriction, nextRestriction, reasonLevel, recommendedAction, formatDate, sendSimulatedNotice
+} = require('../services/community-restriction.service');
 
 // Community reports queue (3.3) for CSKH and Admin CC: posts, comments and accounts with
-// pending reports, and the four actions hide / restore / warn / lock (plus dismiss).
+// pending reports, the penalty levels (warn, suspend 3 days, suspend 7 days), hide / restore and dismiss.
+// Every penalty hides the reported content. A suspension limits Community only, never the account.
 // Content is hidden through group 4's moderation services; the author gets the message
 // the staff member wrote in the confirmation modal.
 
 const TYPES = ['post', 'comment', 'account'];
-const ACTIONS = ['hide', 'restore', 'warn', 'lock', 'dismiss'];
+// No 'lock': admins cannot lock customer accounts. Restoring an account lifts a suspension or an older lock.
+const ACTIONS = ['hide', 'restore', ...Object.keys(PENALTIES), 'dismiss'];
 const TARGET_FIELD = { post: 'post_id', comment: 'comment_id', account: 'reported_user_id' };
 const HANDLED_PAGE_SIZE = 20;
 
@@ -26,6 +32,10 @@ class ModerationError extends Error {
 
 function reasonCounts(reasons) {
   return reasons.reduce((acc, reason) => ({ ...acc, [reason]: (acc[reason] || 0) + 1 }), {});
+}
+
+function topReason(reasons) {
+  return Object.entries(reasonCounts(reasons)).sort((a, b) => b[1] - a[1])[0]?.[0] || 'other';
 }
 
 function publicName(user) {
@@ -59,7 +69,7 @@ async function listQueue(req, res) {
 
     const idsOf = (type) => groups.filter((g) => g._id.type === type).map((g) => g._id.target);
     const [posts, comments, accounts] = await Promise.all([
-      Post.find({ post_id: { $in: idsOf('post') } }, 'post_id user_id author content media status created_at').lean(),
+      Post.find({ post_id: { $in: idsOf('post') } }, 'post_id user_id author content media status points_forfeited created_at').lean(),
       Comment.find({ comment_id: { $in: idsOf('comment') } }, 'comment_id post_id user_id author content moderation_status created_at').lean(),
       User.find({ user_id: { $in: idsOf('account') }, role: 'customer' }, 'user_id profile_name community_name avatar_url status bio').lean()
     ]);
@@ -69,7 +79,7 @@ async function listQueue(req, res) {
 
     // Owners of posts / comments: current status and earlier warnings help the decision.
     const ownerIds = [...new Set([...posts.map((p) => p.user_id), ...comments.map((c) => c.user_id), ...accounts.map((u) => u.user_id)])];
-    const owners = await User.find({ user_id: { $in: ownerIds } }, 'user_id profile_name community_name avatar_url status community_warnings').lean();
+    const owners = await User.find({ user_id: { $in: ownerIds } }, 'user_id profile_name community_name avatar_url status community_warnings community_restriction').lean();
     const ownerById = new Map(owners.map((u) => [u.user_id, u]));
 
     const data = [];
@@ -79,7 +89,7 @@ async function listQueue(req, res) {
       if (type === 'post' && postById.has(target)) {
         const p = postById.get(target);
         item = { content: p.content, thumbnail: p.media?.[0]?.url || null, content_status: p.status === 'hidden' ? 'hidden' : 'visible',
-          owner_id: p.user_id, owner_name: p.author?.username, posted_at: p.created_at, post_id: p.post_id };
+          points_forfeited: !!p.points_forfeited, owner_id: p.user_id, owner_name: p.author?.username, posted_at: p.created_at, post_id: p.post_id };
       } else if (type === 'comment' && commentById.has(target)) {
         const c = commentById.get(target);
         item = { content: c.content, thumbnail: null, content_status: c.moderation_status === 'hidden' ? 'hidden' : 'visible',
@@ -91,6 +101,9 @@ async function listQueue(req, res) {
       if (!item) continue; // target deleted since it was reported
 
       const owner = ownerById.get(item.owner_id);
+      const restriction = activeRestriction(owner);
+      const lastWarning = owner?.community_warnings?.at(-1);
+      const mainReason = topReason(g.reasons);
       data.push({
         key: `${type}:${target}`,
         target_type: type,
@@ -100,6 +113,11 @@ async function listQueue(req, res) {
         owner_avatar: owner?.avatar_url || null,
         owner_status: owner?.status === 'suspended' ? 'locked' : 'active',
         owner_warnings: owner?.community_warnings?.length || 0,
+        owner_restricted_until: restriction?.until || null,
+        last_violation: lastWarning ? { level: lastWarning.level || 1, created_at: lastWarning.created_at } : null,
+        top_reason: mainReason,
+        reason_level: reasonLevel(mainReason),
+        recommended_action: recommendedAction(owner?.community_warnings?.length || 0, mainReason),
         pending_reports: g.count,
         reporter_count: g.reporters.length,
         reasons: reasonCounts(g.reasons),
@@ -156,7 +174,7 @@ async function notify(data) {
 }
 
 // POST /api/admin/community/moderate
-// { target_type, target_id, action: hide|restore|warn|lock|dismiss, message, also_hide, notify_reporters }
+// { target_type, target_id, action: hide|restore|warn|suspend_3d|suspend_7d|dismiss, message, notify_reporters }
 async function moderate(req, res) {
   try {
     const type = String(req.body?.target_type || '');
@@ -165,60 +183,73 @@ async function moderate(req, res) {
     const message = String(req.body?.message || '').trim().slice(0, 1000);
     if (!TYPES.includes(type) || !targetId) return res.status(400).json({ error: 'Unknown report target.' });
     if (!ACTIONS.includes(action)) return res.status(400).json({ error: 'Unknown action.' });
-    // Hiding, warning and locking must say why (activity-log convention); the reason is the message to the author.
-    if (['hide', 'warn', 'lock'].includes(action) && !message) {
+    const penalty = PENALTIES[action];
+    // Hiding and penalties must say why (activity-log convention); the reason is the message to the author.
+    if ((action === 'hide' || penalty) && !message) {
       return res.status(400).json({ error: 'Write the message the author will receive.' });
     }
 
     const target = await loadTarget(type, targetId);
-    const owner = await User.findOne({ user_id: target.ownerId }, 'user_id role status community_name profile_name community_warnings');
+    const owner = await User.findOne({ user_id: target.ownerId }, 'user_id role status email phone community_name profile_name community_warnings community_restriction');
     if (!owner) throw new ModerationError(404, 'The author no longer exists.');
-    if (['warn', 'lock'].includes(action) && owner.role !== 'customer') throw new ModerationError(403, 'Only customer accounts can be warned or locked.');
+    if (penalty && owner.role !== 'customer') throw new ModerationError(403, 'Only customer accounts can be penalized.');
 
-    const alsoHide = ['warn', 'lock'].includes(action) && type !== 'account' && !!req.body?.also_hide && !target.hidden;
+    const alsoHide = !!penalty && type !== 'account' && !target.hidden;
+    const liftsAccount = action === 'restore' && type === 'account';
+    const wasLocked = owner.status === 'suspended';
     if (action === 'hide' && (type === 'account' || target.hidden)) throw new ModerationError(409, 'This content is already hidden.');
     if (action === 'restore' && type !== 'account' && !target.hidden) throw new ModerationError(409, 'This content is visible.');
-    if (action === 'restore' && type === 'account' && owner.status !== 'suspended') throw new ModerationError(409, 'This account is not locked.');
-    if (action === 'lock' && owner.status === 'suspended') throw new ModerationError(409, 'This account is already locked.');
+    if (liftsAccount && !wasLocked && !activeRestriction(owner)) throw new ModerationError(409, 'This account has no active suspension.');
 
     const adminId = String(req.user.user_id);
     const oldValue = { content: type === 'account' ? null : (target.hidden ? 'hidden' : 'visible'), account: owner.status, warnings: owner.community_warnings?.length || 0 };
 
+    // Read first: restoring a post closes its reports.
+    const reportFilter = { target_type: type, [TARGET_FIELD[type]]: targetId, status: 'pending' };
+    const reporters = await Report.distinct('reporter_id', reportFilter);
+    // Dismissing, or restoring the content, means the reports were wrong. Lifting a penalty does not.
+    const rejected = action === 'dismiss' || (action === 'restore' && type !== 'account');
+
     // 1. Content (group 4 services)
     if (action === 'hide' || alsoHide) await setContentHidden(type, targetId, true, adminId);
     if (action === 'restore' && type !== 'account') await setContentHidden(type, targetId, false, adminId);
+    if (penalty && type === 'post' && target.hidden) await forfeitPostPoints(targetId);
 
     // 2. Account
-    if (action === 'warn') {
-      owner.community_warnings.push({ reason: message, admin_id: adminId, created_at: new Date() });
-    } else if (action === 'lock') {
-      Object.assign(owner, { status: 'suspended', suspended_reason: message, suspended_by: adminId, suspended_at: new Date() });
-    } else if (action === 'restore' && type === 'account') {
-      Object.assign(owner, { status: 'active', suspended_reason: null, suspended_by: null, suspended_at: null });
+    if (penalty) {
+      owner.community_warnings.push({ reason: message, admin_id: adminId, level: penalty.level, created_at: new Date() });
+      if (penalty.days) owner.community_restriction = nextRestriction(owner.community_restriction, penalty, { reason: message, adminId });
+    } else if (liftsAccount) {
+      owner.community_restriction = null;
+      if (wasLocked) Object.assign(owner, { status: 'active', suspended_reason: null, suspended_by: null, suspended_at: null });
     }
-    if (['warn', 'lock'].includes(action) || (action === 'restore' && type === 'account')) await owner.save();
+    if (penalty || liftsAccount) await owner.save();
+    const restrictedUntil = penalty?.days ? owner.community_restriction.until : null;
 
     // 3. Close the pending reports on this target
-    const reportFilter = { target_type: type, [TARGET_FIELD[type]]: targetId, status: 'pending' };
-    const reporters = await Report.distinct('reporter_id', reportFilter);
-    const closed = await Report.updateMany(reportFilter, { $set: { status: action === 'dismiss' ? 'dismissed' : 'reviewed' } });
+    const closed = await Report.updateMany(reportFilter, { $set: { status: rejected ? 'dismissed' : 'reviewed' } });
 
     // 4. Record, notify, log
     const name = await adminName(req);
     const record = await ModerationAction.create({
       target_type: type, target_id: targetId, owner_id: owner.user_id, owner_name: owner.community_name || owner.profile_name,
-      action: action === 'lock' ? 'lock' : action === 'restore' && type === 'account' ? 'unlock' : action,
-      also_hidden: alsoHide, message: message || null, reports_closed: closed.modifiedCount || 0,
+      action: liftsAccount ? (wasLocked ? 'unlock' : 'lift') : action,
+      also_hidden: alsoHide, restricted_until: restrictedUntil, message: message || null, reports_closed: closed.modifiedCount || 0,
       admin_id: adminId, admin_name: name, admin_role: req.user.role
     });
 
     if (message && action !== 'dismiss') {
       await notify({ recipient_id: owner.user_id, type: 'COMMUNITY_MODERATION', post_id: target.postId, message });
     }
-    if (req.body?.notify_reporters && reporters.length && ['hide', 'warn', 'lock'].includes(action)) {
-      const reporterMessage = 'We reviewed the content you reported and took action. Thank you for keeping the community kind.';
+    if (restrictedUntil) sendSimulatedNotice(owner, `${message} (Community limited until ${formatDate(restrictedUntil)})`);
+    // Reporters hear the result unless staff untick the box; a dismissed report stays quiet.
+    if (reporters.length && (action === 'hide' || penalty) && req.body?.notify_reporters !== false) {
+      const reporterMessage = 'Your report has been confirmed and applied. Thank you for helping us moderate the community!';
       await Promise.all(reporters.filter((id) => id !== owner.user_id)
         .map((id) => notify({ recipient_id: id, type: 'COMMUNITY_REPORT_RESOLVED', message: reporterMessage })));
+    }
+    if (rejected) {
+      await warnReportAbusers(reporters).catch((error) => console.error('Report abuse check failed:', error.message));
     }
 
     const freshOwner = owner.toObject();
@@ -227,12 +258,13 @@ async function moderate(req, res) {
       oldValue,
       newValue: {
         content: type === 'account' ? null : (action === 'hide' || alsoHide ? 'hidden' : action === 'restore' ? 'visible' : oldValue.content),
-        account: freshOwner.status, warnings: freshOwner.community_warnings?.length || 0, reports_closed: record.reports_closed
+        account: freshOwner.status, warnings: freshOwner.community_warnings?.length || 0, reports_closed: record.reports_closed,
+        ...(restrictedUntil ? { restricted_until: restrictedUntil } : {})
       },
       reason: message || null
     });
 
-    res.json({ data: { action_id: record.action_id, action: record.action, reports_closed: record.reports_closed } });
+    res.json({ data: { action_id: record.action_id, action: record.action, reports_closed: record.reports_closed, restricted_until: restrictedUntil } });
   } catch (error) {
     if (error instanceof ModerationError) return res.status(error.status).json({ error: error.message });
     console.error('Error moderating community report:', error);
@@ -250,21 +282,25 @@ async function listHandled(req, res) {
       ModerationAction.find(filter).sort({ created_at: -1 }).skip((page - 1) * HANDLED_PAGE_SIZE).limit(HANDLED_PAGE_SIZE).lean()
     ]);
 
-    // Can it still be undone? Hidden content can be restored, a locked account unlocked.
+    // Can it still be undone? Hidden content can be restored, a suspension lifted, a locked account unlocked.
     const ids = (type) => rows.filter((r) => r.target_type === type).map((r) => r.target_id);
-    const [hiddenPosts, hiddenComments, lockedUsers] = await Promise.all([
+    const ownerIds = rows.map((r) => r.owner_id).filter(Boolean);
+    const [hiddenPosts, hiddenComments, lockedUsers, restrictedUsers] = await Promise.all([
       Post.distinct('post_id', { post_id: { $in: ids('post') }, status: 'hidden' }),
       Comment.distinct('comment_id', { comment_id: { $in: ids('comment') }, moderation_status: 'hidden' }),
-      User.distinct('user_id', { user_id: { $in: rows.map((r) => r.owner_id).filter(Boolean) }, status: 'suspended' })
+      User.distinct('user_id', { user_id: { $in: ownerIds }, status: 'suspended' }),
+      User.distinct('user_id', { user_id: { $in: ownerIds }, 'community_restriction.until': { $gt: new Date() } })
     ]);
     const hidden = new Set([...hiddenPosts, ...hiddenComments]);
     const locked = new Set(lockedUsers);
+    const restricted = new Set(restrictedUsers);
 
     res.json({
       data: rows.map((r) => ({
         ...r,
         content_hidden: hidden.has(r.target_id),
-        owner_locked: locked.has(r.owner_id)
+        owner_locked: locked.has(r.owner_id),
+        owner_restricted: restricted.has(r.owner_id)
       })),
       total,
       page,

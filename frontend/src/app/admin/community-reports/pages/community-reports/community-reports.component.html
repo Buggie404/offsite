@@ -4,7 +4,7 @@
       <h1>Community reports</h1>
       <p>
         @if (tab === 'waiting') { {{ waitingCount }} waiting · sorted by report count }
-        @else { Handled · hidden content and locked accounts can be undone from here }
+        @else { Handled · hidden content and restrictions can be undone from here }
       </p>
     </div>
   </header>
@@ -16,11 +16,14 @@
       </button>
       <button type="button" role="tab" [class.active]="tab === 'handled'" (click)="setTab('handled')">Handled</button>
     </div>
-    <select class="select" aria-label="Report type" [ngModel]="type" (ngModelChange)="setType($event)">
-      @for (option of typeOptions; track option.value) {
-        <option [value]="option.value">{{ option.label }}</option>
-      }
-    </select>
+    <div class="select-wrap">
+      <select class="select" aria-label="Report type" [ngModel]="type" (ngModelChange)="setType($event)">
+        @for (option of typeOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+      <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+    </div>
   </div>
 
   @if (loading && !(tab === 'waiting' ? queue.length : handled.length)) {
@@ -77,13 +80,32 @@
             </div>
 
             <aside class="context">
-              <span class="label">Author</span>
-              <p>
-                Account
-                @if (item.owner_status === 'locked') { <strong class="danger">locked</strong> } @else { <strong>active</strong> }
-                · {{ item.owner_warnings }} earlier warning{{ item.owner_warnings === 1 ? '' : 's' }}
-              </p>
-              <p>First reported {{ dateTime(item.first_reported_at) }}</p>
+              <div class="context__head">
+                <span class="label">Severity</span>
+                <span class="severity" [ngClass]="'severity--l' + suggested(item).level">{{ severity(item) }}</span>
+              </div>
+              <p>Category <strong>{{ reasonLabel(item.top_reason) }}</strong> (floor L{{ item.reason_level }}).</p>
+              <p>History: {{ historyText(item) }}</p>
+              @if (item.owner_status === 'locked') { <p><strong class="danger">Account locked</strong></p> }
+              @else if (item.owner_restricted_until) { <p><strong class="danger">Restricted until {{ dateTime(item.owner_restricted_until) }}</strong></p> }
+
+              <div class="ladder" role="img" [attr.aria-label]="'Suggested level ' + suggested(item).level">
+                @for (step of ladder; track step.level) {
+                  <div
+                    class="ladder__step"
+                    [ngClass]="'ladder__step--l' + step.level"
+                    [class.is-current]="step.level === currentLevel(item)"
+                    [class.is-suggested]="step.level === suggested(item).level"
+                  >
+                    <strong>L{{ step.level }}</strong>
+                    <span>{{ step.label }}</span>
+                  </div>
+                }
+              </div>
+
+              <p class="suggestion"><strong>Suggested: L{{ suggested(item).level }} · {{ suggested(item).label }}</strong></p>
+              <p class="suggestion__why">{{ suggestionWhy(item) }}</p>
+              <p class="suggestion__why">First reported {{ dateTime(item.first_reported_at) }}</p>
               @if (item.notes.length) {
                 <span class="label">Reporter notes</span>
                 @for (note of item.notes; track $index) { <p class="note">"{{ note }}"</p> }
@@ -95,18 +117,29 @@
             <button type="button" class="btn btn--outline" (click)="open(item, 'dismiss')">Dismiss</button>
             @if (item.target_type !== 'account') {
               @if (item.content_status === 'hidden') {
-                <button type="button" class="btn btn--outline" (click)="open(item, 'restore')"><svg lucideEye [size]="14"></svg> Restore</button>
+                <button type="button" class="btn btn--outline" (click)="open(item, 'restore')"><svg lucideEye [size]="14"></svg> Restore content</button>
               } @else {
-                <button type="button" class="btn btn--outline" (click)="open(item, 'hide')"><svg lucideEyeOff [size]="14"></svg> Hide</button>
+                <button type="button" class="btn btn--outline" (click)="open(item, 'hide')"><svg lucideEyeOff [size]="14"></svg> Hide content</button>
               }
             }
-            <button type="button" class="btn btn--outline" [disabled]="item.owner_status === 'locked'" (click)="open(item, 'warn')">
-              <svg lucideTriangleAlert [size]="14"></svg> Warn
-            </button>
+            @for (penalty of penalties; track penalty.action) {
+              <button
+                type="button"
+                class="btn penalty"
+                [ngClass]="'penalty--l' + penalty.level"
+                [class.is-suggested]="item.recommended_action === penalty.action"
+                [attr.title]="item.recommended_action === penalty.action ? 'Suggested level' : null"
+                [disabled]="item.owner_status === 'locked'"
+                (click)="open(item, penalty.action)"
+              >
+                @if (item.recommended_action === penalty.action) { <svg lucideCheck [size]="14"></svg> }
+                @else if (penalty.days) { <svg lucideBan [size]="14"></svg> }
+                @else { <svg lucideTriangleAlert [size]="14"></svg> }
+                L{{ penalty.level }} · {{ penalty.label }}
+              </button>
+            }
             @if (item.owner_status === 'locked') {
               <span class="locked-note"><svg lucideLock [size]="14"></svg> Account already locked</span>
-            } @else {
-              <button type="button" class="btn btn--danger" (click)="open(item, 'lock')"><svg lucideLock [size]="14"></svg> Lock account</button>
             }
           </footer>
         </article>
@@ -128,11 +161,14 @@
               <p class="muted">{{ handledSummary(row) }}</p>
               @if (row.message) { <p class="handled-row__message">"{{ row.message }}"</p> }
             </div>
-            <span class="result-chip" [ngClass]="'result-chip--' + row.action">{{ row.action }}</span>
+            <span class="result-chip" [ngClass]="'result-chip--' + row.action">{{ resultLabel(row.action) }}</span>
             @if (row.content_hidden) {
               <button type="button" class="btn btn--outline btn--sm" (click)="undo(row)"><svg lucideEye [size]="14"></svg> Restore</button>
+            }
+            @if (canLift(row)) {
+              <button type="button" class="btn btn--outline btn--sm" (click)="liftAccount(row)"><svg lucideLockOpen [size]="14"></svg> Lift restriction</button>
             } @else if (row.owner_locked && row.action === 'lock') {
-              <button type="button" class="btn btn--outline btn--sm" (click)="undo(row)"><svg lucideLockOpen [size]="14"></svg> Unlock</button>
+              <button type="button" class="btn btn--outline btn--sm" (click)="liftAccount(row)"><svg lucideLockOpen [size]="14"></svg> Unlock</button>
             }
           </div>
         }
@@ -158,35 +194,34 @@
       <header class="modal__header">
         <div>
           <h2 id="moderation-title">{{ modalTitle }}</h2>
-          <p>Please confirm before applying</p>
+          <p>{{ modalSubtitle }}</p>
         </div>
         <button type="button" class="icon-btn" aria-label="Close" (click)="closeModal()"><svg lucideX [size]="18"></svg></button>
       </header>
 
       <div class="modal__body">
-        @if (p.excerpt) {
-          <div class="modal__row"><span>Content</span><p>"{{ p.excerpt.length > 90 ? p.excerpt.slice(0, 90) + '...' : p.excerpt }}"</p></div>
+        @if (modalContent) {
+          <div class="modal__row"><span>Content</span><p>{{ modalContent }}</p></div>
+        }
+        @if (modalPenalty; as penalty) {
+          <div class="modal__row"><span>Restriction</span><p class="readonly">Level {{ penalty.level }}</p></div>
         }
         <div class="modal__row"><span>Effect</span><p>{{ modalEffect }}</p></div>
 
         @if (p.action !== 'dismiss') {
           <label class="field">
-            <span class="label">Message to &#64;{{ p.ownerName }}{{ messageRequired ? '' : ' (optional)' }}</span>
+            <span class="label">
+              Message to author{{ messageRequired ? ' · Template: ' + reasonLabel(p.reason) : ' (optional)' }}
+            </span>
             <textarea class="textarea" rows="3" maxlength="1000" [(ngModel)]="message" (ngModelChange)="modalError = ''"></textarea>
             <span class="hint">Sent as a notification. It is also saved as the reason in the Activity log.</span>
           </label>
         }
 
-        @if (canHideToo) {
+        @if (canNotifyReporters) {
           <label class="check">
-            <input type="checkbox" [(ngModel)]="alsoHide" />
-            <span>Also hide this {{ typeLabel(p.type) }}</span>
-          </label>
-        }
-        @if (p.reporterCount && ['hide', 'warn', 'lock'].includes(p.action)) {
-          <label class="check">
-            <input type="checkbox" [(ngModel)]="notifyReporters" />
-            <span>Tell the {{ p.reporterCount }} {{ p.reporterCount === 1 ? 'person' : 'people' }} who reported it that action was taken</span>
+            <input type="checkbox" [(ngModel)]="sendToReporters" />
+            <span>Send the result to the {{ p.reporterCount === 1 ? 'person' : p.reporterCount + ' people' }} who reported it</span>
           </label>
         }
 
@@ -198,8 +233,7 @@
         <button
           type="button"
           class="btn"
-          [class.btn--danger-solid]="p.action === 'lock'"
-          [class.btn--primary]="p.action !== 'lock'"
+          [ngClass]="modalPenalty ? 'penalty is-suggested penalty--l' + modalPenalty.level : 'btn--primary'"
           [disabled]="saving"
           (click)="confirm()"
         >{{ saving ? 'Saving...' : confirmLabel }}</button>

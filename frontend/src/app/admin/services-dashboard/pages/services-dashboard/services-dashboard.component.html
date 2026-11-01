@@ -1,20 +1,105 @@
 <section class="services-dashboard" aria-label="Services-Ops dashboard">
-  <header class="page-header"><div class="page-header__left"><h1>Dashboard</h1><p>{{ greeting }}, {{ accountName }} · Services-Ops</p></div></header>
-  @if (loading) { <div class="skeleton"><span></span><span></span><span></span><span></span></div> }
-  @else if (!data) { <div class="state">{{ error || 'Dashboard data could not be loaded.' }} <button (click)="load()">Try again</button></div> }
-  @else {
-    @if (error) { <div class="error">{{ error }} <button (click)="load()">Try again</button></div> }
-    <div class="kpis">
-      <article class="kpi"><div class="kpi__top"><span>Chats waiting</span><i class="kpi__icon kpi__icon--blue" aria-hidden="true"><svg lucideMessagesSquare [size]="18"></svg></i></div><strong>{{ data.kpis.chats_waiting | number }}</strong></article>
-      <article class="kpi"><div class="kpi__top"><span>Reports to review</span><i class="kpi__icon kpi__icon--pink" aria-hidden="true"><svg lucideFlag [size]="18"></svg></i></div><strong>{{ data.kpis.reports_to_review | number }}</strong></article>
-      <article class="kpi"><div class="kpi__top"><span>Restricted customers</span><i class="kpi__icon kpi__icon--red" aria-hidden="true"><svg lucideUserX [size]="18"></svg></i></div><strong>{{ data.kpis.restricted_customers | number }}</strong></article>
-      <article class="kpi"><div class="kpi__top"><span>Avg. first response</span><i class="kpi__icon kpi__icon--green" aria-hidden="true"><svg lucideTimer [size]="18"></svg></i></div><strong>{{ formatFirstResponse(data.kpis.avg_first_response_ms) }}</strong></article>
+  <header class="page-header">
+    <div>
+      <h1>Today</h1>
+      <p>
+        {{ greeting }}, {{ accountName }}
+        @if (data) { · {{ data.chat.waiting }} customer{{ data.chat.waiting === 1 ? '' : 's' }} waiting, {{ totalTasks }} task{{ totalTasks === 1 ? '' : 's' }} in queue }
+      </p>
     </div>
-    <article class="todo"><h2>To do today</h2>
-      <button type="button" class="todo-row" [class.is-empty]="!data.todos.chats_waiting" (click)="navigate('/admin/chat', { status: 'waiting' })"><span class="todo-row__icon todo-row__icon--blue" aria-hidden="true"><svg lucideMessagesSquare [size]="16"></svg></span><span class="todo-row__label">Chats waiting</span><b class="todo-row__count">{{ data.todos.chats_waiting }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
-      <button type="button" class="todo-row" [class.is-empty]="!data.todos.reports_to_review" (click)="navigate('/admin/community-reports')"><span class="todo-row__icon todo-row__icon--pink" aria-hidden="true"><svg lucideFlag [size]="16"></svg></span><span class="todo-row__label">Reports to review</span><b class="todo-row__count">{{ data.todos.reports_to_review }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
-      <button type="button" class="todo-row" [class.is-empty]="!data.todos.recipes_awaiting_approval" (click)="navigate('/admin/recipes', { status: 'awaiting_approval' })"><span class="todo-row__icon todo-row__icon--amber" aria-hidden="true"><svg lucideChefHat [size]="16"></svg></span><span class="todo-row__label">Recipes awaiting approval</span><b class="todo-row__count">{{ data.todos.recipes_awaiting_approval }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
-      <button type="button" class="todo-row" [class.is-empty]="!data.todos.support_vouchers_issued_today" (click)="navigate('/admin/vouchers')"><span class="todo-row__icon todo-row__icon--brown" aria-hidden="true"><svg lucideTicket [size]="16"></svg></span><span class="todo-row__label">Support vouchers issued today</span><b class="todo-row__count">{{ data.todos.support_vouchers_issued_today }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
+    @if (updatedAt) { <span class="live">Live · updated {{ updatedAt | date: 'HH:mm' }}</span> }
+  </header>
+
+  @if (loading) {
+    <div class="skeleton"><span></span><span></span></div>
+  } @else if (!data) {
+    <div class="state">{{ error || 'Dashboard data could not be loaded.' }} <button type="button" (click)="load()">Try again</button></div>
+  } @else {
+    @if (error) { <div class="error">{{ error }} <button type="button" (click)="load()">Try again</button></div> }
+
+    <article class="card">
+      <header class="card__head">
+        <span class="tag">AI concierge handoff</span>
+        <h2>Customers waiting for a person</h2>
+        <p>Handed over by the chatbot · the AI's summary is shown so you don't re-ask</p>
+      </header>
+
+      <div class="handoff">
+        <div class="stats">
+          <a class="stat" routerLink="/admin/chat" [queryParams]="{ status: 'waiting' }">
+            <span>Waiting</span>
+            <strong>{{ data.chat.waiting }}</strong>
+          </a>
+          <a class="stat" routerLink="/admin/chat" [queryParams]="{ status: 'open' }">
+            <span>My open chats</span>
+            <strong>{{ data.chat.my_open }}</strong>
+          </a>
+        </div>
+
+        <div class="list" tabindex="0" aria-label="Customers waiting">
+          @for (item of data.chat.queue; track item.conversation_id) {
+            <div class="row" [class.row--alert]="item.overdue">
+              <span class="avatar">
+                @if (item.avatar_url && !brokenAvatars.has(item.conversation_id)) {
+                  <img [src]="item.avatar_url" alt="" (error)="brokenAvatars.add(item.conversation_id)" />
+                } @else {
+                  {{ initials(item.customer_name) }}
+                }
+              </span>
+              <div class="row__text">
+                <p class="row__title">
+                  {{ item.customer_name }}
+                  @if (item.tier) { <span class="tier" [ngClass]="'tier--' + item.tier.toLowerCase()">{{ item.tier }}</span> }
+                  @if (item.reason) { <span class="reason">{{ reasonLabel(item.reason) }}</span> }
+                </p>
+                <p class="row__detail"><strong>AI summary:</strong> {{ item.summary || 'No summary yet.' }}</p>
+              </div>
+              <button type="button" class="pill" [disabled]="claimingId === item.conversation_id" (click)="claim(item)">
+                {{ claimingId === item.conversation_id ? 'Claiming...' : 'Claim' }}
+              </button>
+            </div>
+          } @empty {
+            <p class="empty">No customers are waiting right now.</p>
+          }
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <header class="card__head">
+        <h2>To do today</h2>
+        <p>Reports, recipes and messages · oldest first · {{ data.support_vouchers_issued_today }} support voucher{{ data.support_vouchers_issued_today === 1 ? '' : 's' }} issued today</p>
+        <div class="chips" role="group" aria-label="Filter tasks">
+          @for (option of filters; track option.value) {
+            <button type="button" class="chip" [class.active]="filter === option.value" (click)="filter = option.value">{{ option.label }} {{ option.count }}</button>
+          }
+        </div>
+      </header>
+
+      <div class="list list--tasks" tabindex="0" aria-label="Tasks">
+        @for (task of visibleTasks; track task.key) {
+          <div class="row" [class.row--alert]="task.type === 'reports'">
+            <span class="task-icon" [ngClass]="'task-icon--' + task.type" aria-hidden="true">
+              @switch (task.type) {
+                @case ('reports') { <svg lucideFlag [size]="15"></svg> }
+                @case ('recipes') { <svg lucideChefHat [size]="15"></svg> }
+                @default { <svg lucideSend [size]="15"></svg> }
+              }
+            </span>
+            <div class="row__text">
+              <p class="row__title">{{ task.title }}</p>
+              <p class="row__detail">{{ task.detail }}</p>
+            </div>
+            @if (task.mailto) {
+              <a class="pill" [href]="task.mailto">{{ task.action }}</a>
+            } @else {
+              <a class="pill" [routerLink]="task.link">{{ task.action }}</a>
+            }
+          </div>
+        } @empty {
+          <p class="empty">Nothing to do here.</p>
+        }
+      </div>
     </article>
   }
 </section>

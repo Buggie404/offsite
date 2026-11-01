@@ -52,11 +52,6 @@
                 @case ('ritual-dna') { <svg lucideActivity aria-hidden="true" [size]="16"></svg> }
               }
               <span>{{ item.label }}</span>
-              @if (item.path === '/admin/orders' && processingOrderCount > 0) {
-                <span class="sidebar-link__badge" [attr.aria-label]="processingOrderCount + ' orders processing'">
-                  {{ processingOrderCount > 99 ? '99+' : processingOrderCount }}
-                </span>
-              }
             </a>
           }
         </section>

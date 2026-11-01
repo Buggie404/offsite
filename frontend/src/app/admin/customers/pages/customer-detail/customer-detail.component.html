@@ -4,31 +4,24 @@
   } @else if (!customer) {
     <div class="state state--error">
       {{ error }}
-      <button type="button" (click)="backToList()">Back to customers</button>
+      <a routerLink="/admin/customers" queryParamsHandling="preserve">Back to Customers</a>
     </div>
   } @else {
+    <a routerLink="/admin/customers" queryParamsHandling="preserve" class="back-link">← Back to Customers</a>
+
     <header class="page-header">
       <div class="page-header__left">
         <h1>{{ customer.profile_name }}</h1>
         <p>{{ subtitle }}</p>
       </div>
-      <div class="page-actions">
-        @if (isLocked) {
+      @if (canUnlock) {
+        <div class="page-actions">
           <button type="button" class="btn btn--outline" (click)="openStatusConfirm()">
             <svg lucideLockOpen [size]="14"></svg>
             <span>Unlock account</span>
           </button>
-        } @else {
-          <button type="button" class="btn btn--danger" (click)="openStatusConfirm()">
-            <svg lucideLock [size]="14"></svg>
-            <span>Lock account</span>
-          </button>
-        }
-        <button type="button" class="btn btn--outline" (click)="backToList()">
-          <svg lucideArrowLeft [size]="14"></svg>
-          <span>Back to customers</span>
-        </button>
-      </div>
+        </div>
+      }
     </header>
 
     @if (isLocked) {
@@ -38,6 +31,15 @@
           <strong>Account locked{{ customer.suspended_at ? ' on ' + shortDate(customer.suspended_at) : '' }}.</strong>
           The customer cannot sign in.
           @if (customer.suspended_reason) { Reason: {{ customer.suspended_reason }} }
+        </p>
+      </div>
+    } @else if (customer.restricted_until) {
+      <div class="locked-banner" role="status">
+        <svg lucideLock [size]="16"></svg>
+        <p>
+          <strong>Suspended from Community until {{ shortDate(customer.restricted_until) }}.</strong>
+          The customer can still sign in and shop.
+          @if (customer.restricted_reason) { Reason: {{ customer.restricted_reason }} }
         </p>
       </div>
     }
@@ -148,27 +150,14 @@
 
     <app-confirmation-modal
       [isOpen]="confirmOpen"
-      [title]="isLocked ? 'Unlock ' + customer.profile_name + '?' : 'Lock ' + customer.profile_name + '?'"
-      [message]="isLocked ? 'They can sign in and place orders again.' : 'They are signed out and cannot sign in until the account is unlocked.'"
-      [confirmText]="statusSaving ? 'Saving...' : (isLocked ? 'Unlock' : 'Lock account')"
+      [title]="'Unlock ' + customer.profile_name + '?'"
+      message="They can sign in and place orders again."
+      [confirmText]="statusSaving ? 'Saving...' : 'Unlock'"
       cancelText="Cancel"
-      [type]="isLocked ? 'success' : 'danger'"
+      type="success"
       (confirm)="confirmStatus()"
       (cancel)="closeStatusConfirm()"
     >
-      @if (!isLocked) {
-        <label class="confirm-reason">
-          <span class="label">Reason</span>
-          <textarea
-            class="textarea"
-            rows="3"
-            maxlength="500"
-            placeholder="Why is this account being locked?"
-            [(ngModel)]="lockReason"
-            (ngModelChange)="confirmError = ''"
-          ></textarea>
-        </label>
-      }
       @if (confirmError) { <p class="form-error confirm-error" role="alert">{{ confirmError }}</p> }
     </app-confirmation-modal>
   }

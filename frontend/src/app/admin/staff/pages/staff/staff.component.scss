@@ -408,6 +408,16 @@ $muted: #faf0eb;
     line-height: 16px;
     color: var(--color-warm-brown);
   }
+
+  &__error {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--state-error, #c0392b);
+  }
+
+  &__required {
+    color: var(--state-error, #c0392b);
+  }
 }
 
 .input {
@@ -427,6 +437,12 @@ $muted: #faf0eb;
     outline: none;
     border-color: var(--color-forest-green);
     box-shadow: 0 0 0 2px rgba(55, 85, 52, 0.15);
+  }
+
+  &--invalid,
+  &--invalid:focus {
+    border-color: var(--state-error, #c0392b);
+    box-shadow: none;
   }
 
   &--readonly {

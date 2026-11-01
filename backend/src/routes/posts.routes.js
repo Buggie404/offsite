@@ -4,6 +4,8 @@ const multer = require('multer');
 const postsController = require('../controllers/posts.controller');
 const postProducts = require('../controllers/post-products.controller');
 const { authMiddleware, optionalAuthMiddleware } = require('../middleware/auth.middleware');
+const { requireCommunityAccess } = require('../middleware/community-restriction.middleware');
+const { requireReportQuota } = require('../middleware/report-limit.middleware');
 
 
 const upload = multer();
@@ -15,12 +17,12 @@ router.get('/:id', optionalAuthMiddleware, postsController.getPostById);
 
 // Protected routes
 router.post('/product-suggestions', authMiddleware, postProducts.suggestProducts);
-router.post('/', authMiddleware, upload.none(), postsController.createPost);
-router.put('/:id', authMiddleware, upload.none(), postsController.updatePost);
+router.post('/', authMiddleware, requireCommunityAccess('write'), upload.none(), postsController.createPost);
+router.put('/:id', authMiddleware, requireCommunityAccess('write'), upload.none(), postsController.updatePost);
 router.delete('/:id', authMiddleware, postsController.deletePost);
-router.post('/:id/like', authMiddleware, postsController.likePost);
-router.post('/:id/save', authMiddleware, postsController.savePost);
-router.post('/:id/share', authMiddleware, postsController.sharePost); // NEW: wires up sharePost so share_count actually increments
-router.post('/:id/report', authMiddleware, postsController.reportPost);
+router.post('/:id/like', authMiddleware, requireCommunityAccess('interact'), postsController.likePost);
+router.post('/:id/save', authMiddleware, requireCommunityAccess('interact'), postsController.savePost);
+router.post('/:id/share', authMiddleware, requireCommunityAccess('interact'), postsController.sharePost); // NEW: wires up sharePost so share_count actually increments
+router.post('/:id/report', authMiddleware, requireCommunityAccess('interact'), requireReportQuota, postsController.reportPost);
 
 module.exports = router;

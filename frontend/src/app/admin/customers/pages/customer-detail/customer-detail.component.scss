@@ -6,6 +6,27 @@
 
 // Figma: "1.4.1(new) Customer detail · Purchase history / Internal notes"
 
+.back-link {
+  display: inline-block;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--color-forest-green);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// The display font has no Vietnamese glyphs, and customer names are often Vietnamese.
+.page-header h1 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: normal;
+}
+
 .page-actions {
   display: flex;
   flex-wrap: wrap;

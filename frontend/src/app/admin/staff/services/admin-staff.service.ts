@@ -45,6 +45,10 @@ export class AdminStaffService {
     return this.http.get<{ data: StaffMember[]; total: number }>(this.api, { params: q ? { q } : {} });
   }
 
+  checkEmail(email: string): Observable<{ available: boolean; error: string | null }> {
+    return this.http.get<{ available: boolean; error: string | null }>(`${this.api}/check-email`, { params: { email } });
+  }
+
   create(payload: NewStaff): Observable<StaffWithPassword> {
     return this.http.post<StaffWithPassword>(this.api, payload);
   }
@@ -57,7 +61,7 @@ export class AdminStaffService {
     return this.http.patch<{ data: StaffMember; returned_chats: number }>(`${this.api}/${userId}/role`, { role });
   }
 
-  setStatus(userId: string, status: StaffStatus, reason = ''): Observable<{ data: StaffMember; returned_chats: number }> {
+  setStatus(userId: string, status: StaffStatus, reason: string): Observable<{ data: StaffMember; returned_chats: number }> {
     return this.http.patch<{ data: StaffMember; returned_chats: number }>(`${this.api}/${userId}/status`, { status, reason });
   }
 

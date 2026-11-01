@@ -114,7 +114,7 @@ npm start
 
 | Vai trò | Email | Mật khẩu | Ghi chú |
 |---|---|---|---|
-| Admin | `admin@offsite.vn` | `P@ssword123` | Trang quản trị `/admin` |
+| Admin | `admin@offsite.vn` | `P@ssword123` | Trang quản trị `/admin`. Tài khoản staff mới dùng chuẩn `firstname.lastname@offsite.vn`; tài khoản cũ chuyển bằng `node backend/scripts/normalize-staff-emails.js [--apply]` |
 | Khách 1 | `customer1@offsite.vn` | `P@ssword123` | Nguyễn Văn A |
 | Khách 2 | `customer2@offsite.vn` | `P@ssword123` | Trần Thị B |
 | Khách 3 | `customer3@offsite.vn` | `P@ssword123` | Lê Văn C |

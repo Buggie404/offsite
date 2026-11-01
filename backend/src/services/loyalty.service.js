@@ -266,7 +266,11 @@ async function ensureTierPerkVouchers(userId, tier) {
         max_discount_value: def.voucherType === 'shipping' ? null : def.discountValue,
         valid_from: validFrom,
         valid_to: validTo,
-        createdAt: now.toISOString()
+        createdAt: now.toISOString(),
+        purpose: 'loyalty_redeem',
+        assigned_user_id: userId,
+        usage_limit_per_user: 1,
+        target_tier: null
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
@@ -442,7 +446,11 @@ async function redeemReward(jwtUserId, rewardId) {
     max_discount_value: reward.voucherType === 'shipping' ? null : reward.discountValue,
     valid_from: validFrom,
     valid_to: validTo,
-    createdAt: now.toISOString()
+    createdAt: now.toISOString(),
+    purpose: 'loyalty_redeem',
+    assigned_user_id: appUserId,
+    usage_limit_per_user: 1,
+    target_tier: null
   });
 
   await adjustBalance(appUserId, -reward.pointsCost);
@@ -528,7 +536,11 @@ async function ensurePersonalWelcomeVoucher(refereeUserId) {
       max_discount_value: 5,
       valid_from: validFrom,
       valid_to: validTo,
-      createdAt: now.toISOString()
+      createdAt: now.toISOString(),
+      purpose: 'referral',
+      assigned_user_id: refereeUserId,
+      usage_limit_per_user: 1,
+      target_tier: null
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );

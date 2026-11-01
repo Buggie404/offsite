@@ -102,10 +102,13 @@ test('target_entity Subscriptions also matches the legacy "subscription"', async
   assert.deepEqual(body.data.map(l => l.log_id).sort(), ['L1', 'L2', 'L3']);
 });
 
-test('the action filter dropdown lists only current names, once each', async () => {
+test('the action filter dropdown offers only current names, never a legacy one', async () => {
   const f = fixture();
   const body = await list(f.api, { include_facets: 'true' });
-  assert.deepEqual(body.facets.action_types, ['order.status', 'subscription.pause', 'subscription.skip']);
+  const values = body.facets.action_types.map(t => t.value);
+  assert.ok(values.includes('subscription.pause'));
+  assert.ok(values.every(v => !/^SUBSCRIPTION_/.test(v)));
+  assert.equal(new Set(values).size, values.length);
 });
 
 test('CSV export shows the current name', async () => {

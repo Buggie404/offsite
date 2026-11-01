@@ -18,6 +18,9 @@ export interface CustomerRow {
   status: CustomerStatus;
   suspended_reason: string | null;
   suspended_at: string | null;
+  /** Community restriction still running; status stays 'active' because the customer can sign in */
+  restricted_until: string | null;
+  restricted_reason: string | null;
   created_at: string | null;
   order_count: number;
   last_order_at: string | null;

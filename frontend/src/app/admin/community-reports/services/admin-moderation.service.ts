@@ -4,7 +4,8 @@ import { Observable } from 'rxjs';
 import { AdminRole } from '../../../shared/models/admin-role.model';
 
 export type ReportTargetType = 'post' | 'comment' | 'account';
-export type ModerationActionType = 'hide' | 'restore' | 'warn' | 'lock' | 'dismiss';
+export type PenaltyAction = 'warn' | 'suspend_3d' | 'suspend_7d';
+export type ModerationActionType = 'hide' | 'restore' | PenaltyAction | 'dismiss';
 
 export interface QueueItem {
   key: string;
@@ -19,6 +20,15 @@ export interface QueueItem {
   owner_avatar: string | null;
   owner_status: 'active' | 'locked';
   owner_warnings: number;
+  owner_restricted_until: string | null;
+  last_violation: { level: number; created_at: string } | null;
+  top_reason: string;
+  /** Lowest level the main report reason calls for */
+  reason_level: number;
+  /** Level suggested from earlier violations and the main report reason */
+  recommended_action: PenaltyAction;
+  /** Staff already judged this post: its points do not come back on restore */
+  points_forfeited?: boolean;
   posted_at: string | null;
   post_id: string | null;
   pending_reports: number;
@@ -35,8 +45,9 @@ export interface HandledItem {
   target_id: string;
   owner_id: string | null;
   owner_name: string | null;
-  action: 'hide' | 'restore' | 'warn' | 'lock' | 'unlock' | 'dismiss';
+  action: 'hide' | 'restore' | PenaltyAction | 'lift' | 'lock' | 'unlock' | 'dismiss';
   also_hidden: boolean;
+  restricted_until: string | null;
   message: string | null;
   reports_closed: number;
   admin_name: string | null;
@@ -44,6 +55,7 @@ export interface HandledItem {
   created_at: string;
   content_hidden: boolean;
   owner_locked: boolean;
+  owner_restricted: boolean;
 }
 
 export interface ModerationRequest {
@@ -51,8 +63,7 @@ export interface ModerationRequest {
   target_id: string;
   action: ModerationActionType;
   message: string;
-  also_hide?: boolean;
-  notify_reporters?: boolean;
+  notify_reporters: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

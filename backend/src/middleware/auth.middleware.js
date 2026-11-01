@@ -7,6 +7,10 @@ const ADMIN_ORDER_MANAGE_ROLES = ['admin_cc', 'qlsp'];
 const ADMIN_ORDER_UNSCOPED_ROLES = ['admin_cc', 'qlsp'];
 const ADMIN_CROSS_USER_ROLES = ['admin_cc'];
 
+function isPasswordChangeRequest(req) {
+  return req.method === 'PUT' && String(req.originalUrl || '').split('?')[0].replace(/\/+$/, '') === '/api/admin/change-password';
+}
+
 async function authMiddleware(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // "Bearer [token]"
@@ -20,12 +24,16 @@ async function authMiddleware(req, res, next) {
     const User = require('../models/User');
     const id = String(decoded.user_id || '');
     const query = /^[0-9a-fA-F]{24}$/.test(id) ? { _id: id } : { user_id: id };
-    const account = await User.findOne(query, 'status role').lean();
+    const account = await User.findOne(query, 'status role must_change_password community_restriction').lean();
     if (!account) return res.status(401).json({ error: 'Account not found' });
     if (account.status === 'suspended') return res.status(403).json({ error: 'Your account is suspended', code: 'ACCOUNT_SUSPENDED' });
+    // Checked here, not only at sign-in: a token issued before a password reset is held back too.
+    if (account.must_change_password && !isPasswordChangeRequest(req)) {
+      return res.status(403).json({ error: 'You must change your temporary password first.', code: 'PASSWORD_CHANGE_REQUIRED' });
+    }
     // Use the stored role so a role change on the Staff page applies right away, not when the token expires.
     const role = account.role === 'admin' ? 'admin_cc' : account.role;
-    req.user = { ...decoded, role: role || decoded.role }; // { user_id, email, role }
+    req.user = { ...decoded, role: role || decoded.role, community_restriction: account.community_restriction || null }; // { user_id, email, role }
     next();
   } catch (error) {
     if (error?.name === 'TokenExpiredError') {

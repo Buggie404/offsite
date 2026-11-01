@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const followsController = require('../controllers/follows.controller');
 const { authMiddleware, optionalAuthMiddleware } = require('../middleware/auth.middleware');
+const { requireCommunityAccess } = require('../middleware/community-restriction.middleware');
 
 // Fixed paths first so they are not captured by /:userId
 router.get('/ids', authMiddleware, followsController.getFollowingIds);
@@ -10,8 +11,8 @@ router.get('/following', authMiddleware, followsController.getMyFollowing);
 router.get('/:userId/status', authMiddleware, followsController.getFollowStatus);
 router.get('/:userId/:type', optionalAuthMiddleware, followsController.getFollowList);
 
-router.put('/:userId', authMiddleware, followsController.followUser);
-router.delete('/:userId', authMiddleware, followsController.unfollowUser);
-router.post('/:userId', authMiddleware, followsController.toggleFollow);
+router.put('/:userId', authMiddleware, requireCommunityAccess('interact'), followsController.followUser);
+router.delete('/:userId', authMiddleware, requireCommunityAccess('interact'), followsController.unfollowUser);
+router.post('/:userId', authMiddleware, requireCommunityAccess('interact'), followsController.toggleFollow);
 
 module.exports = router;

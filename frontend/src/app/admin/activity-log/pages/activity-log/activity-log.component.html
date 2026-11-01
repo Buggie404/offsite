@@ -22,46 +22,106 @@
       <svg lucideSearch [size]="16"></svg>
       <input
         type="search"
-        placeholder="Search target, ID or reason"
-        aria-label="Search target, ID or reason"
+        placeholder="Search name, target, ID or reason"
+        aria-label="Search name, target, ID or reason"
         [ngModel]="q"
         (ngModelChange)="onSearch($event)"
       />
     </label>
 
-    <select class="select select--wide" aria-label="Admin" [(ngModel)]="adminId" (ngModelChange)="applyFilters()">
-      <option value="">Anyone</option>
-      @for (actor of facets.actors; track actor.user_id) {
-        <option [value]="actor.user_id">{{ actor.name }}</option>
-      }
-    </select>
+    <div class="select-wrap">
+      <select class="select" aria-label="Role" [(ngModel)]="adminRole" (ngModelChange)="applyFilters()">
+        <option value="">Any role</option>
+        @for (role of roleOptions; track role.value) {
+          <option [value]="role.value">{{ role.label }}</option>
+        }
+      </select>
+      <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+    </div>
 
-    <select class="select" aria-label="Role" [(ngModel)]="adminRole" (ngModelChange)="applyFilters()">
-      <option value="">Any role</option>
-      @for (role of roleOptions; track role.value) {
-        <option [value]="role.value">{{ role.label }}</option>
-      }
-    </select>
+    <div class="select-wrap">
+      <select class="select select--wide" aria-label="Action" [(ngModel)]="actionType" (ngModelChange)="applyFilters()">
+        <option value="">Any action</option>
+        @for (group of actionGroups; track group.name) {
+          <optgroup [label]="group.name">
+            @for (type of group.types; track type.value) {
+              <option [value]="type.value">{{ type.label }}</option>
+            }
+          </optgroup>
+        }
+      </select>
+      <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+    </div>
 
-    <select class="select select--wide" aria-label="Action" [(ngModel)]="actionType" (ngModelChange)="applyFilters()">
-      <option value="">Any action</option>
-      @for (type of facets.action_types; track type) {
-        <option [value]="type">{{ actionLabel(type) }}</option>
-      }
-    </select>
+    <div class="date-filter">
+      <div class="select-wrap">
+        <select class="select" aria-label="Time" [ngModel]="period" (ngModelChange)="onPeriodChange($event)">
+          @for (option of periodOptions; track option.value) {
+            <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+        <svg lucideChevronDown class="select-wrap__icon" aria-hidden="true" [size]="16"></svg>
+      </div>
 
-    <select class="select" aria-label="Time" [(ngModel)]="period" (ngModelChange)="applyFilters()">
-      @for (option of periodOptions; track option.value) {
-        <option [value]="option.value">{{ option.label }}</option>
-      }
-    </select>
+      @if (showCustomRange) {
+        <div class="custom-range-panel" role="region" aria-label="Custom date range">
+          <div class="custom-range-panel__header">
+            <p class="custom-range-panel__title">Custom range</p>
+            <p class="custom-range-panel__hint">Choose a start and end date to filter activity.</p>
+          </div>
 
-    @if (period === 'custom') {
-      <span class="custom-range">
-        <input type="date" class="select" aria-label="From" [(ngModel)]="customFrom" (ngModelChange)="applyFilters()" />
-        <svg lucideArrowRight [size]="14"></svg>
-        <input type="date" class="select" aria-label="To" [min]="customFrom" [(ngModel)]="customTo" (ngModelChange)="applyFilters()" />
-      </span>
+          <div class="custom-range-panel__fields">
+            <div class="custom-range-field">
+              <label class="custom-range-field__label" for="log-date-from">From</label>
+              <div class="custom-range-field__input-wrap">
+                <svg lucideCalendar class="custom-range-field__icon" aria-hidden="true" [size]="16"></svg>
+                <input
+                  id="log-date-from"
+                  type="date"
+                  class="custom-range-field__input"
+                  [max]="customTo || maxDate"
+                  [(ngModel)]="customFrom"
+                  (ngModelChange)="customRangeError = ''"
+                />
+              </div>
+            </div>
+
+            <span class="custom-range-panel__separator" aria-hidden="true">to</span>
+
+            <div class="custom-range-field">
+              <label class="custom-range-field__label" for="log-date-to">To</label>
+              <div class="custom-range-field__input-wrap">
+                <svg lucideCalendar class="custom-range-field__icon" aria-hidden="true" [size]="16"></svg>
+                <input
+                  id="log-date-to"
+                  type="date"
+                  class="custom-range-field__input"
+                  [min]="customFrom"
+                  [max]="maxDate"
+                  [(ngModel)]="customTo"
+                  (ngModelChange)="customRangeError = ''"
+                />
+              </div>
+            </div>
+          </div>
+
+          @if (customRangeError) {
+            <p class="custom-range-panel__error" role="alert">{{ customRangeError }}</p>
+          }
+
+          <div class="custom-range-panel__actions">
+            <button type="button" class="btn btn--outline" (click)="cancelCustomRange()">Cancel</button>
+            <button type="button" class="btn btn--primary" (click)="applyCustomRange()">Apply range</button>
+          </div>
+        </div>
+      }
+    </div>
+
+    @if (period === 'custom' && appliedRangeText && !showCustomRange) {
+      <button type="button" class="range-btn" aria-label="Change custom range" (click)="openCustomRange()">
+        <svg lucideCalendar [size]="14"></svg>
+        {{ appliedRangeText }}
+      </button>
     }
 
     @if (hasFilters) {
@@ -91,9 +151,10 @@
               <tr>
                 <th class="col-time">Time</th>
                 <th class="col-by">By</th>
+                <th class="col-role">Role</th>
                 <th class="col-action">Action</th>
-                <th>Target</th>
-                <th class="col-change">Change</th>
+                <th class="col-target">Target</th>
+                <th>Change</th>
               </tr>
             </thead>
             <tbody>
@@ -105,15 +166,11 @@
                   (keydown.enter)="select(row)"
                 >
                   <td class="col-time">{{ shortTime(row.created_at) }}</td>
-                  <td class="col-by">
-                    <span class="by">
-                      <span class="by__name" [attr.title]="row.actor.name">{{ shortName(row.actor.name) }}</span>
-                      <span class="chip" [ngClass]="'chip--' + row.actor.role">{{ roleLabel(row.actor.role) }}</span>
-                    </span>
-                  </td>
-                  <td class="col-action">{{ actionLabel(row.action_type) }}</td>
-                  <td class="col-target">{{ targetText(row) }}</td>
-                  <td class="col-change">
+                  <td class="col-by cell-text" [attr.title]="row.actor.name">{{ row.actor.name }}</td>
+                  <td class="col-role"><span class="chip" [ngClass]="'chip--' + row.actor.role">{{ roleLabel(row.actor.role) }}</span></td>
+                  <td class="col-action">{{ row.action_label }}</td>
+                  <td class="col-target cell-text" [attr.title]="row.target_label || row.target_id">{{ row.target_label || row.target_id }}</td>
+                  <td>
                     @if (summary(row); as s) {
                       @if (s.change) {
                         <span class="change">
@@ -159,7 +216,7 @@
     @if (selected; as entry) {
       <aside class="detail" aria-label="Log entry details">
         <header class="detail__header">
-          <h2>{{ actionLabel(entry.action_type) }}</h2>
+          <h2>{{ entry.action_label }}</h2>
           <button type="button" class="icon-btn" aria-label="Close details" (click)="closeDetail()"><svg lucideX [size]="18"></svg></button>
         </header>
         <div class="detail__body">
@@ -167,10 +224,10 @@
             <div><dt>By</dt><dd>{{ entry.actor.name }} · {{ roleLabel(entry.actor.role) }}</dd></div>
             @if (entry.actor.email) { <div><dt>Email</dt><dd>{{ entry.actor.email }}</dd></div> }
             <div><dt>When</dt><dd>{{ fullTime(entry.created_at) }}</dd></div>
-            <div><dt>Target</dt><dd>{{ entityLabel(entry.target_entity) }} · {{ entry.target_id }}</dd></div>
-            @if (entry.target_label) { <div><dt>Name</dt><dd>{{ entry.target_label }}</dd></div> }
+            <div><dt>Target</dt><dd>{{ entry.target_label || entry.target_id }}</dd></div>
+            @if (entry.target_label) { <div><dt>ID</dt><dd>{{ entry.target_id }}</dd></div> }
             @if (entry.ticket_id) { <div><dt>Ticket</dt><dd>{{ entry.ticket_id }}</dd></div> }
-            <div><dt>Action code</dt><dd class="mono">{{ entry.action_type }}</dd></div>
+            <div><dt>Action type</dt><dd>{{ entry.action_label }}</dd></div>
           </dl>
 
           @if (entry.reason) {
@@ -183,10 +240,12 @@
           @if (changes(entry); as list) {
             @if (list.length) {
               <div class="diff">
-                <div class="diff__col diff__col--old">
-                  <span class="label">Old</span>
-                  @for (c of list; track c.key) { <p><span>{{ c.key }}:</span> {{ c.before ?? 'none' }}</p> }
-                </div>
+                @if (hasOldValues(list)) {
+                  <div class="diff__col diff__col--old">
+                    <span class="label">Old</span>
+                    @for (c of list; track c.key) { <p><span>{{ c.key }}:</span> {{ c.before ?? 'none' }}</p> }
+                  </div>
+                }
                 <div class="diff__col diff__col--new">
                   <span class="label">New</span>
                   @for (c of list; track c.key) { <p><span>{{ c.key }}:</span> {{ c.after ?? 'none' }}</p> }

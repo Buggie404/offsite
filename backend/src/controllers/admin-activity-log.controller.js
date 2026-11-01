@@ -1,15 +1,15 @@
 const mongoose = require('mongoose');
 const ActivityLog = require('../models/ActivityLog');
 const User = require('../models/User');
-const {
-  unsavedActivityLogCount, canonicalActionType, actionTypeQuery, targetEntityQuery, presentActivityLog
-} = require('../services/activity-log.service');
+const { unsavedActivityLogCount, actionTypeQuery, targetEntityQuery, presentActivityLog } = require('../services/activity-log.service');
+const { ACTION_TYPES, actionLabel } = require('../constants/action-types');
 
-// Activity log (Admin CC only, read-only): filter by who, role, action and time; search target.
+// Activity log (Admin CC only, read-only): filter by role, action and time; search names and target.
 // Logs are append-only, so this controller never updates or deletes.
 
 const ADMIN_ROLES = ['admin_cc', 'cskh', 'qlsp'];
 const MAX_EXPORT_ROWS = 5000;
+const MAX_SEARCH_USERS = 200;
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -19,19 +19,26 @@ function asDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+// The By and Target columns show names, which live on Users: turn a search into the matching ids.
 // admin_id is whatever the admin's JWT carried: usually the Mongo _id, sometimes a user_id (USR...).
-async function actorIdsFor(staffUserId) {
-  const user = await User.findOne({ user_id: staffUserId }, '_id user_id').lean();
-  return user ? [String(user._id), user.user_id] : [staffUserId];
+async function usersMatching(text) {
+  const pattern = new RegExp(escapeRegex(text.replace(/^@/, '')), 'i');
+  const users = await User.find(
+    { $or: [{ profile_name: pattern }, { community_name: pattern }, { email: pattern }] },
+    '_id user_id',
+    { limit: MAX_SEARCH_USERS }
+  ).lean();
+  return {
+    userIds: users.map((user) => user.user_id).filter(Boolean),
+    actorIds: users.flatMap((user) => [String(user._id), user.user_id]).filter(Boolean)
+  };
 }
 
 async function buildFilter(query) {
   const filter = {};
-  if (query.admin_id) filter.admin_id = { $in: await actorIdsFor(String(query.admin_id)) };
   if (ADMIN_ROLES.includes(query.admin_role)) filter.admin_role = query.admin_role;
-  // Legacy names (written before the entity.action convention) match their current name.
-  if (query.action_type) filter.action_type = actionTypeQuery(query.action_type);
-  if (query.target_entity) filter.target_entity = targetEntityQuery(query.target_entity);
+  if (query.action_type) filter.action_type = actionTypeQuery(String(query.action_type));
+  if (query.target_entity) filter.target_entity = targetEntityQuery(String(query.target_entity));
   if (query.target_id) filter.target_id = String(query.target_id);
 
   const from = asDate(query.from);
@@ -42,6 +49,9 @@ async function buildFilter(query) {
   if (q) {
     const pattern = new RegExp(escapeRegex(q), 'i');
     filter.$or = [{ target_id: pattern }, { target_entity: pattern }, { reason: pattern }, { ticket_id: pattern }];
+    const { userIds, actorIds } = await usersMatching(q);
+    if (userIds.length) filter.$or.push({ target_id: { $in: userIds } });
+    if (actorIds.length) filter.$or.push({ admin_id: { $in: actorIds } });
   }
   return filter;
 }
@@ -51,8 +61,7 @@ function staffName(user) {
 }
 
 // Name / email for the admins who acted and for user targets (staff, customers), in two queries.
-async function enrich(storedLogs) {
-  const logs = storedLogs.map(presentActivityLog); // current names; nothing is written back
+async function enrich(logs) {
   const actorIds = [...new Set(logs.map((log) => log.admin_id))];
   const objectIds = actorIds.filter((id) => mongoose.isValidObjectId(id) && /^[0-9a-f]{24}$/i.test(id));
   const userTargetIds = [...new Set(logs.filter((log) => /^users?$/i.test(log.target_entity)).map((log) => log.target_id))];
@@ -71,13 +80,14 @@ async function enrich(storedLogs) {
   }
   const targetById = new Map(targets.map((target) => [target.user_id, target]));
 
-  return logs.map((log) => {
+  return logs.map(presentActivityLog).map((log) => {
     const actor = actorById.get(log.admin_id);
     const target = targetById.get(log.target_id);
     return {
       log_id: log.log_id,
       created_at: log.created_at,
       action_type: log.action_type,
+      action_label: actionLabel(log.action_type),
       target_entity: log.target_entity,
       target_id: log.target_id,
       target_label: target ? (target.community_name ? `@${target.community_name}` : staffName(target)) : null,
@@ -97,53 +107,22 @@ async function enrich(storedLogs) {
   });
 }
 
-// Filter dropdowns: everyone who has acted (plus current staff) and every action type logged so far.
-async function getFacets() {
-  const [actionTypes, actorIds, staff] = await Promise.all([
-    ActivityLog.distinct('action_type'),
-    ActivityLog.distinct('admin_id'),
-    User.find({ role: { $in: [...ADMIN_ROLES, 'admin'] } }, 'user_id profile_name email role').lean()
-  ]);
-  const known = new Map(staff.map((user) => [String(user._id), user]));
-  for (const user of staff) known.set(user.user_id, user);
-
-  const missingIds = actorIds.filter((id) => !known.has(id));
-  const objectIds = missingIds.filter((id) => /^[0-9a-f]{24}$/i.test(id));
-  if (missingIds.length) {
-    const former = await User.find({ $or: [{ _id: { $in: objectIds } }, { user_id: { $in: missingIds } }] }, 'user_id profile_name email role').lean();
-    for (const user of former) {
-      known.set(String(user._id), user);
-      known.set(user.user_id, user);
-    }
-  }
-
-  const people = new Map();
-  for (const user of known.values()) {
-    if (user.user_id) people.set(user.user_id, { user_id: user.user_id, name: staffName(user) || user.user_id });
-  }
-  return {
-    action_types: [...new Set(actionTypes.filter(Boolean).map(canonicalActionType))].sort(),
-    actors: [...people.values()].sort((a, b) => a.name.localeCompare(b.name))
-  };
-}
-
-// GET /api/admin/activity-logs?page=&limit=&q=&admin_id=&admin_role=&action_type=&from=&to=&include_facets=true
+// GET /api/admin/activity-logs?page=&limit=&q=&admin_role=&action_type=&from=&to=&include_facets=true
 async function listActivityLogs(req, res) {
   try {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 200);
     const filter = await buildFilter(req.query);
-    const [total, logs, facets] = await Promise.all([
+    const [total, logs] = await Promise.all([
       ActivityLog.countDocuments(filter),
-      ActivityLog.find(filter).sort({ created_at: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
-      req.query.include_facets === 'true' ? getFacets() : null
+      ActivityLog.find(filter).sort({ created_at: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean()
     ]);
     res.json({
       total,
       page,
       limit,
       data: await enrich(logs),
-      ...(facets ? { facets } : {}),
+      ...(req.query.include_facets === 'true' ? { facets: { action_types: ACTION_TYPES } } : {}),
       // Logs whose write failed and are still waiting to be retried; the change itself was saved.
       unsaved_count: unsavedActivityLogCount()
     });

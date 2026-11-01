@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { Observable, Subject } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
+import { AdminAuthService } from '../../admin/auth/services/admin-auth.service';
 
 export interface ChatConversation {
   conversation_id: string;
@@ -39,6 +40,7 @@ export interface ChatTyping {
 export class ChatService {
   private http = inject(HttpClient);
   private platformId = inject(PLATFORM_ID);
+  private adminAuth = inject(AdminAuthService);
   private socket: Socket | null = null;
 
   private messageSubject = new Subject<ChatMessage>();
@@ -66,11 +68,11 @@ export class ChatService {
   // ── Socket ──
   connect(): void {
     if (!isPlatformBrowser(this.platformId) || this.socket) return;
-    const { protocol, hostname, port, origin } = window.location;
+    const { protocol, hostname, port, origin, pathname } = window.location;
     const url = port === '4200' ? `${protocol}//${hostname}:5000` : origin;
     this.socket = io(url, {
       transports: ['websocket', 'polling'],
-      auth: { token: localStorage.getItem('token') },
+      auth: { token: pathname.startsWith('/admin') ? this.adminAuth.getToken() : localStorage.getItem('token') },
       reconnection: true
     });
     this.socket.on('chat_message', (m: ChatMessage) => this.messageSubject.next(m));

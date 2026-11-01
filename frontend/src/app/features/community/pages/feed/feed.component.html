@@ -1,5 +1,6 @@
 <div class="feed-wrapper" [class.blurred]="!isLoggedIn()" [class.scroll-fallback-active]="!isScrollTimelineSupported">
   <app-hero-banner></app-hero-banner>
+  <app-restriction-banner></app-restriction-banner>
 
   <app-feed-toolbar [activeCategory]="activeCategory" [sort]="sort" (createPost)="openCreatePost()"
     (createRecipe)="openCreateRecipe()" (categoryChange)="onCategoryChange($event)" (sortChange)="onSortChange($event)">

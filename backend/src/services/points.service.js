@@ -1,6 +1,7 @@
 const PointTransaction = require('../models/PointTransaction');
 const User = require('../models/User');
 const Order = require('../models/Order');
+const { activeRestriction } = require('./community-restriction.service');
 
 // Membership point rules
 //   Purchase: +1 point per USD of the order subtotal × tier multiplier.
@@ -26,6 +27,13 @@ function tierMultiplier(tier) {
 // Points are whole numbers: round the tier-multiplied amount.
 function calcPoints(base, tier) {
   return Math.max(0, Math.round(base * tierMultiplier(tier)));
+}
+
+// Points earned during a Community suspension are cut by 50%.
+async function earnedAmount(base, userId) {
+  const user = await User.findOne({ user_id: userId }, { membership_tier: 1, community_restriction: 1 }).lean();
+  const amount = calcPoints(base, user?.membership_tier || 'Seed');
+  return activeRestriction(user) ? Math.round(amount / 2) : amount;
 }
 
 async function getTier(userId) {
@@ -58,7 +66,7 @@ async function awardPurchasePoints(order) {
   const existing = await PointTransaction.findOne({ type: 'purchase', ref_type: 'order', ref_id: order.order_id });
   if (existing) return existing;
 
-  const amount = calcPoints(order.pricing?.subtotal || 0, await getTier(order.user_id));
+  const amount = await earnedAmount(order.pricing?.subtotal || 0, order.user_id);
   if (amount <= 0) return null;
 
   return PointTransaction.create({
@@ -103,7 +111,7 @@ async function awardReviewPoints(review) {
   const existing = await PointTransaction.findOne({ type: 'review', ref_type: 'review', ref_id: review.review_id });
   if (existing) return existing;
 
-  const amount = calcPoints(1, await getTier(userId));
+  const amount = await earnedAmount(1, userId);
   if (amount <= 0) return null;
 
   const txn = await PointTransaction.create({

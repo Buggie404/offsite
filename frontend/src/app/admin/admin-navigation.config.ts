@@ -47,6 +47,14 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
     items: [
       { label: 'Support chat',      path: '/admin/chat',              icon: 'support',   roles: SERVICES_OPS_ROLES },
       {
+        // CSKH xem và chỉ tạo voucher bồi thường. Sửa / dừng không thuộc vai trò này.
+        label: 'Vouchers',
+        path: '/admin/vouchers',
+        icon: 'vouchers',
+        roles: ['cskh'] as const,
+        visibleRoles: ['cskh'] as const
+      },
+      {
         // Services-Ops Customers — đường dẫn riêng, khác với Sales-Ops /admin/customers
         label: 'Customers',
         path: '/admin/service-customers',

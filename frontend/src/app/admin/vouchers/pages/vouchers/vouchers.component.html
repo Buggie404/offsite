@@ -1,0 +1,311 @@
+<section class="vouchers-page" aria-label="Vouchers">
+  <header class="page-header">
+    <div>
+      <h1>Vouchers</h1>
+      <p>{{ total | number }} voucher{{ total === 1 ? '' : 's' }}</p>
+    </div>
+    <button type="button" class="create" (click)="openCreate()">
+      <svg lucidePlus [size]="14"></svg>
+      Create voucher
+    </button>
+  </header>
+
+  @if (notice) {
+    <p class="save-notice" role="status">{{ notice }}</p>
+  }
+
+  <div class="filters">
+    <label class="search">
+      <svg lucideSearch [size]="16"></svg>
+      <input
+        type="search"
+        placeholder="Search code"
+        aria-label="Search code"
+        [ngModel]="query"
+        (ngModelChange)="onSearch($event)"
+      />
+    </label>
+
+    <div class="segmented" role="group" aria-label="Status">
+      @for (item of statuses; track item.value) {
+        <button type="button" [class.active]="status === item.value" (click)="setStatus(item.value)">{{ item.label }}</button>
+      }
+    </div>
+
+    <label class="select">
+      <span class="sr-only">Type</span>
+      <select [ngModel]="type" (ngModelChange)="setType($event)" aria-label="Type">
+        @for (item of types; track item.value) {
+          <option [value]="item.value">{{ item.label }}</option>
+        }
+      </select>
+      <svg lucideChevronDown [size]="16"></svg>
+    </label>
+  </div>
+
+  <article class="perf" aria-label="Voucher performance">
+    @if (selected && performance) {
+      <header class="perf__header">
+        <h2>{{ performance.code }} · performance</h2>
+        <span>{{ rangeLabel(performance) }}</span>
+      </header>
+      <div class="perf__body">
+        <div class="stats">
+          <div class="stat">
+            <span class="stat__label">Times used</span>
+            <strong>{{ performance.times_used | number }}</strong>
+            <span class="stat__note">{{ limitCaption(performance) }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Total discounted</span>
+            <strong>{{ money(performance.total_discounted) }}</strong>
+            <span class="stat__note">from Orders.coupon</span>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Revenue with code</span>
+            <strong>{{ money(performance.revenue) }}</strong>
+            <span class="stat__note">orders using {{ performance.code }}</span>
+          </div>
+        </div>
+        <div class="perf__chart">
+          <div class="chart" aria-hidden="true">
+            @for (bucket of performance.buckets; track bucket.start) {
+              <div class="chart__col">
+                <div class="chart__bar" [style.height.%]="barHeight(bucket.count)"></div>
+              </div>
+            }
+          </div>
+          <div class="axis">
+            @for (label of axisLabels(performance); track label) {
+              <span>{{ label }}</span>
+            }
+          </div>
+        </div>
+      </div>
+    } @else if (performanceLoading || (loading && !vouchers.length)) {
+      <div class="perf__empty">Loading performance…</div>
+    } @else if (performanceError) {
+      <div class="perf__empty">{{ performanceError }}</div>
+    } @else {
+      <div class="perf__empty">No voucher in this view yet.</div>
+    }
+  </article>
+
+  <div class="table-card" [class.is-loading]="loading && vouchers.length">
+    @if (loading && !vouchers.length) {
+      <div class="state">Loading vouchers…</div>
+    } @else if (error) {
+      <div class="state state--error">{{ error }} <button type="button" (click)="load()">Try again</button></div>
+    } @else if (!visible.length) {
+      <div class="state">No vouchers match these filters.</div>
+    } @else {
+      <div class="table-scroll">
+        <table class="vouchers-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Type</th>
+              <th>Value</th>
+              <th>Min. order</th>
+              <th>Valid</th>
+              <th>Used</th>
+              <th>Status</th>
+              <th>Created by</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (voucher of visible; track voucher._id) {
+              <tr [class.is-selected]="voucher._id === selectedId" (click)="select(voucher)">
+                <td class="code">{{ voucher.code }}</td>
+                <td>{{ typeLabel(voucher.voucher_type) }}</td>
+                <td class="mono">{{ valueLabel(voucher) }}</td>
+                <td class="mono">{{ minLabel(voucher) }}</td>
+                <td>{{ validityLabel(voucher) }}</td>
+                <td class="used">
+                  <span>{{ usedLabel(voucher) }}</span>
+                  @if (showMeter(voucher)) {
+                    <span class="meter" aria-hidden="true"><span [style.width.%]="meterWidth(voucher)"></span></span>
+                  }
+                </td>
+                <td>
+                  <span class="chip" [class]="'chip chip--' + voucher.status">{{ statusLabel(voucher.status) }}</span>
+                </td>
+                <td class="creator">
+                  <span>{{ shortName(voucher.created_by_name) }}</span>
+                  @if (voucher.created_by_role === 'cskh') {
+                    <span class="role">CSKH</span>
+                  }
+                </td>
+                <td>
+                  @if (canManage) {
+                    <button type="button" class="edit" aria-label="Edit {{ voucher.code }}" (click)="openEdit(voucher, $event)">
+                      <svg lucidePencil [size]="14"></svg>
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</section>
+
+@if (modalOpen) {
+  <div class="overlay" (click)="closeModal()">
+    <div
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="voucher-modal-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="modal__header">
+        <h2 id="voucher-modal-title">{{ modalTitle }}</h2>
+        <button type="button" class="icon-btn" aria-label="Close" (click)="closeModal()">
+          <svg lucideX [size]="18"></svg>
+        </button>
+      </header>
+
+      <div class="modal__body">
+        @if (locked) {
+          <div class="warning">
+            <svg lucideTriangleAlert [size]="16"></svg>
+            <p><strong>{{ warningCount() | number }} {{ warningCount() === 1 ? 'customer' : 'customers' }} already used this code.</strong> Changes apply to new orders only; past orders keep their discount.</p>
+          </div>
+        }
+
+        @if (saveError) {
+          <p class="form-error">{{ saveError }}</p>
+        }
+
+        @if (role === 'admin_cc' && modalMode === 'create') {
+          <div class="segmented purpose" role="group" aria-label="Purpose">
+            <button type="button" [class.active]="form.purpose === 'campaign'" (click)="setPurpose('campaign')">Campaign</button>
+            <button type="button" [class.active]="form.purpose === 'complaint'" (click)="setPurpose('complaint')">Complaint</button>
+          </div>
+        }
+        @if (complaintMode) {
+          <p class="hint">Fixed amount up to $10, one use, valid for at most 30 days, and assigned to one customer.</p>
+        }
+
+        <div class="grid">
+          <label class="field">
+            <span>Code</span>
+            <input [class.invalid]="fieldError('code')" [disabled]="locked" [(ngModel)]="form.code" autocomplete="off" />
+            @if (fieldError('code')) { <small>{{ fieldError('code') }}</small> }
+          </label>
+          <label class="field">
+            <span>Type</span>
+            <span class="control">
+              <select [class.invalid]="fieldError('voucher_type')" [disabled]="locked || complaintMode" [(ngModel)]="form.voucher_type">
+                <option value="discount">Discount</option>
+                <option value="shipping">Shipping</option>
+              </select>
+              <svg lucideChevronDown [size]="16"></svg>
+            </span>
+          </label>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span>Discount</span>
+            <span class="control">
+              <select [disabled]="locked || complaintMode" [(ngModel)]="form.discount_type">
+                <option value="percentage">Percentage</option>
+                <option value="fixed">Fixed</option>
+              </select>
+              <svg lucideChevronDown [size]="16"></svg>
+            </span>
+          </label>
+          <label class="field">
+            <span>Value</span>
+            <span class="control" [class.control--money]="form.discount_type === 'fixed'">
+              @if (form.discount_type === 'fixed') { <em>$</em> }
+              <input [class.invalid]="fieldError('discount_value')" [disabled]="locked" inputmode="decimal" [(ngModel)]="form.discount_value" />
+            </span>
+            @if (fieldError('discount_value')) { <small>{{ fieldError('discount_value') }}</small> }
+          </label>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span>Min. order</span>
+            <span class="control control--money">
+              <em>$</em>
+              <input [class.invalid]="fieldError('min_order_amount')" [disabled]="locked" inputmode="decimal" [(ngModel)]="form.min_order_amount" />
+            </span>
+            @if (fieldError('min_order_amount')) { <small>{{ fieldError('min_order_amount') }}</small> }
+          </label>
+          <label class="field">
+            <span>Max discount</span>
+            <span class="control control--money">
+              <em>$</em>
+              <input [class.invalid]="fieldError('max_discount_value')" [disabled]="locked" inputmode="decimal" [(ngModel)]="form.max_discount_value" />
+            </span>
+            @if (fieldError('max_discount_value')) { <small>{{ fieldError('max_discount_value') }}</small> }
+          </label>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span>Valid from</span>
+            <input type="date" [class.invalid]="fieldError('valid_from')" [(ngModel)]="form.valid_from" />
+            @if (fieldError('valid_from')) { <small>{{ fieldError('valid_from') }}</small> }
+          </label>
+          <label class="field">
+            <span>Valid to</span>
+            <input type="date" [class.invalid]="fieldError('valid_to')" [(ngModel)]="form.valid_to" />
+            @if (fieldError('valid_to')) { <small>{{ fieldError('valid_to') }}</small> }
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Usage limit</span>
+          <input [class.invalid]="fieldError('usage_limit')" [disabled]="complaintMode" inputmode="numeric" placeholder="No limit" [(ngModel)]="form.usage_limit" />
+          @if (fieldError('usage_limit')) { <small>{{ fieldError('usage_limit') }}</small> }
+        </label>
+
+        <label class="field">
+          <span>Apply to Customer Tier</span>
+          <span class="control">
+            <select [disabled]="locked || complaintMode" [(ngModel)]="form.target_tier">
+              @for (tier of tiers; track tier.value) {
+                <option [value]="tier.value">{{ tier.label }}</option>
+              }
+            </select>
+            <svg lucideChevronDown [size]="16"></svg>
+          </span>
+        </label>
+
+        @if (complaintMode) {
+          <label class="field">
+            <span>Customer</span>
+            <input [class.invalid]="fieldError('assigned_user')" [(ngModel)]="form.assigned_user" placeholder="User id or email" autocomplete="off" />
+            @if (fieldError('assigned_user')) { <small>{{ fieldError('assigned_user') }}</small> }
+          </label>
+          <label class="field">
+            <span>Order or conversation</span>
+            <input [class.invalid]="fieldError('related_ref')" [(ngModel)]="form.related_ref" placeholder="Order id or conversation id" autocomplete="off" />
+            @if (fieldError('related_ref')) { <small>{{ fieldError('related_ref') }}</small> }
+          </label>
+          <label class="field">
+            <span>Reason</span>
+            <textarea [class.invalid]="fieldError('reason')" [(ngModel)]="form.reason" rows="3"></textarea>
+            @if (fieldError('reason')) { <small>{{ fieldError('reason') }}</small> }
+          </label>
+        }
+      </div>
+
+      <footer class="modal__footer">
+        @if (canStop) {
+          <button type="button" class="btn-stop" [disabled]="saving" (click)="stop()">Stop voucher</button>
+        }
+        <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
+        <button type="button" class="btn-save" [disabled]="saving" (click)="save()">{{ saving ? 'Saving…' : 'Save changes' }}</button>
+      </footer>
+    </div>
+  </div>
+}

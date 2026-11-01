@@ -1,9 +1,10 @@
 import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { ChatConversation, ChatMessage, ChatService } from '../../../../core/services/chat.service';
-import { AuthService } from '../../../../core/auth.service';
+import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 
 type StatusFilter = 'all' | 'waiting' | 'open' | 'closed';
 
@@ -16,7 +17,8 @@ type StatusFilter = 'all' | 'waiting' | 'open' | 'closed';
 })
 export class AdminChatComponent implements OnInit, OnDestroy {
   private chat = inject(ChatService);
-  private auth = inject(AuthService);
+  private adminAuth = inject(AdminAuthService);
+  private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
   private subs = new Subscription();
 
@@ -38,7 +40,11 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   private typingTimer: any = null;
   private stopTypingTimer: any = null;
 
-  get myId(): string | undefined { return this.auth.currentUser()?.user_id; }
+  /** Chat to open once the list has loaded (Claim on the dashboard) */
+  private openId: string | null = null;
+
+  // Same value the server stores in agent_id: the staff JWT id, which is the Mongo _id.
+  get myId(): string | undefined { return this.adminAuth.getUser()?._id; }
 
   get visible(): ChatConversation[] {
     return this.filter === 'all' ? this.conversations : this.conversations.filter(c => c.status === this.filter);
@@ -51,6 +57,11 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const status = params.get('status');
+    if (this.filters.some(f => f.value === status)) this.filter = status as StatusFilter;
+    this.openId = params.get('conversation');
+
     this.chat.joinAgents();
     this.loadList();
 
@@ -94,6 +105,11 @@ export class AdminChatComponent implements OnInit, OnDestroy {
         if (this.active) {
           const fresh = res.data.find(c => c.conversation_id === this.active!.conversation_id);
           if (fresh) this.active = fresh;
+        }
+        if (this.openId) {
+          const target = res.data.find(c => c.conversation_id === this.openId);
+          this.openId = null;
+          if (target) this.select(target);
         }
         this.cdr.markForCheck();
       }

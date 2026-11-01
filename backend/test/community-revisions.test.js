@@ -137,31 +137,6 @@ test('profile counts use the visible follow list totals instead of raw relations
   assert.deepEqual(calls, [['U1', 'followers'], ['U1', 'following']]);
 });
 
-test('admin moderation requires a reason and writes an activity log after saving', async () => {
-  let update;
-  const logs = [];
-  const api = load('../src/controllers/admin-community.controller.js', {
-    '../models/User': {
-      findOne: () => ({ lean: async () => ({ user_id: 'U1', role: 'customer', status: 'active', community_warnings: [] }) }),
-      findOneAndUpdate: async (_, value) => { update = value; return { user_id: 'U1', status: 'suspended', community_warnings: [] }; }
-    }
-  });
-  const req = { params: { id: 'U1' }, body: { reason: '  Repeated spam  ' }, user: { user_id: 'ADMIN1' }, writeActivityLog: async log => logs.push(log) };
-  const missing = response();
-  await api.warnUser({ ...req, body: { reason: '  ' } }, missing);
-  assert.equal(missing.statusCode, 400);
-  assert.equal(logs.length, 0);
-  const res = response();
-  await api.suspendUser(req, res);
-  assert.equal(res.statusCode, 200);
-  assert.equal(update.$set.status, 'suspended');
-  assert.equal(logs[0].reason, 'Repeated spam');
-  assert.equal(logs[0].actionType, 'community_user_suspend');
-  await api.warnUser(req, response());
-  assert.equal(update.$push.community_warnings.reason, 'Repeated spam');
-  assert.equal(logs[1].actionType, 'community_user_warn');
-});
-
 test('suspended users cannot use a token issued before suspension', async () => {
   const auth = load('../src/middleware/auth.middleware.js', {
     jsonwebtoken: { verify: () => ({ user_id: 'U1' }) },

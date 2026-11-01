@@ -13,6 +13,8 @@ import { OrderDetailComponent } from './orders/pages/order-detail/order-detail.c
 
 // Chỉ dùng 3 role thực tế trong DB
 const SALES_OPS_ROLES    = ['admin_cc', 'qlsp'] as const;
+// Vouchers: CSKH may open the page (view + complaint vouchers only). Edit and stop stay with Admin CC and QLSP.
+const VOUCHER_ROLES      = ['admin_cc', 'qlsp', 'cskh'] as const;
 // Ritual Box: CSKH can view (read-only + notes); actions are limited per role on the server.
 const SUBSCRIPTION_VIEW_ROLES = ['admin_cc', 'qlsp', 'cskh'] as const;
 const SERVICES_OPS_ROLES = ['admin_cc', 'cskh'] as const;
@@ -113,6 +115,13 @@ const routes: Routes = [
           import('./products/pages/products-listing/products-listing.component').then((m) => m.ProductsListingComponent),
         canActivate: [adminRoleGuard],
         data: { adminRoles: SALES_OPS_ROLES }
+      },
+      {
+        path: 'vouchers',
+        loadComponent: () =>
+          import('./vouchers/pages/vouchers/vouchers.component').then((m) => m.VouchersComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: VOUCHER_ROLES }
       },
 
       // ── Services Operations ───────────────────────────────────────────────

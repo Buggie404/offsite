@@ -10,5 +10,6 @@ for (const [type, field] of [['post', 'post_id'], ['comment', 'comment_id'], ['a
   schema.index({ target_type: 1, [field]: 1, reporter_id: 1 }, { unique: true, partialFilterExpression: { target_type: type } });
 }
 schema.index({ target_type: 1, status: 1, created_at: -1 });
+schema.index({ reporter_id: 1, created_at: -1 });
 module.exports = mongoose.model('Report', schema);
 module.exports.REPORT_REASONS = REPORT_REASONS;

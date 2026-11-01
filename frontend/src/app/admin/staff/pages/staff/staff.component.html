@@ -65,7 +65,7 @@
                       type="button"
                       class="action action--primary"
                       [disabled]="isLastAdminCc(member)"
-                      [attr.title]="isLastAdminCc(member) ? 'There must always be at least one active Admin CC' : null"
+                      [attr.title]="isLastAdminCc(member) ? 'There must always be at least one active Senior Admin' : null"
                       (click)="openChangeRole(member)"
                     >Change role</button>
                     <button type="button" class="action" (click)="openConfirm(member, 'reset')">Reset password</button>
@@ -74,7 +74,7 @@
                         type="button"
                         class="action action--danger"
                         [disabled]="isLastAdminCc(member)"
-                        [attr.title]="isLastAdminCc(member) ? 'There must always be at least one active Admin CC' : null"
+                        [attr.title]="isLastAdminCc(member) ? 'There must always be at least one active Senior Admin' : null"
                         (click)="openConfirm(member, 'disable')"
                       >Disable</button>
                     } @else {
@@ -104,12 +104,44 @@
 
       <div class="modal__body">
         <label class="field">
-          <span class="field__label">Full name</span>
-          <input class="input" maxlength="80" placeholder="e.g. Thao Vo" [(ngModel)]="newStaff.profile_name" (ngModelChange)="addError = ''" />
+          <span class="field__label">Full name <span class="field__required" aria-hidden="true">*</span></span>
+          <input
+            class="input"
+            maxlength="80"
+            placeholder="e.g. Thao Vo"
+            required
+            [class.input--invalid]="nameError"
+            [attr.aria-invalid]="!!nameError"
+            [(ngModel)]="newStaff.profile_name"
+            (ngModelChange)="onNameChange()"
+            (blur)="touched.name = true"
+          />
+          @if (nameError) {
+            <span class="field__error" role="alert">{{ nameError }}</span>
+          } @else {
+            <span class="field__hint">First name first, last name at the end</span>
+          }
         </label>
         <label class="field">
-          <span class="field__label">Email</span>
-          <input class="input" type="email" placeholder="name@offsite.vn" [(ngModel)]="newStaff.email" (ngModelChange)="addError = ''" />
+          <span class="field__label">Email <span class="field__required" aria-hidden="true">*</span></span>
+          <input
+            class="input"
+            type="email"
+            placeholder="firstname.lastname@offsite.vn"
+            required
+            [class.input--invalid]="emailError"
+            [attr.aria-invalid]="!!emailError"
+            [(ngModel)]="newStaff.email"
+            (ngModelChange)="onEmailChange()"
+            (blur)="touched.email = true"
+          />
+          @if (emailError) {
+            <span class="field__error" role="alert">{{ emailError }}</span>
+          } @else if (emailChecking) {
+            <span class="field__hint">Checking availability...</span>
+          } @else {
+            <span class="field__hint">Filled in from the name. Add a number if two people share a name, e.g. thao.vo2&#64;offsite.vn</span>
+          }
         </label>
         <div class="field">
           <span class="field__label">Temporary password</span>
@@ -118,7 +150,7 @@
         </div>
 
         <div class="field" role="radiogroup" aria-label="Role">
-          <span class="field__label">Role</span>
+          <span class="field__label">Role <span class="field__required" aria-hidden="true">*</span></span>
           @for (option of roleOptions; track option.value) {
             <label class="role-option" [class.is-selected]="newStaff.role === option.value">
               <input type="radio" name="new-staff-role" [value]="option.value" [(ngModel)]="newStaff.role" />
@@ -127,6 +159,7 @@
               <span class="role-option__desc">{{ option.description }}</span>
             </label>
           }
+          @if (newRoleError) { <span class="field__error" role="alert">{{ newRoleError }}</span> }
         </div>
 
         @if (addError) { <p class="form-error" role="alert">{{ addError }}</p> }
@@ -134,7 +167,7 @@
 
       <footer class="modal__footer">
         <button type="button" class="btn btn--outline" (click)="closeAdd()">Cancel</button>
-        <button type="button" class="btn btn--primary" [disabled]="!canCreate" (click)="createStaff()">
+        <button type="button" class="btn btn--primary" [disabled]="addSaving || emailChecking" (click)="createStaff()">
           {{ addSaving ? 'Creating...' : 'Create account' }}
         </button>
       </footer>
@@ -246,15 +279,15 @@
   (confirm)="runConfirm()"
   (cancel)="closeConfirm()"
 >
-  @if (confirmKind === 'disable') {
+  @if (confirmKind === 'disable' || confirmKind === 'enable') {
     <label class="confirm-reason">
-      <span class="field__label">Reason</span>
+      <span class="field__label">Reason <span class="field__required" aria-hidden="true">*</span></span>
       <textarea
         class="input input--area"
         rows="3"
         maxlength="500"
-        placeholder="Why is this account being disabled?"
-        [(ngModel)]="disableReason"
+        [placeholder]="confirmKind === 'disable' ? 'Why is this account being disabled?' : 'Why is this account being enabled again?'"
+        [(ngModel)]="statusReason"
         (ngModelChange)="confirmError = ''"
       ></textarea>
     </label>
