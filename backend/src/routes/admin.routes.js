@@ -10,6 +10,7 @@ const contactMessagesController = require('../controllers/contact-messages.contr
 const adminStaffController = require('../controllers/admin-staff.controller');
 const adminActivityLogController = require('../controllers/admin-activity-log.controller');
 const adminCustomersController = require('../controllers/admin-customers.controller');
+const adminVouchersController = require('../controllers/admin-vouchers.controller');
 const adminModerationController = require('../controllers/admin-moderation.controller');
 const {
   authMiddleware,
@@ -40,6 +41,17 @@ router.get('/customers', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCu
 router.get('/customers/:userId', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.getCustomer);
 router.post('/customers/:userId/notes', authMiddleware, requireRole(...CUSTOMER_ROLES), adminActivityLog(), adminCustomersController.addCustomerNote);
 router.patch('/customers/:userId/status', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminCustomersController.setCustomerStatus);
+
+// Vouchers: Admin CC and QLSP can view, create, edit and stop.
+// CSKH can view and can create a complaint voucher only (a reason is required). Edit and stop return 403.
+const VOUCHER_VIEW_ROLES = ['admin_cc', 'qlsp', 'cskh'];
+const VOUCHER_MANAGE_ROLES = ['admin_cc', 'qlsp'];
+const complaintNeedsReason = (req) => req.user?.role === 'cskh' || req.body?.purpose === 'complaint';
+router.get('/vouchers', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.listVouchers);
+router.get('/vouchers/:id/performance', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.voucherPerformance);
+router.post('/vouchers', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminActivityLog({ requireReasonWhen: complaintNeedsReason }), adminVouchersController.createVoucher);
+router.patch('/vouchers/:id/stop', authMiddleware, requireRole(...VOUCHER_MANAGE_ROLES), adminActivityLog(), adminVouchersController.stopVoucher);
+router.patch('/vouchers/:id', authMiddleware, requireRole(...VOUCHER_MANAGE_ROLES), adminActivityLog(), adminVouchersController.updateVoucher);
 
 // Activity log (Admin CC only, read-only): filter by role, action, time; CSV export.
 router.get('/activity-logs', authMiddleware, requireRole('admin_cc'), adminActivityLogController.listActivityLogs);
