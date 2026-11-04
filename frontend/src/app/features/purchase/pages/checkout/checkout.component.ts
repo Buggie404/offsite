@@ -79,6 +79,7 @@ import { TIER_POINT_MULTIPLIER, UserAddress, UserPaymentMethod, UserProfile } fr
 import { AddressModalComponent } from '../../../../shared/components/address-modal/address-modal.component';
 import { PaymentModalComponent } from '../../components/payment-modal/payment-modal.component';
 import { isMeaningfulVariantLabel } from '../../../../shared/utils/variant-label';
+import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 
 const VIETNAM_BANK_LIST = ['Vietcombank','BIDV','Techcombank','VietinBank','Agribank','MB Bank','VPBank','ACB','Sacombank','TPBank','VIB','SHB','MSB','SeABank'];
 
@@ -120,6 +121,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   private checkoutService = inject(CheckoutService);
   authService = inject(AuthService);
+  private authPromptService = inject(AuthPromptModalService);
   private router = inject(Router);
   private cartService = inject(CartService);
 
@@ -1741,12 +1743,18 @@ export class CheckoutComponent implements OnInit, OnDestroy {
    * frequency in days for Subscribe & Save. Switching type merges into an
    * existing line of that type for the same variant.
    */
-  changePurchaseOption(item: CheckoutItem, value: string): void {
+  changePurchaseOption(item: CheckoutItem, value: string, select?: HTMLSelectElement): void {
     if (value === 'one_time') {
       this.cartService.setSummaryPurchaseType(item as any, 'one_time');
       return;
     }
     const days = Number(value) as SubscriptionFrequencyDays;
+    if (!isSubscriptionItem(item) && !this.authService.isAuthenticated()) {
+      // Guests sign in or sign up before choosing Ritual Box; the line stays one-time.
+      if (select) select.value = 'one_time';
+      this.authPromptService.open();
+      return;
+    }
     if (isSubscriptionItem(item)) {
       this.cartService.setSummarySubscriptionFrequency(item as any, days);
     } else {

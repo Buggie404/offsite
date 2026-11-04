@@ -936,6 +936,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   setPurchaseType(item: CartItem, purchaseType: PurchaseType): void {
+    // Guests sign in or sign up before switching a line to Ritual Box.
+    if (purchaseType === 'subscription' && !this.isLoggedIn()) {
+      this.authPromptService.open();
+      return;
+    }
     this.cartService.setPurchaseType(item, purchaseType);
   }
 

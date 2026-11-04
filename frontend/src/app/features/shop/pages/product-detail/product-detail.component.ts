@@ -698,22 +698,40 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     }
   }
 
+  private wantsSubscription(): boolean {
+    return this.isSubscriptionEligible() && this.purchaseType() === 'subscription';
+  }
+
+  // Ritual Box (Subscribe & Save) needs an account for recurring billing: a guest is asked to
+  // sign in or sign up before the line goes into the cart / checkout.
+  private requireSignInForSubscription(): boolean {
+    if (!this.wantsSubscription() || this.authService.isAuthenticated()) return true;
+    this.authPromptService.open();
+    return false;
+  }
+
+  private purchaseOptions() {
+    const isSubscription = this.wantsSubscription();
+    return {
+      purchaseType: isSubscription ? 'subscription' as const : 'one_time' as const,
+      subscriptionFrequencyDays: isSubscription ? this.getSelectedFrequencyDays() : null
+    };
+  }
+
   onAddToCart(): void {
     const prod = this.product();
     const variant = this.selectedVariant();
     if (!prod || !variant || this.isUnavailable() || !this.validateQuantity()) return;
-    const isSubscription = this.isSubscriptionEligible() && this.purchaseType() === 'subscription';
-    this.cartService.addToCart(prod as any, variant.sku, this.quantity(), true, {
-      purchaseType: isSubscription ? 'subscription' : 'one_time',
-      subscriptionFrequencyDays: isSubscription ? this.getSelectedFrequencyDays() : null
-    });
+    if (!this.requireSignInForSubscription()) return;
+    this.cartService.addToCart(prod as any, variant.sku, this.quantity(), true, this.purchaseOptions());
   }
 
   buyNow(): void {
     const prod = this.product();
     const variant = this.selectedVariant();
     if (!prod || !variant || this.isUnavailable() || !this.validateQuantity()) return;
-    this.cartService.buyNow(prod as any, variant.sku, this.quantity());
+    if (!this.requireSignInForSubscription()) return;
+    this.cartService.buyNow(prod as any, variant.sku, this.quantity(), this.purchaseOptions());
     void this.router.navigate(['/checkout']);
   }
 
