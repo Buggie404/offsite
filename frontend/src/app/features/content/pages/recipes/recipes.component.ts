@@ -5,26 +5,29 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { ContentService } from '../../services/content.service';
 import { Recipe } from '../../../../shared/models/recipe.model';
-import { 
-  LucideSearch, 
-  LucideChevronDown, 
-  LucideDroplet, 
-  LucideClock, 
-  LucideStar, 
-  LucideHeart, 
+import {
+  LucideSearch,
+  LucideChevronDown,
+  LucideDroplet,
+  LucideClock,
+  LucideStar,
+  LucideHeart,
   LucideX,
   LucideSearchX,
-  LucideRotateCcw
+  LucideRotateCcw,
+  LucideArrowRight
 } from '@lucide/angular';
 
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { AuthService } from '../../../../core/auth.service';
 import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
+import { RitualFitComponent } from '../../../../shared/components/ritual-fit/ritual-fit.component';
 
 @Component({
   selector: 'app-recipes',
   standalone: true,
   imports: [
+    LucideArrowRight,
     CommonModule, 
     FormsModule,
     RouterModule,
@@ -37,7 +40,8 @@ import { BackToTopComponent } from '../../../../shared/components/back-to-top/ba
     LucideX,
     LucideSearchX,
     LucideRotateCcw,
-    BackToTopComponent
+    BackToTopComponent,
+    RitualFitComponent
   ],
   templateUrl: './recipes.component.html',
   styleUrl: './recipes.component.scss'

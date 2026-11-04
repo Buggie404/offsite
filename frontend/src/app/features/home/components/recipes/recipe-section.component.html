@@ -98,10 +98,12 @@
           <!-- Description -->
           <p class="recipe-card__desc">{{ recipe.description }}</p>
 
+          <app-ritual-fit class="recipe-ritual-fit" [recipeId]="recipe.recipe_id"></app-ritual-fit>
+
           <!-- CTA -->
           <a [routerLink]="['/recipes', recipe.slug]" [state]="detailLinkState" class="recipe-card__cta" (click)="$event.stopPropagation()">
             <span>View Recipe</span>
-            <span class="recipe-card__cta-arrow" aria-hidden="true">→</span>
+            <span class="recipe-card__cta-arrow" aria-hidden="true"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span>
           </a>
         </div>
       </article>

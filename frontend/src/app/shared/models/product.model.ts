@@ -59,6 +59,7 @@ export interface Product {
   rating_avg?: number | null;
   review_count: number;
   is_best_seller?: boolean;
+  total_sold_quantity?: number;
   is_new_arrival?: boolean;
   is_subscribable?: boolean;
   subscribe_discount_percent?: number | null;

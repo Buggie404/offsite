@@ -2,18 +2,19 @@ import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, ChangeDetectorRef, H
 import { CommonModule, isPlatformBrowser, Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { 
-  LucideArrowLeft, 
-  LucideClock, 
-  LucideStar, 
-  LucideHeart, 
-  LucideDroplet, 
+import {
+  LucideArrowLeft,
+  LucideClock,
+  LucideStar,
+  LucideHeart,
+  LucideDroplet,
   LucidePlay,
   LucideEllipsis,
   LucideCheck,
   LucideUser,
   LucideLink,
-  LucideShare2
+  LucideShare2,
+  LucideArrowRight
 } from '@lucide/angular';
 import { ContentService } from '../../services/content.service';
 import { ProductService } from '../../../home/services/product.service';
@@ -26,6 +27,7 @@ import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
 import { ProductCardComponent } from '../../../shop/components/product-card/product-card.component';
+import { RitualFitComponent } from '../../../../shared/components/ritual-fit/ritual-fit.component';
 import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
 import { ShareModalComponent } from '../../../community/components/share-modal/share-modal.component';
 import { BrewCoachComponent } from '../../components/brew-coach/brew-coach.component';
@@ -39,6 +41,7 @@ import { PantryService } from '../../../account/components/my-pantry/pantry.serv
   selector: 'app-recipe-detail',
   standalone: true,
   imports: [
+    LucideArrowRight,
     CommonModule,
     RouterModule,
     LucideArrowLeft,
@@ -54,6 +57,7 @@ import { PantryService } from '../../../account/components/my-pantry/pantry.serv
     LucideShare2,
     BackToTopComponent,
     ProductCardComponent,
+    RitualFitComponent,
     DragScrollDirective,
     ShareModalComponent,
     BrewCoachComponent,

@@ -1,0 +1,7 @@
+@if (fit; as fit) {
+<div class="ritual-fit" [attr.data-archetype]="fit.archetypeId">
+  <div class="ritual-fit__heading"><span>YOUR RITUAL DNA</span><strong>{{ fit.percent }}% fit</strong></div>
+  <div class="ritual-fit__track" role="meter" [attr.aria-label]="'Fit with your Ritual DNA: ' + fit.name" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="fit.percent"><span [style.width.%]="fit.percent"></span></div>
+  <span class="ritual-fit__name">{{ fit.name }}</span>
+</div>
+}

@@ -1,0 +1,19 @@
+@if (pairings().length) {
+<section class="pairings" aria-labelledby="cart-pairings-title">
+  <h3 id="cart-pairings-title" class="pairings__title">PAIRS WELL WITH</h3>
+  <div class="pairings__list" appDragScroll tabindex="0" aria-label="Suggested products. Drag or use left and right arrow keys to see more.">
+    @for (pairing of pairings(); track pairing.product.product_id) {
+    <article class="pairing">
+      <a class="pairing__image" [routerLink]="detailLink(pairing.product)" (click)="close()" [attr.aria-label]="pairing.product.name" tabindex="-1">
+        <img [src]="imageOf(pairing.product)" alt="" loading="lazy">
+      </a>
+      <div class="pairing__info">
+        <a class="pairing__name" [routerLink]="detailLink(pairing.product)" (click)="close()">{{ pairing.product.name }}</a>
+        <span class="pairing__price">{{ pairing.variant.price | currency:'USD':'symbol':'1.2-2' }}</span>
+      </div>
+      <button type="button" class="pairing__add" (click)="add(pairing)" [attr.aria-label]="'Add ' + pairing.product.name + ' to cart'">ADD</button>
+    </article>
+    }
+  </div>
+</section>
+}

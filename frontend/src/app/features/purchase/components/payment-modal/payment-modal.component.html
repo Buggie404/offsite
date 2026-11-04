@@ -155,7 +155,7 @@
       <!-- Timer or Resend Link -->
       <div class="resend-container">
         <span *ngIf="resendCountdown() > 0" class="timer-countdown-text">
-          🕒 RESEND OTP IN {{ formattedResendTimer }}
+          <svg lucideClock class="inline-icon" aria-hidden="true"></svg> RESEND OTP IN {{ formattedResendTimer }}
         </span>
         <button 
           *ngIf="resendCountdown() === 0" 

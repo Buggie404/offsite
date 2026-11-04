@@ -78,7 +78,7 @@
             [placeholder]="'Reply to @' + replyingTo!.username + '...'" 
             [(ngModel)]="replyCommentText" 
             (keydown.enter)="submitComment(true)">
-          <button type="button" class="composer-clear-btn" *ngIf="replyCommentText.trim()" (click)="replyCommentText = ''">✕</button>
+          <button type="button" class="composer-clear-btn" *ngIf="replyCommentText.trim()" (click)="replyCommentText = ''"><svg lucideX class="inline-icon" aria-hidden="true"></svg></button>
           
           <button type="button" class="composer-send-btn" [disabled]="!replyCommentText.trim() || postingComment" (click)="submitComment(true)">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

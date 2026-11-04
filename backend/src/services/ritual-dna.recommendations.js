@@ -283,4 +283,35 @@ async function recommendationsForProduct(user, viewedProduct) {
   try { return await work; } finally { pending.delete(fingerprint); }
 }
 
-module.exports = { recommendationsFor, recommendationsForProduct, productCandidate, recipeCandidate, validatedRecommendations, askGroq };
+function fitPercent(radar, profile) {
+  // Items with no taste signal (drinkware, bundles) have no honest fit to show.
+  if (!AXES.some(axis => Number.isFinite(profile?.[axis]))) return null;
+  return Math.round(Math.max(0, Math.min(100, profileFit(radar, profile))));
+}
+
+async function fitsFor(user) {
+  const radar = user.ritual_dna.taste_radar;
+  const [productRows, recipeRows] = await Promise.all([
+    Product.find({ is_active: true })
+      .select('product_id name category matcha coffee tools').lean(),
+    Recipe.find({ published: true })
+      .select('recipe_id metadata relatedProducts').lean()
+  ]);
+  const productsById = new Map();
+  const products = {};
+  for (const row of productRows) {
+    productsById.set(String(row.product_id), row);
+    productsById.set(String(row._id), row);
+    const fit = fitPercent(radar, productProfile(row));
+    if (fit !== null) products[row.product_id] = fit;
+  }
+  const recipes = {};
+  for (const row of recipeRows) {
+    const related = (row.relatedProducts || []).map(id => productsById.get(String(id))).filter(Boolean);
+    const fit = fitPercent(radar, recipeProfile(row, related));
+    if (fit !== null) recipes[row.recipe_id] = fit;
+  }
+  return { products, recipes };
+}
+
+module.exports = { recommendationsFor, recommendationsForProduct, fitsFor, fitPercent, productCandidate, recipeCandidate, validatedRecommendations, askGroq };

@@ -68,7 +68,8 @@ import {
   LucideBadgeCheck,
   LucideTrophy,
   LucideActivity,
-  LucideArchive
+  LucideArchive,
+  LucideWrench
 } from '@lucide/angular';
 
 import { isWithinRefundWindow } from '../../purchase/models/refund-window.model';
@@ -77,6 +78,7 @@ import { isWithinRefundWindow } from '../../purchase/models/refund-window.model'
   selector: 'app-account',
   standalone: true,
   imports: [
+    LucideWrench,
     CommonModule,
     ReactiveFormsModule,
     FormsModule,
@@ -973,7 +975,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     if (status === 'resume') return 'Resume';
     if (status === 'done') {
       const date = this.formatDoneDate(item?.last_done_at);
-      return date ? `Done ✓ ${date}` : 'Done';
+      return date ? `Done · ${date}` : 'Done';
     }
     return 'Not tried yet';
   }

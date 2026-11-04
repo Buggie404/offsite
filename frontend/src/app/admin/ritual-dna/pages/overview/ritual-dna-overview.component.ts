@@ -1,3 +1,4 @@
+import { LucideArrowDown, LucideArrowUp, LucideAsterisk, LucideSparkle, LucideTriangleAlert, LucideX } from '@lucide/angular';
 import { Component, HostListener, OnInit, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import {
@@ -10,7 +11,7 @@ import { ToastService } from '../../../../shared/services/toast.service';
 @Component({
   selector: 'app-admin-ritual-dna-overview',
   standalone: true,
-  imports: [NgTemplateOutlet, RitualDnaCustomersComponent],
+  imports: [LucideArrowDown, LucideArrowUp, LucideAsterisk, LucideSparkle, LucideTriangleAlert, LucideX,NgTemplateOutlet, RitualDnaCustomersComponent],
   templateUrl: './ritual-dna-overview.component.html',
   styleUrl: './ritual-dna-overview.component.scss'
 })

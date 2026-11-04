@@ -11,7 +11,8 @@ import {
   LucidePencil,
   LucidePlus,
   LucideTrash2,
-  LucideX
+  LucideX,
+  LucideArrowRight
 } from '@lucide/angular';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import {
@@ -40,6 +41,7 @@ export const ROLE_OPTIONS: { value: MatchingRole; badge: string; select: string 
   selector: 'app-admin-starter-quiz',
   standalone: true,
   imports: [
+    LucideArrowRight,
     CommonModule,
     FormsModule,
     ConfirmationModalComponent,

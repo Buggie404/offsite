@@ -1,3 +1,4 @@
+import { LucideArrowRight, LucideAsterisk, LucideSparkle } from '@lucide/angular';
 import { DatePipe, TitleCasePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
@@ -51,7 +52,7 @@ interface RitualRecommendations {
 @Component({
   selector: 'app-my-ritual-dna',
   standalone: true,
-  imports: [DatePipe, RouterLink, TitleCasePipe],
+  imports: [LucideArrowRight, LucideAsterisk, LucideSparkle,DatePipe, RouterLink, TitleCasePipe],
   templateUrl: './my-ritual-dna.component.html',
   styleUrl: './my-ritual-dna.component.scss'
 })

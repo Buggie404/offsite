@@ -1621,5 +1621,5 @@
 <!-- 🛠 DEV MODE OTP badge trôi nổi ở góc dưới trái xịn sò, không che lấp UI modal -->
 <div *ngIf="mockOtp && isOtpStep" 
      style="position: fixed; bottom: 24px; left: 24px; z-index: 99999; background-color: #ffffff; border: 2px solid #22c55e; color: #15803d; padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 16px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2); display: flex; align-items: center; gap: 8px;">
-  🛠 DEV OTP: <span style="font-size: 24px; font-weight: 800; letter-spacing: 2px;">{{ mockOtp }}</span>
+  <svg lucideWrench class="inline-icon" aria-hidden="true"></svg> DEV OTP: <span style="font-size: 24px; font-weight: 800; letter-spacing: 2px;">{{ mockOtp }}</span>
 </div>

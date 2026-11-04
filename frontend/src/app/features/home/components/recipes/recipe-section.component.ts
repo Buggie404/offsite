@@ -14,6 +14,7 @@ import { AuthPromptModalService } from '../../../../shared/components/auth-promp
 import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.directive';
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
 import { ParallaxDirective } from '../../../../shared/directives/parallax.directive';
+import { RitualFitComponent } from '../../../../shared/components/ritual-fit/ritual-fit.component';
 
 @Component({
   selector: 'app-recipe-section',
@@ -28,7 +29,8 @@ import { ParallaxDirective } from '../../../../shared/directives/parallax.direct
     LucideStar,
     DragScrollDirective,
     AnimateInViewDirective,
-    ParallaxDirective
+    ParallaxDirective,
+    RitualFitComponent
   ],
   templateUrl: './recipe-section.component.html',
   styleUrls: ['./recipe-section.component.scss'],

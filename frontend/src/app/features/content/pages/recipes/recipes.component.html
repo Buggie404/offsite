@@ -203,10 +203,12 @@
             <!-- Description -->
             <p class="recipe-card__desc">{{ recipe.description }}</p>
 
+            <app-ritual-fit class="recipe-ritual-fit" [recipeId]="recipe.recipe_id"></app-ritual-fit>
+
             <!-- CTA -->
             <div class="recipe-card__cta">
               <span>View Recipe</span>
-              <span class="recipe-card__cta-arrow" aria-hidden="true">→</span>
+              <span class="recipe-card__cta-arrow" aria-hidden="true"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span>
             </div>
           </div>
 

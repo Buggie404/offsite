@@ -2,10 +2,17 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
-  LucideArrowLeft, LucideArrowRight, LucideDownload,
-  LucideRotateCcw, LucideShare2, LucideSparkles
+  LucideArrowLeft,
+  LucideArrowRight,
+  LucideDownload,
+  LucideRotateCcw,
+  LucideShare2,
+  LucideSparkles,
+  LucideAsterisk,
+  LucideSparkle
 } from '@lucide/angular';
 import { HttpService } from '../../../../core/http.service';
+import { RitualFitService } from '../../../../shared/components/ritual-fit/ritual-fit.service';
 import { toBlob } from 'html-to-image';
 
 type Axis = 'brightness' | 'boldness' | 'sweetness' | 'skill' | 'tempo';
@@ -42,7 +49,7 @@ interface RitualResult {
 @Component({
   selector: 'app-ritual-dna-quiz',
   standalone: true,
-  imports: [CommonModule, LucideArrowLeft, LucideArrowRight, LucideDownload,
+  imports: [LucideAsterisk, LucideSparkle,CommonModule, LucideArrowLeft, LucideArrowRight, LucideDownload,
     LucideRotateCcw, LucideShare2, LucideSparkles],
   templateUrl: './ritual-dna-quiz.component.html',
   styleUrl: './ritual-dna-quiz.component.scss'
@@ -51,6 +58,7 @@ export class RitualDnaQuizComponent implements OnInit {
   @ViewChild('quizQuestionStart') private quizQuestionStart?: ElementRef<HTMLElement>;
   @ViewChild('exportCardHost') private exportCardHost?: ElementRef<HTMLElement>;
   private readonly http = inject(HttpService);
+  private readonly ritualFits = inject(RitualFitService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -175,6 +183,7 @@ export class RitualDnaQuizComponent implements OnInit {
         quiz_version: this.quizVersion, answers
       }) as { result: RitualResult };
       this.result = response.result;
+      this.ritualFits.refresh();
       this.completed = true;
       this.reviewingAnswers = false;
       this.resultNotice = 'Your Ritual DNA has been saved to your account.';

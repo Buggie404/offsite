@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { LucideArrowRight, LucideLock, LucideLockOpen } from '@lucide/angular';
+import { LucideArrowRight, LucideLock, LucideLockOpen, LucideArrowLeft } from '@lucide/angular';
 import { ADMIN_ROLE_LABELS, AdminRole } from '../../../../shared/models/admin-role.model';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ToastService } from '../../../../shared/services/toast.service';
@@ -20,7 +20,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-admin-customer-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, ConfirmationModalComponent, LucideArrowRight, LucideLock, LucideLockOpen],
+  imports: [LucideArrowLeft,CommonModule, FormsModule, RouterLink, ConfirmationModalComponent, LucideArrowRight, LucideLock, LucideLockOpen],
   templateUrl: './customer-detail.component.html',
   styleUrl: './customer-detail.component.scss'
 })

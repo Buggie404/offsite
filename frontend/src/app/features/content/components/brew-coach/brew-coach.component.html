@@ -57,7 +57,7 @@
           <span class="adjust-change-name" *ngIf="change.name">{{ change.name }}</span>
           <span class="adjust-pill">
             <span class="from">{{ change.from }}</span>
-            <span aria-hidden="true">→</span>
+            <span aria-hidden="true"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span>
             <span class="to">{{ change.to }}</span>
           </span>
         </div>
@@ -86,7 +86,7 @@
                 <span>{{ need.name }}</span>
                 <span class="need-adjust" *ngIf="need.change as change; else plainAmount">
                   <span class="from">{{ change.from }}</span>
-                  <span aria-hidden="true">→</span>
+                  <span aria-hidden="true"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span>
                   <span class="to">{{ change.to }}</span>
                 </span>
                 <ng-template #plainAmount>
@@ -152,10 +152,11 @@
 
       <div class="nav-row">
         <button class="nav-btn nav-btn--ghost" type="button" (click)="previous()" [disabled]="stepIndex === 0">
-          ← Previous
+          <svg lucideArrowLeft class="inline-icon" aria-hidden="true"></svg> Previous
         </button>
         <button class="nav-btn nav-btn--next" type="button" (click)="finishOrNext()">
-          {{ stepIndex === steps.length - 1 ? 'Finish brew' : 'Step done · next →' }}
+          {{ stepIndex === steps.length - 1 ? 'Finish brew' : 'Step done · next' }}
+          @if (stepIndex !== steps.length - 1) { <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg> }
         </button>
       </div>
     </section>
@@ -170,7 +171,7 @@
         >
           <button type="button" (click)="goTo(i)" [attr.aria-current]="i === stepIndex ? 'step' : null">
             <span class="badge" [class.is-done]="isDone(i)" [class.is-current]="i === stepIndex">
-              {{ isDone(i) ? '✓' : i + 1 }}
+              @if (isDone(i)) { <svg lucideCheck class="inline-icon" aria-hidden="true"></svg> } @else { {{ i + 1 }} }
             </span>
             <span class="side-name" [class.is-current]="i === stepIndex">{{ item.title }}</span>
             <span class="side-time" *ngIf="item.timerSeconds">{{ formatClock(item.timerSeconds) }}</span>

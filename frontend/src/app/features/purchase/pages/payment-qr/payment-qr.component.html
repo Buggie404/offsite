@@ -24,7 +24,7 @@
           </div>
           <!-- Simulation helper link -->
           <a *ngIf="!isExpired() && !isFailed()" [href]="qrData()" target="_blank" class="simulate-link">
-            <span>Simulate Mobile Scan ↗</span>
+            <span>Simulate Mobile Scan <svg lucideArrowUpRight class="inline-icon" aria-hidden="true"></svg></span>
           </a>
         </div>
 

@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, EventEmitter, HostListener, Input, NgZone
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { LucideArchive, LucideArrowLeft, LucideCheck, LucideChevronDown, LucideMinus, LucidePlus, LucideShare2, LucideSparkle, LucideStar, LucideTrash2, LucideVolume1, LucideVolume2, LucideVolumeX, LucideX } from '@lucide/angular';
+import { LucideArchive, LucideArrowLeft, LucideCheck, LucideChevronDown, LucideMinus, LucidePlus, LucideShare2, LucideSparkle, LucideStar, LucideTrash2, LucideVolume1, LucideVolume2, LucideVolumeX, LucideX, LucideArrowRight } from '@lucide/angular';
 import { Recipe } from '../../../../shared/models/recipe.model';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { AuthService } from '../../../../core/auth.service';
@@ -79,6 +79,7 @@ interface StashedBrewReview {
   selector: 'app-brew-coach',
   standalone: true,
   imports: [
+    LucideArrowRight,
     CommonModule,
     FormsModule,
     LucideArchive,

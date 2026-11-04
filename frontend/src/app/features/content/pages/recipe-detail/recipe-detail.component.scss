@@ -543,6 +543,7 @@ $white: #FFFFFF;
 }
 
 .product-slide {
+  display: flex;
   flex: 0 0 320px;
   width: 320px;
   min-width: 320px;
@@ -784,4 +785,16 @@ $white: #FFFFFF;
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+.hero-ritual-fit {
+  width: 100%;
+  max-width: 360px;
+  margin-bottom: 16px;
+}
+
+.recipe-ritual-fit {
+  flex: none;
+  width: 100%;
+  margin-bottom: 12px;
 }

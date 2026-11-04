@@ -13,12 +13,13 @@ import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.d
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
 import { ParallaxDirective } from '../../../../shared/directives/parallax.directive';
 import { QuickViewModalComponent } from '../../../shop/components/quick-view-modal/quick-view-modal.component';
+import { RitualFitComponent } from '../../../../shared/components/ritual-fit/ritual-fit.component';
 import { ProductReviewMetric, getDisplayProductReviewMetric } from '../../../../shared/data/mock-product-reviews';
 
 @Component({
   selector: 'app-best-seller',
   standalone: true,
-  imports: [CommonModule, RouterLink, LucideArrowRight, LucideEye, LucideHeart, LucideStar, LucideChevronLeft, LucideChevronRight, DragScrollDirective, AnimateInViewDirective, ParallaxDirective, QuickViewModalComponent],
+  imports: [CommonModule, RouterLink, LucideArrowRight, LucideEye, LucideHeart, LucideStar, LucideChevronLeft, LucideChevronRight, DragScrollDirective, AnimateInViewDirective, ParallaxDirective, QuickViewModalComponent, RitualFitComponent],
   templateUrl: './best-seller.component.html',
   styleUrls: ['./best-seller.component.scss'],
 })

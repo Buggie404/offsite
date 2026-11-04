@@ -93,7 +93,7 @@
             <div class="archetype-list">
               @for (row of archetypes; track row.archetype_id) {
                 <button type="button" class="archetype-row" [class.selected]="selectedArchetypeId() === row.archetype_id" [attr.data-archetype]="row.archetype_id" (click)="selectedArchetypeId.set(row.archetype_id)" [attr.aria-pressed]="selectedArchetypeId() === row.archetype_id" [attr.aria-label]="'Preview ' + row.name">
-                  <span class="archetype-symbol" aria-hidden="true">✦</span>
+                  <span class="archetype-symbol" aria-hidden="true"><svg lucideSparkle class="inline-icon" [attr.fill]="'currentColor'" aria-hidden="true"></svg></span>
                   <span class="archetype-identity"><strong>{{ row.name || 'Untitled archetype' }}</strong><small>{{ row.tagline }}</small></span>
                   <span class="archetype-members">{{ row.member_count }} <small>profiles</small></span>
                   <span class="status" [class.status--off]="!row.is_active">{{ row.is_active ? 'ACTIVE' : 'DISABLED' }}</span>
@@ -113,7 +113,7 @@
         <section class="archetype-modal" role="dialog" aria-modal="true" [attr.data-archetype]="row.archetype_id" [attr.aria-label]="'Edit ' + row.name" (click)="$event.stopPropagation()">
           <header class="archetype-modal__header">
             <div><p class="eyebrow">{{ row.archetype_id }} · VERSION {{ selectedRelease?.version }}</p><h2>Edit archetype</h2></div>
-            <button type="button" class="archetype-modal__close" (click)="closeArchetypeModal()" aria-label="Close archetype dialog" autofocus>×</button>
+            <button type="button" class="archetype-modal__close" (click)="closeArchetypeModal()" aria-label="Close archetype dialog" autofocus><svg lucideX class="inline-icon" aria-hidden="true"></svg></button>
           </header>
           <div class="archetype-modal__body">
             <div class="archetype-modal__fields">
@@ -139,7 +139,7 @@
                     <p class="signature-impact__message">Complete valid signature values to see the estimate.</p>
                   } @else if (signatureImpact(); as impact) {
                     @if (impact.total_profiles) {
-                      <p class="signature-impact__message"><span aria-hidden="true">⚠</span><strong>{{ impact.changed_nearest }} of {{ impact.total_profiles }}</strong> saved radars would have a different nearest archetype. <strong>{{ impact.toward_selected }}</strong> would be nearest to {{ row.name }}.@if (impact.most_common_origin_id) { Most were previously nearest to {{ impactOriginName }} ({{ impact.most_common_origin_count }}). }</p>
+                      <p class="signature-impact__message"><span aria-hidden="true"><svg lucideTriangleAlert class="inline-icon" aria-hidden="true"></svg></span><strong>{{ impact.changed_nearest }} of {{ impact.total_profiles }}</strong> saved radars would have a different nearest archetype. <strong>{{ impact.toward_selected }}</strong> would be nearest to {{ row.name }}.@if (impact.most_common_origin_id) { Most were previously nearest to {{ impactOriginName }} ({{ impact.most_common_origin_count }}). }</p>
                     } @else {
                       <p class="signature-impact__message">No saved customer radars to simulate yet.</p>
                     }
@@ -165,10 +165,10 @@
     <ng-template #archetypeCard let-row>
       <aside class="preview-card" [class.preview-card--disabled]="!row.is_active" [attr.data-archetype]="row.archetype_id" aria-label="Archetype card preview">
         <div class="preview-card__top">
-          <div class="preview-card__brand"><img src="assets/images/logo-mark-dark.svg" alt=""><span>OFFSITE<small>RITUAL DNA</small></span></div>
+          <div class="preview-card__brand"><img src="assets/images/logo-mark-dark.svg" alt=""><span>Offsite<small>RITUAL DNA</small></span></div>
           <span class="preview-card__version">PROFILE · V{{ row.profile_version }}</span>
         </div>
-        <div class="preview-card__intro"><span>YOUR CUP, YOUR WAY</span><span class="preview-card__spark" aria-hidden="true">✦</span></div>
+        <div class="preview-card__intro"><span>YOUR CUP, YOUR WAY</span><span class="preview-card__spark" aria-hidden="true"><svg lucideSparkle class="inline-icon" [attr.fill]="'currentColor'" aria-hidden="true"></svg></span></div>
         <div class="preview-card__radar-panel">
           <div class="preview-card__panel-heading"><span>THE RITUAL RADAR</span><span>05 NOTES</span></div>
           <div class="radar-wrap">
@@ -188,7 +188,7 @@
         <div class="signature-list" aria-label="Archetype signature scores">
           @for (axis of axes; track axis.key) { <span [title]="axis.label"><small>{{ axis.short }}</small><strong>{{ row.taste_profile[axis.key] }}</strong></span> }
         </div>
-        <div class="preview-card__footer"><span>BREW YOUR OWN MOMENT</span><span aria-hidden="true">✳</span></div>
+        <div class="preview-card__footer"><span>BREW YOUR OWN MOMENT</span><span aria-hidden="true"><svg lucideAsterisk class="inline-icon" aria-hidden="true"></svg></span></div>
       </aside>
     </ng-template>
   } @else if (tab() === 'quiz') {
@@ -248,7 +248,7 @@
                 <button type="button" class="question-row" [class.selected]="selectedQuestionId() === row.question_id" (click)="selectedQuestionId.set(row.question_id)" [attr.aria-pressed]="selectedQuestionId() === row.question_id">
                   <b>{{ row.order }} · {{ row.code }}</b><span><strong>{{ row.question }}</strong><small>{{ row.options.length }} answers · choose {{ row.selection_limit === 2 ? 'up to 2' : '1' }}</small></span>
                 </button>
-                @if (quizDraft()) { <div class="reorder-controls"><button type="button" [disabled]="first" (click)="moveQuestion(row.question_id, -1)" [attr.aria-label]="'Move ' + row.code + ' up'">↑</button><button type="button" [disabled]="last" (click)="moveQuestion(row.question_id, 1)" [attr.aria-label]="'Move ' + row.code + ' down'">↓</button></div> }
+                @if (quizDraft()) { <div class="reorder-controls"><button type="button" [disabled]="first" (click)="moveQuestion(row.question_id, -1)" [attr.aria-label]="'Move ' + row.code + ' up'"><svg lucideArrowUp class="inline-icon" aria-hidden="true"></svg></button><button type="button" [disabled]="last" (click)="moveQuestion(row.question_id, 1)" [attr.aria-label]="'Move ' + row.code + ' down'"><svg lucideArrowDown class="inline-icon" aria-hidden="true"></svg></button></div> }
               </div>
             }
           </div>
@@ -278,7 +278,7 @@
             <div class="answer-editor-list">
               @for (option of question.options; track option.option_id; let first = $first; let last = $last) {
                 <section class="answer-editor" [attr.aria-label]="'Answer ' + option.option_id">
-                  <div class="answer-editor__heading"><strong>{{ option.option_id }}</strong><div class="reorder-controls"><button type="button" [disabled]="first" (click)="moveOption(question.question_id, option.option_id, -1)" [attr.aria-label]="'Move answer ' + option.option_id + ' up'">↑</button><button type="button" [disabled]="last" (click)="moveOption(question.question_id, option.option_id, 1)" [attr.aria-label]="'Move answer ' + option.option_id + ' down'">↓</button></div></div>
+                  <div class="answer-editor__heading"><strong>{{ option.option_id }}</strong><div class="reorder-controls"><button type="button" [disabled]="first" (click)="moveOption(question.question_id, option.option_id, -1)" [attr.aria-label]="'Move answer ' + option.option_id + ' up'"><svg lucideArrowUp class="inline-icon" aria-hidden="true"></svg></button><button type="button" [disabled]="last" (click)="moveOption(question.question_id, option.option_id, 1)" [attr.aria-label]="'Move answer ' + option.option_id + ' down'"><svg lucideArrowDown class="inline-icon" aria-hidden="true"></svg></button></div></div>
                   <div class="answer-editor__copy"><label>Answer<input type="text" [value]="option.text" (input)="updateOptionText(question.question_id, option.option_id, 'text', $event)"></label><label>Supporting text<input type="text" [value]="option.hint || ''" (input)="updateOptionText(question.question_id, option.option_id, 'hint', $event)"></label></div>
                   @if (question.code === 'D1') {
                     <label class="answer-editor__attribute">Matcha preference · 0–100<input type="number" min="0" max="100" step="1" [value]="option.drink_lean ?? ''" (input)="updateOptionAttribute(question.question_id, option.option_id, 'drink_lean', $event)"></label>

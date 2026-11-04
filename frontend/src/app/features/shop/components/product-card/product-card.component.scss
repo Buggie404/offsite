@@ -550,7 +550,17 @@ $pill-bg: #EAE1DC;
   min-width: 0;
   max-width: none;
   height: auto;
+  align-self: stretch;
   aspect-ratio: 329 / 533;
+}
+
+// The fit block needs room of its own; cards in the same row stretch to match.
+:host:has(.ritual-fit) {
+  aspect-ratio: auto;
+}
+
+.card:has(.ritual-fit) .product-details {
+  flex: 1 0 auto;
 }
 
 .card {
@@ -631,4 +641,9 @@ $pill-bg: #EAE1DC;
   &--new-arrival {
     background: var(--color-sage);
   }
+}
+
+.ritual-fit-slot {
+  flex: none;
+  margin: 8px 0 12px;
 }

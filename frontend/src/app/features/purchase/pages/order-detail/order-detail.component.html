@@ -173,7 +173,7 @@
         </div>
       </ng-container>
       <ng-template #noRitualCard>
-        <a class="ritual-start-box__link" [routerLink]="['/account']" [queryParams]="{ tab: 'payment' }">Add a Visa / Mastercard →</a>
+        <a class="ritual-start-box__link" [routerLink]="['/account']" [queryParams]="{ tab: 'payment' }">Add a Visa / Mastercard <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></a>
       </ng-template>
       <p class="ritual-start-box__error" *ngIf="ritualBoxError()">{{ ritualBoxError() }}</p>
     </div>
@@ -624,7 +624,7 @@
               [routerLink]="['/account']"
               [queryParams]="{ tab: 'ritual-box', sub: order().subscription_id }"
             >
-              Ritual Box delivery{{ order().subscription_cycle ? ' #' + order().subscription_cycle : '' }} · charged at the Subscribe &amp; Save price →
+              Ritual Box delivery{{ order().subscription_cycle ? ' #' + order().subscription_cycle : '' }} · charged at the Subscribe &amp; Save price <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg>
             </a>
             <!-- Ritual Boxes this checkout started (mixed / subscription orders) -->
             <a
@@ -633,7 +633,7 @@
               [routerLink]="['/account']"
               [queryParams]="{ tab: 'ritual-box', sub: box.subscription_id }"
             >
-              Ritual Box {{ box.subscription_id }} · {{ box.product_name }} →
+              Ritual Box {{ box.subscription_id }} · {{ box.product_name }} <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg>
             </a>
           </div>
         </div>

@@ -2,12 +2,12 @@
   <!-- Promobar -->
   <div class="promobar" *ngIf="isPromobarVisible">
     <div class="promobar-content">
-      <span class="promobar-icon">✦</span>
+      <span class="promobar-icon"><svg lucideSparkle class="inline-icon" [attr.fill]="'currentColor'" aria-hidden="true"></svg></span>
       <span class="promobar-text">
         FREE SHIPPING FOR ORDERS OVER $200 · NEW DROPS: EXPLORE OUR LATEST ARRIVALS
       </span>
       <a routerLink="/shop/new-arrival" class="shop-now-link">
-        SHOP NOW <span class="arrow">→</span>
+        SHOP NOW <span class="arrow"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span>
       </a>
     </div>
     <button class="promobar-close-btn" (click)="closePromobar()" aria-label="Close promotion banner">
@@ -105,7 +105,7 @@
                   daily drinkware. Building a custom set is always 20% less than buying them individually.</p>
                 <a routerLink="/shop/build-your-bundle" class="promo-cta-btn">
                   <span>START BUILDING NOW</span>
-                  <span class="cta-arrow">→</span>
+                  <span class="cta-arrow"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span>
                 </a>
               </div>
             </div>
@@ -277,7 +277,7 @@
             <!-- Empty State -->
             <div *ngIf="getFilteredNotifications().length === 0" class="notification-empty">
               <svg lucideBell [size]="32" class="empty-icon"></svg>
-              <p class="empty-text">All caught up! Time to touch grass 🌱</p>
+              <p class="empty-text">All caught up! Time to touch grass <svg lucideSprout class="inline-icon" aria-hidden="true"></svg></p>
             </div>
           </div>
         </div>
@@ -402,7 +402,7 @@
             <p class="promo-desc">Pick any 2 or 3 products — coffee, matcha, tools and drinkwares — and save.</p>
             <a routerLink="/shop/build-your-bundle" class="promo-cta-btn" (click)="closeMobileMenu()">
               <span>START BUILDING NOW</span>
-              <span class="cta-arrow">→</span>
+              <span class="cta-arrow"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span>
             </a>
           </div>
         </div>
@@ -636,7 +636,7 @@
   <!-- Footer -->
   <div class="search-footer">
     <span class="footer-text">
-      Press <span class="key-badge">↵</span> to search · <span class="key-badge">Esc</span> to close
+      Press <span class="key-badge"><svg lucideCornerDownLeft class="inline-icon" aria-hidden="true"></svg></span> to search · <span class="key-badge">Esc</span> to close
     </span>
   </div>
 </div>
@@ -864,9 +864,11 @@
       </div>
     </div>
 
+    <app-cart-pairings></app-cart-pairings>
+
     <!-- Note section -->
     <div class="cart-note">
-      <p><strong>NOTE:</strong> All Ritual orders are packed in recycled paper and include detailed brewing instructions. Thank you for choosing OFFSITE.</p>
+      <p><strong>NOTE:</strong> All Ritual orders are packed in recycled paper and include detailed brewing instructions. Thank you for choosing Offsite.</p>
     </div>
   </div>
 

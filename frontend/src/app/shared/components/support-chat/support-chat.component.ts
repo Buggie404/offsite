@@ -1,3 +1,4 @@
+import { LucideX } from '@lucide/angular';
 import { ChangeDetectorRef, Component, ElementRef, OnDestroy, PLATFORM_ID, ViewChild, effect, inject } from '@angular/core';
 import { CommonModule, DatePipe, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -8,7 +9,7 @@ import { AuthService } from '../../../core/auth.service';
 @Component({
   selector: 'app-support-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe],
+  imports: [LucideX,CommonModule, FormsModule, DatePipe],
   templateUrl: './support-chat.component.html',
   styleUrl: './support-chat.component.scss'
 })

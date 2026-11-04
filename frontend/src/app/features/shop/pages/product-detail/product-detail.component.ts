@@ -88,6 +88,8 @@ interface BrewingMethodCard {
   icon: 'coffee' | 'droplet' | 'leaf';
 }
 
+import { RitualFitComponent } from '../../../../shared/components/ritual-fit/ritual-fit.component';
+
 @Component({
   selector: 'app-product-detail',
   standalone: true,
@@ -98,6 +100,7 @@ interface BrewingMethodCard {
     AnimateInViewDirective,
     BestSellerComponent,
     RecipeSectionComponent,
+    RitualFitComponent,
     LucideArrowRight,
     LucideChevronDown,
     LucideChevronLeft,

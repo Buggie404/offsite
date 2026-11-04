@@ -51,6 +51,8 @@
           <h1 class="hero-title">{{ recipe.title }}</h1>
           <p class="hero-description" *ngIf="recipe.description">{{ recipe.description }}</p>
 
+          <app-ritual-fit class="hero-ritual-fit" [recipeId]="recipe.recipe_id"></app-ritual-fit>
+
           <div class="meta-chips">
             <span class="chip">
               <svg lucideHeart [size]="13"></svg>
@@ -223,9 +225,11 @@
 
             <p class="recipe-card__desc">{{ relRecipe.description }}</p>
 
+            <app-ritual-fit class="recipe-ritual-fit" [recipeId]="relRecipe.recipe_id"></app-ritual-fit>
+
             <div class="recipe-card__cta">
               <span>VIEW RECIPE</span>
-              <span class="recipe-card__cta-arrow">→</span>
+              <span class="recipe-card__cta-arrow"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span>
             </div>
           </div>
         </article>

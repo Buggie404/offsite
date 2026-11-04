@@ -2,7 +2,7 @@
   <p class="state-message">Loading order details…</p>
 } @else if (error) {
   <p class="state-message state-message--error" role="alert">{{ error }}</p>
-  <a routerLink="/admin/orders" class="back-link">← Back to orders</a>
+  <a routerLink="/admin/orders" class="back-link"><svg lucideArrowLeft class="inline-icon" aria-hidden="true"></svg> Back to orders</a>
 } @else if (order) {
   <nav class="breadcrumb" aria-label="Breadcrumb">
     <a routerLink="/admin/orders">Orders</a>
@@ -53,7 +53,7 @@
       </p>
       <!-- Admin subscription detail page is not built yet; the link is wired for it. -->
       <a [routerLink]="['/admin/subscriptions', box.subscription_id]" class="ritual-box-banner__link">
-        Open subscription →
+        Open subscription <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg>
       </a>
     </div>
   }
@@ -140,7 +140,7 @@
               <p class="removed-lines__row">
                 <span>
                   @if (entry.action === 'swapped') {
-                    {{ entry.product_name }} × {{ entry.quantity }} → {{ entry.replaced_by?.product_name }}
+                    {{ entry.product_name }} × {{ entry.quantity }} <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg> {{ entry.replaced_by?.product_name }}
                   } @else {
                     {{ entry.product_name }} × {{ entry.quantity }} removed
                   }

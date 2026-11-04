@@ -10,13 +10,13 @@ import {
   inject
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { LucideBadgeCheck } from '@lucide/angular';
+import { LucideBadgeCheck, LucideClock } from '@lucide/angular';
 import { CheckoutService } from '../../services/checkout.service';
 
 @Component({
   selector: 'app-payment-modal',
   standalone: true,
-  imports: [CommonModule, LucideBadgeCheck],
+  imports: [LucideClock,CommonModule, LucideBadgeCheck],
   templateUrl: './payment-modal.component.html',
   styleUrl: './payment-modal.component.scss'
 })

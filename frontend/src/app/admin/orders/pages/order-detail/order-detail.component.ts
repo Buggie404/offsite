@@ -15,7 +15,9 @@ import {
   LucideRepeat,
   LucideInfo,
   LucidePackageX,
-  LucideTruck
+  LucideTruck,
+  LucideArrowLeft,
+  LucideArrowRight
 } from '@lucide/angular';
 import { OrderTypeBadgeComponent } from '../../../../shared/components/order-type-badge/order-type-badge.component';
 import { getFrequencyLabel, getSubscriptionLineLabel } from '../../../../shared/utils/order-type';
@@ -56,6 +58,8 @@ interface TimelineStep {
   selector: 'app-order-detail',
   standalone: true,
   imports: [
+    LucideArrowLeft,
+    LucideArrowRight,
     CommonModule,
     RouterLink,
     LucideRepeat,

@@ -15,7 +15,8 @@ import {
   LucideQrCode,
   LucideLandmark,
   LucideRepeat,
-  LucideTrophy
+  LucideTrophy,
+  LucideStar
 } from '@lucide/angular';
 import { OrderTypeBadgeComponent } from '../../../../shared/components/order-type-badge/order-type-badge.component';
 import { getFrequencyLabel, getOpenSubscriptions, getRecurringRows, getSubscriptionLineLabel } from '../../../../shared/utils/order-type';
@@ -29,6 +30,7 @@ import { isMeaningfulVariantLabel } from '../../../../shared/utils/variant-label
   selector: 'app-order-confirmed',
   standalone: true,
   imports: [
+    LucideStar,
     CommonModule,
     RouterLink,
     LucideCheck,

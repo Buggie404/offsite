@@ -347,7 +347,7 @@
               <p>{{ msg.text }}</p>
               @if (msg.deliveryStatus) {
                 <small class="message-receipt" role="status">
-                  {{ msg.deliveryStatus === 'sending' ? '◷ Sending' : msg.deliveryStatus === 'sent' ? '✓ Sent' : msg.deliveryStatus === 'delivered' ? '✓✓ Delivered' : msg.deliveryStatus === 'seen' ? '✓✓ Seen' : '⚠ Not sent' }}
+                  @switch (msg.deliveryStatus) { @case ('sending') { <svg lucideClock class="inline-icon" aria-hidden="true"></svg> Sending } @case ('sent') { <svg lucideCheck class="inline-icon" aria-hidden="true"></svg> Sent } @case ('delivered') { <svg lucideCheckCheck class="inline-icon" aria-hidden="true"></svg> Delivered } @case ('seen') { <svg lucideCheckCheck class="inline-icon" aria-hidden="true"></svg> Seen } @default { <svg lucideTriangleAlert class="inline-icon" aria-hidden="true"></svg> Not sent } }
                 </small>
               }
             </div>
@@ -490,7 +490,7 @@
             <span class="order-estimate">{{ estimate }}</span>
           }
           <button type="button" class="order-track-link" (click)="openOrderTracking(order)">
-            Track order →
+            Track order <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg>
           </button>
         </div>
       </div>

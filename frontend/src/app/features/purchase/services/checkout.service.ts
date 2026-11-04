@@ -6,6 +6,10 @@ import { Product, ProductVariant } from '../../../shared/models/product.model';
 import { BundleCartMeta } from '../models/bundle-cart.model';
 import { Voucher } from '../../../shared/models/voucher.model';
 import { UserAddress, UserPaymentMethod, UserProfile } from '../../../shared/models/user.model';
+import { isMatchaPowder } from '../components/cart-pairings/cart-pairings.rules';
+
+// Tea tools also holds kettles and a coffee dripper, so matcha is matched by tool type.
+const MATCHA_TOOL_TYPES = new Set(['chasen', 'chashaku', 'chawan', 'whisk stand']);
 
 export interface CheckoutItem {
   product: Product;
@@ -74,6 +78,8 @@ export class CheckoutService {
     const cartIds = new Set(cartItems.map(i => i.product._id));
     const pool = allProducts.filter(
       p => p.is_active && !cartIds.has(p._id) && p.variants?.length
+        // addComplement adds the default variant, so that is the one that must be in stock.
+        && ((p.variants.find(v => v.is_default) ?? p.variants[0]).stock ?? 0) > 0
     );
 
     const used = new Set<string>();
@@ -89,11 +95,15 @@ export class CheckoutService {
     };
 
     if (dominant === 'matcha') {
-      take(pool.filter(p => p.category === 'tools' && p.tools?.tool_category === 'matcha-tools'), 1);
+      // Leaf teas share this category but a whisk or matcha bowl does not suit them.
+      if (isMatchaPowder(cartItems[0].product)) {
+        take(pool.filter(p => p.category === 'tools' && p.tools?.tool_category === 'tea tools'
+          && MATCHA_TOOL_TYPES.has(p.tools?.tool_type ?? '')), 1);
+      }
       take(pool.filter(p => p.category === 'drinkware' && (p.drinkware?.material ?? '').toLowerCase().includes('ceramic')), 1);
       take(pool.filter(p => p.category === 'matcha'), 1);
     } else if (dominant === 'coffee') {
-      take(pool.filter(p => p.category === 'tools' && p.tools?.tool_category === 'coffee-tools'), 1);
+      take(pool.filter(p => p.category === 'tools' && p.tools?.tool_category === 'coffee tools'), 1);
       take(pool.filter(p => p.category === 'drinkware'), 1);
       take(pool.filter(p => p.category === 'coffee'), 1);
     } else if (dominant === 'sets_bundles') {

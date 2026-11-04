@@ -384,7 +384,7 @@
               <div class="suggestion-info">
                 <h3 class="suggestion-name font-body">{{ p.name }}</h3>
                 <div class="suggestion-rating" *ngIf="p.rating_avg">
-                  <span class="star-icon">★</span>
+                  <span class="star-icon"><svg lucideStar class="inline-icon" [attr.fill]="'currentColor'" aria-hidden="true"></svg></span>
                   <span class="rating-val">{{ p.rating_avg }}</span>
                 </div>
               </div>

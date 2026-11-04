@@ -17,7 +17,7 @@
           <span class="story-doodle story-doodle--dot"></span>
         </div>
         <div class="story-mark"><svg lucideSparkles [size]="22" aria-hidden="true"></svg></div>
-        <p class="micro-label">OFFSITE · RITUAL DNA</p>
+        <p class="micro-label">Offsite · RITUAL DNA</p>
         <h1>Find your cup.<br>Make it yours.</h1>
         <p class="story-copy">Seven small choices reveal the flavours and rhythms that feel like you.</p>
         <div class="axis-list" aria-label="Five Ritual DNA axes">
@@ -95,8 +95,8 @@
       </header>
       <ng-template #ritualCard let-full="full">
         <article class="dna-card" [attr.data-archetype]="result.archetype.id">
-          <div class="dna-card__topline"><div class="dna-card__brand"><img src="assets/images/logo-mark-dark.svg" alt=""><span>OFFSITE<small>RITUAL DNA</small></span></div><span class="dna-card__badge">PROFILE · V{{ result.archetype.profile_version || 1 }}</span></div>
-          <div class="dna-card__intro"><span>YOUR CUP, YOUR WAY</span><span class="dna-card__spark" aria-hidden="true">✦</span></div>
+          <div class="dna-card__topline"><div class="dna-card__brand"><img src="assets/images/logo-mark-dark.svg" alt=""><span>Offsite<small>RITUAL DNA</small></span></div><span class="dna-card__badge">PROFILE · V{{ result.archetype.profile_version || 1 }}</span></div>
+          <div class="dna-card__intro"><span>YOUR CUP, YOUR WAY</span><span class="dna-card__spark" aria-hidden="true"><svg lucideSparkle class="inline-icon" [attr.fill]="'currentColor'" aria-hidden="true"></svg></span></div>
           <div class="dna-card__radar-panel">
             <div class="dna-card__panel-heading"><span>THE RITUAL RADAR</span><span>05 NOTES</span></div>
           <div class="radar-wrap">
@@ -117,7 +117,7 @@
           @if (full) {
             <div class="dna-card__scores"><span><small>BRI</small><strong>{{ result.radar.brightness }}</strong></span><span><small>BOL</small><strong>{{ result.radar.boldness }}</strong></span><span><small>SWE</small><strong>{{ result.radar.sweetness }}</strong></span><span><small>SKI</small><strong>{{ result.radar.skill }}</strong></span><span><small>TEM</small><strong>{{ result.radar.tempo }}</strong></span></div>
           }
-          <div class="dna-card__footer"><span>BREW YOUR OWN MOMENT</span><span aria-hidden="true">✳</span></div>
+          <div class="dna-card__footer"><span>BREW YOUR OWN MOMENT</span><span aria-hidden="true"><svg lucideAsterisk class="inline-icon" aria-hidden="true"></svg></span></div>
         </article>
       </ng-template>
       <div #exportCardHost class="dna-card-export" aria-hidden="true" inert>

@@ -88,6 +88,7 @@
           <p class="description">
             {{ product()?.description || 'No description available for this product.' }}
           </p>
+          <app-ritual-fit class="product-ritual-fit" [productId]="product()?.product_id"></app-ritual-fit>
         </header>
 
         @if (product()?.category === 'coffee' && getRoastLabel()) {

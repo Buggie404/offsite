@@ -88,6 +88,10 @@
         }
 
       </div>
+
+      @if (!bundleBrowserMode) {
+      <app-ritual-fit class="ritual-fit-slot" [productId]="product.product_id"></app-ritual-fit>
+      }
     </div><!-- /card-body-top -->
 
     <!-- BOTTOM: price + add -->

@@ -11,8 +11,8 @@
 
     <div class="ritual-top-grid" [attr.data-archetype]="dna.archetype?.id">
         <article class="dna-card" [attr.data-archetype]="dna.archetype?.id">
-          <div class="dna-card__topline"><div class="dna-card__brand"><img src="assets/images/logo-mark-dark.svg" alt=""><span>OFFSITE<small>RITUAL DNA</small></span></div><span class="dna-card__badge">PROFILE · V{{ dna.archetype?.profile_version || 1 }}</span></div>
-          <div class="dna-card__intro"><span>YOUR CUP, YOUR WAY</span><span class="dna-card__spark" aria-hidden="true">✦</span></div>
+          <div class="dna-card__topline"><div class="dna-card__brand"><img src="assets/images/logo-mark-dark.svg" alt=""><span>Offsite<small>RITUAL DNA</small></span></div><span class="dna-card__badge">PROFILE · V{{ dna.archetype?.profile_version || 1 }}</span></div>
+          <div class="dna-card__intro"><span>YOUR CUP, YOUR WAY</span><span class="dna-card__spark" aria-hidden="true"><svg lucideSparkle class="inline-icon" [attr.fill]="'currentColor'" aria-hidden="true"></svg></span></div>
           <div class="dna-card__radar-panel">
             <div class="dna-card__panel-heading"><span>THE RITUAL RADAR</span><span>05 NOTES</span></div>
           <div class="radar-wrap">
@@ -30,7 +30,7 @@
           </div>
           </div>
           <div class="dna-card__identity"><span>YOUR ARCHETYPE</span><h2>{{ dna.archetype?.name }}</h2></div>
-          <div class="dna-card__footer"><span>BREW YOUR OWN MOMENT</span><span aria-hidden="true">✳</span></div>
+          <div class="dna-card__footer"><span>BREW YOUR OWN MOMENT</span><span aria-hidden="true"><svg lucideAsterisk class="inline-icon" aria-hidden="true"></svg></span></div>
         </article>
 
       <div class="ritual-summary">
@@ -50,7 +50,7 @@
           @for (serving of dna.servings; track serving) { <span>{{ readableTag(serving) | titlecase }} serving</span> }
         </div>
         <div class="ritual-actions">
-          <a routerLink="/ritual-dna" [queryParams]="{ retake: '1' }">RETAKE QUIZ <span aria-hidden="true">→</span></a>
+          <a routerLink="/ritual-dna" [queryParams]="{ retake: '1' }">RETAKE QUIZ <span aria-hidden="true"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span></a>
           <span>Last updated {{ dna.updated_at | date:'mediumDate' }}</span>
         </div>
       </div>
@@ -74,7 +74,7 @@
         @for (axis of evolutionAxes(dna).slice(0, 2); track axis.key; let index = $index) {
           <div class="evolution-chart__axis" [class.evolution-chart__axis--second]="index === 1">
             <span class="evolution-chart__swatch"></span><strong>{{ axis.label }}</strong>
-            <span>{{ dna.baseline[axis.key] }} → {{ axis.current }}</span>
+            <span>{{ dna.baseline[axis.key] }} <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg> {{ axis.current }}</span>
             @if (axis.change) { <small>{{ axis.change > 0 ? '+' : '' }}{{ axis.change }}</small> }
           </div>
         }
@@ -100,7 +100,7 @@
               @for (item of picks.products; track item.id) {
                 <a class="ritual-pick" [routerLink]="['/products', item.slug]">
                   @if (item.image) { <img [src]="item.image" [alt]="item.name" loading="lazy"> }
-                  <div><strong>{{ item.name }}</strong><p>{{ item.reason }}</p><span>Explore product →</span></div>
+                  <div><strong>{{ item.name }}</strong><p>{{ item.reason }}</p><span>Explore product <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span></div>
                 </a>
               }
             </div>
@@ -111,7 +111,7 @@
               @for (item of picks.recipes; track item.id) {
                 <a class="ritual-pick" [routerLink]="['/recipes', item.slug]">
                   @if (item.image) { <img [src]="item.image" [alt]="item.name" loading="lazy"> }
-                  <div><strong>{{ item.name }}</strong><p>{{ item.reason }}</p><span>View recipe →</span></div>
+                  <div><strong>{{ item.name }}</strong><p>{{ item.reason }}</p><span>View recipe <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span></div>
                 </a>
               }
             </div>
@@ -123,10 +123,10 @@
     </section>
   } @else {
     <div class="ritual-state ritual-state--empty">
-      <span class="ritual-state__mark" aria-hidden="true">✦</span>
+      <span class="ritual-state__mark" aria-hidden="true"><svg lucideSparkle class="inline-icon" [attr.fill]="'currentColor'" aria-hidden="true"></svg></span>
       <h2>No Ritual DNA yet</h2>
       <p>Answer seven short questions to discover your taste profile and archetype.</p>
-      <a routerLink="/ritual-dna">FIND YOUR RITUAL DNA <span aria-hidden="true">→</span></a>
+      <a routerLink="/ritual-dna">FIND YOUR RITUAL DNA <span aria-hidden="true"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span></a>
     </div>
   }
 </section>

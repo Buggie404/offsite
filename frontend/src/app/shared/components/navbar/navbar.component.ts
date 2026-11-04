@@ -32,7 +32,9 @@ import {
   LucideRefreshCw,
   LucideRepeat,
   LucideInfo,
-  LucideHourglass
+  LucideHourglass,
+  LucideCornerDownLeft,
+  LucideSprout
 } from '@lucide/angular';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
@@ -79,10 +81,14 @@ import {
 } from '../../../features/purchase/models/bundle-cart.model';
 import { isMeaningfulVariantLabel } from '../../utils/variant-label';
 
+import { CartPairingsComponent } from '../../../features/purchase/components/cart-pairings/cart-pairings.component';
+
 @Component({
   selector: 'app-navbar',
   standalone: true,
   imports: [
+    LucideCornerDownLeft,
+    LucideSprout,
     CommonModule,
     RouterLink,
     RouterLinkActive,
@@ -97,6 +103,7 @@ import { isMeaningfulVariantLabel } from '../../utils/variant-label';
     LucideClipboardClock,
     LucideChevronDown,
     SuccessModalComponent,
+    CartPairingsComponent,
     LucideTrash2,
     LucidePlus,
     LucideMinus,

@@ -5,7 +5,7 @@ const { activeArchetypes, archetypeForProfile } = require('../services/ritual-dn
 const Product = require('../models/Product');
 const { scoreQuiz } = require('../services/ritual-dna.scoring');
 const { awardRitualDnaQuizPoints } = require('../services/loyalty.service');
-const { recommendationsFor, recommendationsForProduct } = require('../services/ritual-dna.recommendations');
+const { recommendationsFor, recommendationsForProduct, fitsFor } = require('../services/ritual-dna.recommendations');
 
 function userQuery(jwtId) {
   return mongoose.isValidObjectId(jwtId) ? { _id: jwtId } : { user_id: jwtId };
@@ -68,6 +68,22 @@ async function productRecommendations(req, res) {
   }
 }
 
+async function fits(req, res) {
+  try {
+    const user = await User.findOne(userQuery(req.user.user_id)).select('user_id ritual_dna').lean();
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+    if (!user.ritual_dna?.quiz_taken_at) return res.json({ data: null });
+    const [data, archetype] = await Promise.all([
+      fitsFor(user),
+      archetypeForProfile(user.ritual_dna.archetype_id, user.ritual_dna.archetype_profile_version)
+    ]);
+    res.json({ data: { ...data, archetype: publicArchetype(archetype) } });
+  } catch (error) {
+    console.error('Ritual DNA fits failed:', error);
+    res.status(500).json({ error: 'Could not load Ritual DNA fits.' });
+  }
+}
+
 function publicArchetype(row) {
   return row ? { id: row.archetype_id, name: row.name, tagline: row.tagline, description: row.description,
     profile_version: row.profile_version || 1 } : null;
@@ -118,4 +134,4 @@ async function submit(req, res) {
   }
 }
 
-module.exports = { questions, profile, submit, recommendations, productRecommendations };
+module.exports = { questions, profile, submit, recommendations, productRecommendations, fits };

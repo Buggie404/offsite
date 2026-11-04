@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const Product = require('../src/models/Product');
 const Recipe = require('../src/models/Recipe');
 const AiCallLog = require('../src/models/AiCallLog');
-const { productCandidate, validatedRecommendations, askGroq, recommendationsFor, recommendationsForProduct } = require('../src/services/ritual-dna.recommendations');
+const { productCandidate, validatedRecommendations, askGroq, recommendationsFor, recommendationsForProduct, fitsFor, fitPercent } = require('../src/services/ritual-dna.recommendations');
 
 const dna = { taste_radar: { brightness: 50, boldness: 50, sweetness: 50, skill: 50, tempo: 50 } };
 
@@ -246,4 +246,42 @@ test('homepage returns the top 20 by visible fit without category caps or AI reo
     if (originalKey === undefined) delete process.env.GROQ_API_KEY;
     else process.env.GROQ_API_KEY = originalKey;
   }
+});
+
+test('fits score every active product and published recipe, skipping items with no taste signal', async () => {
+  const originalProductFind = Product.find;
+  const originalRecipeFind = Recipe.find;
+  const query = rows => ({ select: () => ({ lean: async () => rows }) });
+  let productFilter;
+  let recipeFilter;
+  Product.find = filter => {
+    productFilter = filter;
+    return query([
+      { _id: 'a', product_id: 1, category: 'matcha', matcha: { product_grade: 'ceremonial' } },
+      { _id: 'b', product_id: 2, category: 'drinkware' }
+    ]);
+  };
+  Recipe.find = filter => {
+    recipeFilter = filter;
+    return query([
+      { recipe_id: 'R1', metadata: { difficulty: 'EASY', prepTime: 5 }, relatedProducts: ['a'] },
+      { recipe_id: 'R2', metadata: {}, relatedProducts: [] }
+    ]);
+  };
+  try {
+    const { products, recipes } = await fitsFor({ ritual_dna: dna });
+    assert.deepEqual(productFilter, { is_active: true });
+    assert.deepEqual(recipeFilter, { published: true });
+    assert.deepEqual(products, { 1: 79 });
+    assert.deepEqual(Object.keys(recipes), ['R1']);
+    assert.equal(recipes.R1, 75);
+  } finally {
+    Product.find = originalProductFind;
+    Recipe.find = originalRecipeFind;
+  }
+});
+
+test('fit percent is clamped and null without any shared axis', () => {
+  assert.equal(fitPercent(dna.taste_radar, {}), null);
+  assert.equal(fitPercent(dna.taste_radar, { brightness: 50 }), 100);
 });

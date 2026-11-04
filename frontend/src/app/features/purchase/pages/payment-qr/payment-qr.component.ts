@@ -7,7 +7,8 @@ import {
   LucideRefreshCw,
   LucidePackage,
   LucideTag,
-  LucideAlertTriangle
+  LucideAlertTriangle,
+  LucideArrowUpRight
 } from '@lucide/angular';
 import { CheckoutService } from '../../services/checkout.service';
 import { CartService } from '../../services/cart.service';
@@ -23,6 +24,7 @@ interface QrSession {
   selector: 'app-payment-qr',
   standalone: true,
   imports: [
+    LucideArrowUpRight,
     CommonModule,
     RouterLink,
     LucideArrowLeft,

@@ -16,12 +16,13 @@ import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.d
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
 import { QuickViewModalComponent } from '../quick-view-modal/quick-view-modal.component';
 import { CartService } from '../../../purchase/services/cart.service';
+import { RitualFitComponent } from '../../../../shared/components/ritual-fit/ritual-fit.component';
 import { ProductReviewMetric, getDisplayProductReviewMetric } from '../../../../shared/data/mock-product-reviews';
 
 @Component({
   selector: 'app-product-card',
   standalone: true,
-  imports: [CommonModule, LucideEye, LucideHeart, LucideStar, DragScrollDirective, AnimateInViewDirective, QuickViewModalComponent],
+  imports: [CommonModule, LucideEye, LucideHeart, LucideStar, DragScrollDirective, AnimateInViewDirective, QuickViewModalComponent, RitualFitComponent],
   templateUrl: './product-card.component.html',
   styleUrls: ['./product-card.component.scss']
 })

@@ -23,7 +23,11 @@ import {
   LucideAlertTriangle,
   LucidePlus,
   LucideHistory,
-  LucideTrash2
+  LucideTrash2,
+  LucideCheck,
+  LucideCheckCheck,
+  LucideClock,
+  LucideTriangleAlert
 } from '@lucide/angular';
 import { AiChatService } from './ai-chat.service';
 import { CartService } from '../../../features/purchase/services/cart.service';
@@ -35,6 +39,10 @@ import { ChatMessage, ChatHistoryItem, ChatMessageOrder, ChatMessageProduct, Cha
   selector: 'app-ai-chat-drawer',
   standalone: true,
   imports: [
+    LucideCheck,
+    LucideCheckCheck,
+    LucideClock,
+    LucideTriangleAlert,
     CommonModule,
     FormsModule,
     RouterModule,

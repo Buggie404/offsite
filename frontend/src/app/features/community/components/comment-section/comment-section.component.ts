@@ -2,7 +2,7 @@ import { avatarInitials } from '../../../../shared/utils/avatar';
 import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, inject, ChangeDetectorRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LucideEllipsis, LucideHeart, LucideSend } from '@lucide/angular';
+import { LucideEllipsis, LucideHeart, LucideSend, LucideX } from '@lucide/angular';
 
 import { Comment } from '../../models/comment.model';
 import { CommunityService } from '../../services/community.service';
@@ -18,7 +18,7 @@ interface CommentThread extends Comment {
 @Component({
   selector: 'app-comment-section',
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmationModalComponent, ReportPostModalComponent, LucideEllipsis, LucideHeart, LucideSend],
+  imports: [LucideX,CommonModule, FormsModule, ConfirmationModalComponent, ReportPostModalComponent, LucideEllipsis, LucideHeart, LucideSend],
   templateUrl: './comment-section.component.html',
   styleUrls: ['./comment-section.component.scss']
 })

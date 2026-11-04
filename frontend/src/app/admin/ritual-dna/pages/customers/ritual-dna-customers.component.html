@@ -30,7 +30,7 @@
   </section>
 
   <section class="customer-detail" [attr.data-archetype]="detail()?.dna?.archetype_id" aria-label="Selected customer Ritual DNA">
-    @if (!selectedUserId()) { <div class="detail-empty"><span>✦</span><h3>Select a customer</h3><p>Open a row to see their DNA profile and the events behind its changes.</p></div> }
+    @if (!selectedUserId()) { <div class="detail-empty"><span><svg lucideSparkle class="inline-icon" [attr.fill]="'currentColor'" aria-hidden="true"></svg></span><h3>Select a customer</h3><p>Open a row to see their DNA profile and the events behind its changes.</p></div> }
     @else if (detailError()) { <p class="state-message state-message--error" role="alert">{{ detailError() }} <button type="button" (click)="loadDetail()">Retry</button></p> }
     @else if (loadingDetail() && !detail()) { <p class="state-message" role="status">Loading profile...</p> }
     @else if (detail(); as customer) {
@@ -51,14 +51,14 @@
               <div class="timeline-event__meta"><span>Rule {{ log.rule_version }}</span>@if (log.weight) { <span>Evidence weight {{ log.weight }}</span> }@if (log.source_id) { <span>Source {{ log.source_id }}</span> }</div>
               @if (changedAxes(log).length) { <div class="delta-list">@for (axis of changedAxes(log); track axis.label) { <span [class.negative]="axis.value < 0">{{ axis.label }} {{ axis.value > 0 ? '+' : '' }}{{ axis.value }}</span> }</div> }
               @else { <p class="no-delta">No visible radar-axis change after rounding.</p> }
-              @if (log.archetype_before && log.archetype_before !== log.archetype_id) { <p class="archetype-change" [attr.data-archetype]="log.archetype_id">Archetype: {{ archetypeName(log.archetype_before) }} → {{ archetypeName(log.archetype_id) }}</p> }
-              @if (orderId(log); as id) { <a [routerLink]="['/admin/orders', id]">View order {{ id }} →</a> }
+              @if (log.archetype_before && log.archetype_before !== log.archetype_id) { <p class="archetype-change" [attr.data-archetype]="log.archetype_id">Archetype: {{ archetypeName(log.archetype_before) }} <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg> {{ archetypeName(log.archetype_id) }}</p> }
+              @if (orderId(log); as id) { <a [routerLink]="['/admin/orders', id]">View order {{ id }} <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></a> }
               <details><summary>Calculation details</summary><div class="timeline-facts"><p>Target before: {{ log.target_profile_before | json }}</p><p>Target after: {{ log.target_profile_after | json }}</p><p>Radar after: {{ log.radar_after | json }}</p></div></details>
             </article>
           }
         </div> }
         @if (customer.history_total > customer.limit) { <div class="pager"><span>History page {{ detailPage() }} of {{ Math.ceil(customer.history_total / customer.limit) }}</span><div><button type="button" (click)="changeHistoryPage(-1)" [disabled]="detailPage() <= 1 || loadingDetail()">Previous</button><button type="button" (click)="changeHistoryPage(1)" [disabled]="detailPage() * customer.limit >= customer.history_total || loadingDetail()">Next</button></div></div> }
-      } @else { <div class="detail-empty"><span>✦</span><h3>No Ritual DNA yet</h3><p>This customer has not completed the Ritual DNA quiz.</p></div> }
+      } @else { <div class="detail-empty"><span><svg lucideSparkle class="inline-icon" [attr.fill]="'currentColor'" aria-hidden="true"></svg></span><h3>No Ritual DNA yet</h3><p>This customer has not completed the Ritual DNA quiz.</p></div> }
     }
   </section>
 </div>
