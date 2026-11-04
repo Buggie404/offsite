@@ -24,6 +24,7 @@ export interface AdminVoucher {
   target_tier: VoucherTier | null;
   purpose: string;
   assigned_user_id: string | null;
+  assigned_user_name: string | null;
   created_by: string | null;
   created_by_name: string | null;
   created_by_role: string | null;
@@ -45,6 +46,21 @@ export interface VoucherPayload {
   assigned_user_id?: string;
   related_ref?: string;
   reason?: string;
+  message?: string;
+}
+
+export interface VoucherListQuery {
+  page: number;
+  q: string;
+  status: string;
+  type: string;
+  purpose: string;
+}
+
+export interface CustomerSuggestion {
+  user_id: string;
+  profile_name: string;
+  email: string;
 }
 
 export interface VoucherBucket {
@@ -70,8 +86,20 @@ export class AdminVouchersService {
   private http = inject(HttpClient);
   private readonly api = '/api/admin/vouchers';
 
-  list(): Observable<{ data: AdminVoucher[]; total: number }> {
-    return this.http.get<{ data: AdminVoucher[]; total: number }>(this.api);
+  list(query: VoucherListQuery): Observable<{ data: AdminVoucher[]; total: number; page: number; limit: number; performance: VoucherPerformance | null }> {
+    const params: Record<string, string> = {
+      page: String(query.page),
+      limit: '20'
+    };
+    if (query.q) params['q'] = query.q;
+    if (query.status) params['status'] = query.status;
+    if (query.type) params['type'] = query.type;
+    if (query.purpose) params['purpose'] = query.purpose;
+    return this.http.get<{ data: AdminVoucher[]; total: number; page: number; limit: number; performance: VoucherPerformance | null }>(this.api, { params });
+  }
+
+  searchCustomers(q: string): Observable<{ data: CustomerSuggestion[] }> {
+    return this.http.get<{ data: CustomerSuggestion[] }>(`${this.api}/customers`, { params: { q } });
   }
 
   performance(id: string): Observable<{ data: VoucherPerformance }> {

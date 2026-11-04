@@ -1,3 +1,4 @@
+
 {
   "name": "offsite-backend",
   "version": "1.0.0",
@@ -13,7 +14,8 @@
     "seed:refund-requests": "node seed_refund_requests.js",
     "seed:ritual-dna": "node scripts/seed-ritual-dna.js",
     "check:duplicate-subscriptions": "node scripts/check-duplicate-subscriptions.js",
-    "e2e:purchase-flows": "node scripts/e2e-purchase-flows.js"
+    "e2e:purchase-flows": "node scripts/e2e-purchase-flows.js",
+    "backfill:assigned-vouchers": "node scripts/backfill-assigned-vouchers.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

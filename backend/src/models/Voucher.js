@@ -42,4 +42,7 @@ const voucherSchema = new mongoose.Schema({
   collection: 'Vouchers'
 });
 
+voucherSchema.index({ createdAt: -1, code: 1 });
+voucherSchema.index({ is_active: 1, valid_from: 1, valid_to: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Voucher', voucherSchema);

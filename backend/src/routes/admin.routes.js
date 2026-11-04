@@ -50,6 +50,7 @@ const VOUCHER_VIEW_ROLES = ['admin_cc', 'qlsp', 'cskh'];
 const VOUCHER_MANAGE_ROLES = ['admin_cc', 'qlsp'];
 const complaintNeedsReason = (req) => req.user?.role === 'cskh' || req.body?.purpose === 'complaint';
 router.get('/vouchers', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.listVouchers);
+router.get('/vouchers/customers', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.searchCustomers);
 router.get('/vouchers/:id/performance', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.voucherPerformance);
 router.post('/vouchers', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminActivityLog({ requireReasonWhen: complaintNeedsReason }), adminVouchersController.createVoucher);
 router.patch('/vouchers/:id/stop', authMiddleware, requireRole(...VOUCHER_MANAGE_ROLES), adminActivityLog(), adminVouchersController.stopVoucher);

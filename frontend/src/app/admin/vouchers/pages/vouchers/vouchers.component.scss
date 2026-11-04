@@ -192,6 +192,10 @@ $brown: var(--color-warm-brown, #544a40);
   padding-right: 0;
 }
 
+.select--purpose {
+  width: 160px;
+}
+
 .perf,
 .table-card {
   background: $surface;
@@ -386,8 +390,13 @@ $brown: var(--color-warm-brown, #544a40);
   font-weight: 500;
 }
 
-.mono {
-  font-family: var(--font-mono);
+.mono,
+.num,
+.stat strong,
+.axis,
+.perf__header span,
+.used {
+  font-family: 'DM Mono', var(--font-mono), monospace;
 }
 
 .used {
@@ -659,6 +668,129 @@ select:disabled {
   gap: 10px;
   padding: 16px 24px;
   border-top: 1px solid $border;
+}
+
+.suggest-search {
+  position: relative;
+  width: 100%;
+
+  &.invalid {
+    border-color: #c0392b;
+  }
+}
+
+.suggest {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid $border-strong;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(26, 26, 26, 0.08);
+
+  button {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: #faf0eb;
+    }
+
+    strong {
+      font-weight: 500;
+    }
+
+    span {
+      font-family: 'DM Mono', var(--font-mono), monospace;
+      font-size: 12px;
+      color: $brown;
+    }
+  }
+}
+
+.discount-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.discount-kind {
+  flex: 0 0 auto;
+  height: 40px;
+}
+
+.value-field {
+  flex: 1;
+}
+
+.control--percent .suffix {
+  margin-left: auto;
+  color: $brown;
+  font-style: normal;
+}
+
+.limit-note {
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #e7f0dc;
+  color: #375534;
+  font-size: 13px;
+  line-height: 18px;
+
+  p {
+    margin: 0;
+  }
+}
+
+.code-preview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: $brown;
+  font-size: 13px;
+
+  strong {
+    color: $ink;
+    font-weight: 500;
+  }
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid $border;
+
+  button {
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid $border-strong;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
 }
 
 .btn-stop {

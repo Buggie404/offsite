@@ -568,7 +568,7 @@ async function createOrder(req, res) {
       appliedVoucherId = vResult.voucher._id;
 
       verifiedCoupon = {
-        code: vResult.voucher.code,
+        code: String(vResult.voucher.code).trim().toUpperCase(),
         discount_type: vResult.voucher.discount_type,
         discount_value: vResult.voucher.discount_value,
         discount_amount: calculatedDiscount

@@ -250,27 +250,32 @@ async function ensureTierPerkVouchers(userId, tier) {
   for (const def of TIER_PERK_VOUCHERS) {
     if ((TIER_RANK[def.tier] ?? 0) > rank) continue;
     const code = tierVoucherCode(def.codePrefix, userId);
+    // Repeat runs must not reset uses or extend the expiry. Those fields are written once.
     await Voucher.findOneAndUpdate(
       { code },
       {
-        code,
-        title: def.title,
-        subtitle: def.subtitle,
-        voucher_type: def.voucherType,
-        discount_type: def.discountType,
-        discount_value: def.discountValue,
-        is_active: true,
-        usage_limit: 1,
-        used_count: 0,
-        min_order_amount: def.minOrderAmount,
-        max_discount_value: def.voucherType === 'shipping' ? null : def.discountValue,
-        valid_from: validFrom,
-        valid_to: validTo,
-        createdAt: now.toISOString(),
-        purpose: 'loyalty_redeem',
-        assigned_user_id: userId,
-        usage_limit_per_user: 1,
-        target_tier: null
+        $set: {
+          purpose: 'loyalty_redeem',
+          assigned_user_id: userId
+        },
+        $setOnInsert: {
+          code,
+          title: def.title,
+          subtitle: def.subtitle,
+          voucher_type: def.voucherType,
+          discount_type: def.discountType,
+          discount_value: def.discountValue,
+          is_active: true,
+          usage_limit: 1,
+          used_count: 0,
+          min_order_amount: def.minOrderAmount,
+          max_discount_value: def.voucherType === 'shipping' ? null : def.discountValue,
+          valid_from: validFrom,
+          valid_to: validTo,
+          createdAt: now.toISOString(),
+          usage_limit_per_user: 1,
+          target_tier: null
+        }
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
@@ -525,22 +530,26 @@ async function ensurePersonalWelcomeVoucher(refereeUserId) {
   await Voucher.findOneAndUpdate(
     { code },
     {
-      code,
-      voucher_type: 'discount',
-      discount_type: 'fixed',
-      discount_value: 5,
-      is_active: true,
-      usage_limit: 1,
-      used_count: 0,
-      min_order_amount: 0,
-      max_discount_value: 5,
-      valid_from: validFrom,
-      valid_to: validTo,
-      createdAt: now.toISOString(),
-      purpose: 'referral',
-      assigned_user_id: refereeUserId,
-      usage_limit_per_user: 1,
-      target_tier: null
+      $set: {
+        purpose: 'referral',
+        assigned_user_id: refereeUserId
+      },
+      $setOnInsert: {
+        code,
+        voucher_type: 'discount',
+        discount_type: 'fixed',
+        discount_value: 5,
+        is_active: true,
+        usage_limit: 1,
+        used_count: 0,
+        min_order_amount: 0,
+        max_discount_value: 5,
+        valid_from: validFrom,
+        valid_to: validTo,
+        createdAt: now.toISOString(),
+        usage_limit_per_user: 1,
+        target_tier: null
+      }
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );

@@ -41,7 +41,7 @@ async function countUserRedemptions(code, userId) {
   return Order.countDocuments({
     user_id: userId,
     order_status: { $ne: 'canceled' },
-    $expr: { $eq: [{ $toUpper: { $ifNull: ['$coupon.code', ''] } }, code] }
+    'coupon.code': code
   });
 }
 

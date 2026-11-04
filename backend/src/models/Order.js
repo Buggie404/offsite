@@ -378,6 +378,8 @@ orderSchema.pre('save', async function(next) {
 
 // Admin Orders listing: newest first within a date range, paged in the database.
 orderSchema.index({ created_at: -1 });
+// Voucher performance matches the stored code directly. Codes are saved in uppercase.
+orderSchema.index({ 'coupon.code': 1 });
 
 orderSchema.post('save', function pantrySync(doc) {
   const event = this._pantryEvent || this.$locals?.pantryEvent;
