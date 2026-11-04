@@ -13,6 +13,7 @@ h2 { margin: 0; font-family: 'Russo One', sans-serif; /* home.component sets --f
 .greeting { font-family: 'Russo One', sans-serif; font-size: clamp(25px, 2.6vw, 38px); letter-spacing: -.025em; text-wrap: initial; font-weight: 400; overflow-wrap: anywhere; }
 .greeting + .description { margin-top: 16px; }
 h2 span { color: var(--accent); }
+.greeting > span { color: inherit; }
 .intro { margin: 16px 0 8px; max-width: 470px; color: #f3f0e7; font-size: 17px; line-height: 1.5; }
 .description { margin: 0; max-width: 520px; color: #b9c0b1; font-size: 14px; line-height: 1.75; }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 24px; margin-top: 22px; }

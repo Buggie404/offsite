@@ -42,6 +42,19 @@ export class RitualWelcomeComponent {
     const name = user?.profile_name?.trim() || user?.name;
     return typeof name === 'string' && name.trim() ? name.trim() : 'there';
   }
+  /**
+   * The name as drawn in the Russo One greeting. Russo One has no glyphs for ơ / ư or the
+   * Vietnamese tone letters (U+1EA0–U+1EF9: ạ ả ặ ễ ố ữ ỵ …), and no brand font does, so the
+   * browser would draw those letters in a system font. When the name needs any of them, the
+   * headline shows it without diacritics (Thuỵ Vy → Thuy Vy) so every letter stays in Russo One.
+   * The full name is kept for screen readers (aria-label) and on hover (title).
+   */
+  get headlineName(): string {
+    const name = this.userName;
+    if (!/[ơưƠƯ\u1EA0-\u1EF9]/.test(name)) return name;
+    return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC');
+  }
+
   get points(): string {
     const preview = [76, 48, 68, 54, 80];
     return this.axes.map((axis, i) => {

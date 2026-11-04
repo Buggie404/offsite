@@ -16,7 +16,7 @@
         <h2 id="home-ritual-title">Finding<br><span>your rhythm.</span></h2>
         <p class="intro" role="status">Bringing your Ritual DNA into focus…</p>
       } @else if (profile) {
-        <h2 id="home-ritual-title" class="greeting">{{ greeting() }}, <span>{{ userName }}.</span></h2>
+        <h2 id="home-ritual-title" class="greeting" [attr.aria-label]="greeting() + ', ' + userName + '.'"><span aria-hidden="true">{{ greeting() }}, <span class="greeting__name" [attr.title]="userName">{{ headlineName }}.</span></span></h2>
         <p class="description">A little more you, in every cup. Explore the drinks and recipes picked for your taste.</p>
         <div class="actions"><a class="primary-link" href="#ritual-picks">EXPLORE YOUR MATCHES <svg lucideArrowDown class="matches-arrow" [size]="18" aria-hidden="true"></svg></a><a class="quiet-link" routerLink="/ritual-dna">View your DNA <svg lucideArrowRight class="quiet-link__arrow" [size]="15" aria-hidden="true"></svg></a></div>
       } @else {
