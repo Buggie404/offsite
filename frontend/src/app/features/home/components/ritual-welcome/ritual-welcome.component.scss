@@ -9,26 +9,28 @@
 .ritual-welcome__copy { position: relative; z-index: 2; }
 .eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; color: var(--accent); font: 11px var(--font-mono); letter-spacing: .16em; }
 .status-dot { display: inline-block; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent); }
-h2 { margin: 0; font-family: var(--font-body); font-size: clamp(28px, 2.8vw, 42px); font-weight: 600; line-height: 1.1; letter-spacing: -.045em; text-wrap: balance; }
+h2 { margin: 0; font-family: 'Russo One', sans-serif; /* home.component sets --font-display to DM Sans */ font-size: clamp(30px, 3.1vw, 46px); font-weight: 400; line-height: 1.08; letter-spacing: -.01em; text-wrap: balance; }
 .greeting { font-family: 'Russo One', sans-serif; font-size: clamp(25px, 2.6vw, 38px); letter-spacing: -.025em; text-wrap: initial; font-weight: 400; overflow-wrap: anywhere; }
 .greeting + .description { margin-top: 16px; }
 h2 span { color: var(--accent); }
+.greeting > span { color: inherit; }
 .intro { margin: 16px 0 8px; max-width: 470px; color: #f3f0e7; font-size: 17px; line-height: 1.5; }
 .description { margin: 0; max-width: 520px; color: #b9c0b1; font-size: 14px; line-height: 1.75; }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 24px; margin-top: 22px; }
-.primary-link { display: inline-flex; justify-content: space-between; align-items: center; gap: 28px; padding: 12px 18px; border: 0; border-radius: 8px; background: var(--button); color: #24251f; font: 600 12px var(--font-body); letter-spacing: .04em; text-decoration: none; cursor: pointer; transition: transform .2s, box-shadow .2s; }
+.primary-link { display: inline-flex; justify-content: space-between; align-items: center; gap: 20px; padding: 13px 18px 13px 20px; border: 0; border-radius: 8px; background: var(--button); color: #24251f; font: 600 12px var(--font-body); letter-spacing: .04em; text-decoration: none; cursor: pointer; transition: transform .2s, box-shadow .2s; }
 .primary-link:hover { transform: translateY(-2px); box-shadow: 0 8px 24px #0003; }
-.primary-link span { font-size: 20px; }
+.primary-link__arrow { flex-shrink: 0; transition: transform .25s ease; }
+.primary-link:hover .primary-link__arrow, .primary-link:focus-visible .primary-link__arrow { transform: translateX(4px); }
 .quiet-link { color: var(--accent); font-size: 13px; text-underline-offset: 5px; }
 .ritual-welcome__visual { position: relative; display: grid; place-items: center; min-width: 0; padding: 4px 10px; transform: translateX(-28px); }
 .orbit { position: absolute; width: 270px; height: 270px; border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent); border-radius: 50%; pointer-events: none; }
 .orbit--two { width: 330px; height: 330px; border-style: dashed; opacity: .65; }
-.spark { animation: ritual-decor-float 8s ease-in-out infinite; pointer-events: none; position: absolute; z-index: 2; color: var(--button); font-size: 30px; }
-.spark--one { right: -8px; top: 0; }.spark--two { animation-delay: -4s; left: -12px; bottom: 28px; font-size: 28px; }
+.spark { animation: ritual-decor-float 8s ease-in-out infinite; pointer-events: none; position: absolute; z-index: 2; color: var(--button); stroke-width: 1.6; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--button) 45%, transparent)); }
+.spark--one { right: -8px; top: 0; }.spark--two { animation-delay: -4s; left: -12px; bottom: 28px; }
 .radar-card { position: relative; width: min(100%, 218px); box-sizing: border-box; padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent); border-radius: 18px; background: linear-gradient(145deg, #30372b, #20251d); box-shadow: 0 24px 40px #0003; color: var(--accent); transform: rotate(3deg); animation: ritual-card-float 9s ease-in-out infinite; }
 .radar-card__heading, .radar-card__footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 9px var(--font-mono); letter-spacing: .08em; }
-.radar-card__heading > span:last-child { font-size: 22px; }.radar-card__footer { padding-top: 10px; border-top: 1px solid #ffffff15; font-size: 7px; }
-.radar-card svg { display: block; width: 100%; overflow: visible; margin: 4px 0 0; }
+.radar-card__heading > svg { flex-shrink: 0; opacity: .85; }.radar-card__footer { padding-top: 10px; border-top: 1px solid #ffffff15; font-size: 7px; }
+.radar-card > svg { display: block; width: 100%; overflow: visible; margin: 4px 0 0; }
 .radar-fill { fill: color-mix(in srgb, var(--accent) 24%, transparent); stroke: var(--accent); stroke-width: 2; filter: drop-shadow(0 0 8px var(--glow)); }
 .radar-labels { fill: #dce2d4; font: 7px var(--font-mono); }
 .visual-caption { position: relative; margin-top: 12px; color: #b9c0b1; font-size: 11px; letter-spacing: .03em; }.visual-caption span { color: var(--accent); font: 18px var(--font-mono); margin-right: 7px; }
@@ -37,17 +39,22 @@ h2 span { color: var(--accent); }
 @media(prefers-reduced-motion: reduce) { .primary-link { transition: none; } }
 
 .quiet-link { display: inline-flex; align-items: center; gap: 6px; }
-.quiet-link span { display: inline-block; }
-.quiet-link:hover span, .quiet-link:focus-visible span { animation: ritual-arrow-nudge .8s ease-in-out infinite; }
+.quiet-link__arrow { display: inline-block; flex-shrink: 0; }
+.quiet-link:hover .quiet-link__arrow, .quiet-link:focus-visible .quiet-link__arrow { animation: ritual-arrow-nudge .8s ease-in-out infinite; }
 .primary-link:focus-visible, .quiet-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
 .ambient-decor { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: -1; }
 .ambient-glow { position: absolute; width: 240px; height: 240px; left: 46%; bottom: -160px; border-radius: 50%; background: color-mix(in srgb, var(--glow) 12%, transparent); animation: ritual-decor-float 16s ease-in-out infinite; }
-.floating-element { position: absolute; color: var(--accent); opacity: .22; animation: ritual-decor-float 12s ease-in-out infinite; }
-svg.floating-element { width: 42px; height: 42px; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
-.floating-element--leaf { top: 22px; left: 53%; animation-delay: -3s; }
-.floating-element--cup { bottom: 22px; left: 61%; animation-delay: -7s; }
-.floating-element--star { top: 40%; left: 65%; font-size: 26px; animation-duration: 10s; }
-.floating-element--ring { width: 15px; height: 15px; border: 1px solid currentColor; border-radius: 50%; top: 28px; right: 23px; animation-delay: -5s; }
+// Floating Lucide icons, same idea as the Community hero banner. Kept in the empty band between
+// the copy and the radar so they never sit behind text.
+.floating-element { position: absolute; color: var(--accent); opacity: .2; stroke-width: 1.4; animation: ritual-decor-float 12s ease-in-out infinite; }
+.floating-element--pink { color: var(--button); opacity: .32; }
+.floating-element--1 { top: 18px; left: 52%; animation-delay: -3s; }
+.floating-element--2 { bottom: 24px; left: 60%; animation-delay: -7s; animation-duration: 14s; }
+.floating-element--3 { top: 42%; left: 64%; animation-duration: 10s; }
+.floating-element--4 { top: 24%; left: 71%; animation-delay: -5s; animation-duration: 11s; }
+.floating-element--5 { bottom: 34%; left: 56%; animation-delay: -2s; animation-duration: 9s; }
+.floating-element--6 { top: 20px; right: 26px; animation-delay: -6s; animation-duration: 13s; }
+.floating-element--7 { bottom: 20px; right: 34%; animation-delay: -9s; animation-duration: 15s; }
 @keyframes ritual-card-float {
   0%, 100% { transform: translate(0, 0) rotate(3deg); }
   50% { transform: translate(-7px, -7px) rotate(0deg); }
@@ -61,21 +68,17 @@ svg.floating-element { width: 42px; height: 42px; stroke: currentColor; stroke-w
   50% { transform: translateX(5px); }
 }
 @media(max-width: 900px) and (min-width: 641px) { .ritual-welcome__visual { transform: translateX(-10px); } }
-@media(max-width: 640px) { .floating-element--leaf { left: auto; right: 18px; } .floating-element--cup { left: 12%; bottom: 90px; } .floating-element--star { left: auto; right: 9%; top: 55%; } }
+@media(max-width: 900px) { .floating-element--3, .floating-element--5, .floating-element--7 { display: none; } }
+@media(max-width: 640px) { .floating-element--1 { left: auto; right: 18px; } .floating-element--2 { left: 12%; bottom: 90px; } .floating-element--4 { left: auto; right: 9%; top: 55%; } }
 @media(prefers-reduced-motion: reduce) {
   .radar-card, .spark, .floating-element, .ambient-glow,
-  .quiet-link:hover span, .quiet-link:focus-visible span { animation: none; }
+  .quiet-link:hover .quiet-link__arrow, .quiet-link:focus-visible .quiet-link__arrow { animation: none; }
+  .primary-link__arrow { transition: none; }
 }
 
 .matches-arrow {
-  width: 20px;
-  height: 20px;
   flex-shrink: 0;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: .65;
+  opacity: .75;
   animation: matches-arrow-float 2s ease-in-out infinite;
 }
 @keyframes matches-arrow-float {

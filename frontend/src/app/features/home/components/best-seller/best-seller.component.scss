@@ -873,19 +873,20 @@ $pill-bg: #EAE1DC;
   }
 }
 
-// Keep variable product content within a compact, consistent card layout.
+// Same proportions as the category product card (product-card.component.scss):
+// title row fixed at 2 lines (68px) so origin / tags / price sit at the same spacing.
 .title-rating-row {
-  height: auto;
-  min-height: 102px;
-  overflow: visible;
+  height: 68px;
+  min-height: 68px;
+  overflow: hidden;
 }
 
 .product-title {
   flex: 1;
   min-width: 0;
-  max-width: none;
-  height: auto;
-  overflow: visible;
+  max-width: 230px;
+  height: 68px;
+  overflow: hidden;
 }
 
 .origin-text {

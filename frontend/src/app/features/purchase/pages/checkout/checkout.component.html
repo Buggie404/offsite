@@ -591,7 +591,7 @@
 
                   <!-- Subscribable product bought once: offer Subscribe & Save from here -->
                   <div class="variant-select purchase-select" *ngIf="isSubscriptionEligible(item)">
-                    <select [ngModel]="'one_time'" (ngModelChange)="changePurchaseOption(item, $event)"
+                    <select #purchaseSel [ngModel]="'one_time'" (ngModelChange)="changePurchaseOption(item, $event, purchaseSel)"
                       [ngModelOptions]="{standalone: true}" aria-label="Purchase option">
                       <option value="one_time">ONE-TIME PURCHASE</option>
                       <option *ngFor="let f of frequencyOptions" [value]="'' + f.days">

@@ -1,6 +1,7 @@
 import { Component, Input, inject, signal, afterNextRender, DestroyRef } from '@angular/core';
 import { RouterLink, Router } from '@angular/router';
 import { AuthService } from '../../../../core/auth.service';
+import { LucideArrowDown, LucideArrowRight, LucideAsterisk, LucideCoffee, LucideDroplet, LucideHeart, LucideLeaf, LucideSparkle, LucideSparkles, LucideStar } from '@lucide/angular';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 
 export interface HomeRitualProfile {
@@ -9,7 +10,7 @@ export interface HomeRitualProfile {
 }
 
 @Component({
-  selector: 'app-ritual-welcome', standalone: true, imports: [RouterLink],
+  selector: 'app-ritual-welcome', standalone: true, imports: [RouterLink, LucideArrowDown, LucideArrowRight, LucideAsterisk, LucideCoffee, LucideDroplet, LucideHeart, LucideLeaf, LucideSparkle, LucideSparkles, LucideStar],
   templateUrl: './ritual-welcome.component.html', styleUrl: './ritual-welcome.component.scss'
 })
 export class RitualWelcomeComponent {
@@ -41,6 +42,19 @@ export class RitualWelcomeComponent {
     const name = user?.profile_name?.trim() || user?.name;
     return typeof name === 'string' && name.trim() ? name.trim() : 'there';
   }
+  /**
+   * The name as drawn in the Russo One greeting. Russo One has no glyphs for ơ / ư or the
+   * Vietnamese tone letters (U+1EA0–U+1EF9: ạ ả ặ ễ ố ữ ỵ …), and no brand font does, so the
+   * browser would draw those letters in a system font. When the name needs any of them, the
+   * headline shows it without diacritics (Thuỵ Vy → Thuy Vy) so every letter stays in Russo One.
+   * The full name is kept for screen readers (aria-label) and on hover (title).
+   */
+  get headlineName(): string {
+    const name = this.userName;
+    if (!/[ơưƠƯ\u1EA0-\u1EF9]/.test(name)) return name;
+    return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC');
+  }
+
   get points(): string {
     const preview = [76, 48, 68, 54, 80];
     return this.axes.map((axis, i) => {

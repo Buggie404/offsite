@@ -27,30 +27,37 @@
         <p class="starter-kicker">Starter Kit Quiz</p>
         <h1>Find your starter kit</h1>
         <p class="starter-lede">
-          Six short questions about how you like to drink. We match a ready-to-brew set from what is in stock, with the bundle price already applied.
+          A few short questions about how you like to drink. We match a ready-to-brew set from what is in stock, with the bundle price already applied.
         </p>
         <ul class="starter-facts">
-          <li>About a minute</li>
-          <li>No account needed</li>
-          <li>20% off the set</li>
+          <li><svg lucideTimer [size]="16" aria-hidden="true"></svg>About a minute</li>
+          <li><svg lucideUserRound [size]="16" aria-hidden="true"></svg>No account needed</li>
+          <li><svg lucideTag [size]="16" aria-hidden="true"></svg>20% off the set</li>
         </ul>
-        <button type="button" class="starter-btn starter-btn--primary" [disabled]="loading() || !questions().length" (click)="start()">
-          {{ loading() ? 'Loading' : 'Start' }}
+        <button type="button" class="starter-btn starter-btn--primary starter-btn--start" [disabled]="loading() || !questions().length" (click)="start()">
+          @if (loading()) {
+            <svg lucideLoaderCircle class="starter-spin" [size]="18" aria-hidden="true"></svg>Loading
+          } @else {
+            Start the quiz<svg lucideArrowRight class="starter-btn__arrow" [size]="18" aria-hidden="true"></svg>
+          }
         </button>
       </article>
 
       <ol class="starter-steps">
         <li>
+          <svg lucideDroplet class="starter-steps__icon" [size]="22" aria-hidden="true"></svg>
           <span>01</span>
           <strong>Taste</strong>
           <p>Bright, balanced, bold, or sweet.</p>
         </li>
         <li>
+          <svg lucideCoffee class="starter-steps__icon" [size]="22" aria-hidden="true"></svg>
           <span>02</span>
           <strong>Ritual</strong>
           <p>Hot, iced, or with milk.</p>
         </li>
         <li>
+          <svg lucideGift class="starter-steps__icon" [size]="22" aria-hidden="true"></svg>
           <span>03</span>
           <strong>Kit</strong>
           <p>A set you can edit or add in one click.</p>
@@ -64,7 +71,7 @@
       <article class="starter-card starter-question">
         <header class="starter-question__top">
           <p class="starter-kicker">Starter Kit Quiz</p>
-          <p class="starter-count">{{ questionIndex() + 1 }} / {{ visibleQuestions().length }}</p>
+          <p class="starter-count">Question {{ questionIndex() + 1 }} of {{ visibleQuestions().length }}</p>
           <div class="starter-progress" aria-hidden="true">
             <span [style.width.%]="progress()"></span>
           </div>
@@ -79,16 +86,36 @@
               class="starter-option"
               [class.is-selected]="isSelected(question.question_id, option.option_id)"
               [attr.aria-pressed]="isSelected(question.question_id, option.option_id)"
-              [disabled]="submitting()"
+              [disabled]="submitting() || advancing()"
               (click)="selectOption(question.question_id, option.option_id)"
             >
-              <span class="starter-option__mark" aria-hidden="true">{{ option.text.slice(0, 1) }}</span>
+              <span class="starter-option__mark" aria-hidden="true">
+                @switch (option.icon) {
+                  @case ('package') { <svg lucidePackage [size]="20"></svg> }
+                  @case ('cup') { <svg lucideCupSoda [size]="20"></svg> }
+                  @case ('tools') { <svg lucideWrench [size]="20"></svg> }
+                  @case ('leaf') { <svg lucideLeaf [size]="20"></svg> }
+                  @case ('coffee') { <svg lucideCoffee [size]="20"></svg> }
+                  @case ('blend') { <svg lucideBlend [size]="20"></svg> }
+                  @case ('sun') { <svg lucideSun [size]="20"></svg> }
+                  @case ('scale') { <svg lucideScale [size]="20"></svg> }
+                  @case ('flame') { <svg lucideFlame [size]="20"></svg> }
+                  @case ('sweet') { <svg lucideCandy [size]="20"></svg> }
+                  @case ('ice') { <svg lucideSnowflake [size]="20"></svg> }
+                  @case ('milk') { <svg lucideMilk [size]="20"></svg> }
+                  @case ('clock') { <svg lucideClock [size]="20"></svg> }
+                  @case ('wallet') { <svg lucideWallet [size]="20"></svg> }
+                  @case ('gem') { <svg lucideGem [size]="20"></svg> }
+                  @default { <svg lucideSparkles [size]="20"></svg> }
+                }
+              </span>
               <span class="starter-option__copy">
                 <span class="starter-option__title">{{ option.text }}</span>
                 @if (option.hint) {
                   <span class="starter-option__hint">{{ option.hint }}</span>
                 }
               </span>
+              <span class="starter-option__check" aria-hidden="true"><svg lucideCheck [size]="14"></svg></span>
             </button>
           }
         </div>
@@ -98,11 +125,13 @@
         }
 
         <footer class="starter-question__nav">
-          <button type="button" class="starter-text-btn" (click)="previous()">Previous question</button>
-          <a routerLink="/shop/best-seller" class="starter-text-btn">Exit to shop</a>
+          <button type="button" class="starter-nav-btn" [disabled]="submitting()" (click)="previous()">
+            <svg lucideArrowLeft [size]="16" aria-hidden="true"></svg>{{ questionIndex() === 0 ? 'Back' : 'Previous question' }}
+          </button>
           @if (submitting()) {
-            <p class="starter-question__status">Matching</p>
+            <p class="starter-question__status" role="status"><svg lucideLoaderCircle class="starter-spin" [size]="16" aria-hidden="true"></svg>Matching your kit</p>
           }
+          <a routerLink="/shop/best-seller" class="starter-text-btn starter-question__exit">Exit to shop</a>
         </footer>
       </article>
     }
@@ -142,16 +171,9 @@
               Customize in Build Your Bundle
             </button>
 
-            @if (!isAuthenticated()) {
-              <div class="starter-save">
-                <strong>Save this result</strong>
-                <p>Sign in to keep this kit on your account.</p>
-                <div class="starter-save__actions">
-                  <button type="button" class="starter-btn starter-btn--tiny" (click)="openAuth('login')">Sign in</button>
-                  <button type="button" class="starter-btn starter-btn--tiny starter-btn--ghost" (click)="openAuth('signup')">Create account</button>
-                </div>
-              </div>
-            }
+            <button type="button" class="starter-nav-btn starter-result__again" (click)="start()">
+              <svg lucideRotateCcw [size]="16" aria-hidden="true"></svg>Retake the quiz
+            </button>
           </div>
 
           <ul class="starter-products">
@@ -165,17 +187,15 @@
                 <div class="starter-product__meta">
                   <span>{{ item.slotLabel }}</span>
                   <strong>{{ item.name }}</strong>
-                  <em>{{ formatPrice(item.price) }}</em>
                   @if (item.note) {
                     <small>{{ item.note }}</small>
                   }
+                  <em>{{ formatPrice(item.price) }}</em>
                 </div>
               </li>
             }
           </ul>
         </article>
-
-        <button type="button" class="starter-text-btn starter-result__again" (click)="start()">Retake the quiz</button>
       </div>
     }
   }

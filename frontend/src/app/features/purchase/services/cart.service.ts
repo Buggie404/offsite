@@ -320,7 +320,7 @@ export class CartService {
       && (purchaseType === undefined || getPurchaseType(item) === purchaseType);
   }
 
-  buyNow(product: Product, variantSku: string, quantity = 1): void {
+  buyNow(product: Product, variantSku: string, quantity = 1, purchaseOptions?: Partial<PurchaseOptions>): void {
     const variant = product.variants.find(v => v.sku === variantSku);
     if (!variant || variant.stock <= 0) return;
 
@@ -334,7 +334,8 @@ export class CartService {
       product,
       variantSku,
       quantity: Math.min(Math.max(1, quantity), variant.stock),
-      selected: true
+      selected: true,
+      ...normalizePurchaseOptions(product, purchaseOptions)
     }]);
     this.setCheckoutProcessed(true);
     this.closeCart();
