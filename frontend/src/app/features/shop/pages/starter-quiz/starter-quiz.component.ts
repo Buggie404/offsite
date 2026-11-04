@@ -2,6 +2,12 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, s
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { PLATFORM_ID } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import {
+  LucideArrowLeft, LucideArrowRight, LucideBlend, LucideBookmark, LucideCandy, LucideCheck, LucideClock,
+  LucideCoffee, LucideCupSoda, LucideDroplet, LucideFlame, LucideGem, LucideGift, LucideLeaf, LucideLoaderCircle,
+  LucideMilk, LucidePackage, LucideRotateCcw, LucideScale, LucideSnowflake, LucideSparkles, LucideSun, LucideTag,
+  LucideTimer, LucideUserRound, LucideWallet, LucideWrench
+} from '@lucide/angular';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthModalService } from '../../../../core/auth-modal.service';
 import { CartService } from '../../../purchase/services/cart.service';
@@ -17,7 +23,13 @@ type QuizStep = 'intro' | 'question' | 'result';
 @Component({
   selector: 'app-starter-quiz',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [
+    CommonModule, RouterLink,
+    LucideArrowLeft, LucideArrowRight, LucideBlend, LucideBookmark, LucideCandy, LucideCheck, LucideClock,
+    LucideCoffee, LucideCupSoda, LucideDroplet, LucideFlame, LucideGem, LucideGift, LucideLeaf, LucideLoaderCircle,
+    LucideMilk, LucidePackage, LucideRotateCcw, LucideScale, LucideSnowflake, LucideSparkles, LucideSun, LucideTag,
+    LucideTimer, LucideUserRound, LucideWallet, LucideWrench
+  ],
   templateUrl: './starter-quiz.component.html',
   styleUrl: './starter-quiz.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -37,6 +49,8 @@ export class StarterQuizComponent implements OnInit {
   readonly questionIndex = signal(0);
   readonly loading = signal(true);
   readonly submitting = signal(false);
+  /** Brief pause after a pick so the selected state shows before the next question. */
+  readonly advancing = signal(false);
   readonly adding = signal(false);
   readonly added = signal(false);
   readonly errorMessage = signal('');
@@ -104,9 +118,13 @@ export class StarterQuizComponent implements OnInit {
   }
 
   selectOption(questionId: string, optionId: string): void {
-    if (this.submitting()) return;
+    if (this.submitting() || this.advancing()) return;
     this.answers.update((current) => this.pruneHiddenAnswers({ ...current, [questionId]: optionId }));
-    this.next();
+    this.advancing.set(true);
+    setTimeout(() => {
+      this.advancing.set(false);
+      this.next();
+    }, 260);
   }
 
   isSelected(questionId: string, optionId: string): boolean {
