@@ -123,6 +123,13 @@ const routes: Routes = [
         canActivate: [adminRoleGuard],
         data: { adminRoles: VOUCHER_ROLES }
       },
+      {
+        path: 'ritual-dna',
+        loadComponent: () =>
+          import('./ritual-dna/pages/overview/ritual-dna-overview.component').then((m) => m.RitualDnaOverviewComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SYSTEM_ROLES }
+      },
 
       // ── Services Operations ───────────────────────────────────────────────
       {

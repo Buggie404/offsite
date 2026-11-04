@@ -19,6 +19,13 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
+    path: 'ritual-dna',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/ritual-dna/pages/ritual-dna-quiz/ritual-dna-quiz.component')
+        .then(m => m.RitualDnaQuizComponent)
+  },
+  {
     path: 'checkout',
     loadComponent: () => import('./features/purchase/pages/checkout/checkout.component').then(m => m.CheckoutComponent)
   },

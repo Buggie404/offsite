@@ -314,10 +314,12 @@ orderSchema.pre('save', async function(next) {
     if (this.user_id && isDelivered) {
       this._pantryEvent = 'delivered';
       this.$locals.pantryEvent = 'delivered';
+      this.$locals.ritualDnaEvent = 'delivered';
     }
     if (this.user_id && newStatus === 'refund' && originalStatus !== 'refund') {
       this._pantryEvent = 'refund';
       this.$locals.pantryEvent = 'refund';
+      this.$locals.ritualDnaEvent = 'refund';
     }
     // Canceled / refunded / refund requested: a Ritual Box suggestion this one-time order raised
     // is withdrawn after the save (post-save hook below).
@@ -347,10 +349,29 @@ orderSchema.post('save', function pantrySync(doc) {
   });
 });
 
+// Every save path (customer receipt and staff refund) uses the same idempotent DNA handler.
+orderSchema.post('save', function ritualDnaSync(doc) {
+  const event = this.$locals?.ritualDnaEvent;
+  if (this.$locals) this.$locals.ritualDnaEvent = undefined;
+  if (!event || !doc.user_id) return;
+  const snapshot = doc.toObject();
+  const refundItems = this.$locals?.refundItems || this._refundItems || null;
+
+  setImmediate(() => {
+    const service = require('../services/ritual-dna.behavior');
+    const task = event === 'refund'
+      ? service.orderRefunded(snapshot, refundItems)
+      : service.orderDelivered(snapshot);
+
+    task.catch(error => console.error('Ritual DNA order sync failed:', error));
+  });
+});
+
 // Runs only once the status change is saved; a failure here never fails saving the order.
 orderSchema.post('save', async function withdrawSubscriptionSuggestions(doc) {
   if (!this.$locals?.withdrawSuggestions) return;
   this.$locals.withdrawSuggestions = false;
+
   try {
     await require('../services/subscription.service').withdrawSuggestionsForOrder(doc.order_id);
   } catch (error) {

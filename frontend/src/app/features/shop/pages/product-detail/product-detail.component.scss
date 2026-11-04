@@ -22,9 +22,10 @@ $line: rgba(84, 74, 64, 0.18);
 
 .product-detail-page {
   width: 100%;
-  // Keep the product page comfortably inset on wide screens while retaining
-  // a compact gutter on smaller viewports.
-  padding: 24px clamp(24px, 6.5vw, 96px);
+  // Figma: 1440px canvas, 112px gutters, 1216px content.
+  max-width: 1440px;
+  margin-inline: auto;
+  padding: 28px clamp(24px, 7.78vw, 112px) 64px;
   box-sizing: border-box;
 }
 
@@ -83,15 +84,15 @@ app-recipe-section {
 
 /* Product layout */
 .detail-shell {
-  --media-width: 540px;
+  --media-width: 584px;
   --thumbnail-size: 72px;
-  --detail-height: calc(var(--media-width) * 606 / 585);
+  --detail-height: 560px;
   --media-sticky-top: 96px;
   --action-width: 220px;
 
   display: grid;
-  grid-template-columns: minmax(320px, var(--media-width)) minmax(0, 1fr);
-  gap: 36px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 48px;
   align-items: stretch;
   width: 100%;
   max-width: none;
@@ -248,7 +249,7 @@ app-recipe-section {
 .product-scroll {
   height: auto;
   overflow: visible;
-  padding: 18px 8px 18px 0;
+  padding: 0;
   scrollbar-width: none;
   -ms-overflow-style: none;
 
@@ -307,9 +308,9 @@ app-recipe-section {
     margin: 0;
     color: $forest;
     font-family: var(--font-display, 'Russo One', sans-serif);
-    font-size: clamp(32px, 3.2vw, 52px);
+    font-size: 40px;
     font-weight: 400;
-    line-height: 1.04;
+    line-height: 1.15;
     letter-spacing: 0;
     overflow-wrap: anywhere;
   }
@@ -342,7 +343,7 @@ app-recipe-section {
   max-width: 980px;
   margin: 0;
   color: $muted;
-  font-size: clamp(14px, 1vw, 16px);
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -352,7 +353,7 @@ app-recipe-section {
   gap: 8px;
   margin-top: -4px;
   color: $muted;
-  font-size: clamp(14px, 1vw, 16px);
+  font-size: 14px;
   line-height: 1;
 
   svg {
@@ -377,7 +378,7 @@ app-recipe-section {
   span {
     margin: 0;
     color: $forest;
-    font-size: clamp(14px, 1.1vw, 18px);
+    font-size: 14px;
     font-weight: 800;
     line-height: 1;
   }
@@ -476,7 +477,7 @@ app-recipe-section {
   h2 {
     margin: 0 0 10px;
     color: $ink;
-    font-size: clamp(12px, 0.9vw, 15px);
+    font-size: 11px;
     font-weight: 400;
     letter-spacing: 0.03em;
   }
@@ -506,7 +507,7 @@ app-recipe-section {
   margin: 0;
   color: $forest;
   font-family: var(--font-mono, 'DM Mono', monospace);
-  font-size: clamp(22px, 1.65vw, 30px);
+  font-size: 22px;
   font-weight: 700;
 }
 
@@ -525,7 +526,7 @@ app-recipe-section {
     margin-bottom: 10px;
     color: $ink;
     font-family: var(--font-mono, 'DM Mono', monospace);
-    font-size: clamp(12px, 0.9vw, 15px);
+    font-size: 11px;
     font-weight: 400;
     letter-spacing: 0.04em;
   }
@@ -542,19 +543,19 @@ app-recipe-section {
     padding: 0;
     color: $ink;
     font-family: var(--font-mono, 'DM Mono', monospace);
-    font-size: clamp(12px, 0.9vw, 15px);
+    font-size: 11px;
     letter-spacing: 0.04em;
   }
 }
 
 .purchase-option-card {
   width: 100%;
-  min-height: 82px;
+  min-height: 68px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
-  padding: 15px 20px;
+  padding: 14px;
   color: $ink;
   background: rgba(255, 255, 255, 0.46);
   border: 1px solid $line;
@@ -604,19 +605,19 @@ app-recipe-section {
   }
 
   strong {
-    font-size: clamp(15px, 1.1vw, 19px);
+    font-size: 14px;
     font-weight: 600;
   }
 
   small {
     color: rgba($ink, 0.76);
-    font-size: clamp(12px, 0.9vw, 15px);
+    font-size: 11px;
   }
 }
 
 .purchase-option-price {
   font-family: var(--font-mono, 'DM Mono', monospace);
-  font-size: clamp(15px, 1.1vw, 19px);
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -628,7 +629,7 @@ app-recipe-section {
   > span {
     color: $ink;
     font-family: var(--font-mono, 'DM Mono', monospace);
-    font-size: clamp(12px, 0.9vw, 15px);
+    font-size: 11px;
     letter-spacing: 0.04em;
   }
 
@@ -704,13 +705,13 @@ app-recipe-section {
 .variant-option {
   flex: 0 0 auto;
   width: max-content;
-  min-width: 140px;
-  min-height: 52px;
+  min-width: 0;
+  min-height: 38px;
   padding: 0 18px;
   color: $ink;
   background: transparent;
   font-family: var(--font-mono, 'DM Mono', monospace);
-  font-size: clamp(14px, 1vw, 17px);
+  font-size: 14px;
   font-weight: 400;
   cursor: pointer;
 
@@ -731,8 +732,8 @@ app-recipe-section {
 }
 
 .quantity-selector {
-  width: calc((var(--action-width) * 2) + 14px);
-  height: 52px;
+  width: 180px;
+  height: 44px;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   align-items: center;
@@ -785,20 +786,20 @@ app-recipe-section {
 
 .purchase-actions {
   display: grid;
-  grid-template-columns: repeat(2, var(--action-width));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   justify-content: start;
 }
 
 .action-button {
-  min-height: 54px;
+  min-height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   padding: 0 20px;
   font-family: var(--font-mono, 'DM Mono', monospace);
-  font-size: clamp(12px, 0.85vw, 15px);
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.12em;
   cursor: pointer;
@@ -1024,7 +1025,7 @@ app-recipe-section {
 /* Brewing methods */
 .brewing-methods-section {
   position: relative;
-  min-height: 525px;
+  min-height: 0;
   width: calc(100% + 30px);
   margin: 30px -15px 0;
   padding: 0 20px 32px;
@@ -1138,7 +1139,7 @@ app-recipe-section {
     margin: 0;
     color: $forest;
     font-family: var(--pdp-section-heading-font);
-    font-size: clamp(36px, 5vw, 64px);
+    font-size: 28px;
     font-weight: 700;
     line-height: 1;
     letter-spacing: 0;
@@ -1163,11 +1164,11 @@ app-recipe-section {
 }
 
 .brewing-card {
-  min-height: 354px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 30px;
-  padding: 42px 46px;
+  gap: 16px;
+  padding: 20px;
   background: #fff8f4;
   border: 1px solid rgba(31, 27, 22, 0.1);
   border-radius: 8px;
@@ -1187,7 +1188,7 @@ app-recipe-section {
     margin: 0;
     color: #1f1b16;
     font-family: var(--font-body, 'DM Sans', sans-serif);
-    font-size: clamp(26px, 2.25vw, 32px);
+    font-size: 18px;
     font-weight: 600;
     line-height: 1.32;
     letter-spacing: 0;
@@ -1237,7 +1238,7 @@ app-recipe-section {
     align-items: start;
     gap: 12px;
     color: #434840;
-    font-size: clamp(15px, 1.12vw, 18px);
+    font-size: 14px;
     line-height: 26px;
   }
 
@@ -1369,7 +1370,7 @@ app-recipe-section {
 
 .product-content-tabs__panel--brewing {
   position: relative;
-  min-height: 525px;
+  min-height: 0;
   padding: 32px 20px;
   background: $cream;
   overflow: hidden;
@@ -1446,7 +1447,7 @@ app-recipe-section {
     margin: 0;
     color: $forest;
     font-family: var(--pdp-section-heading-font);
-    font-size: clamp(36px, 4vw, 48px);
+    font-size: 28px;
     font-weight: 700;
     line-height: 1.12;
     text-align: center;
@@ -1464,7 +1465,7 @@ app-recipe-section {
   strong {
     color: $forest;
     font-family: var(--font-body, 'DM Sans', sans-serif);
-    font-size: clamp(48px, 4.2vw, 60px);
+    font-size: 40px;
     font-weight: 800;
     line-height: 1;
   }
@@ -2016,7 +2017,7 @@ app-recipe-section {
     gap: 16px;
 
     h1 {
-      font-size: clamp(34px, 11vw, 50px);
+      font-size: clamp(28px, 7vw, 36px);
     }
   }
 
@@ -2060,12 +2061,12 @@ app-recipe-section {
   .variant-option,
   .quantity-selector,
   .action-button {
-    min-height: 62px;
+    min-height: 44px;
   }
 
   .quantity-selector {
     width: 100%;
-    height: 62px;
+    height: 44px;
   }
 
   .attribute-pill,
@@ -2297,4 +2298,51 @@ app-recipe-section {
   to {
     background: #e8e05a;
   }
+}
+
+/* Product-detail sizing from Figma 1420:2272. */
+.product-header-tag { min-height: 22px; padding: 5px 9px; box-sizing: border-box; }
+.title-row { grid-template-columns: minmax(0, 1fr) 44px; gap: 12px; }
+.save-button { width: 44px; height: 44px; }
+.description { line-height: 20px; }
+.product-rating { font-size: 12px; line-height: 16px; }
+.roast-section, .product-tags, .notes-section { margin-top: 16px; }
+.section-heading-row { margin-bottom: 8px; }
+.notes-section h2 { font-size: 14px; }
+.divider { margin: 16px 0; }
+.purchase-option-selector legend { margin-bottom: 12px; }
+.purchase-option-card { gap: 12px; border-radius: 8px; box-sizing: border-box; }
+.purchase-option-radio { width: 18px; height: 18px; border-width: 1.5px; box-sizing: border-box; }
+.purchase-option-radio::after { width: 10px; height: 10px; }
+.purchase-option-copy { gap: 2px; }
+.purchase-option-copy strong { font-size: 14px; line-height: 20px; }
+.purchase-option-copy small { font-size: 12px; line-height: 16px; white-space: normal; }
+.delivery-frequency { gap: 10px; }
+.delivery-frequency select { min-width: 170px; min-height: 36px; padding: 0 36px 0 12px; border-radius: 6px; font-size: 14px; }
+.variant-options, .purchase-actions { gap: 12px; }
+.quantity-selector input { font-size: 14px; }
+.product-content-tabs { margin-top: 56px; }
+.product-content-tabs__list { padding-inline: 0; min-height: 36px; gap: 24px; }
+.product-content-tabs__tab { font-size: 12px; }
+.product-content-tabs__panel--brewing { padding: 24px 0; }
+.brewing-methods-grid { gap: 20px; }
+.brewing-card__badge { font-size: 10px; }
+.brewing-card__steps span { font-size: 13px; }
+.brewing-card__button { min-height: 36px; padding: 8px 12px; font-size: 12px; }
+.reviews-section { min-height: 0; gap: 32px; padding-block: 40px; }
+.reviews-summary { min-height: 0; gap: 16px; }
+.reviews-score-copy span, .review-card p, .review-card header strong, .view-reviews-button { font-size: 14px; }
+@media (min-width: 1101px) {
+  .product-media { height: min(560px, calc(100vh - var(--media-sticky-top) - 15px)); gap: 12px; }
+}
+@media (max-width: 1100px) and (min-width: 721px) {
+  .product-media { max-width: 584px; margin-inline: auto; }
+}
+@media (max-width: 720px) {
+  .description { font-size: 14px; }
+  .product-content-tabs { margin-top: 32px; }
+  .purchase-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .action-button { padding-inline: 12px; letter-spacing: .04em; }
+  .brewing-card { padding: 20px; }
+  .purchase-option-card { padding: 12px; gap: 8px; }
 }

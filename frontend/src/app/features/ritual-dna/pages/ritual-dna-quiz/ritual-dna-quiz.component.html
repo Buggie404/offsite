@@ -1,0 +1,171 @@
+<main class="dna-page">
+  @if (loading) {
+    <p class="quiz-status" role="status">LOADING YOUR RITUAL DNA...</p>
+  } @else if (errorMessage && !questions.length) {
+    <p class="quiz-status" role="alert">{{ errorMessage }}</p>
+  } @else if (!completed) {
+    <section class="quiz-layout" aria-labelledby="ritual-question-title">
+      <aside class="quiz-story" aria-label="About Ritual DNA">
+        <div class="story-doodles" aria-hidden="true">
+          <svg class="story-doodle story-doodle--leaf" viewBox="0 0 54 54">
+            <path d="M45 9C27 10 13 18 10 36c11 4 27-2 35-27Z"></path>
+            <path d="M12 39c7-10 16-17 28-23"></path>
+          </svg>
+          <svg class="story-doodle story-doodle--spark" viewBox="0 0 42 42">
+            <path d="M21 5c1.3 10.2 5.8 14.7 16 16-10.2 1.3-14.7 5.8-16 16-1.3-10.2-5.8-14.7-16-16 10.2-1.3 14.7-5.8 16-16Z"></path>
+          </svg>
+          <span class="story-doodle story-doodle--dot"></span>
+        </div>
+        <div class="story-mark"><svg lucideSparkles [size]="22" aria-hidden="true"></svg></div>
+        <p class="micro-label">OFFSITE · RITUAL DNA</p>
+        <h1>Find your cup.<br>Make it yours.</h1>
+        <p class="story-copy">Seven small choices reveal the flavours and rhythms that feel like you.</p>
+        <div class="axis-list" aria-label="Five Ritual DNA axes">
+          <span>BRIGHTNESS</span><span>BOLDNESS</span><span>SWEETNESS</span><span>SKILL</span><span>TEMPO</span>
+        </div>
+        <div class="story-illustration" aria-hidden="true">
+          <span class="story-orbit story-orbit--sweep"></span>
+          <span class="story-orbit story-orbit--outer"></span>
+          <span class="story-orbit story-orbit--inner"></span>
+          <svg viewBox="0 0 210 150">
+            <path class="illustration-accent" d="M36 123c28-7 101-8 145 0"></path>
+            <path d="M44 73c2 32 15 48 43 48s41-16 43-48H44Z"></path>
+            <path d="M51 77c16 8 55 8 72 0"></path>
+            <path d="M72 121l4 12h23l4-12"></path>
+            <path class="illustration-fill" d="M52 78c18 7 52 7 70 0-8 9-62 9-70 0Z"></path>
+            <path class="illustration-steam" d="M70 63c-8-8 6-12-1-22M89 63c-8-8 6-12-1-22M107 63c-8-8 6-12-1-22"></path>
+            <path class="illustration-accent" d="M161 34v68M154 102h14M157 35c0-5 9-5 9 0v42h-9V35Z"></path>
+            <path class="illustration-accent" d="M161 77c-13 21-13 35 0 43 13-8 13-22 0-43ZM161 77c-25 20-23 35 0 43M161 77c25 20 23 35 0 43"></path>
+          </svg>
+        </div>
+        <p class="story-footnote">Your result is saved to your account and can evolve with your ritual.</p>
+      </aside>
+
+      <section #quizQuestionStart class="quiz-card">
+        <header class="quiz-card__header">
+          <div>
+            <p class="micro-label">RITUAL DNA QUIZ</p>
+            <p class="question-code">{{ question?.code }} · YOUR RITUAL</p>
+          </div>
+          <p class="step-count"><strong>{{ currentIndex + 1 }}</strong><span>/</span>{{ questions.length }}</p>
+        </header>
+        <div class="progress-track" aria-label="Quiz progress"><span [style.width.%]="progress"></span></div>
+        <div class="question-copy">
+          <span class="question-copy__spark" aria-hidden="true"><svg lucideSparkles [size]="19"></svg></span>
+          <h2 id="ritual-question-title">{{ question?.question }}</h2>
+          <p>{{ question?.selection_limit === 2 ? 'Choose one or two. Select a second option to continue automatically.' : 'Select one answer to continue.' }}</p>
+        </div>
+
+        <div class="option-grid" [class.option-grid--wide]="question?.options?.length === 5 || question?.options?.length === 6">
+          @for (option of question?.options || []; track option.option_id; let index = $index) {
+            <button type="button" class="option-card"
+              [class.option-card--selected]="isSelected(option.option_id)"
+              [attr.aria-pressed]="isSelected(option.option_id)"
+              [disabled]="saving"
+              (click)="selectAnswer(option.option_id)">
+              <span class="option-card__symbol">{{ optionSymbol(index) }}</span>
+              <span class="option-card__content"><strong>{{ option.text }}</strong><small>{{ option.hint }}</small></span>
+              <span class="option-card__radio" aria-hidden="true"></span>
+            </button>
+          }
+        </div>
+
+        <footer class="quiz-actions">
+          <button type="button" class="ghost-action" [class.ghost-action--hidden]="currentIndex === 0" (click)="previous()">
+            <svg lucideArrowLeft [size]="16" aria-hidden="true"></svg> PREVIOUS
+          </button>
+          <button type="button" class="exit-action" (click)="exit()">EXIT TO SHOP</button>
+          @if (showNextButton || showContinueButton) {
+            <button type="button" class="primary-action" [disabled]="saving" (click)="continueQuiz()">
+              {{ saving ? 'SAVING...' : currentIndex === questions.length - 1 ? 'SAVE MY DNA' : showContinueButton ? 'CONTINUE WITH 1 CHOICE' : 'NEXT' }}
+              @if (currentIndex !== questions.length - 1) { <svg lucideArrowRight [size]="16" aria-hidden="true"></svg> }
+            </button>
+          } @else {
+            <span class="auto-hint">{{ saving ? 'SAVING YOUR DNA...' : question?.selection_limit === 2 && selectedOptionIds.length === 0 ? 'SELECT UP TO TWO' : 'SELECT TO CONTINUE' }}</span>
+          }
+        </footer>
+        @if (errorMessage) { <p class="quiz-error" role="alert">{{ errorMessage }}</p> }
+      </section>
+    </section>
+  } @else if (result; as result) {
+    <section class="result-page" aria-labelledby="ritual-result-title">
+      <header class="result-heading">
+        <div><p class="micro-label">YOUR RITUAL DNA</p><h1 id="ritual-result-title">{{ result.archetype.name }}</h1></div>
+        <p>Saved to your account. Designed to evolve with your real ritual.</p>
+      </header>
+      <ng-template #ritualCard let-full="full">
+        <article class="dna-card" [attr.data-archetype]="result.archetype.id">
+          <div class="dna-card__topline"><div class="dna-card__brand"><img src="assets/images/logo-mark-dark.svg" alt=""><span>OFFSITE<small>RITUAL DNA</small></span></div><span class="dna-card__badge">PROFILE · V{{ result.archetype.profile_version || 1 }}</span></div>
+          <div class="dna-card__intro"><span>YOUR CUP, YOUR WAY</span><span class="dna-card__spark" aria-hidden="true">✦</span></div>
+          <div class="dna-card__radar-panel">
+            <div class="dna-card__panel-heading"><span>THE RITUAL RADAR</span><span>05 NOTES</span></div>
+          <div class="radar-wrap">
+            <svg viewBox="0 0 200 200" role="img" aria-label="Your five-axis Ritual DNA radar">
+              <polygon class="radar-grid" points="100,24 172.3,76.5 144.7,161.5 55.3,161.5 27.7,76.5"></polygon>
+              <polygon class="radar-grid" points="100,50 147.6,84.5 129.4,140.5 70.6,140.5 52.4,84.5"></polygon>
+              <polygon class="radar-grid" points="100,76 122.8,92.6 114.1,119.4 85.9,119.4 77.2,92.6"></polygon>
+              <line x1="100" y1="100" x2="100" y2="24"></line><line x1="100" y1="100" x2="172.3" y2="76.5"></line>
+              <line x1="100" y1="100" x2="144.7" y2="161.5"></line><line x1="100" y1="100" x2="55.3" y2="161.5"></line>
+              <line x1="100" y1="100" x2="27.7" y2="76.5"></line>
+              <polygon class="radar-shape" [attr.points]="radarPoints"></polygon>
+            </svg>
+            <span class="axis axis--brightness">BRIGHTNESS</span><span class="axis axis--boldness">BOLDNESS</span>
+            <span class="axis axis--sweetness">SWEETNESS</span><span class="axis axis--skill">SKILL</span><span class="axis axis--tempo">TEMPO</span>
+          </div>
+          </div>
+          <div class="dna-card__identity"><span>YOUR ARCHETYPE</span><h2>{{ result.archetype.name }}</h2>@if (full) { <p>{{ result.archetype.tagline }}</p><small>{{ result.archetype.description }}</small> }</div>
+          @if (full) {
+            <div class="dna-card__scores"><span><small>BRI</small><strong>{{ result.radar.brightness }}</strong></span><span><small>BOL</small><strong>{{ result.radar.boldness }}</strong></span><span><small>SWE</small><strong>{{ result.radar.sweetness }}</strong></span><span><small>SKI</small><strong>{{ result.radar.skill }}</strong></span><span><small>TEM</small><strong>{{ result.radar.tempo }}</strong></span></div>
+          }
+          <div class="dna-card__footer"><span>BREW YOUR OWN MOMENT</span><span aria-hidden="true">✳</span></div>
+        </article>
+      </ng-template>
+      <div #exportCardHost class="dna-card-export" aria-hidden="true" inert>
+        <ng-container *ngTemplateOutlet="ritualCard; context: { full: true }"></ng-container>
+      </div>
+      <div class="result-grid" [attr.data-archetype]="result.archetype.id">
+        <ng-container *ngTemplateOutlet="ritualCard; context: { full: false }"></ng-container>
+
+        <div class="result-details">
+        <section class="result-story">
+          <p class="result-story__tag">ARCHETYPE · {{ result.archetype.id }}</p>
+          <h2>{{ result.archetype.tagline }}</h2><p class="result-description">{{ result.archetype.description }}</p>
+          <div class="score-list">
+            <div><span>Brightness</span><div class="score-bar"><i [style.width.%]="result.radar.brightness"></i></div><strong>{{ result.radar.brightness }}</strong></div>
+            <div><span>Boldness</span><div class="score-bar"><i [style.width.%]="result.radar.boldness"></i></div><strong>{{ result.radar.boldness }}</strong></div>
+            <div><span>Sweetness</span><div class="score-bar"><i [style.width.%]="result.radar.sweetness"></i></div><strong>{{ result.radar.sweetness }}</strong></div>
+            <div><span>Skill</span><div class="score-bar"><i [style.width.%]="result.radar.skill"></i></div><strong>{{ result.radar.skill }}</strong></div>
+            <div><span>Tempo</span><div class="score-bar"><i [style.width.%]="result.radar.tempo"></i></div><strong>{{ result.radar.tempo }}</strong></div>
+          </div>
+          <div class="signal-list">
+            <span>{{ result.lean_confirmed ? (result.drink_lean + '% MATCHA LEAN') : 'EXPLORING MATCHA & COFFEE' }}</span><span>{{ (result.equipment_level || 'NOT SET') | uppercase }} SETUP</span>
+            @for (serving of result.servings; track serving) { <span>{{ serving | uppercase }}</span> }
+            @for (occasion of result.occasions; track occasion) { <span>{{ occasion | uppercase }}</span> }
+          </div>
+        </section>
+
+        <aside class="evolution-note">
+          <div class="evolution-note__icon"><svg lucideSparkles [size]="22" aria-hidden="true"></svg></div>
+          <p class="micro-label">A LIVING PROFILE</p>
+          <h3>This is your starting point.</h3>
+          <p>Your five-axis profile is saved to your account. It is your starting point for a ritual that can evolve over time.</p>
+          <ol class="evolution-journey" aria-label="How your Ritual DNA grows">
+            <li class="is-active"><span class="evolution-journey__step" aria-hidden="true">01</span><div><strong>Discover</strong><p>Your answers set the first notes.</p></div></li>
+            <li><span class="evolution-journey__step" aria-hidden="true">02</span><div><strong>Make it a ritual</strong><p>Explore the cups you love.</p></div></li>
+            <li><span class="evolution-journey__step" aria-hidden="true">03</span><div><strong>Watch it evolve</strong><p>Your taste has room to grow.</p></div></li>
+          </ol>
+          <div class="evolution-note__signature"><svg lucideSparkles [size]="15" aria-hidden="true"></svg><span>Made to grow with you.</span></div>
+        </aside>
+        </div>
+      </div>
+      <footer class="result-actions">
+        <div class="result-actions__main">
+          <button type="button" class="primary-action" (click)="showPreviewNotice()"><svg lucideShare2 [size]="16" aria-hidden="true"></svg> SHARE TO COMMUNITY</button>
+          <button type="button" class="secondary-action" [disabled]="exporting" (click)="exportCard()"><svg lucideDownload [size]="16" aria-hidden="true"></svg> {{ exporting ? 'EXPORTING...' : 'EXPORT CARD' }}</button>
+        </div>
+        <div class="result-actions__edit"><button type="button" class="text-button" (click)="restart()"><svg lucideRotateCcw [size]="15" aria-hidden="true"></svg> RETAKE QUIZ</button></div>
+      </footer>
+      @if (resultNotice) { <p class="preview-notice" role="status">{{ resultNotice }}</p> }
+    </section>
+  }
+</main>

@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, OnDestroy, OnInit, PLATFORM_ID, inject, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, PLATFORM_ID, effect, inject, signal } from '@angular/core';
 import { CommonModule, Location, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, NavigationStart, Router, RouterLink } from '@angular/router';
 import {
@@ -44,6 +44,7 @@ import { RecipeSectionComponent } from '../../../../features/home/components/rec
 import { ContentService } from '../../../content/services/content.service';
 import { buildMockProductReviews } from '../../../../shared/data/mock-product-reviews';
 import { AuthService } from '../../../../core/auth.service';
+import { HttpService } from '../../../../core/http.service';
 import { PantryService } from '../../../account/components/my-pantry/pantry.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
@@ -125,6 +126,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   private contentService = inject(ContentService);
   private cartService = inject(CartService);
   private authService = inject(AuthService);
+  private http = inject(HttpService);
   private pantry = inject(PantryService);
   private authPromptService = inject(AuthPromptModalService);
   private platformId = inject(PLATFORM_ID);
@@ -153,9 +155,11 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   brewingMethods = signal<BrewingMethodCard[]>([]);
   isBrewingMethodsLoading = signal<boolean>(false);
   youMayAlsoLikeProducts = signal<Product[]>([]);
+  youMayAlsoLikeFits = signal<Record<number, { percent: number; name: string; archetypeId: string }>>({});
+  youMayAlsoLikeMode = signal<'ai' | 'rules' | null>(null);
   recentlyViewedProducts = signal<Product[]>([]);
   productCatalog = signal<Product[]>([]);
-  purchaseType = signal<'one-time' | 'subscription'>('subscription');
+  purchaseType = signal<'one-time' | 'subscription'>('one-time');
   deliveryFrequency = signal<'Every week' | 'Every 2 weeks' | 'Every month'>('Every 2 weeks');
   activeProductContentTab = signal<'brewing' | 'recipes'>('brewing');
 
@@ -164,6 +168,26 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   private readonly recentlyViewedKey = 'recently_viewed_products';
   private routeSubscription?: Subscription;
   private routerEventsSubscription?: Subscription;
+  private recommendationRequestKey = '';
+  private readonly personalizedProductsEffect = effect(() => {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const product = this.product();
+    const catalog = this.productCatalog();
+    if (!this.authService.isAuthenticated()) {
+      this.recommendationRequestKey = '';
+      if (product && catalog.length && this.youMayAlsoLikeMode()) {
+        this.youMayAlsoLikeProducts.set(this.buildYouMayAlsoLikeProducts(product, catalog));
+        this.youMayAlsoLikeFits.set({});
+        this.youMayAlsoLikeMode.set(null);
+      }
+      return;
+    }
+    if (!product || !catalog.length) return;
+    const key = String(product.product_id);
+    if (this.recommendationRequestKey === key) return;
+    this.recommendationRequestKey = key;
+    void this.loadPersonalizedRecommendations(product, catalog);
+  });
   private pendingScrollY: number | null = null;
   readonly contentDetailEntryState = { contentEntrySource: 'product-detail' };
 
@@ -223,7 +247,9 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     this.isSaved.set(false);
     this.brewingMethods.set([]);
     this.youMayAlsoLikeProducts.set([]);
-    this.purchaseType.set('subscription');
+    this.youMayAlsoLikeFits.set({});
+    this.youMayAlsoLikeMode.set(null);
+    this.purchaseType.set('one-time');
     this.deliveryFrequency.set('Every 2 weeks');
     this.activeProductContentTab.set('brewing');
 
@@ -846,6 +872,40 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
       },
       error: err => console.error('Failed to load product catalog for product detail:', err)
     });
+  }
+
+  private async loadPersonalizedRecommendations(viewed: Product, catalog: Product[]): Promise<void> {
+    try {
+      const response = await this.http.get(`/ritual-dna/recommendations/products/${viewed.product_id}`) as {
+        data: { source: 'ai' | 'rules'; archetype: { id: string; name: string } | null; products: Array<{ id: string; fit_percent?: number }> }
+      };
+      if (this.product()?.product_id !== viewed.product_id || !this.authService.isAuthenticated()) return;
+      const fallback = this.buildYouMayAlsoLikeProducts(viewed, catalog);
+      const byId = new Map(catalog.map(item => [String(item.product_id), item]));
+      const selected: Product[] = [];
+      const fits: Record<number, { percent: number; name: string; archetypeId: string }> = {};
+      for (const pick of response.data.products || []) {
+        const item = byId.get(String(pick.id));
+        if (!item || item.product_id === viewed.product_id || item.category !== viewed.category
+          || item.is_active === false || isProductOutOfStock(item) || selected.some(row => row.product_id === item.product_id)) continue;
+        selected.push(item);
+        if (Number.isFinite(pick.fit_percent) && response.data.archetype) {
+          fits[item.product_id] = { percent: Math.max(0, Math.min(100, Math.round(pick.fit_percent!))),
+            name: response.data.archetype.name, archetypeId: response.data.archetype.id };
+        }
+        if (selected.length >= 4) break;
+      }
+      if (!selected.length) return;
+      for (const item of fallback) {
+        if (selected.length >= 4) break;
+        if (!selected.some(row => row.product_id === item.product_id)) selected.push(item);
+      }
+      this.youMayAlsoLikeProducts.set(selected);
+      this.youMayAlsoLikeFits.set(fits);
+      this.youMayAlsoLikeMode.set(response.data.source);
+    } catch {
+      // Existing same-category recommendations stay visible when the user has no DNA or AI is unavailable.
+    }
   }
 
   private buildYouMayAlsoLikeProducts(currentProduct: Product, catalog: Product[]): Product[] {

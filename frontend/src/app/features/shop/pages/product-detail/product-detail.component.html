@@ -355,7 +355,8 @@
   }
 
   @if (youMayAlsoLikeProducts().length) {
-  <app-best-seller sectionHeading="You may also like" background="page" headingStyle="plain" [showViewAll]="false"
+  <app-best-seller sectionHeading="You may also like" [eyebrowText]="youMayAlsoLikeMode() ? 'Ritual DNA picks' : 'More to explore'"
+    background="page" headingStyle="plain" [showViewAll]="false" [productFits]="youMayAlsoLikeFits()"
     [productsOverride]="youMayAlsoLikeProducts()"></app-best-seller>
   }
 

@@ -16,8 +16,9 @@ $wheat:       #E8D5B0;
 .collection-section {
   position: relative;
   max-width: 1440px;
+  box-sizing: border-box;
   margin: 0 auto;
-  padding: 80px 64px;
+  padding: 80px clamp(16px, 4.44vw, 64px);
   background: $cream;
   display: flex;
   flex-direction: column;

@@ -333,6 +333,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.isMobileAboutOpen = false;
   }
 
+  openRitualDna(): void {
+    this.closeMobileMenu();
+    if (!this.isLoggedIn()) {
+      this.authPromptService.open();
+      return;
+    }
+    void this.router.navigate(['/ritual-dna']);
+  }
+
   toggleMobileProducts(event: Event): void {
     event.preventDefault();
     event.stopPropagation();

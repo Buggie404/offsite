@@ -133,10 +133,10 @@
     <!-- Actions & Mobile Menu Toggle -->
     <div class="nav-actions">
       <!-- Find Your Ritual DNA Button -->
-      <a routerLink="/shop/build-your-bundle" class="ritual-dna-pill-btn">
+      <button type="button" class="ritual-dna-pill-btn" (click)="openRitualDna()">
         <svg lucideSparkle [size]="14" class="sparkle-icon"></svg>
         <span>FIND YOUR RITUAL DNA</span>
-      </a>
+      </button>
 
       <button class="action-btn search-btn" (click)="openSearch($event)" aria-label="Search">
         <svg lucideSearch [size]="20"></svg>
@@ -419,10 +419,10 @@
           </ul>
         </div>
       <li class="mobile-nav-item">
-        <a routerLink="/shop/build-your-bundle" class="mobile-nav-link ritual-dna-mobile-link" (click)="closeMobileMenu()">
+        <button type="button" class="mobile-nav-link ritual-dna-mobile-link" (click)="openRitualDna()">
           <svg lucideSparkle [size]="16" class="sparkle-icon"></svg>
           <span>FIND YOUR RITUAL DNA</span>
-        </a>
+        </button>
       </li>
     </ul>
   </div>

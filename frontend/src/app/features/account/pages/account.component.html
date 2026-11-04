@@ -1017,7 +1017,11 @@
         <app-my-pantry></app-my-pantry>
       </div>
 
-      <div class="tab-content placeholder-tab" *ngIf="activeTab() !== 'profile' && activeTab() !== 'saved' && activeTab() !== 'address' && activeTab() !== 'orders' && activeTab() !== 'payment' && activeTab() !== 'rewards' && activeTab() !== 'ritual-box' && activeTab() !== 'pantry'">
+      <div class="tab-content" *ngIf="activeTab() === 'dna'">
+        <app-my-ritual-dna></app-my-ritual-dna>
+      </div>
+
+      <div class="tab-content placeholder-tab" *ngIf="activeTab() !== 'profile' && activeTab() !== 'saved' && activeTab() !== 'address' && activeTab() !== 'orders' && activeTab() !== 'payment' && activeTab() !== 'rewards' && activeTab() !== 'ritual-box' && activeTab() !== 'pantry' && activeTab() !== 'dna'">
         <div class="profile-info-card empty-state-card">
           <svg lucideShoppingBag [size]="48" class="empty-icon" *ngIf="activeTab() === 'orders'"></svg>
           <svg lucideCreditCard [size]="48" class="empty-icon" *ngIf="activeTab() === 'payment'"></svg>

@@ -1,0 +1,132 @@
+<section class="ritual-account" aria-label="My Ritual DNA">
+  @if (loading()) {
+    <div class="ritual-state" role="status">Loading your Ritual DNA...</div>
+  } @else if (error()) {
+    <div class="ritual-state ritual-state--error" role="alert">
+      <p>{{ error() }}</p>
+      <button type="button" (click)="load()">TRY AGAIN</button>
+    </div>
+  } @else if (profile(); as dna) {
+    <p class="ritual-intro">Your living taste profile, created from your answers and saved to your account.</p>
+
+    <div class="ritual-top-grid" [attr.data-archetype]="dna.archetype?.id">
+        <article class="dna-card" [attr.data-archetype]="dna.archetype?.id">
+          <div class="dna-card__topline"><div class="dna-card__brand"><img src="assets/images/logo-mark-dark.svg" alt=""><span>OFFSITE<small>RITUAL DNA</small></span></div><span class="dna-card__badge">PROFILE · V{{ dna.archetype?.profile_version || 1 }}</span></div>
+          <div class="dna-card__intro"><span>YOUR CUP, YOUR WAY</span><span class="dna-card__spark" aria-hidden="true">✦</span></div>
+          <div class="dna-card__radar-panel">
+            <div class="dna-card__panel-heading"><span>THE RITUAL RADAR</span><span>05 NOTES</span></div>
+          <div class="radar-wrap">
+            <svg viewBox="0 0 200 200" role="img" aria-label="Your five-axis Ritual DNA radar">
+              <polygon class="radar-grid" points="100,24 172.3,76.5 144.7,161.5 55.3,161.5 27.7,76.5"></polygon>
+              <polygon class="radar-grid" points="100,50 147.6,84.5 129.4,140.5 70.6,140.5 52.4,84.5"></polygon>
+              <polygon class="radar-grid" points="100,76 122.8,92.6 114.1,119.4 85.9,119.4 77.2,92.6"></polygon>
+              <line x1="100" y1="100" x2="100" y2="24"></line><line x1="100" y1="100" x2="172.3" y2="76.5"></line>
+              <line x1="100" y1="100" x2="144.7" y2="161.5"></line><line x1="100" y1="100" x2="55.3" y2="161.5"></line>
+              <line x1="100" y1="100" x2="27.7" y2="76.5"></line>
+              <polygon class="radar-shape" [attr.points]="radarPoints(dna.radar)"></polygon>
+            </svg>
+            <span class="axis axis--brightness">BRIGHTNESS</span><span class="axis axis--boldness">BOLDNESS</span>
+            <span class="axis axis--sweetness">SWEETNESS</span><span class="axis axis--skill">SKILL</span><span class="axis axis--tempo">TEMPO</span>
+          </div>
+          </div>
+          <div class="dna-card__identity"><span>YOUR ARCHETYPE</span><h2>{{ dna.archetype?.name }}</h2></div>
+          <div class="dna-card__footer"><span>BREW YOUR OWN MOMENT</span><span aria-hidden="true">✳</span></div>
+        </article>
+
+      <div class="ritual-summary">
+        <div class="summary-heading"><span>TASTE PROFILE</span><h2>{{ dna.archetype?.tagline }}</h2><p>{{ dna.archetype?.description }}</p></div>
+        <div class="axis-scores">
+          @for (axis of axes; track axis.key) {
+            <div class="axis-score">
+              <div class="axis-score__label"><strong>{{ axis.label }}</strong><small>{{ axis.description }}</small></div>
+              <div class="axis-score__bar"><span [style.width.%]="dna.radar[axis.key]"></span></div>
+              <strong class="axis-score__value">{{ dna.radar[axis.key] }}</strong>
+            </div>
+          }
+        </div>
+        <div class="ritual-preferences">
+          <span>{{ drinkPreference(dna) }}</span>
+          @if (dna.equipment_level) { <span>{{ dna.equipment_level | titlecase }} equipment setup</span> }
+          @for (serving of dna.servings; track serving) { <span>{{ readableTag(serving) | titlecase }} serving</span> }
+        </div>
+        <div class="ritual-actions">
+          <a routerLink="/ritual-dna" [queryParams]="{ retake: '1' }">RETAKE QUIZ <span aria-hidden="true">→</span></a>
+          <span>Last updated {{ dna.updated_at | date:'mediumDate' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <section class="ritual-history" [attr.data-archetype]="dna.archetype?.id" aria-labelledby="ritual-history-title">
+      <div class="ritual-history__heading">
+        <div><span>YOUR STORY</span><h2 id="ritual-history-title">How your taste evolves</h2></div>
+        <span class="ritual-history__period">FROM YOUR FIRST QUIZ TO TODAY</span>
+      </div>
+      <p class="ritual-history__lead">{{ evolutionMessage(dna) }}</p>
+      <div class="evolution-chart" role="img" [attr.aria-label]="'Taste evolution: ' + evolutionAxes(dna)[0].label + ' ' + dna.baseline[evolutionAxes(dna)[0].key] + ' to ' + dna.radar[evolutionAxes(dna)[0].key] + ', ' + evolutionAxes(dna)[1].label + ' ' + dna.baseline[evolutionAxes(dna)[1].key] + ' to ' + dna.radar[evolutionAxes(dna)[1].key]">
+        <svg viewBox="0 0 600 160" preserveAspectRatio="none" aria-hidden="true">
+          <path class="evolution-chart__grid" d="M18 28H582M18 86H582M18 144H582"/>
+          <polyline class="evolution-chart__line evolution-chart__line--second" [attr.points]="evolutionPoints(dna, evolutionAxes(dna)[1].key)"/>
+          <polyline class="evolution-chart__line evolution-chart__line--first" [attr.points]="evolutionPoints(dna, evolutionAxes(dna)[0].key)"/>
+        </svg>
+        <div class="evolution-chart__dates"><span>{{ dna.quiz_taken_at | date:'mediumDate' }}</span><span>Today</span></div>
+      </div>
+      <div class="evolution-chart__legend">
+        @for (axis of evolutionAxes(dna).slice(0, 2); track axis.key; let index = $index) {
+          <div class="evolution-chart__axis" [class.evolution-chart__axis--second]="index === 1">
+            <span class="evolution-chart__swatch"></span><strong>{{ axis.label }}</strong>
+            <span>{{ dna.baseline[axis.key] }} → {{ axis.current }}</span>
+            @if (axis.change) { <small>{{ axis.change > 0 ? '+' : '' }}{{ axis.change }}</small> }
+          </div>
+        }
+      </div>
+      <p class="ritual-history__hint">Every cup adds to your story. These lines follow your saved Ritual DNA profile.</p>
+    </section>
+    <section class="ritual-picks" aria-labelledby="ritual-picks-title">
+      <div class="ritual-picks__heading">
+        <div><span>MADE FOR YOUR RITUAL</span><h2 id="ritual-picks-title">Ideas to try next</h2></div>
+        @if (recommendations(); as picks) {
+          <small>{{ picks.source === 'ai' ? 'Refined for you' : 'Matched to your DNA' }}</small>
+        }
+      </div>
+      @if (recommendationsLoading()) {
+        <p class="ritual-picks__status" role="status">Finding your picks...</p>
+      } @else if (recommendationsError()) {
+        <div class="ritual-picks__status" role="alert">Could not load your picks. <button type="button" (click)="loadRecommendations()">Try again</button></div>
+      } @else if (recommendations(); as picks) {
+        @if (picks.products.length || picks.recipes.length) {
+          @if (picks.products.length) {
+            <h3>Products for you</h3>
+            <div class="ritual-picks__grid">
+              @for (item of picks.products; track item.id) {
+                <a class="ritual-pick" [routerLink]="['/products', item.slug]">
+                  @if (item.image) { <img [src]="item.image" [alt]="item.name" loading="lazy"> }
+                  <div><strong>{{ item.name }}</strong><p>{{ item.reason }}</p><span>Explore product →</span></div>
+                </a>
+              }
+            </div>
+          }
+          @if (picks.recipes.length) {
+            <h3>Recipes to explore</h3>
+            <div class="ritual-picks__grid">
+              @for (item of picks.recipes; track item.id) {
+                <a class="ritual-pick" [routerLink]="['/recipes', item.slug]">
+                  @if (item.image) { <img [src]="item.image" [alt]="item.name" loading="lazy"> }
+                  <div><strong>{{ item.name }}</strong><p>{{ item.reason }}</p><span>View recipe →</span></div>
+                </a>
+              }
+            </div>
+          }
+        } @else {
+          <p class="ritual-picks__status">New ideas will appear as products and recipes become available.</p>
+        }
+      }
+    </section>
+  } @else {
+    <div class="ritual-state ritual-state--empty">
+      <span class="ritual-state__mark" aria-hidden="true">✦</span>
+      <h2>No Ritual DNA yet</h2>
+      <p>Answer seven short questions to discover your taste profile and archetype.</p>
+      <a routerLink="/ritual-dna">FIND YOUR RITUAL DNA <span aria-hidden="true">→</span></a>
+    </div>
+  }
+</section>

@@ -1028,6 +1028,9 @@ async function toggleSavedProduct(req, res) {
       saved = true;
     }
     await user.save();
+    try {
+      await require('../services/ritual-dna.behavior').savedProduct(user.user_id, prodIdStr, saved);
+    } catch (dnaError) { console.error('Ritual DNA saved product sync failed:', dnaError); }
     res.json({ message: saved ? 'Product saved' : 'Product unsaved', saved });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1058,6 +1061,9 @@ async function toggleSavedRecipe(req, res) {
       { recipe_id: recipeIdStr },
       { $inc: { saves: saved ? 1 : -1 } }
     );
+    try {
+      await require('../services/ritual-dna.behavior').savedRecipe(user.user_id, recipeIdStr, saved);
+    } catch (dnaError) { console.error('Ritual DNA saved recipe sync failed:', dnaError); }
 
     res.json({ message: saved ? 'Recipe saved' : 'Recipe unsaved', saved });
   } catch (error) {
@@ -1553,10 +1559,13 @@ async function deleteSavedItemsBatch(req, res) {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const idSet = new Set(ids.map(id => String(id)));
+    let removedDnaIds = [];
 
     if (type === 'products') {
+      removedDnaIds = user.saved_products.filter(sp => idSet.has(String(sp.product_id))).map(sp => String(sp.product_id));
       user.saved_products = user.saved_products.filter(sp => !idSet.has(String(sp.product_id)));
     } else if (type === 'recipes') {
+      removedDnaIds = user.saved_recipes.filter(sr => idSet.has(String(sr.recipe_id))).map(sr => String(sr.recipe_id));
       user.saved_recipes = user.saved_recipes.filter(sr => !idSet.has(String(sr.recipe_id)));
       const Recipe = require('../models/Recipe');
       await Recipe.updateMany(
@@ -1572,6 +1581,15 @@ async function deleteSavedItemsBatch(req, res) {
     }
 
     await user.save();
+    if (removedDnaIds.length) {
+      const behavior = require('../services/ritual-dna.behavior');
+      for (const removedId of removedDnaIds) {
+        try {
+          if (type === 'products') await behavior.savedProduct(user.user_id, removedId, false);
+          else await behavior.savedRecipe(user.user_id, removedId, false);
+        } catch (dnaError) { console.error('Ritual DNA batch unsave sync failed:', dnaError); }
+      }
+    }
     res.json({ message: `${ids.length} items removed successfully` });
   } catch (error) {
     res.status(500).json({ error: error.message });
