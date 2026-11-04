@@ -1005,6 +1005,9 @@ exports.handleChatMessage = async (req, res) => {
 
     let chatSession = prepared.session;
 
+    if (!chatSession.support_conversation_id && ['waiting', 'in_progress'].includes(chatSession.status)) {
+      await require('../services/ai-chat-handover.service').handoverAiSession(chatSession);
+    }
     if (chatSession.support_conversation_id && ['waiting', 'in_progress'].includes(chatSession.status)) {
       const conversation = await require('../models/ChatConversation').findOne({ conversation_id: chatSession.support_conversation_id });
       if (conversation && conversation.status !== 'closed') {
@@ -1683,6 +1686,32 @@ function callerId(req) {
 function clientIp(req) {
   return req.ip || req.connection?.remoteAddress || null;
 }
+
+exports.returnToBot = async (req, res) => {
+  try {
+    const userId = callerId(req);
+    const owned = await sessionAccess.readSession({ sessionId: req.body.session_id, userId });
+    if (owned.http) return res.status(owned.http).json(owned.body);
+    const session = await require('../models/AiChatSession').findOne({ session_id: req.body.session_id });
+    if (session.support_conversation_id) {
+      const conversation = await require('../models/ChatConversation').findOneAndUpdate(
+        { conversation_id: session.support_conversation_id }, { $set: { status: 'closed' } }, { new: true }
+      );
+      if (conversation) require('../services/socket.service').emitChatEvent('chat_updated', conversation.toObject());
+    }
+    session.status = 'ai_active';
+    session.assigned_admin_id = null;
+    session.support_conversation_id = null;
+    sessionAccess.appendMessage(session, { sender: 'system', text: 'You are now chatting with the Offsite chatbot.' });
+    session.last_activity_at = new Date();
+    await session.save();
+    const current = await sessionAccess.readSession({ sessionId: session.session_id, userId });
+    return res.json(current.body);
+  } catch (error) {
+    console.error('Return to chatbot error:', error);
+    return res.status(500).json({ message: 'Could not switch to the chatbot. Please try again.' });
+  }
+};
 
 exports.getSession = async (req, res) => {
   try {

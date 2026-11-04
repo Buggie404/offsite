@@ -52,6 +52,132 @@ function fixture() {
   return { service: load('../src/services/ai-chat-handover.service.js', mocks), session, conversations, messages, events, updates, mocks, ended: () => ended };
 }
 
+test('customer mode follows the support conversation when AI session status is stale', async () => {
+  const session = { session_id: 'AI1', user_id: null, status: 'ai_active', support_conversation_id: 'CHAT1', messages: [] };
+  let status = 'open';
+  const service = load('../src/services/ai-chat-session.js', {
+    '../models/AiChatSession': { findOne: async () => session },
+    '../models/ChatConversation': { findOne: () => ({ lean: async () => ({ status }) }) }
+  });
+  const open = await service.readSession({ sessionId: 'AI1', userId: null });
+  assert.equal(open.body.human_chat, true);
+  assert.equal(open.body.status, 'in_progress');
+  status = 'closed';
+  const closed = await service.readSession({ sessionId: 'AI1', userId: null });
+  assert.equal(closed.body.human_chat, false);
+  assert.equal(closed.body.status, 'ai_active');
+});
+
+test('customer session labels all agent replies as Offsite without personal names', async () => {
+  const session = { session_id: 'AI1', user_id: null, status: 'waiting', messages: [
+    { message_id: 'M1', sender: 'agent', agent_id: 'STAFF1', text: 'Hello' },
+    { message_id: 'M2', sender: 'agent', agent_id: '507f1f77bcf86cd799439011', text: 'Welcome' },
+    { message_id: 'M3', sender: 'agent', agent_id: 'REMOVED', text: 'Old reply' }
+  ] };
+  const service = load('../src/services/ai-chat-session.js', {
+    '../models/AiChatSession': { findOne: async () => session },
+    '../models/User': { find: () => ({ lean: async () => [
+      { user_id: 'STAFF1', _id: '507f1f77bcf86cd799439011', profile_name: 'Quỳnh Duyên' }
+    ] }) }
+  });
+  const { body } = await service.readSession({ sessionId: 'AI1', userId: null });
+  assert.equal(body.messages[0].metadata.agentInfo.senderName, 'Offsite');
+  assert.equal(body.messages[1].metadata.agentInfo.avatarInitial, 'OS');
+  assert.equal(body.messages[2].metadata.agentInfo.senderName, 'Offsite');
+});
+
+test('receipts require agent access and persist only customer messages up to the acknowledged time', async () => {
+  const writes = [], mirrors = [];
+  let allowed = true, query;
+  const controller = load('../src/controllers/chat.controller.js', {
+    '../services/chat.service': { canAccessConversation: async () => allowed },
+    '../models/ChatConversation': { findOne: async () => ({ conversation_id: 'CHAT1', ai_session_id: 'AI1' }) },
+    '../models/ChatMessage': {
+      find: filter => { query = filter; return { lean: async () => [{ _id: 'DB1', source_message_id: 'M1' }] }; },
+      updateMany: async (...args) => writes.push(args)
+    },
+    '../models/AiChatSession': { updateOne: async (...args) => mirrors.push(args) }
+  });
+  const res = { sendStatus(code) { this.code = code; }, status(code) { this.code = code; return this; }, json(body) { this.body = body; } };
+  const req = { params: { id: 'CHAT1' }, user: {}, body: { status: 'seen', through: '2026-11-01T06:00:00Z' } };
+  await controller.receipt(req, res);
+  assert.equal(res.body.success, true);
+  assert.equal(query.sender_type, 'customer');
+  assert.equal(query.created_at.$lte.toISOString(), req.body.through.replace('Z', '.000Z'));
+  assert.equal(writes[0][0]['metadata.delivery_status'].$ne, 'seen');
+  assert.equal(writes[0][1][0].$set.metadata.$mergeObjects[1].delivery_status, 'seen');
+  assert.equal(mirrors[0][0].session_id, 'AI1');
+  allowed = false;
+  await controller.receipt(req, res);
+  assert.equal(res.code, 403);
+  assert.equal(writes.length, 1);
+});
+
+test('CSKH can read unclaimed waiting chats including guests, but not another agent thread', async () => {
+  const { canAccessConversation } = load('../src/services/chat.service.js', {
+    '../models/User': { findOne: () => ({ lean: async () => ({ assigned_chat_customer_ids: [] }) }) }
+  });
+  const agent = { user_id: 'STAFF1', role: 'cskh' };
+  const waiting = { customer_id: 'guest:AI1', status: 'waiting', agent_id: null };
+  assert.equal(await canAccessConversation(agent, waiting), true);
+  assert.equal(await canAccessConversation(agent, { ...waiting, status: 'open', agent_id: 'STAFF1' }), true);
+  assert.equal(await canAccessConversation(agent, { ...waiting, status: 'open', agent_id: 'STAFF2' }), false);
+  assert.equal(await canAccessConversation({ user_id: 'CUSTOMER2', role: 'customer' }, waiting), false);
+});
+
+test('CSKH list includes the waiting queue and their own chats without assigned customers', async () => {
+  let filter;
+  const controller = load('../src/controllers/chat.controller.js', {
+    '../models/User': {
+      findOne: () => ({ lean: async () => ({ assigned_chat_customer_ids: [] }) }),
+      find: () => ({ lean: async () => [] })
+    },
+    '../models/ChatConversation': { find: query => {
+      filter = query;
+      return { sort: () => ({ limit: () => ({ lean: async () => [{ conversation_id: 'CHAT1', customer_id: 'guest:AI1' }] }) }) };
+    } }
+  });
+  const res = { json(body) { this.body = body; }, status() { return this; } };
+  await controller.listConversations({ user: { user_id: 'STAFF1', role: 'cskh' }, query: {} }, res);
+  assert.deepEqual(filter.$or, [
+    { customer_id: { $in: [] } }, { agent_id: 'STAFF1' }, { status: 'waiting', agent_id: null }
+  ]);
+  assert.equal(res.body.data[0].conversation_id, 'CHAT1');
+});
+
+test('socket chat queue uses the stored admin role and canonical user ID', async () => {
+  let authenticate, connection;
+  class Server {
+    use(handler) { authenticate = handler; }
+    on(event, handler) { if (event === 'connection') connection = handler; }
+  }
+  let account = { user_id: 'ADMIN1', role: 'admin', status: 'active' };
+  const service = load('../src/services/socket.service.js', {
+    'socket.io': { Server },
+    'jsonwebtoken': { verify: () => ({ user_id: '507f1f77bcf86cd799439011', role: 'customer' }) },
+    '../models/User': { findOne: () => ({ lean: async () => account }) }
+  });
+  service.initSocket({});
+  const handlers = {}, rooms = [], errors = [];
+  const socket = {
+    handshake: { headers: {}, auth: { token: 'valid' } },
+    on: (event, handler) => { handlers[event] = handler; },
+    join: room => rooms.push(room), emit: (event, payload) => errors.push({ event, payload })
+  };
+  await authenticate(socket, error => { assert.ifError(error); });
+  assert.equal(socket.user.user_id, 'ADMIN1');
+  assert.equal(socket.user.role, 'admin_cc');
+  connection(socket);
+  handlers.join_chat_agents();
+  assert.deepEqual(rooms, ['chat_agents']);
+  account = { ...account, status: 'suspended' };
+  await authenticate(socket, error => { assert.ifError(error); });
+  assert.equal(socket.user, null);
+  handlers.join_chat_agents();
+  assert.equal(rooms.length, 1);
+  assert.equal(errors[0].event, 'error');
+});
+
 test('handover creates a waiting conversation, copies context and then emits to admin', async () => {
   const f = fixture();
   const conversation = await f.service.handoverAiSession(f.session);

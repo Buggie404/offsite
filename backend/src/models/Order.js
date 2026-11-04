@@ -321,6 +321,11 @@ orderSchema.pre('save', async function(next) {
       this.$locals.pantryEvent = 'refund';
       this.$locals.ritualDnaEvent = 'refund';
     }
+    // Canceled / refunded / refund requested: a Ritual Box suggestion this one-time order raised
+    // is withdrawn after the save (post-save hook below).
+    if (!this.isNew && ['canceled', 'refund', 'pending_refund'].includes(newStatus) && originalStatus !== newStatus) {
+      this.$locals.withdrawSuggestions = true;
+    }
   }
 
   next();
@@ -351,11 +356,27 @@ orderSchema.post('save', function ritualDnaSync(doc) {
   if (!event || !doc.user_id) return;
   const snapshot = doc.toObject();
   const refundItems = this.$locals?.refundItems || this._refundItems || null;
+
   setImmediate(() => {
     const service = require('../services/ritual-dna.behavior');
-    const task = event === 'refund' ? service.orderRefunded(snapshot, refundItems) : service.orderDelivered(snapshot);
+    const task = event === 'refund'
+      ? service.orderRefunded(snapshot, refundItems)
+      : service.orderDelivered(snapshot);
+
     task.catch(error => console.error('Ritual DNA order sync failed:', error));
   });
+});
+
+// Runs only once the status change is saved; a failure here never fails saving the order.
+orderSchema.post('save', async function withdrawSubscriptionSuggestions(doc) {
+  if (!this.$locals?.withdrawSuggestions) return;
+  this.$locals.withdrawSuggestions = false;
+
+  try {
+    await require('../services/subscription.service').withdrawSuggestionsForOrder(doc.order_id);
+  } catch (error) {
+    console.error(`Withdrawing Ritual Box suggestions for order ${doc.order_id} failed:`, error);
+  }
 });
 
 module.exports = mongoose.model('Order', orderSchema);

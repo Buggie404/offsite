@@ -70,16 +70,20 @@ async function listConversations(req, res) {
     const query = {};
     if (req.query.status) query.status = req.query.status;
     if (req.user.role === 'cskh') {
-      const agent = await User.findById(req.user.user_id, 'assigned_chat_customer_ids').lean();
+      const agent = await User.findOne({ user_id: req.user.user_id }, 'assigned_chat_customer_ids').lean();
       query.$or = [
-        { status: 'waiting' },
-        { agent_id: String(req.user.user_id) },
-        { customer_id: { $in: agent?.assigned_chat_customer_ids || [] } }
+        { customer_id: { $in: agent?.assigned_chat_customer_ids || [] } },
+        { agent_id: req.user.user_id },
+        { status: 'waiting', agent_id: null }
       ];
     }
     const data = await ChatConversation.find(query).sort({ last_message_at: -1 }).limit(100).lean();
-    const users = await User.find({ user_id: { $in: data.map(c => c.customer_id) } }, 'user_id profile_name avatar_url membership_tier').lean();
-    const byId = new Map(users.map(u => [u.user_id, u]));
+    const customerIds = data.map(c => c.customer_id);
+    const objectIds = customerIds.filter(id => /^[0-9a-fA-F]{24}$/.test(id));
+    const users = await User.find({ $or: [
+      { user_id: { $in: customerIds } }, { _id: { $in: objectIds } }
+    ] }, 'user_id profile_name avatar_url membership_tier').lean();
+    const byId = new Map(users.flatMap(u => [[u.user_id, u], [String(u._id), u]]));
     res.json({ data: data.map(c => ({ ...c, customer: byId.get(c.customer_id) || null })) });
   } catch (error) {
     res.status(500).json({ error: 'Failed to list conversations' });
@@ -113,9 +117,14 @@ async function claimConversation(req, res) {
     if (conversation.agent_id && conversation.agent_id !== req.user.user_id) {
       return res.status(409).json({ error: 'Already claimed by another agent' });
     }
-    conversation.agent_id = req.user.user_id;
-    conversation.status = 'open';
-    await conversation.save();
+    const claimed = await ChatConversation.findOneAndUpdate({
+      conversation_id: conversation.conversation_id,
+      status: { $in: ['waiting', 'open'] },
+      $or: [{ agent_id: null }, { agent_id: req.user.user_id }]
+    }, { $set: { agent_id: req.user.user_id, status: 'open' } }, { new: true });
+    if (!claimed) return res.status(409).json({ error: 'Chat is closed or already claimed by another agent' });
+    conversation.agent_id = claimed.agent_id;
+    conversation.status = claimed.status;
     if (conversation.ai_session_id) await require('../models/AiChatSession').updateOne({ session_id: conversation.ai_session_id }, {
       $set: { status: 'in_progress', assigned_admin_id: req.user.user_id }
     });
@@ -150,4 +159,38 @@ async function closeConversation(req, res) {
   }
 }
 
-module.exports = { handoffFromBot, getMyConversation, startConversation, listConversations, getMessages, claimConversation, closeConversation };
+async function receipt(req, res) {
+  try {
+    const conversation = await ChatConversation.findOne({ conversation_id: req.params.id });
+    if (!conversation || !(await canAccessConversation(req.user, conversation))) return res.sendStatus(403);
+    const status = req.body.status;
+    if (!['delivered', 'seen'].includes(status)) return res.sendStatus(400);
+    const through = new Date(req.body.through);
+    if (!Number.isFinite(through.getTime())) return res.sendStatus(400);
+    const messages = await ChatMessage.find({
+      conversation_id: conversation.conversation_id, sender_type: 'customer', created_at: { $lte: through },
+      'metadata.delivery_status': { $nin: status === 'seen' ? ['seen'] : ['seen', 'delivered'] }
+    }).lean();
+    if (messages.length) {
+      await ChatMessage.updateMany({ _id: { $in: messages.map(m => m._id) }, 'metadata.delivery_status': { $ne: 'seen' } }, [
+        { $set: { metadata: { $mergeObjects: ['$metadata', { delivery_status: status }] } } }
+      ]);
+      const ids = messages.map(m => m.source_message_id).filter(Boolean);
+      if (conversation.ai_session_id && ids.length) {
+        await require('../models/AiChatSession').updateOne({ session_id: conversation.ai_session_id }, [{
+          $set: { messages: { $map: { input: '$messages', as: 'message', in: { $cond: [
+            { $and: [{ $in: ['$$message.message_id', ids] }, { $ne: ['$$message.metadata.delivery_status', 'seen'] }] },
+            { $mergeObjects: ['$$message', { metadata: { $mergeObjects: ['$$message.metadata', { delivery_status: status }] } }] },
+            '$$message'
+          ] } } } }
+        }]);
+      }
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Chat receipt error:', error);
+    res.status(500).json({ error: 'Could not update message receipt' });
+  }
+}
+
+module.exports = { handoffFromBot, getMyConversation, startConversation, listConversations, getMessages, claimConversation, closeConversation, receipt };

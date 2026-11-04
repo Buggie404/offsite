@@ -167,6 +167,10 @@ export class AiChatDrawerComponent {
   }
 
   talkToPerson(): void {
+    if (this.chatService.humanChatActive()) {
+      this.chatService.returnToBot();
+      return;
+    }
     this.chatService.requestHandover('user_request');
   }
 

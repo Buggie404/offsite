@@ -21,8 +21,14 @@ export type AdminOrderStatusFilter =
   | 'pending_refund'
   | 'refund_rejected';
 
-/** Needs attention › flags the system sets on an order (?attention=). */
-export type AdminOrderAttentionFilter = 'all' | 'ritual_box_not_started';
+/**
+ * Needs attention (?attention=): every urgent order, or only paid Ritual Boxes that couldn't
+ * start (dashboard to-do links use that one).
+ */
+export type AdminOrderAttentionFilter = 'all' | 'needs_attention' | 'ritual_box_not_started';
+
+/** Why an order is urgent: refund request waiting, failed delivery, Ritual Box not started. */
+export type AdminOrderAttentionReason = 'pending_refund' | 'delivery_failed' | 'ritual_box_not_started';
 
 /** 'all' or one of the order types (same rule as the badge). */
 export type AdminOrderTypeFilter = 'all' | OrderType;
@@ -43,6 +49,9 @@ export interface AdminOrderListItem {
   is_guest: boolean;
   /** Paid Ritual Box lines but no box could start (card removed). */
   subscription_start_failed?: boolean;
+  /** Urgent order: listed first by default and highlighted in the table. */
+  needs_attention?: boolean;
+  attention_reasons?: AdminOrderAttentionReason[];
 }
 
 export interface AdminOrderStats {

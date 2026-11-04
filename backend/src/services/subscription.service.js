@@ -6,6 +6,7 @@ const User = require('../models/User');
 const notificationService = require('./notification.service');
 const inventoryService = require('./inventory.service');
 const { appendInternalNote } = require('../utils/internal-notes');
+const { addCycleDays } = require('../utils/subscription-time');
 
 // Business rules: "Project Planning & Prep 2" — Subscription conventions.
 const FREQUENCIES = [7, 14, 30];
@@ -26,7 +27,7 @@ const round2 = n => Math.round(n * 100) / 100;
 // A shorter frequency moves the next charge earlier, but never closer than the 48h notice window.
 const shiftedChargeAt = (sub, days, now) => new Date(Math.max(
   now.getTime() + LOCK_WINDOW_HOURS * HOUR_MS,
-  addDays(sub.next_charge_at, days - sub.frequency_days).getTime()
+  addCycleDays(sub.next_charge_at, days - sub.frequency_days).getTime()
 ));
 
 class SubscriptionActionError extends Error {
@@ -237,7 +238,7 @@ async function chargeSubscription(sub, { now = new Date() } = {}) {
   }
 
   sub.last_charged_at = now;
-  sub.next_charge_at = addDays(now, sub.frequency_days);
+  sub.next_charge_at = addCycleDays(now, sub.frequency_days);
   sub.failed_attempts = 0;
   sub.last_failure_reason = null;
   sub.next_retry_at = null;
@@ -259,11 +260,11 @@ function applyPendingAfterCharge(sub, now) {
   }
   if (p.frequency_days) {
     sub.frequency_days = p.frequency_days;
-    sub.next_charge_at = addDays(now, p.frequency_days);
+    sub.next_charge_at = addCycleDays(now, p.frequency_days);
   }
   if (p.skip) {
     sub.skipped_deliveries.push(sub.next_charge_at);
-    sub.next_charge_at = addDays(sub.next_charge_at, sub.frequency_days);
+    sub.next_charge_at = addCycleDays(sub.next_charge_at, sub.frequency_days);
     sub.consecutive_skips = 1;
   }
   if (p.pause_option) {
@@ -363,7 +364,7 @@ async function createSubscriptionsFromOrder(order, { paymentMethodId = null } = 
       variant_id: line.variant_id,
       quantity: line.quantity,
       frequency_days: frequency,
-      next_charge_at: addDays(now, frequency),
+      next_charge_at: addCycleDays(now, frequency),
       status: 'active',
       pricing_snapshot: pricing || {
         original_price: line.unit_price,
@@ -376,26 +377,123 @@ async function createSubscriptionsFromOrder(order, { paymentMethodId = null } = 
       last_charged_at: now,
       source_order_id: order.order_id
     });
-    await sub.save();
+    try {
+      await sub.save();
+    } catch (err) {
+      // Second line of defence (unique source_order_id + product_id + variant_id index): another
+      // request created this line's box first — hand that one back instead of making another.
+      if (!isDuplicateSourceLine(err)) throw err;
+      const existing = await Subscription.findOne({
+        source_order_id: order.order_id, product_id: line.product_id, variant_id: line.variant_id
+      });
+      if (!existing) throw err;
+      created.push(existing);
+      continue;
+    }
     created.push(sub);
   }
   return created;
+}
+
+// E11000 on the source-line index (not e.g. a subscription_id collision, which must surface).
+function isDuplicateSourceLine(err) {
+  return err?.code === 11000 && (Boolean(err.keyPattern?.source_order_id) || /source_order_id/.test(err.message || ''));
+}
+
+// Staff cancelled a Ritual Box delivery order because its item ran out after the charge
+// (Admin Orders › mark out of stock; the order is refunded there). The charge job already moved
+// next_charge_at to the following cycle, so this only records the lost cycle on the box:
+// a skipped delivery (shown in Delivery history) plus a staff entry in admin_messages, and tells
+// the customer. Like a staff skip it does NOT count toward the customer's 2-consecutive-skips
+// limit (consecutive_skips is untouched). The box stays as it is; cancelling it is a separate,
+// deliberate action in Admin › Subscriptions.
+// Returns { sub, oldValue } for the activity log, or null when there's nothing to record.
+async function skipCycleForCanceledOrder(order, { adminId, reason, itemNames = [], refunded = false } = {}) {
+  if (!order?.subscription_id) return null;
+  const cycleDate = new Date(order.created_at || Date.now());
+  const before = await Subscription.findOne({ subscription_id: order.subscription_id }).lean();
+  if (!before) return null;
+
+  // $push in one conditional update: never overwrites what the charge job / customer changed
+  // meanwhile, and the same cycle is recorded once.
+  const sub = await Subscription.findOneAndUpdate(
+    { subscription_id: order.subscription_id, skipped_deliveries: { $ne: cycleDate } },
+    {
+      $push: {
+        skipped_deliveries: cycleDate,
+        admin_messages: {
+          action: 'skip',
+          reason: reason || null,
+          message: `Delivery order ${order.order_id} cancelled: out of stock${refunded ? ', refunded in full' : ''}.`,
+          sent_by: String(adminId || 'system'),
+          sent_at: new Date()
+        }
+      }
+    },
+    { new: true }
+  );
+  if (!sub) return null;
+
+  const items = itemNames.length ? itemNames.join(', ') : 'An item';
+  const next = sub.status === 'active' && sub.next_charge_at
+    ? ` Your next box is scheduled for ${new Date(sub.next_charge_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: 'numeric', month: 'short', year: 'numeric' })}.`
+    : '';
+  await notificationService.notifySubscription(
+    { user_id: sub.user_id, subscription_id: sub.subscription_id, order_id: order.order_id },
+    'SUBSCRIPTION_SKIPPED',
+    `${items} ran out of stock, so we cancelled this delivery (order ${order.order_id})`
+      + `${refunded ? ' and refunded your payment in full' : ''}.${next}`
+  );
+
+  const snapshot = (doc) => ({
+    status: doc.status,
+    next_charge_at: doc.next_charge_at,
+    consecutive_skips: doc.consecutive_skips,
+    skipped_deliveries: doc.skipped_deliveries
+  });
+  return { sub, oldValue: snapshot(before), newValue: { ...snapshot(sub), order_id: order.order_id } };
 }
 
 // POST /api/subscriptions/start-from-order/:orderId — the customer starts the Ritual Box of a
 // flagged order (subscription_start_failed) with a card saved since. Clears the flag on success.
 async function startFromOrder(userIdStr, orderId, paymentMethodId) {
   if (!paymentMethodId) throw new SubscriptionActionError('Choose a card for your Ritual Box.');
-  const order = await Order.findOne({ order_id: orderId, user_id: userIdStr });
-  if (!order) throw new SubscriptionActionError('Order not found.', 404);
-  if (!order.subscription_start_failed) {
-    throw new SubscriptionActionError('The Ritual Box of this order has already started.', 409);
-  }
-  if (order.payment_status !== 'paid' || ['canceled', 'refund', 'pending_refund'].includes(order.order_status)) {
+  // Claim the order atomically: of two concurrent requests (two tabs) only one clears the flag
+  // and goes on to create the box; the other gets the same 409 as a box already started.
+  const claimed = await Order.findOneAndUpdate(
+    {
+      order_id: orderId,
+      user_id: userIdStr,
+      subscription_start_failed: true,
+      payment_status: 'paid',
+      order_status: { $nin: ['canceled', 'refund', 'pending_refund'] }
+    },
+    { $set: { subscription_start_failed: false, subscription_start_failed_at: null } },
+    { new: false }
+  );
+  if (!claimed) {
+    const order = await Order.findOne({ order_id: orderId, user_id: userIdStr }, 'subscription_start_failed').lean();
+    if (!order) throw new SubscriptionActionError('Order not found.', 404);
+    if (!order.subscription_start_failed) {
+      throw new SubscriptionActionError('The Ritual Box of this order has already started.', 409);
+    }
     throw new SubscriptionActionError('This order can no longer start a Ritual Box.', 409);
   }
 
-  await createSubscriptionsFromOrder(order, { paymentMethodId });
+  // Put the flag back if no box came out of it, so the customer / CSKH can try again.
+  const restoreFlag = () => Order.updateOne(
+    { order_id: orderId, subscription_start_failed: false },
+    { $set: { subscription_start_failed: true, subscription_start_failed_at: claimed.subscription_start_failed_at } }
+  ).catch(err => console.error(`Order ${orderId}: could not restore subscription_start_failed.`, err));
+  try {
+    const created = await createSubscriptionsFromOrder(claimed, { paymentMethodId });
+    if (!created.length && !(await Subscription.exists({ source_order_id: orderId }))) {
+      throw new SubscriptionActionError('This order can no longer start a Ritual Box.', 409);
+    }
+  } catch (err) {
+    await restoreFlag();
+    throw err;
+  }
   const fresh = await Order.findOne({ order_id: orderId }, 'internal_notes').lean();
   await Order.updateOne(
     { order_id: orderId },
@@ -445,7 +543,7 @@ async function suggestAdjustmentsForOrder(order) {
       // Conditional write so a concurrent order can't suggest (and notify) twice.
       const sub = await Subscription.findOneAndUpdate(
         { _id: candidate._id, frequency_days: candidate.frequency_days, $or: filter.$or },
-        { $set: { suggested_frequency_days: days, suggested_at: now } },
+        { $set: { suggested_frequency_days: days, suggested_at: now, suggested_by_order_id: order.order_id } },
         { new: true }
       );
       if (!sub) continue;
@@ -461,6 +559,21 @@ async function suggestAdjustmentsForOrder(order) {
 }
 
 // Ritual Boxes started by a checkout order (for the order confirmation page).
+// The one-time order behind a suggestion was canceled, refunded or is being refunded: the
+// customer didn't end up buying it, so the "get your next box sooner" suggestion is withdrawn.
+// An adjustment the customer already accepted is NOT reverted — accepting is a decision the
+// customer made and was applied (frequency / next charge already changed); only a suggestion
+// still waiting on them is removed. The SUBSCRIPTION_ADJUSTED notification stays in the list
+// (Notifications have no "expired" state); the Ritual Box page no longer shows Accept for it.
+async function withdrawSuggestionsForOrder(orderId) {
+  if (!orderId) return 0;
+  const result = await Subscription.updateMany(
+    { suggested_by_order_id: orderId },
+    { $set: { suggested_frequency_days: null, suggested_at: null, suggested_by_order_id: null } }
+  );
+  return result.modifiedCount || 0;
+}
+
 async function shapeOrderSubscription(sub) {
   const product = await findProduct(sub.product_id);
   const variant = (product?.variants || []).find(v => v.sku === sub.variant_id) || null;
@@ -524,6 +637,7 @@ async function applyDueTransitions(sub, now) {
   if (sub.suggested_frequency_days && sub.suggested_at && addDays(sub.suggested_at, SUGGESTION_TTL_DAYS) <= now) {
     sub.suggested_frequency_days = null;
     sub.suggested_at = null;
+    sub.suggested_by_order_id = null;
     dirty = true;
   }
   // Staff proposal not answered within 3 days → it lapses and nothing changes.
@@ -734,7 +848,7 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
         sub.pending_changes.skip = true;
       } else {
         sub.skipped_deliveries.push(sub.next_charge_at);
-        sub.next_charge_at = addDays(sub.next_charge_at, sub.frequency_days);
+        sub.next_charge_at = addCycleDays(sub.next_charge_at, sub.frequency_days);
         sub.consecutive_skips = (sub.consecutive_skips || 0) + 1;
       }
       break;
@@ -781,6 +895,7 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
       }
       sub.suggested_frequency_days = null;
       sub.suggested_at = null;
+      sub.suggested_by_order_id = null;
       break;
     }
 
@@ -859,11 +974,13 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
       }
       sub.suggested_frequency_days = null;
       sub.suggested_at = null;
+      sub.suggested_by_order_id = null;
       break;
     }
     case 'dismiss_adjustment': {
       sub.suggested_frequency_days = null;
       sub.suggested_at = null;
+      sub.suggested_by_order_id = null;
       break;
     }
 
@@ -891,6 +1008,8 @@ module.exports = {
   createSubscriptionsFromOrder,
   startFromOrder,
   suggestAdjustmentsForOrder,
+  skipCycleForCanceledOrder,
+  withdrawSuggestionsForOrder,
   getOrderSubscriptions,
   getOrderRitualBoxes,
   applyAction,

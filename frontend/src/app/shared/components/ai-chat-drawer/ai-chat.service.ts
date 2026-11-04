@@ -277,7 +277,7 @@ export class AiChatService {
   }
 
   private applyLoaded(res: any, source: 'current' | 'history'): void {
-    this.humanChatActive.set(!!res?.support_conversation_id && ['waiting', 'in_progress'].includes(res?.status));
+    this.humanChatActive.set(res?.human_chat === true || ['waiting', 'in_progress'].includes(res?.status));
     const decision: ChatDecision = res?.decision || 'continue';
     this.currentDecision.set(decision);
     if (decision === 'rotate' && source === 'current') {
@@ -373,6 +373,8 @@ export class AiChatService {
       const message: ChatMessage = {
         id: row?.message_id || ('m-' + Math.random().toString(36).slice(2)),
         sender,
+        agentInfo: sender === 'agent' ? meta.agentInfo : undefined,
+        deliveryStatus: sender === 'user' ? (meta.delivery_status || 'sent') : undefined,
         text,
         formattedHtml: sender === 'ai' && text ? this.formatMarkdown(text) : undefined,
         timestamp: row?.created_at ? new Date(row.created_at) : new Date(),
@@ -550,6 +552,7 @@ export class AiChatService {
     const userMsg: ChatMessage = {
       id: 'user-' + Date.now(),
       sender: 'user',
+      deliveryStatus: 'sending',
       text: trimmed,
       timestamp: new Date()
     };
@@ -591,7 +594,7 @@ export class AiChatService {
         }
         if (res.user_message_id) {
           this.messages.update(msgs => msgs.map(msg => (
-            msg.id === userMsg.id ? { ...msg, id: res.user_message_id } : msg
+            msg.id === userMsg.id ? { ...msg, id: res.user_message_id, deliveryStatus: 'sent' } : msg
           )));
         }
 
@@ -643,6 +646,7 @@ export class AiChatService {
       error: (err) => {
         if (epoch !== this.requestEpoch || view !== this.viewToken) return;
         this.isTyping.set(false);
+        this.messages.update(msgs => msgs.map(msg => msg.id === userMsg.id ? { ...msg, deliveryStatus: 'failed' } : msg));
         const body = err?.error && typeof err.error === 'object' ? err.error : {};
         const status = body.status || '';
 
@@ -720,11 +724,13 @@ export class AiChatService {
           this.pushUnavailableForm(res);
           return;
         }
+        if (hooks?.userMessageId) this.messages.update(msgs => msgs.map(msg => msg.id === hooks.userMessageId ? { ...msg, deliveryStatus: 'sent' } : msg));
         this.pushHandoffBanner();
       },
       error: (err) => {
         if (epoch !== this.requestEpoch || view !== this.viewToken) return;
         const body = err?.error && typeof err.error === 'object' ? err.error : {};
+        if (hooks?.userMessageId) this.messages.update(msgs => msgs.map(msg => msg.id === hooks.userMessageId ? { ...msg, deliveryStatus: 'failed' } : msg));
         if (err?.status === 409 || body.status === 'closed') {
           if (hooks?.userMessageId) this.rollbackMessage(hooks.userMessageId);
           this.currentDecision.set('closed');
@@ -732,6 +738,24 @@ export class AiChatService {
           return;
         }
         this.pushAssistantText(body.message || 'Could not connect you to the team. Please try again.');
+      }
+    });
+  }
+
+  returnToBot(): void {
+    if (!this.humanChatActive() || this.composerBlocked()) return;
+    const epoch = this.requestEpoch, view = this.viewToken;
+    this.interaction.set('loading');
+    this.http.post<any>(`${environment.apiUrl}/ai-chat/return-to-bot`, { session_id: this.sessionId() }).subscribe({
+      next: res => {
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
+        this.conversationId.set('');
+        this.applyLoaded(res, 'current');
+      },
+      error: () => {
+        if (epoch !== this.requestEpoch || view !== this.viewToken) return;
+        this.interaction.set('ready');
+        this.pushAssistantText('Could not switch to the chatbot. Please try again.');
       }
     });
   }
@@ -758,6 +782,7 @@ export class AiChatService {
     const message: ChatMessage = {
       id: 'user-' + Date.now(),
       sender: 'user',
+      deliveryStatus: 'sending',
       text,
       timestamp: new Date()
     };

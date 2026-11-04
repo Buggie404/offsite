@@ -69,11 +69,36 @@
 }
 
 .stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
   padding: 20px;
   background: var(--admin-surface-card);
   border: 1px solid var(--admin-divider);
   border-radius: var(--radius-card);
   box-shadow: var(--admin-shadow-card);
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stat-card:hover {
+  border-color: var(--color-forest-green);
+}
+
+.stat-card:focus-visible {
+  outline: 2px solid var(--color-forest-green);
+  outline-offset: 2px;
+}
+
+/* The card whose filter is applied to the table. */
+.stat-card--active,
+.stat-card--active:hover {
+  border-color: var(--color-forest-green);
+  box-shadow: inset 0 0 0 1px var(--color-forest-green), var(--admin-shadow-card);
 }
 
 .stat-card__label {
@@ -110,57 +135,30 @@
   border-color: transparent;
 }
 
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-  overflow: visible;
+.stat-card--accent.stat-card--active,
+.stat-card--attention.stat-card--active {
+  border-color: var(--color-forest-green);
 }
 
-.filter-bar__group {
+/* Second row under the header search: status, type, date, Needs attention.
+   Wraps onto more lines on narrow screens instead of scrolling, so the date panel isn't clipped. */
+.filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-bottom: 20px;
+}
+
+.filter-field {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex-wrap: wrap;
-  overflow: visible;
+  min-width: 0;
 }
 
-/* ─── Responsive: horizontal scroll for filter groups ─── */
-@media (max-width: 900px) {
-  .filter-bar {
-    flex-wrap: nowrap;
-    gap: 0;
-    overflow-x: auto;
-    overflow-y: visible;
-    padding-bottom: 4px;
-    /* hide scrollbar visually but keep functionality */
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .filter-bar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .filter-bar__group {
-    flex-wrap: nowrap;
-    flex-shrink: 0;
-    padding-right: 12px;
-    overflow: visible;
-  }
-
-  .filter-bar__group--date {
-    flex-shrink: 0;
-    margin-left: auto;
-    padding-right: 0;
-  }
-}
-
-.filter-bar__group--date {
+.filter-field--date {
   position: relative;
-  margin-left: auto;
 }
 
 .filter-label {
@@ -171,11 +169,12 @@
   color: var(--color-warm-brown);
 }
 
-.filter-pill {
+.filter-toggle {
   display: inline-flex;
   align-items: center;
-  height: 32px;
-  padding: 0 14px;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px 0 14px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--admin-divider);
   background: var(--admin-surface-card);
@@ -188,15 +187,25 @@
   box-shadow: var(--admin-shadow-sm);
 }
 
-.filter-pill:hover {
+.filter-toggle:hover {
   border-color: var(--color-forest-green);
   color: var(--color-forest-green);
 }
 
-.filter-pill--active {
+.filter-toggle--active,
+.filter-toggle--active:hover {
   background: var(--color-sage);
   border-color: var(--color-sage);
   color: var(--color-near-black);
+}
+
+.filter-toggle__count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--state-warning) 18%, transparent);
+  color: var(--color-near-black);
+  text-align: center;
 }
 
 .filter-select {
@@ -234,8 +243,8 @@
 .custom-range-panel {
   position: absolute;
   top: calc(100% + 8px);
-  right: 0;
-  left: auto;
+  left: 0;
+  right: auto;
   z-index: 30;
   width: min(420px, calc(100vw - 48px));
   padding: var(--space-4);
@@ -469,6 +478,19 @@
   background: rgba(207, 225, 185, 0.12);
 }
 
+/* Urgent order: light warning tint and a warning edge, from the --state-warning token. */
+.data-table__row--attention td {
+  background: color-mix(in srgb, var(--state-warning) 7%, var(--admin-surface-card));
+}
+
+.data-table__row--attention td:first-child {
+  box-shadow: inset 3px 0 0 var(--state-warning);
+}
+
+.data-table__row--attention:hover td {
+  background: color-mix(in srgb, var(--state-warning) 12%, var(--admin-surface-card));
+}
+
 .data-table__link {
   font-family: var(--font-mono);
   font-size: 13px;
@@ -550,6 +572,34 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .filter-row {
+    gap: 10px;
+  }
+
+  .filter-field {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+
+  .filter-field--date {
+    align-items: flex-start;
+  }
+
+  .filter-field--date .filter-label {
+    padding-top: 11px;
+  }
+
+  .filter-field--date .date-filter {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex: 1;
+  }
+
+  .filter-select {
+    width: 180px;
+  }
+
   .page-header {
     flex-direction: column;
   }
@@ -586,12 +636,22 @@
 }
 
 .attention-tag {
-  display: inline-block;
-  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: fit-content;
+  margin: 6px auto 0;
   padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #b42318;
-  background: #fef3f2;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-near-black);
+  background: color-mix(in srgb, var(--state-warning) 18%, transparent);
+}
+
+.attention-tag svg {
+  color: var(--state-warning);
 }

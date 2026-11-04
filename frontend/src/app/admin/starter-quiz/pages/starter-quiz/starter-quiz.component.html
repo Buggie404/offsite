@@ -1,0 +1,393 @@
+<section class="quiz-admin">
+  <header class="quiz-admin__head">
+    <div>
+      <h1>Starter quiz</h1>
+      <p>Rule-based · {{ questions.length }} questions · {{ kits.length }} kits</p>
+    </div>
+    <div class="quiz-admin__tools">
+      <a class="preview-link" href="/starter-quiz" target="_blank" rel="noopener">
+        <svg lucideEye aria-hidden="true" [size]="16"></svg>
+        Preview quiz
+      </a>
+      <label class="quiz-switch">
+        <span>Quiz on</span>
+        <input type="checkbox" [checked]="enabled" (change)="toggleQuiz($event)" />
+      </label>
+    </div>
+  </header>
+
+  @if (error) {
+    <p class="quiz-error" role="alert">{{ error }}</p>
+  }
+
+  <div class="quiz-tabs">
+    <div class="quiz-tabs__links" role="tablist">
+      <button type="button" role="tab" [class.is-active]="tab === 'questions'" (click)="tab = 'questions'">
+        Questions ({{ questions.length }})
+      </button>
+      <button type="button" role="tab" [class.is-active]="tab === 'kits'" (click)="tab = 'kits'">
+        Kits &amp; matching ({{ kits.length }})
+      </button>
+    </div>
+    @if (tab === 'kits') {
+      <button type="button" class="btn btn--forest" (click)="openAddKit()">
+        <svg lucidePlus aria-hidden="true" [size]="16"></svg>
+        Add kit
+      </button>
+    }
+  </div>
+
+  @if (loading) {
+    <p class="quiz-loading">Loading the quiz configuration…</p>
+  } @else if (tab === 'questions') {
+    <div class="question-layout">
+      <aside class="panel question-list">
+        <header>
+          <span>Questions</span>
+          <span>{{ questions.length }} of 5–6</span>
+        </header>
+        <ul>
+          @for (question of questions; track question.question_id) {
+            <li
+              [class.is-selected]="question.question_id === selectedId"
+              draggable="true"
+              (dragstart)="dragStart(question.question_id)"
+              (dragover)="$event.preventDefault()"
+              (drop)="dropOn(question.question_id)"
+            >
+              <button type="button" class="question-row" (click)="selectQuestion(question)">
+                <svg lucideGripVertical aria-hidden="true" [size]="16"></svg>
+                <span class="question-row__index">{{ question.order }}</span>
+                <span class="question-row__copy">
+                  <strong>{{ question.question }}</strong>
+                  <span>
+                    <em [attr.data-role]="question.matching_role">{{ roleBadge(question.matching_role) }}</em>
+                    {{ question.options.length }} options
+                  </span>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+        <button type="button" class="btn btn--forest" [disabled]="questions.length >= 6" (click)="addQuestion()">
+          <svg lucidePlus aria-hidden="true" [size]="16"></svg>
+          Add question
+        </button>
+        <p>Drag to reorder. Quiz needs 5–6 questions.</p>
+      </aside>
+
+      @if (draft) {
+        <article class="panel question-editor">
+          <header>
+            <h2>Question {{ draft.order }} · {{ draft.code }}</h2>
+            <button type="button" class="btn btn--danger" (click)="askDelete()">
+              <svg lucideTrash2 aria-hidden="true" [size]="14"></svg>
+              Delete
+            </button>
+          </header>
+
+          <label>
+            <span>Question</span>
+            <input [(ngModel)]="draft.question" (blur)="saveDraft()" />
+          </label>
+
+          <label>
+            <span>Role in matching</span>
+            <select [(ngModel)]="draft.matching_role" (ngModelChange)="saveDraft()">
+              @for (role of roles; track role.value) {
+                <option [value]="role.value">{{ role.select }}</option>
+              }
+            </select>
+          </label>
+          <p class="field-note">Hard filter removes kits outside the answer. Primary and secondary must match the kit rule. Copy only changes the result headline, not the products.</p>
+
+          <div class="option-table">
+            <header>
+              <span>Options → answer value</span>
+            </header>
+            <div class="option-table__head">
+              <span>Icon</span>
+              <span>Label</span>
+              <span>Sets</span>
+              <span></span>
+            </div>
+            @for (option of draft.options; track option.option_id) {
+              <div class="option-row">
+                <span class="option-icon" aria-hidden="true"></span>
+                @if (editingOptionId === option.option_id) {
+                  <input [(ngModel)]="option.text" (blur)="saveDraft()" aria-label="Option label" />
+                  <input [(ngModel)]="option.code" (blur)="saveDraft()" aria-label="Answer value" />
+                  <button type="button" class="icon-btn" [disabled]="draft.options.length < 2" (click)="removeOption(option.option_id)" aria-label="Remove option">
+                    <svg lucideTrash2 aria-hidden="true" [size]="14"></svg>
+                  </button>
+                } @else {
+                  <strong>{{ option.text }}</strong>
+                  <em>{{ option.code }}</em>
+                  <button type="button" class="icon-btn" (click)="editingOptionId = option.option_id" aria-label="Edit option">
+                    <svg lucidePencil aria-hidden="true" [size]="14"></svg>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+
+          <button type="button" class="btn btn--forest" (click)="addOption()">
+            <svg lucidePlus aria-hidden="true" [size]="16"></svg>
+            Add option
+          </button>
+        </article>
+      }
+    </div>
+  } @else {
+    <div class="kit-layout">
+      <div class="panel kit-table-wrap">
+        <table class="kit-table">
+          <thead>
+            <tr>
+              <th>Kit</th>
+              <th>Drink</th>
+              <th>Level</th>
+              <th>Budget</th>
+              <th>Slots (product ranges)</th>
+              <th>Retail → bundle</th>
+              <th>Stock</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (kit of kits; track kit.kit_id) {
+              <tr>
+                <td>{{ kit.name }}</td>
+                <td>{{ kit.drink }}</td>
+                <td>{{ kit.level }}</td>
+                <td>{{ kit.budget_label }}</td>
+                <td>{{ kit.slot_summary }}</td>
+                <td>{{ priceSpan(kit) }}</td>
+                <td><span class="stock" [attr.data-stock]="kit.stock.code">{{ kit.stock.label }}</span></td>
+                <td><span class="status" [attr.data-status]="kit.display_status">{{ kit.display_status }}</span></td>
+                <td>
+                  <button type="button" class="icon-btn" (click)="openEditKit(kit)" [attr.aria-label]="'Edit ' + kit.name">
+                    <svg lucidePencil aria-hidden="true" [size]="14"></svg>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="kit-lower">
+        <section class="panel tester">
+          <header>
+            <h2>Rule tester</h2>
+            <p>Try answers before turning the quiz on</p>
+          </header>
+          <div class="tester__fields">
+            <label>
+              <span>Q2 Drink</span>
+              <select [(ngModel)]="testDrink" (ngModelChange)="runTest()">
+                @for (drink of drinks; track drink) {
+                  <option [value]="drink">{{ drink }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              <span>Q3 Level</span>
+              <select [(ngModel)]="testLevel" (ngModelChange)="runTest()">
+                @for (level of levels; track level) {
+                  <option [value]="level">{{ level }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              <span>Q4 Budget</span>
+              <select [(ngModel)]="testBudget" (ngModelChange)="runTest()">
+                @for (budget of budgets; track budget.value) {
+                  <option [value]="budget.value">{{ budget.label }}</option>
+                }
+              </select>
+            </label>
+          </div>
+          @if (test) {
+            <h3>How the result was picked</h3>
+            <ol>
+              @for (step of test.steps; track step) {
+                <li>{{ step }}</li>
+              }
+            </ol>
+            <p class="tester__result">{{ test.result }}</p>
+          }
+          <p class="field-note">No kit left after a step shows the closest kit and is logged as a no-match.</p>
+        </section>
+
+        <aside class="panel stock-rules">
+          <h2>Stock rules</h2>
+          <p><span class="stock" data-stock="range_low">1 range low</span> A slot’s filter still matches in-stock products, but fewer than 3. The quiz still sells and picks the next in-stock match.</p>
+          <p><span class="stock" data-stock="hero_oos">Hero range OOS</span> No product in the hero slot’s range is in stock. The kit is suspended and skipped by the quiz.</p>
+          <p><span class="status" data-status="draft">Draft</span> Not used by the quiz yet.</p>
+        </aside>
+      </div>
+    </div>
+  }
+</section>
+
+@if (kitOpen) {
+  <div class="kit-modal" role="presentation" (click)="closeKit()">
+    <form class="kit-dialog" role="dialog" aria-labelledby="kit-dialog-title" (click)="$event.stopPropagation()" (ngSubmit)="saveKit()">
+      <header>
+        <h2 id="kit-dialog-title">{{ editingKitId ? 'Edit kit' : 'Add kit' }}</h2>
+        <button type="button" class="icon-btn" (click)="closeKit()" aria-label="Close">
+          <svg lucideX aria-hidden="true" [size]="18"></svg>
+        </button>
+      </header>
+
+      <div class="kit-dialog__intro">
+        <div class="kit-image" aria-hidden="true"></div>
+        <div>
+          <label>
+            <span>Name</span>
+            <input [(ngModel)]="kitForm.name" name="kitName" required />
+          </label>
+          <label>
+            <span>Tier</span>
+            <select [(ngModel)]="kitForm.tier" name="kitTier">
+              @for (tier of tiers; track tier) {
+                <option [value]="tier">{{ tier }}</option>
+              }
+            </select>
+          </label>
+          <label class="span-2">
+            <span>One-line description</span>
+            <input [(ngModel)]="kitForm.description" name="kitDescription" />
+          </label>
+        </div>
+      </div>
+
+      <h3>Slots · each slot is a product range picked by filters</h3>
+      <div class="slot-table">
+        <div class="slot-table__head">
+          <span>#</span>
+          <span>Slot</span>
+          <span>Product range (filters)</span>
+          <span>Matches</span>
+          <span>Hero</span>
+        </div>
+        @for (slot of kitForm.slots; track slot.slot_id; let index = $index) {
+          <div class="slot-row">
+            <span>{{ index + 1 }}</span>
+            <input [(ngModel)]="slot.name" [name]="'slotName' + slot.slot_id" (blur)="queuePreview()" />
+            <div class="slot-filters">
+              <svg lucideFilter aria-hidden="true" [size]="14"></svg>
+              <select [(ngModel)]="slot.category" [name]="'slotCategory' + slot.slot_id" (ngModelChange)="changeCategory(slot)">
+                <option value="matcha">Matcha</option>
+                <option value="coffee">Coffee</option>
+                <option value="tools">Tools</option>
+                <option value="drinkware">Drinkware</option>
+              </select>
+              <select [(ngModel)]="slot.attribute" [name]="'slotAttribute' + slot.slot_id" (ngModelChange)="queuePreview()">
+                @for (attribute of attributesFor(slot.category); track attribute) {
+                  <option [value]="attribute">{{ attribute }}</option>
+                }
+              </select>
+              <select [(ngModel)]="slot.constraint" [name]="'slotConstraint' + slot.slot_id" (ngModelChange)="queuePreview()">
+                @for (constraint of constraints; track constraint) {
+                  <option [value]="constraint">{{ constraint }}</option>
+                }
+              </select>
+            </div>
+            <p class="slot-matches">
+              <strong>{{ slotPreview(slot.slot_id)?.match_count || 0 }} products</strong>
+              <span>{{ slotPreview(slot.slot_id)?.stock_count || 0 }} in stock</span>
+            </p>
+            <label class="hero-switch">
+              <input type="checkbox" [checked]="slot.hero" (change)="setHero(slot, $any($event.target).checked)" />
+            </label>
+          </div>
+        }
+      </div>
+      <button type="button" class="btn btn--ghost" (click)="addSlot()">
+        <svg lucidePlus aria-hidden="true" [size]="14"></svg>
+        Add slot
+      </button>
+      <p class="note-banner">
+        <svg lucideInfo aria-hidden="true" [size]="16"></svg>
+        The quiz picks the best-selling in-stock product inside each range, so no fixed substitute is needed. If the hero slot’s range has nothing in stock, the kit is suspended.
+      </p>
+
+      <section class="match-rule">
+        <h3>Matching rule · same values as quiz answers</h3>
+        <div class="chips">
+          <div>
+            <span>Drink (Q2)</span>
+            <div>
+              @for (drink of drinks; track drink) {
+                <button type="button" [class.is-selected]="kitForm.drink === drink" (click)="kitForm.drink = drink">{{ drink }}</button>
+              }
+            </div>
+          </div>
+          <div>
+            <span>Level (Q3)</span>
+            <div>
+              @for (level of levels; track level) {
+                <button type="button" [class.is-selected]="kitForm.level === level" (click)="kitForm.level = level">{{ level }}</button>
+              }
+            </div>
+          </div>
+          <div>
+            <span>Budget (Q4)</span>
+            <div>
+              @for (budget of budgets; track budget.value) {
+                <button type="button" [class.is-selected]="kitForm.budget === budget.value" (click)="kitForm.budget = budget.value">{{ budget.label }}</button>
+              }
+            </div>
+          </div>
+        </div>
+        <p class="note-banner">
+          <svg lucideInfo aria-hidden="true" [size]="16"></svg>
+          No overlap with other active kits. Two active kits cannot share the same Drink + Level + Budget.
+        </p>
+      </section>
+
+      <div class="kit-footer-fields">
+        <label>
+          <span>Bundle discount</span>
+          <input type="number" min="0" max="100" [(ngModel)]="kitForm.discount_percent" name="discount" (ngModelChange)="queuePreview()" />
+        </label>
+        <label>
+          <span>Price preview (range)</span>
+          <input readonly [value]="kitPreview ? priceSpan(kitPreview) : ''" />
+          <small>depends on picked products</small>
+        </label>
+        <label>
+          <span>Status</span>
+          <select [(ngModel)]="kitForm.status" name="kitStatus">
+            @for (status of statuses; track status) {
+              <option [value]="status">{{ status }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      @if (kitError) {
+        <p class="quiz-error" role="alert">{{ kitError }}</p>
+      }
+
+      <footer>
+        <button type="button" class="btn btn--ghost" (click)="closeKit()">Cancel</button>
+        <button type="submit" class="btn btn--forest" [disabled]="saving">Save kit</button>
+      </footer>
+    </form>
+  </div>
+}
+
+<app-confirmation-modal
+  [isOpen]="confirmDelete"
+  title="Delete this question?"
+  message="Its answers will be removed from the quiz. Kits are not deleted."
+  confirmText="Delete"
+  cancelText="Cancel"
+  type="danger"
+  (confirm)="deleteSelected()"
+  (cancel)="confirmDelete = false"
+></app-confirmation-modal>

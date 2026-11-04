@@ -27,6 +27,16 @@ describe('AI Concierge human handover', () => {
     http.expectOne(request => request.url.endsWith('/ai-chat/handover')).flush({ handover: true });
   }
 
+  it('restores human mode from waiting status even when an older session lacks the conversation link', () => {
+    service.openHistory('LEGACY1');
+    http.expectOne(request => request.url.endsWith('/ai-chat/sessions/LEGACY1')).flush({
+      status: 'waiting', messages: [
+        { message_id: 'SYSTEM1', sender: 'system', text: 'Customer asked to talk to a person.' }
+      ]
+    });
+    expect(service.humanChatActive()).toBe(true);
+  });
+
   it('activates human chat after the shared handover endpoint succeeds', () => {
     handover();
     expect(service.humanChatActive()).toBe(true);

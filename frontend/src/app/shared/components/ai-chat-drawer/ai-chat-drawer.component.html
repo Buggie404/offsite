@@ -345,6 +345,11 @@
           <div class="msg-row msg-row--user">
             <div class="msg-bubble msg-bubble--user">
               <p>{{ msg.text }}</p>
+              @if (msg.deliveryStatus) {
+                <small class="message-receipt" role="status">
+                  {{ msg.deliveryStatus === 'sending' ? '◷ Sending' : msg.deliveryStatus === 'sent' ? '✓ Sent' : msg.deliveryStatus === 'delivered' ? '✓✓ Delivered' : msg.deliveryStatus === 'seen' ? '✓✓ Seen' : '⚠ Not sent' }}
+                </small>
+              }
             </div>
           </div>
         }
@@ -365,11 +370,11 @@
         @if (msg.sender === 'agent') {
           <div class="msg-row msg-row--agent">
             <div class="msg-avatar msg-avatar--agent">
-              <span>{{ msg.agentInfo?.avatarInitial || 'HP' }}</span>
+              <span>OS</span>
             </div>
             <div class="msg-content-wrapper">
               <div class="msg-bubble msg-bubble--agent">
-                <div class="agent-name-tag">{{ msg.agentInfo?.senderName || 'Ha · Offsite support' }}</div>
+                <div class="agent-name-tag">Offsite</div>
                 <p>{{ msg.text }}</p>
               </div>
             </div>
@@ -414,7 +419,8 @@
           type="text"
           class="chat-input"
           [placeholder]="composerPlaceholder()"
-          [(ngModel)]="inputText"
+          [value]="inputText"
+          (input)="inputText = $any($event.target).value"
           [disabled]="chatService.isTyping() || chatService.composerBlocked() || chatService.historyOpen()"
           (keydown)="onKeydown($event)"
         />
@@ -429,15 +435,27 @@
         </button>
       </div>
       <div class="footer-meta">
+        @if (chatService.humanChatActive()) {
         <button
           type="button"
           class="talk-to-human-link"
           [disabled]="chatService.composerBlocked() || chatService.historyOpen()"
-          (click)="talkToPerson()"
+          (click)="chatService.returnToBot()"
+        >
+          <svg lucideSparkles [size]="13"></svg>
+          <span>Talk to chatbot</span>
+        </button>
+        } @else {
+        <button
+          type="button"
+          class="talk-to-human-link"
+          [disabled]="chatService.composerBlocked() || chatService.historyOpen()"
+          (click)="chatService.requestHandover('user_request')"
         >
           <svg lucideUser [size]="13"></svg>
           <span>Talk to a person</span>
         </button>
+        }
         <span class="disclaimer">AI can make mistakes</span>
       </div>
     </footer>

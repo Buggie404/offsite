@@ -27,6 +27,7 @@ connectDB()
     require('./services/points.service').startPointsPostingJob();
     // Hourly (per minute with SUB_TIME_UNIT=minute): charge due Ritual Box subscriptions.
     require('./services/subscription-charge.service').startSubscriptionChargeJob();
+    require('./services/pending-order-expiry.service').startPendingOrderExpiryJob();
     require('./services/pantry.service').startPantryExpiryJob();
   })
   .catch((error) => {

@@ -17,4 +17,29 @@ const activityLogSchema = new mongoose.Schema({
 
 activityLogSchema.index({ created_at: -1 });
 
+// Append-only (Phân quyền Admin › Nhật ký hành động): a log is never edited or deleted, so every
+// update / delete through Mongoose is refused. Older names are mapped when reading instead
+// (activity-log.service LEGACY_ACTION_TYPE_ALIASES). Raw driver access isn't covered here.
+const APPEND_ONLY_ERROR = 'ActivityLogs are append-only: logs cannot be updated or deleted.';
+async function refuse() {
+  throw new Error(APPEND_ONLY_ERROR);
+}
+
+activityLogSchema.pre('save', async function appendOnlySave() {
+  if (!this.isNew) await refuse();
+});
+activityLogSchema.pre(
+  ['updateOne', 'updateMany', 'findOneAndUpdate', 'replaceOne', 'findOneAndReplace',
+    'deleteOne', 'deleteMany', 'findOneAndDelete', 'findOneAndRemove'],
+  { document: true, query: true },
+  refuse
+);
+// Mongoose 7 has no bulkWrite middleware: allow bulk inserts only.
+activityLogSchema.statics.bulkWrite = function appendOnlyBulkWrite(ops, ...rest) {
+  if (!Array.isArray(ops) || ops.some((op) => !op || Object.keys(op).some((kind) => kind !== 'insertOne'))) {
+    return refuse();
+  }
+  return mongoose.Model.bulkWrite.call(this, ops, ...rest);
+};
+
 module.exports = mongoose.model('ActivityLog', activityLogSchema);

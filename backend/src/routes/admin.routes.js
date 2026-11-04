@@ -20,6 +20,7 @@ const {
   ADMIN_ORDER_MANAGE_ROLES
 } = require('../middleware/auth.middleware');
 const { adminActivityLog } = require('../middleware/adminActivityLog.middleware');
+const adminStarterQuizController = require('../controllers/admin-starter-quiz.controller');
 
 router.post('/login', authController.adminLogin);
 // Staff set their own password here (first sign-in with a temporary password, or any time later).
@@ -112,5 +113,16 @@ router.post('/community/comments/:commentId/unhide', authMiddleware, requireRole
 router.get('/contact-messages', authMiddleware, requireRole('admin_cc', 'cskh'), contactMessagesController.listContactMessages);
 router.get('/contact-messages/:contactId', authMiddleware, requireRole('admin_cc', 'cskh'), contactMessagesController.getContactMessage);
 router.patch('/contact-messages/:contactId', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), contactMessagesController.updateContactMessage);
+
+router.get('/starter-quiz', authMiddleware, requireRole('admin_cc'), adminStarterQuizController.getConfig);
+router.patch('/starter-quiz/settings', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.updateSettings);
+router.post('/starter-quiz/questions', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.createQuestion);
+router.put('/starter-quiz/questions/reorder', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.reorderQuestions);
+router.patch('/starter-quiz/questions/:questionId', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.updateQuestion);
+router.delete('/starter-quiz/questions/:questionId', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.deleteQuestion);
+router.post('/starter-quiz/kits/preview', authMiddleware, requireRole('admin_cc'), adminStarterQuizController.previewKit);
+router.post('/starter-quiz/kits/test', authMiddleware, requireRole('admin_cc'), adminStarterQuizController.testRules);
+router.post('/starter-quiz/kits', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.createKit);
+router.patch('/starter-quiz/kits/:kitId', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.updateKit);
 
 module.exports = router;

@@ -23,6 +23,12 @@ const quizConfigSchema = new mongoose.Schema({
   order: { type: Number, required: true },
   selection_limit: { type: Number, default: 1, min: 1, max: 2 },
   quiz_version: { type: String, default: '1' },
+  // How an answer is used: copy_only, primary, secondary, or hard_filter.
+  matching_role: {
+    type: String,
+    enum: ['copy_only', 'primary', 'secondary', 'hard_filter'],
+    default: 'secondary'
+  },
   options: { type: [optionSchema], default: [] },
   // Conditional question. Example: Q2b only when Q2 = B.
   visible_when: {

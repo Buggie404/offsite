@@ -22,6 +22,7 @@ router.get('/conversations/:id/messages', chat.getMessages);
 
 // Agents
 router.get('/conversations', requireRole('cskh', 'admin_cc'), chat.listConversations);
+router.post('/conversations/:id/receipt', requireRole('cskh', 'admin_cc'), chat.receipt);
 router.patch('/conversations/:id/claim', requireRole('cskh', 'admin_cc'), chat.claimConversation);
 router.patch('/conversations/:id/close', chat.closeConversation);
 

@@ -127,7 +127,24 @@ function presentSession(session) {
 async function readSession({ sessionId, userId }) {
   const session = await loadSession(sessionId);
   if (!session || !ownsSession(session, userId) || session.deleted_at) return notFound();
-  return { body: presentSession(session) };
+  const body = presentSession(session);
+  if (session.support_conversation_id) {
+    const conversation = await require('../models/ChatConversation').findOne({
+      conversation_id: session.support_conversation_id
+    }).lean();
+    if (conversation && ['waiting', 'open'].includes(conversation.status)) {
+      body.status = conversation.status === 'open' ? 'in_progress' : 'waiting';
+      body.human_chat = true;
+      body.decision = 'continue';
+    } else if (conversation?.status === 'closed') {
+      body.status = session.status === 'closed' ? 'closed' : 'ai_active';
+      body.human_chat = false;
+    }
+  }
+  body.messages = body.messages.map(message => message.sender === 'agent'
+    ? { ...message, metadata: { ...message.metadata, agentInfo: { senderName: 'Offsite', avatarInitial: 'OS' } } }
+    : message);
+  return { body };
 }
 
 async function resumeSession({ sessionId, userId }) {
