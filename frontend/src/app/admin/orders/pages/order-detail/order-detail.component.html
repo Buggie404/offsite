@@ -115,6 +115,15 @@
                 }
                 @if (item.out_of_stock) {
                   <span class="line-item__oos-tag"><svg lucidePackageX [size]="12"></svg>Out of stock</span>
+                  @if (canResolveOutOfStock) {
+                    <span class="line-item__oos-actions">
+                      <span class="line-item__oos-hint">Waiting for the customer's choice:</span>
+                      @if (item.purchase_type !== 'subscription') {
+                        <button type="button" class="btn btn-secondary btn-sm" (click)="openResolveModal(item, 'swap')">Swap item</button>
+                      }
+                      <button type="button" class="btn btn-secondary btn-sm" (click)="openResolveModal(item, 'remove')">Remove</button>
+                    </span>
+                  }
                 }
               </div>
               <span class="line-item__qty">× {{ item.quantity }}</span>
@@ -124,6 +133,25 @@
             </div>
           }
         </div>
+        @if (order.removed_items?.length) {
+          <div class="removed-lines">
+            <p class="removed-lines__title">Changed while processing (out of stock)</p>
+            @for (entry of order.removed_items; track $index) {
+              <p class="removed-lines__row">
+                <span>
+                  @if (entry.action === 'swapped') {
+                    {{ entry.product_name }} × {{ entry.quantity }} → {{ entry.replaced_by?.product_name }}
+                  } @else {
+                    {{ entry.product_name }} × {{ entry.quantity }} removed
+                  }
+                </span>
+                @if (entry.refunded_amount > 0) {
+                  <span>Refunded {{ formatPrice(entry.refunded_amount, order.pricing.currency) }}</span>
+                }
+              </p>
+            }
+          </div>
+        }
         <div class="order-total">
           <span>Total</span>
           <span>{{ formatPrice(order.pricing.total, order.pricing.currency) }}</span>
@@ -776,11 +804,14 @@
 
         <div class="modal-card__body">
           <p class="field-hint">
-            Partial refunds aren't supported yet, so the whole order is cancelled{{ order.payment_status === 'paid' ? ' and refunded in full' : '' }}.
-            The customer is notified and an internal note is added. Lines you mark aren't put back in stock.
+            The customer is asked to swap each marked line for an item of the same or lower price, or to remove it.
+            Apply their choice from the line items; the order can't ship until then.
+            If every line is out of stock, the whole order is cancelled{{ order.payment_status === 'paid' ? ' and refunded in full' : '' }}.
+            Lines you mark aren't put back in stock.
           </p>
           <div class="oos-lines">
             @for (item of order.items; track lineKey(item)) {
+              @if (!item.out_of_stock) {
               <label class="oos-line">
                 <input
                   type="checkbox"
@@ -795,6 +826,7 @@
                 </span>
                 <span class="oos-line__qty">× {{ item.quantity }}</span>
               </label>
+              }
             }
           </div>
           <label class="field-label" for="oos-reason">Note for the customer (optional)</label>
@@ -819,7 +851,98 @@
             [disabled]="outOfStockSaving"
           >
             <svg lucidePackageX aria-hidden="true" [size]="16"></svg>
-            Cancel order{{ order.payment_status === 'paid' ? ' & refund' : '' }}
+            @if (outOfStockCancelsOrder) {
+              Cancel order{{ order.payment_status === 'paid' ? ' & refund' : '' }}
+            } @else {
+              Notify customer
+            }
+          </button>
+        </footer>
+      </div>
+    </div>
+  }
+
+  @if (resolveLine) {
+    <div class="modal-backdrop" (click)="closeResolveModal()">
+      <div
+        class="modal-card modal-card--reject"
+        role="dialog"
+        aria-labelledby="resolve-modal-title"
+        aria-modal="true"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="modal-card__header">
+          <h2 id="resolve-modal-title" class="modal-card__title">Out of stock: {{ resolveLine.product_name }}</h2>
+          <button type="button" class="modal-card__close" (click)="closeResolveModal()" aria-label="Close">
+            <svg lucideX [size]="18"></svg>
+          </button>
+        </header>
+
+        <div class="modal-card__body">
+          <p class="field-hint">Apply what the customer agreed to. They are notified and the order total is updated.</p>
+          <div class="oos-lines">
+            <label class="oos-line" [class.oos-line--disabled]="resolveLine.purchase_type === 'subscription'">
+              <input type="radio" name="resolve-action" [checked]="resolveAction === 'swap'"
+                [disabled]="resolveLine.purchase_type === 'subscription'" (change)="setResolveAction('swap')" />
+              <span>Swap for another item (same or lower price, × {{ resolveLine.quantity }})
+                @if (resolveLine.purchase_type === 'subscription') {
+                  <span class="oos-line__variant">Ritual Box lines can only be removed.</span>
+                }
+              </span>
+            </label>
+            <label class="oos-line">
+              <input type="radio" name="resolve-action" [checked]="resolveAction === 'remove'" (change)="setResolveAction('remove')" />
+              <span>Remove from the order
+                @if (resolveCancelsOrder) {
+                  <span class="oos-line__variant">It's the last line: the order is cancelled{{ order.payment_status === 'paid' ? ' and refunded in full' : '' }}.</span>
+                }
+              </span>
+            </label>
+          </div>
+
+          @if (resolveAction === 'swap') {
+            <label class="field-label" for="resolve-replacement">Replacement</label>
+            @if (replacementsLoading) {
+              <p class="field-hint">Loading items…</p>
+            } @else if (!replacementOptions.length) {
+              <p class="field-hint">No item priced at {{ formatPrice(resolveLine.unit_price, order.pricing.currency) }} or less has enough stock. Remove the line instead.</p>
+            } @else {
+              <select id="resolve-replacement" class="field-textarea" [value]="selectedReplacementKey"
+                (change)="selectedReplacementKey = $any($event.target).value; resolveError = null">
+                <option value="">Choose the item the customer picked</option>
+                @for (option of replacementOptions; track lineKey(option)) {
+                  <option [value]="lineKey(option)">
+                    {{ option.product_name }}{{ isMeaningfulVariantLabel(option.variant_name) ? ' – ' + option.variant_name : '' }}
+                    · {{ formatPrice(option.unit_price, order.pricing.currency) }} · {{ option.stock }} in stock
+                  </option>
+                }
+              </select>
+            }
+          }
+
+          <label class="field-label" for="resolve-reason">Note (optional)</label>
+          <textarea
+            id="resolve-reason"
+            class="field-textarea"
+            placeholder="e.g. Customer confirmed by chat"
+            [value]="resolveReason"
+            (input)="resolveReason = $any($event.target).value"
+          ></textarea>
+          @if (resolveError) {
+            <p class="modal-field-error" role="alert">{{ resolveError }}</p>
+          }
+        </div>
+
+        <footer class="modal-card__footer">
+          <button type="button" class="btn btn-secondary" (click)="closeResolveModal()">Back</button>
+          <button type="button" class="btn btn-primary" (click)="submitResolve()" [disabled]="resolveSaving">
+            @if (resolveAction === 'swap') {
+              Swap item
+            } @else if (resolveCancelsOrder) {
+              Cancel order{{ order.payment_status === 'paid' ? ' & refund' : '' }}
+            } @else {
+              Remove item
+            }
           </button>
         </footer>
       </div>

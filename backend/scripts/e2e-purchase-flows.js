@@ -275,6 +275,10 @@ async function oneTimeCod({ customer, admin, voucher }) {
   const confirm = await call('PUT', `/api/orders/${order.order_id}/confirm`, { token: customer.token, body: {} });
   check('1.6', 'COD confirm → processing, stock not taken twice', confirm.status === 200 && orderOf(confirm).order_status === 'processing' && (await stockOf(p)) === 8,
     `${errorOf(confirm)}, stock ${await stockOf(p)}`);
+  await tick();
+  const early = await PointTransaction.findOne({ ref_id: order.order_id, type: 'purchase' }).lean();
+  check('1.6b', 'purchase points created pending when the order reaches processing', early && early.status === 'pending' && early.amount === 40,
+    early ? `${early.amount} pts ${early.status}` : 'no transaction');
 
   const pend = await adminStatus(admin, order.order_id, 'delivered');
   check('1.7', 'admin cannot jump processing → delivered', pend.status === 400, errorOf(pend));
@@ -289,7 +293,7 @@ async function oneTimeCod({ customer, admin, voucher }) {
   check('1.10', 'total_sold_quantity +2', (await Product.findById(p._id).lean()).total_sold_quantity === 2);
   await tick();
   const txn = await PointTransaction.findOne({ ref_id: order.order_id, type: 'purchase' }).lean();
-  check('1.11', 'purchase points pending', txn && txn.status === 'pending', txn ? `${txn.amount} pts ${txn.status}` : 'no transaction');
+  check('1.11', 'purchase points still pending after delivery (posted after the refund window)', txn && txn.status === 'pending', txn ? `${txn.amount} pts ${txn.status}` : 'no transaction');
 
   const refund = await call('POST', `/api/orders/${order.order_id}/refund`, { token: customer.token, body: REFUND_BODY(after) });
   after = await reloadOrder(order.order_id);
@@ -310,7 +314,7 @@ async function oneTimeCod({ customer, admin, voucher }) {
 
 // 2. One-time QR: payment fails, retried, paid; delivery fails and is re-sent; refund rejected then approved.
 async function oneTimeQr({ customer, admin }) {
-  console.log('\n[2] One-time QR: fail → retry → paid → shipping → delivery_failed → shipping → delivered → refund rejected → approved');
+  console.log('\n[2] One-time QR: fail → retry → paid → shipping → delivery_failed → shipping → delivered → refund rejected (final)');
   const p = await createProduct({ stock: 10 });
   const { res, order } = await placeOrder([{ product: p, qty: 1 }], { method: 'qr', customer });
   check('2.1', 'QR order created pending, stock reserved', res.status === 201 && order.order_status === 'pending' && (await stockOf(p)) === 9, errorOf(res));
@@ -342,11 +346,8 @@ async function oneTimeQr({ customer, admin }) {
   check('2.10', 'refund rejected → refund_rejected, stock unchanged', reject.status === 200 && after.order_status === 'refund_rejected' && (await stockOf(p)) === 9,
     `${errorOf(reject)}, stock ${await stockOf(p)}`);
   const second = await call('POST', `/api/orders/${order.order_id}/refund`, { token: customer.token, body: REFUND_BODY(after) });
-  const approve = await call('POST', `/api/admin/orders/${order.order_id}/refund/approve`, { token: admin.token, body: {} });
   after = await reloadOrder(order.order_id);
-  check('2.11', 'customer asks again after a rejection → approved, stock back (9 → 10)',
-    second.status === 200 && approve.status === 200 && after.order_status === 'refund' && (await stockOf(p)) === 10,
-    `${errorOf(second)} / ${errorOf(approve)}, stock ${await stockOf(p)}`);
+  check('2.11', 'a rejected refund is final: asking again is refused', second.status === 400 && after.order_status === 'refund_rejected', errorOf(second));
 }
 
 // 3. Guest one-time COD order delivered.
@@ -396,11 +397,11 @@ async function cancels({ customer, admin }) {
   await call('PUT', `/api/orders/${b.order.order_id}/confirm-payment`, { token: customer.token, body: {} });
   const cancelB = await call('PUT', `/api/orders/${b.order.order_id}/cancel`, { token: customer.token, body: {} });
   const afterB = await reloadOrder(b.order.order_id);
-  check('4b.1', 'customer cancels a processing order → canceled, stock back', cancelB.status === 200 && afterB.order_status === 'canceled' && (await stockOf(p)) === 20,
-    `${errorOf(cancelB)}, stock ${await stockOf(p)}`);
-  if (afterB.payment_status === 'paid') {
-    note(`4b: a paid QR order canceled by the customer keeps payment_status "paid" (admin cancel sets "refunded"). Check how the refund is handled.`);
-  }
+  await tick();
+  const pointsB = await PointTransaction.findOne({ ref_id: b.order.order_id, type: 'purchase' }).lean();
+  check('4b.1', 'customer cancels a paid processing order → canceled / refunded, stock back, points reversed',
+    cancelB.status === 200 && afterB.order_status === 'canceled' && afterB.payment_status === 'refunded' && (await stockOf(p)) === 20 && pointsB?.status === 'reversed',
+    `${errorOf(cancelB)}, ${afterB.order_status}/${afterB.payment_status}, stock ${await stockOf(p)}, points ${pointsB?.status}`);
   const shipped = await placeOrder([{ product: p, qty: 1 }], { method: 'cod', customer });
   await call('PUT', `/api/orders/${shipped.order.order_id}/confirm`, { token: customer.token, body: {} });
   await adminStatus(admin, shipped.order.order_id, 'shipping');
@@ -416,6 +417,21 @@ async function cancels({ customer, admin }) {
   check('4c.1', 'not expired before the hold, expired after it', !early && late && afterC.order_status === 'canceled', `status ${afterC.order_status}`);
   check('4c.2', 'stock back (+3), ORDER_CANCELED sent', (await stockOf(p)) === stockC + 3 && (await noticeCount(customer.userId, 'ORDER_CANCELED', c.order.order_id)) === 1,
     `stock ${stockC} → ${await stockOf(p)}`);
+
+  // 4c2. Payment failed, then left pending past the hold → canceled (a failed payment never undoes the cancel).
+  const c2 = await placeOrder([{ product: p, qty: 1 }], { method: 'qr', customer });
+  await call('PUT', `/api/orders/${c2.order.order_id}/fail-payment`, { token: customer.token, body: {} });
+  const stockC2 = await stockOf(p);
+  await expiry.expireOrder(c2.order._id, new Date(Date.now() + expiry.PENDING_ORDER_HOLD_MS + HOUR));
+  const afterC2 = await reloadOrder(c2.order.order_id);
+  check('4c.3', 'failed-payment order expires → stays canceled (not back to pending), stock back',
+    afterC2.order_status === 'canceled' && (await stockOf(p)) === stockC2 + 1, `status ${afterC2.order_status}/${afterC2.payment_status}`);
+  const c3 = await placeOrder([{ product: p, qty: 1 }], { method: 'qr', customer });
+  await call('PUT', `/api/orders/${c3.order.order_id}/fail-payment`, { token: customer.token, body: {} });
+  const cancelC3 = await call('PUT', `/api/orders/${c3.order.order_id}/cancel`, { token: customer.token, body: {} });
+  const afterC3 = await reloadOrder(c3.order.order_id);
+  check('4c.4', 'customer cancels a failed-payment order → stays canceled', cancelC3.status === 200 && afterC3.order_status === 'canceled',
+    `${errorOf(cancelC3)}, status ${afterC3.order_status}`);
 
   // 4d. COD order not confirmed within the hold → auto-canceled with the store-cancel notice.
   const d = await placeOrder([{ product: p, qty: 1 }], { method: 'cod', customer });
@@ -446,18 +462,58 @@ async function cancels({ customer, admin }) {
     cancelF.status === 200 && afterF.order_status === 'canceled' && afterF.payment_status === 'refunded' && (await stockOf(p)) === stockF + 1,
     `${errorOf(cancelF)}, ${afterF.order_status}/${afterF.payment_status}, stock ${stockF} → ${await stockOf(p)}`);
 
-  // 4g. Admin marks a line out of stock on a processing order → whole order canceled, that line not restocked.
-  const q = await createProduct({ stock: 5 });
-  const g = await placeOrder([{ product: p, qty: 1 }, { product: q, qty: 1 }], { method: 'cod', customer });
-  await call('PUT', `/api/orders/${g.order.order_id}/confirm`, { token: customer.token, body: {} });
-  const stockGp = await stockOf(p);
-  const oos = await call('POST', `/api/admin/orders/${g.order.order_id}/out-of-stock`, {
-    token: admin.token, body: { items: [{ product_id: String(q._id), variant_id: skuOf(q) }] }
+  // 4g. One line of a 2-line paid order out of stock → customer asked; shipping blocked; swapped for a cheaper item.
+  const q = await createProduct({ stock: 5, price: 20 });
+  const cheaper = await createProduct({ stock: 5, price: 19 }); // near the top of the price-sorted list
+  const g = await placeOrder([{ product: p, qty: 1 }, { product: q, qty: 1 }], { method: 'qr', customer });
+  await call('PUT', `/api/orders/${g.order.order_id}/confirm-payment`, { token: customer.token, body: {} });
+  const qLine = { product_id: String(q._id), variant_id: skuOf(q) };
+  const oos = await call('POST', `/api/admin/orders/${g.order.order_id}/out-of-stock`, { token: admin.token, body: { items: [qLine] } });
+  let afterG = await reloadOrder(g.order.order_id);
+  check('4g.1', 'one line out of stock → order stays processing, line flagged, customer asked to choose',
+    oos.status === 200 && afterG.order_status === 'processing' && afterG.items.find(i => i.variant_id === skuOf(q))?.out_of_stock === true
+      && (await noticeCount(customer.userId, 'ORDER_ITEM_OUT_OF_STOCK', g.order.order_id)) === 1,
+    `${errorOf(oos)}, status ${afterG.order_status}`);
+  const blocked = await adminStatus(admin, g.order.order_id, 'shipping');
+  check('4g.2', 'cannot ship while a line waits for the customer', blocked.status === 409, errorOf(blocked));
+  const options = await call('GET', `/api/admin/orders/${g.order.order_id}/out-of-stock/replacements?product_id=${qLine.product_id}&variant_id=${qLine.variant_id}`, { token: admin.token });
+  const offered = (options.data?.data || []).some(o => o.variant_id === skuOf(cheaper));
+  const allCheaper = (options.data?.data || []).every(o => o.unit_price <= 20);
+  check('4g.3', 'replacement list offers the cheaper in-stock item, nothing above the line price', options.status === 200 && offered && allCheaper, errorOf(options));
+  const swap = await call('POST', `/api/admin/orders/${g.order.order_id}/out-of-stock/resolve`, {
+    token: admin.token, body: { ...qLine, action: 'swap', replacement: { product_id: String(cheaper._id), variant_id: skuOf(cheaper) } }
   });
-  const afterG = await reloadOrder(g.order.order_id);
-  check('4g.1', 'out of stock → order canceled; other line restocked, missing line not',
-    oos.status === 200 && afterG.order_status === 'canceled' && (await stockOf(p)) === stockGp + 1 && (await stockOf(q)) === 4,
-    `${errorOf(oos)}, p ${stockGp} → ${await stockOf(p)}, q stays ${await stockOf(q)}`);
+  afterG = await reloadOrder(g.order.order_id);
+  await tick();
+  const pointsG = await PointTransaction.findOne({ ref_id: g.order.order_id, type: 'purchase' }).lean();
+  check('4g.4', 'swap: cheaper item in, $1 refunded, payment still paid, total 39, out-of-stock line not restocked, points follow',
+    swap.status === 200 && afterG.order_status === 'processing' && afterG.payment_status === 'paid' && afterG.refunded_amount === 1
+      && afterG.pricing.total === 39 && (await stockOf(cheaper)) === 4 && (await stockOf(q)) === 4 && pointsG?.amount === 39
+      && (await noticeCount(customer.userId, 'ORDER_ITEMS_UPDATED', g.order.order_id)) === 1,
+    `${errorOf(swap)}, total ${afterG.pricing.total}, refunded ${afterG.refunded_amount}, stock q ${await stockOf(q)} / new ${await stockOf(cheaper)}, points ${pointsG?.amount}`);
+  const shipG = await shipAndReceive(admin, g.order.order_id, { customer });
+  check('4g.5', 'after the swap the order ships and is delivered', shipG.ship.status === 200 && shipG.receive.status === 200, `${errorOf(shipG.ship)} / ${errorOf(shipG.receive)}`);
+
+  // 4h. Out-of-stock line removed (COD): amount to collect goes down.
+  const r = await placeOrder([{ product: p, qty: 1 }, { product: q, qty: 1 }], { method: 'cod', customer });
+  await call('PUT', `/api/orders/${r.order.order_id}/confirm`, { token: customer.token, body: {} });
+  await call('POST', `/api/admin/orders/${r.order.order_id}/out-of-stock`, { token: admin.token, body: { items: [qLine] } });
+  const remove = await call('POST', `/api/admin/orders/${r.order.order_id}/out-of-stock/resolve`, { token: admin.token, body: { ...qLine, action: 'remove' } });
+  const afterR = await reloadOrder(r.order.order_id);
+  check('4h.1', 'remove on a COD order: line gone, total 20, nothing refunded, still processing',
+    remove.status === 200 && afterR.items.length === 1 && afterR.pricing.total === 20 && afterR.refunded_amount === 0 && afterR.order_status === 'processing',
+    `${errorOf(remove)}, items ${afterR.items.length}, total ${afterR.pricing.total}`);
+
+  // 4i. Every line out of stock → whole order canceled (refunded when paid), lines not restocked.
+  const i1 = await placeOrder([{ product: q, qty: 1 }], { method: 'qr', customer });
+  await call('PUT', `/api/orders/${i1.order.order_id}/confirm-payment`, { token: customer.token, body: {} });
+  const stockQ = await stockOf(q);
+  const all = await call('POST', `/api/admin/orders/${i1.order.order_id}/out-of-stock`, { token: admin.token, body: { items: [qLine] } });
+  const afterI = await reloadOrder(i1.order.order_id);
+  check('4i.1', 'single-item order out of stock → canceled / refunded, not restocked',
+    all.status === 200 && afterI.order_status === 'canceled' && afterI.payment_status === 'refunded' && (await stockOf(q)) === stockQ
+      && (await noticeCount(customer.userId, 'ORDER_CANCELED_BY_STORE', i1.order.order_id)) === 1,
+    `${errorOf(all)}, ${afterI.order_status}/${afterI.payment_status}`);
 }
 
 // 5. Mixed cart (one-time + Ritual Box line) paid by card.
@@ -514,7 +570,7 @@ async function mixedCard({ customer, admin }) {
   check('5.10', 'whole order refunded, both lines restocked', approve.status === 200 && (await stockOf(one)) === 10 && (await stockOf(box)) === 10,
     `${errorOf(approve)}, stock ${await stockOf(one)}/${await stockOf(box)}`);
   const boxAfter = await Subscription.findById(sub?._id).lean();
-  note(`5: after the order that started it was refunded, the Ritual Box is "${boxAfter?.status}". Nothing cancels or pauses it — confirm with the plan that this is intended.`);
+  check('5.10b', 'the Ritual Box stays active after its first order is refunded (the customer pauses or cancels it)', boxAfter?.status === 'active', boxAfter?.status);
 
   // Mixed order canceled before payment: no box, stock back.
   const unpaid = await placeOrder([{ product: one }, { product: box, sub: 14 }], { method: 'card', customer });

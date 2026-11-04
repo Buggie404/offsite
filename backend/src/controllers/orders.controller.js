@@ -205,6 +205,13 @@ async function applyCustomerTransition(order, action, changes, note) {
       console.error(`Withdrawing Ritual Box suggestions for order ${updated.order_id} failed:`, err);
     }
   }
+  if (updated && changes.order_status === 'processing' && updated.user_id) {
+    try {
+      await pointsService.awardPurchasePoints(updated);
+    } catch (err) {
+      console.error(`Awarding purchase points for order ${updated.order_id} failed:`, err);
+    }
+  }
   if (updated && changes.order_status === 'canceled' && updated.coupon?.code) {
     try {
       await voucherService.releaseVoucherUsage(updated.coupon.code);
@@ -1116,7 +1123,7 @@ async function receiveOrder(req, res) {
     await order.save();
     socketService.emitOrderUpdated(order, 'status_change');
 
-    // Purchase points: pending now, posted once the refund window passes.
+    // Purchase points are pending since processing; this only covers orders from before that rule.
     try {
       await pointsService.awardPurchasePoints(order);
     } catch (pointsErr) {
@@ -1213,7 +1220,8 @@ async function requestRefund(req, res) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to request refund for this order.' });
     }
 
-    if (order.order_status !== 'delivered' && order.order_status !== 'refund_rejected') {
+    // One request per order: a rejected request is final (refund_rejected can't ask again).
+    if (order.order_status !== 'delivered') {
       return res.status(400).json({ error: 'Refund/return can only be requested for delivered orders.' });
     }
 

@@ -394,11 +394,10 @@ export class OrderTrackingComponent implements OnInit {
     const ord = this.order();
     if (!ord) return false;
     const status = (ord.order_status || '').toLowerCase();
-    if (status !== 'delivered' && status !== 'refund_rejected') return false;
+    // One request per order, from delivered only: a rejected request is final.
+    if (status !== 'delivered') return false;
     if (!isWithinRefundWindow(ord)) return false;
-    if (status === 'refund_rejected') return true;
-    const refundStatus = ord.refund_request?.status;
-    return !refundStatus || refundStatus === 'rejected';
+    return !ord.refund_request?.status;
   }
 
   getItemCount(): number {

@@ -13,6 +13,7 @@ const ACTION_TYPES = [
   { value: 'order.update-status', label: 'Order status changed', group: 'Orders' },
   { value: 'order.add-internal-note', label: 'Internal note added', group: 'Orders' },
   { value: 'order.mark-out-of-stock', label: 'Marked out of stock', group: 'Orders' },
+  { value: 'order.resolve-out-of-stock', label: 'Out-of-stock line swapped or removed', group: 'Orders' },
   { value: 'refund.approve', label: 'Refund approved', group: 'Orders' },
   { value: 'refund.reject', label: 'Refund rejected', group: 'Orders' },
   { value: 'product.batch-expiry', label: 'Batch expiry updated', group: 'Products' },

@@ -32,7 +32,8 @@ import {
   AdminOrderStatus,
   AdminOrderStatusHistoryEntry,
   AdminOrderRitualBox,
-  AdminOrderStatusUpdate
+  AdminOrderStatusUpdate,
+  AdminReplacementOption
 } from '../../models/admin-order.model';
 import { isMeaningfulVariantLabel } from '../../../../shared/utils/variant-label';
 
@@ -147,6 +148,16 @@ export class OrderDetailComponent implements OnInit {
   outOfStockReason = '';
   outOfStockError: string | null = null;
   outOfStockSaving = false;
+
+  /** Applying the customer's choice for one out-of-stock line (remove / swap). */
+  resolveLine: AdminOrderLineItem | null = null;
+  resolveAction: 'remove' | 'swap' = 'swap';
+  replacementOptions: AdminReplacementOption[] = [];
+  replacementsLoading = false;
+  selectedReplacementKey = '';
+  resolveReason = '';
+  resolveError: string | null = null;
+  resolveSaving = false;
   private statusMessageTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit(): void {
@@ -352,7 +363,19 @@ export class OrderDetailComponent implements OnInit {
   }
 
   get canReportOutOfStock(): boolean {
+    return this.canManageOrders && this.order?.order_status === 'processing'
+      && (this.order?.items || []).some((item) => !item.out_of_stock);
+  }
+
+  /** Out-of-stock lines waiting on the customer's choice (processing orders only). */
+  get canResolveOutOfStock(): boolean {
     return this.canManageOrders && this.order?.order_status === 'processing';
+  }
+
+  /** The selection (with lines already flagged) covers every line: the order will be cancelled. */
+  get outOfStockCancelsOrder(): boolean {
+    const items = this.order?.items || [];
+    return items.length > 0 && items.every((item) => item.out_of_stock || this.outOfStockSelection.has(this.lineKey(item)));
   }
 
   get showRefundProcessing(): boolean {
@@ -521,13 +544,95 @@ export class OrderDetailComponent implements OnInit {
           this.order = response.data;
           this.outOfStockSaving = false;
           this.showOutOfStockModal = false;
-          this.showTransientStatusMessage('Order cancelled: items out of stock. The customer has been notified.');
+          this.showTransientStatusMessage(response.data.order_status === 'canceled'
+            ? 'Order cancelled: items out of stock. The customer has been notified.'
+            : 'Customer asked to swap or remove the out-of-stock items. Apply their choice from the line items.');
           this.adminRefresh.refreshNotifications();
           this.cdr.markForCheck();
         },
         error: (err) => {
           this.outOfStockError = err.error?.error || 'Failed to update the order.';
           this.outOfStockSaving = false;
+          this.cdr.markForCheck();
+        }
+      });
+  }
+
+  openResolveModal(item: AdminOrderLineItem, action: 'remove' | 'swap'): void {
+    if (!this.order || !this.canResolveOutOfStock) return;
+    this.resolveLine = item;
+    this.resolveAction = item.purchase_type === 'subscription' ? 'remove' : action;
+    this.replacementOptions = [];
+    this.selectedReplacementKey = '';
+    this.resolveReason = '';
+    this.resolveError = null;
+    if (this.resolveAction === 'swap') this.loadReplacements();
+  }
+
+  setResolveAction(action: 'remove' | 'swap'): void {
+    if (!this.resolveLine || (action === 'swap' && this.resolveLine.purchase_type === 'subscription')) return;
+    this.resolveAction = action;
+    this.resolveError = null;
+    if (action === 'swap' && !this.replacementOptions.length && !this.replacementsLoading) this.loadReplacements();
+  }
+
+  private loadReplacements(): void {
+    if (!this.order || !this.resolveLine) return;
+    this.replacementsLoading = true;
+    this.adminOrderService.listReplacements(this.order.order_id, this.resolveLine).subscribe({
+      next: (response) => {
+        this.replacementOptions = response.data || [];
+        this.replacementsLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.resolveError = err.error?.error || 'Failed to load replacement items.';
+        this.replacementsLoading = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  closeResolveModal(): void {
+    this.resolveLine = null;
+    this.resolveError = null;
+  }
+
+  /** Removing the last line left cancels the order. */
+  get resolveCancelsOrder(): boolean {
+    return this.resolveAction === 'remove' && (this.order?.items.length || 0) <= 1;
+  }
+
+  submitResolve(): void {
+    if (!this.order || !this.resolveLine || this.resolveSaving) return;
+    const replacement = this.replacementOptions.find((o) => this.lineKey(o) === this.selectedReplacementKey);
+    if (this.resolveAction === 'swap' && !replacement) {
+      this.resolveError = 'Choose the item the customer picked.';
+      return;
+    }
+    this.resolveSaving = true;
+    this.adminOrderService
+      .resolveOutOfStock(this.order.order_id, {
+        product_id: this.resolveLine.product_id,
+        variant_id: this.resolveLine.variant_id,
+        action: this.resolveAction,
+        replacement: replacement ? { product_id: replacement.product_id, variant_id: replacement.variant_id } : undefined,
+        reason: this.resolveReason.trim() || undefined
+      })
+      .subscribe({
+        next: (response) => {
+          this.order = response.data;
+          this.resolveSaving = false;
+          this.resolveLine = null;
+          this.showTransientStatusMessage(response.data.order_status === 'canceled'
+            ? 'Order cancelled: no items left. The customer has been notified.'
+            : `${response.message}. The customer has been notified.`);
+          this.adminRefresh.refreshNotifications();
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.resolveError = err.error?.error || 'Failed to update the order.';
+          this.resolveSaving = false;
           this.cdr.markForCheck();
         }
       });

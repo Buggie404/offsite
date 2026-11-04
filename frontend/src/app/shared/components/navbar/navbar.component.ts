@@ -1182,6 +1182,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
       case 'ORDER_CANCELED':   return 'notif-icon--red';
       case 'ORDER_DELIVERY_FAILED':   return 'notif-icon--orange';
       case 'ORDER_CANCELED_BY_STORE': return 'notif-icon--red';
+      case 'ORDER_ITEM_OUT_OF_STOCK': return 'notif-icon--orange';
+      case 'ORDER_ITEMS_UPDATED':     return 'notif-icon--blue';
       case 'REFUND_REQUESTED': return 'notif-icon--orange';
       case 'REFUND_APPROVED':  return 'notif-icon--green';
       case 'REFUND_REJECTED':  return 'notif-icon--red';
