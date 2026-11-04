@@ -314,6 +314,20 @@ async function buildOrderDetail(order) {
     subscription_start_failed_at: order.subscription_start_failed_at || null,
     ritual_boxes: ritualBoxes,
     pricing: order.pricing,
+    removed_items: (order.removed_items || []).map((entry) => ({
+      action: entry.action,
+      product_name: entry.item?.product_name,
+      variant_name: entry.item?.variant_name,
+      quantity: entry.item?.quantity,
+      subtotal: entry.item?.subtotal,
+      replaced_by: entry.replaced_by
+        ? { product_name: entry.replaced_by.product_name, variant_name: entry.replaced_by.variant_name, subtotal: entry.replaced_by.subtotal }
+        : null,
+      refunded_amount: entry.refunded_amount || 0,
+      reason: entry.reason || null,
+      changed_at: entry.changed_at
+    })),
+    refunded_amount: order.refunded_amount || 0,
     payment: order.payment,
     payment_label: formatPaymentLabel(order.payment),
     delivery_info: order.delivery_info,
@@ -512,6 +526,12 @@ async function updateOrderStatus(req, res) {
       if (!allowed.includes(status)) {
         return res.status(400).json({
           error: `Admin cannot change order status from ${currentStatus} to ${status}. Customers must confirm delivery or cancellation. Refunds require approving a refund request.`
+        });
+      }
+      if (status === 'shipping' && order.items.some((item) => item.out_of_stock)) {
+        return res.status(409).json({
+          error: 'Some lines are out of stock. Swap or remove them (as the customer chose) before shipping.',
+          code: 'OUT_OF_STOCK_LINES'
         });
       }
       // The route already rejects these without a reason; this guards direct callers.
@@ -751,9 +771,19 @@ async function rejectRefundRequest(req, res) {
   }
 }
 
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const lineName = (line) =>
+  [line.product_name, isNamedVariant(line.variant_name) ? `(${line.variant_name})` : null].filter(Boolean).join(' ');
+const sameLine = (item, sel) => item.product_id === String(sel?.product_id) && item.variant_id === String(sel?.variant_id);
+
 // Admin - Lines out of stock after the order was placed (POST /api/admin/orders/:id/out-of-stock)
-// Orders have no partial refund yet, so marking any line cancels the whole order and refunds it
-// when paid. Marked lines aren't put back in stock (see the Order save hook).
+// - Every line of the order out of stock (a single-item order, a Ritual Box delivery): the order is
+//   cancelled, refunded in full when paid.
+// - Otherwise only the selected lines are flagged and the customer is asked to choose: swap for an
+//   item of the same or lower price, or remove it. Staff apply that choice with
+//   POST /api/admin/orders/:id/out-of-stock/resolve. The order stays processing and can't ship
+//   until every flagged line is resolved.
+// Out-of-stock lines are never put back in stock (see the Order save hook).
 async function markItemsOutOfStock(req, res) {
   try {
     const requested = Array.isArray(req.body.items) ? req.body.items : [];
@@ -773,30 +803,27 @@ async function markItemsOutOfStock(req, res) {
       });
     }
 
-    const lines = requested.map((sel) => order.items.find(
-      (item) => item.product_id === String(sel?.product_id) && item.variant_id === String(sel?.variant_id)
-    ));
+    const lines = requested.map((sel) => order.items.find((item) => sameLine(item, sel)));
     if (lines.some((line) => !line)) {
       return res.status(400).json({ error: 'One or more selected lines are not in this order.' });
     }
+    const newLines = [...new Set(lines)].filter((line) => !line.out_of_stock);
+    if (!newLines.length) {
+      return res.status(400).json({ error: 'These lines are already marked out of stock.' });
+    }
 
     const adminId = await getAdminActorId(req);
-    const oldValue = activitySnapshot(order);
-    const names = [...new Set(lines)].map((line) =>
-      [line.product_name, isNamedVariant(line.variant_name) ? `(${line.variant_name})` : null].filter(Boolean).join(' ')
-    );
-    const reason = normalizeReason(req.body.reason) || `Out of stock: ${names.join(', ')}`;
-    const wasPaid = order.payment_status === 'paid';
+    if (order.items.every((item) => item.out_of_stock || newLines.includes(item))) {
+      return cancelOutOfStockOrder(req, res, order, order.items.slice(), adminId);
+    }
 
-    lines.forEach((line) => { line.out_of_stock = true; });
-    order.order_status = 'canceled';
-    order.canceled_at = new Date();
-    if (wasPaid) order.payment_status = 'refunded';
-    order._changedBy = adminId;
-    order._statusChangeNote = `Cancelled by store — ${reason}`;
+    const oldValue = activitySnapshot(order);
+    const names = newLines.map(lineName);
+    const reason = normalizeReason(req.body.reason) || `Out of stock: ${names.join(', ')}`;
+    newLines.forEach((line) => { line.out_of_stock = true; });
     order.internal_notes = appendInternalNote(
       order.internal_notes,
-      `Out of stock after ordering: ${names.join(', ')}. Order cancelled${wasPaid ? ' and refunded in full' : ''}.`
+      `Out of stock after ordering: ${names.join(', ')}. Customer asked to choose a replacement (same or lower price) or to remove ${names.length > 1 ? 'them' : 'it'}.`
         + (req.body.reason ? ` Reason: ${reason}` : ''),
       adminId
     );
@@ -807,42 +834,274 @@ async function markItemsOutOfStock(req, res) {
       targetEntity: 'Orders',
       targetId: order.order_id,
       oldValue,
-      newValue: { ...activitySnapshot(order), out_of_stock_items: lines.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id })) },
+      newValue: { ...activitySnapshot(order), out_of_stock_items: newLines.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id })) },
       reason
     });
     socketService.emitOrderUpdated(order, 'status_change');
-    await notifyCustomer(order, 'ORDER_CANCELED_BY_STORE', `${names.join(', ')} ${names.length > 1 ? 'are' : 'is'} out of stock`
-      + (wasPaid ? '. Your payment will be refunded in full.' : '.'));
-
-    // A Ritual Box delivery order: the box stays active (next_charge_at is already the next cycle),
-    // but this cycle is recorded as skipped and the customer told. Cancelling the box itself is
-    // done on purpose from Admin › Subscriptions, never here. The order is already cancelled, so a
-    // failure here is logged rather than failing the request.
-    if (order.subscription_id) {
-      try {
-        const skipped = await subscriptionService.skipCycleForCanceledOrder(order, {
-          adminId, reason, itemNames: names, refunded: wasPaid
-        });
-        if (skipped) {
-          await req.writeActivityLog({
-            actionType: 'subscription.skip',
-            targetEntity: 'Subscriptions',
-            targetId: skipped.sub.subscription_id,
-            oldValue: skipped.oldValue,
-            newValue: skipped.newValue,
-            reason
-          });
-        }
-      } catch (err) {
-        console.error(`Order ${order.order_id}: could not record the skipped Ritual Box cycle.`, err);
-      }
-    }
+    await notifyCustomer(order, 'ORDER_ITEM_OUT_OF_STOCK',
+      `${names.join(', ')} ${names.length > 1 ? 'are' : 'is'} out of stock. Contact us to swap ${names.length > 1 ? 'them' : 'it'} `
+        + `for an item of the same or lower price, or to remove ${names.length > 1 ? 'them' : 'it'} from your order.`);
 
     const data = await buildOrderDetail(order);
-    res.json({ message: 'Order cancelled: items out of stock', data });
+    res.json({ message: 'Lines marked out of stock: waiting for the customer to choose', data });
   } catch (error) {
     console.error('Error marking items out of stock:', error);
     res.status(500).json({ error: error.message || 'Failed to mark items out of stock.' });
+  }
+}
+
+// Every line is out of stock: cancel the whole order (refunded in full when paid).
+async function cancelOutOfStockOrder(req, res, order, lines, adminId) {
+  const oldValue = activitySnapshot(order);
+  const names = [...new Set(lines)].map(lineName);
+  const reason = normalizeReason(req.body.reason) || `Out of stock: ${names.join(', ')}`;
+  const wasPaid = order.payment_status === 'paid';
+
+  lines.forEach((line) => { line.out_of_stock = true; });
+  order.order_status = 'canceled';
+  order.canceled_at = new Date();
+  if (wasPaid) order.payment_status = 'refunded';
+  order._changedBy = adminId;
+  order._statusChangeNote = `Cancelled by store — ${reason}`;
+  order.internal_notes = appendInternalNote(
+    order.internal_notes,
+    `Out of stock after ordering: ${names.join(', ')}. Order cancelled${wasPaid ? ' and refunded in full' : ''}.`
+      + (req.body.reason ? ` Reason: ${reason}` : ''),
+    adminId
+  );
+  await order.save();
+
+  await req.writeActivityLog({
+    actionType: 'order.mark-out-of-stock',
+    targetEntity: 'Orders',
+    targetId: order.order_id,
+    oldValue,
+    newValue: { ...activitySnapshot(order), out_of_stock_items: lines.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id })) },
+    reason
+  });
+  socketService.emitOrderUpdated(order, 'status_change');
+  await notifyCustomer(order, 'ORDER_CANCELED_BY_STORE', `${names.join(', ')} ${names.length > 1 ? 'are' : 'is'} out of stock`
+    + (wasPaid ? '. Your payment will be refunded in full.' : '.'));
+
+  // A Ritual Box delivery order: the box stays active (next_charge_at is already the next cycle),
+  // but this cycle is recorded as skipped and the customer told. Cancelling the box itself is
+  // done on purpose from Admin › Subscriptions, never here. The order is already cancelled, so a
+  // failure here is logged rather than failing the request.
+  if (order.subscription_id) {
+    try {
+      const skipped = await subscriptionService.skipCycleForCanceledOrder(order, {
+        adminId, reason, itemNames: names, refunded: wasPaid
+      });
+      if (skipped) {
+        await req.writeActivityLog({
+          actionType: 'subscription.skip',
+          targetEntity: 'Subscriptions',
+          targetId: skipped.sub.subscription_id,
+          oldValue: skipped.oldValue,
+          newValue: skipped.newValue,
+          reason
+        });
+      }
+    } catch (err) {
+      console.error(`Order ${order.order_id}: could not record the skipped Ritual Box cycle.`, err);
+    }
+  }
+
+  const data = await buildOrderDetail(order);
+  return res.json({ message: 'Order cancelled: items out of stock', data });
+}
+
+// Image for a new order line (order items require one).
+function lineImage(product, variant) {
+  const image = variant?.images?.[0] || product?.images?.[0] || {};
+  return { url: image.url || 'none', public_id: image.public_id || 'none' };
+}
+
+// Order total after a line change. The voucher discount already applied is kept (never more than
+// the new subtotal + shipping).
+function repriceOrder(order) {
+  const subtotal = round2(order.items.reduce((sum, item) => sum + (item.subtotal || 0), 0));
+  const shipping = order.pricing?.shipping_cost || 0;
+  const discount = Math.min(order.pricing?.discount_amount || 0, round2(subtotal + shipping));
+  order.pricing.subtotal = subtotal;
+  order.pricing.discount_amount = discount;
+  order.pricing.total = Math.max(0, round2(subtotal + shipping - discount));
+  if (order.coupon) order.coupon.discount_amount = discount;
+}
+
+// Admin - Items a line marked out of stock can be swapped for
+// (GET /api/admin/orders/:id/out-of-stock/replacements?product_id=&variant_id=)
+// Active variants priced at or below the line's unit price, with enough stock for its quantity,
+// not already in the order. Same category first, then by price (highest first).
+async function listOutOfStockReplacements(req, res) {
+  try {
+    const order = await Order.findOne(findOrderQuery(req.params.id)).lean();
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    const line = (order.items || []).find((item) => sameLine(item, req.query) && item.out_of_stock);
+    if (!line) return res.status(400).json({ error: 'This line is not marked out of stock.' });
+    if (line.purchase_type === 'subscription') return res.json({ data: [] });
+
+    const Product = require('../models/Product');
+    const inOrder = new Set((order.items || []).map((item) => `${item.product_id}:${item.variant_id}`));
+    const current = await require('../services/inventory.service').findProduct(line.product_id);
+    const products = await Product.find({
+      is_active: { $ne: false },
+      variants: { $elemMatch: { price: { $lte: line.unit_price }, stock: { $gte: line.quantity } } }
+    }).select('name category variants images').lean();
+
+    const options = [];
+    for (const product of products) {
+      for (const variant of product.variants || []) {
+        if (variant.price > line.unit_price || (variant.stock ?? 0) < line.quantity) continue;
+        if (inOrder.has(`${product._id}:${variant.sku}`)) continue;
+        options.push({
+          product_id: String(product._id),
+          variant_id: variant.sku,
+          product_name: product.name,
+          variant_name: variant.label || 'Default',
+          category: product.category || null,
+          unit_price: variant.price,
+          stock: variant.stock ?? 0,
+          same_category: !!current && product.category === current.category
+        });
+      }
+    }
+    options.sort((a, b) => (b.same_category - a.same_category) || (b.unit_price - a.unit_price) || a.product_name.localeCompare(b.product_name));
+    res.json({ data: options.slice(0, 100) });
+  } catch (error) {
+    console.error('Error listing out-of-stock replacements:', error);
+    res.status(500).json({ error: 'Failed to list replacement items.' });
+  }
+}
+
+// Admin - Apply the customer's choice for a line marked out of stock
+// (POST /api/admin/orders/:id/out-of-stock/resolve)
+// Body: { product_id, variant_id, action: 'remove' | 'swap', replacement: { product_id, variant_id }, reason }
+// - remove: the line leaves the order; the last line left cancels the order instead.
+// - swap: replaced by another item of the same or lower unit price (one-time lines only), same quantity.
+// The order total is recalculated; when paid, the difference is refunded (refunded_amount,
+// payment_status stays 'paid'). Purchase points follow the new subtotal.
+async function resolveOutOfStockLine(req, res) {
+  let reserved = null;
+  try {
+    const { action } = req.body;
+    if (!['remove', 'swap'].includes(action)) {
+      return res.status(400).json({ error: "Choose 'remove' or 'swap'." });
+    }
+
+    const order = await Order.findOne(findOrderQuery(req.params.id));
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+    if (order.order_status !== 'processing') {
+      return res.status(409).json({
+        error: `Out-of-stock lines can only be changed while the order is processing (it is ${order.order_status}).`,
+        code: 'INVALID_ORDER_STATE',
+        order_status: order.order_status
+      });
+    }
+    const line = order.items.find((item) => sameLine(item, req.body) && item.out_of_stock);
+    if (!line) {
+      return res.status(400).json({ error: 'This line is not marked out of stock.' });
+    }
+
+    const adminId = await getAdminActorId(req);
+    if (action === 'remove' && order.items.length === 1) {
+      return cancelOutOfStockOrder(req, res, order, [line], adminId);
+    }
+
+    let replacement = null;
+    if (action === 'swap') {
+      if (line.purchase_type === 'subscription') {
+        return res.status(400).json({ error: "A Ritual Box line can't be swapped. Remove it instead." });
+      }
+      const target = req.body.replacement || {};
+      const inventoryService = require('../services/inventory.service');
+      const product = await inventoryService.findProduct(target.product_id);
+      const variant = (product?.variants || []).find((v) => v.sku === String(target.variant_id));
+      if (!product || product.is_active === false || !variant) {
+        return res.status(400).json({ error: 'Choose an available replacement item.' });
+      }
+      const productId = String(product._id);
+      if (order.items.some((item) => item.product_id === productId && item.variant_id === variant.sku)) {
+        return res.status(400).json({ error: 'This item is already in the order. Remove the line instead.' });
+      }
+      if (variant.price > line.unit_price) {
+        return res.status(400).json({ error: `Choose an item priced at $${line.unit_price} or less.` });
+      }
+      replacement = {
+        product_id: productId,
+        variant_id: variant.sku,
+        product_name: product.name,
+        variant_name: variant.label || 'Default',
+        image: lineImage(product, variant),
+        unit_price: variant.price,
+        quantity: line.quantity,
+        subtotal: round2(variant.price * line.quantity),
+        purchase_type: 'one_time',
+        subscription_frequency_days: null
+      };
+      const reservation = await inventoryService.reserveItems([replacement]);
+      if (!reservation.ok) {
+        return res.status(409).json({ error: `${product.name} doesn't have ${line.quantity} in stock.`, code: 'OUT_OF_STOCK' });
+      }
+      reserved = [replacement];
+    }
+
+    const oldValue = activitySnapshot(order);
+    const reason = normalizeReason(req.body.reason) || null;
+    const removedLine = line.toObject ? line.toObject() : { ...line };
+    const totalBefore = order.pricing.total;
+    const index = order.items.indexOf(line);
+    if (replacement) order.items.splice(index, 1, replacement);
+    else order.items.splice(index, 1);
+    repriceOrder(order);
+
+    const wasPaid = order.payment_status === 'paid';
+    const refunded = wasPaid ? Math.max(0, round2(totalBefore - order.pricing.total)) : 0;
+    order.refunded_amount = round2((order.refunded_amount || 0) + refunded);
+    order.removed_items.push({
+      item: removedLine,
+      action: replacement ? 'swapped' : 'removed',
+      replaced_by: replacement,
+      refunded_amount: refunded,
+      reason,
+      changed_by: adminId,
+      changed_at: new Date()
+    });
+    const what = replacement
+      ? `${lineName(removedLine)} swapped for ${lineName(replacement)}`
+      : `${lineName(removedLine)} removed`;
+    const money = wasPaid
+      ? (refunded > 0 ? ` $${refunded} refunded.` : '')
+      : ` New total $${order.pricing.total}.`;
+    order.internal_notes = appendInternalNote(order.internal_notes, `Out of stock: ${what} (customer agreed).${money}`
+      + (reason ? ` Reason: ${reason}` : ''), adminId);
+    await order.save();
+    reserved = null;
+
+    try {
+      await require('../services/points.service').updatePurchasePoints(order);
+    } catch (pointsErr) {
+      console.error(`Updating purchase points for order ${order.order_id} failed:`, pointsErr);
+    }
+    await req.writeActivityLog({
+      actionType: 'order.resolve-out-of-stock',
+      targetEntity: 'Orders',
+      targetId: order.order_id,
+      oldValue,
+      newValue: { ...activitySnapshot(order), action, item: { product_id: removedLine.product_id, variant_id: removedLine.variant_id }, replaced_by: replacement && { product_id: replacement.product_id, variant_id: replacement.variant_id }, refunded_amount: refunded, total: order.pricing.total },
+      reason
+    });
+    socketService.emitOrderUpdated(order, 'status_change');
+    await notifyCustomer(order, 'ORDER_ITEMS_UPDATED', `${what}.${money}`.trim());
+
+    const data = await buildOrderDetail(order);
+    res.json({ message: replacement ? 'Line swapped' : 'Line removed', data });
+  } catch (error) {
+    if (reserved) await require('../services/inventory.service').releaseItems(reserved);
+    console.error('Error resolving out-of-stock line:', error);
+    res.status(500).json({ error: error.message || 'Failed to update the order.' });
   }
 }
 
@@ -892,5 +1151,7 @@ module.exports = {
   rejectRefundRequest,
   addInternalNote,
   markItemsOutOfStock,
+  resolveOutOfStockLine,
+  listOutOfStockReplacements,
   statusChangeRequiresReason
 };

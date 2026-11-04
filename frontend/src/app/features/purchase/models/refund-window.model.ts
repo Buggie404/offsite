@@ -27,8 +27,8 @@ export function isWithinRefundWindow(order: any, now: number = Date.now()): bool
 export function getRefundWindowNote(order: any): string | null {
   if (!order) return null;
   const status = (order.order_status || '').toLowerCase();
-  if (status !== 'delivered' && status !== 'refund_rejected') return null;
-  if (order.refund_request?.status === 'pending') return null;
+  if (status !== 'delivered') return null;
+  if (order.refund_request?.status) return null;
   const deadline = getRefundDeadline(order);
   if (!deadline) return null;
   const date = deadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

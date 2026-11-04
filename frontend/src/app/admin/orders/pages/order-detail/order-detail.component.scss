@@ -1309,6 +1309,45 @@
   color: var(--color-warm-brown);
 }
 
+.oos-line--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.line-item__oos-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.line-item__oos-hint {
+  font-size: 12px;
+  color: var(--color-warm-brown);
+}
+
+.removed-lines {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--admin-divider);
+  border-radius: var(--radius-input);
+  font-size: 13px;
+}
+
+.removed-lines__title {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+.removed-lines__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0;
+  color: var(--color-warm-brown);
+}
+
 .oos-line__qty {
   margin-left: auto;
   color: var(--color-warm-brown);

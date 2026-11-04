@@ -194,7 +194,32 @@ async function applyCustomerTransition(order, action, changes, note) {
     };
   }
 
-  return Order.findOneAndUpdate(filter, update, { new: true, runValidators: true });
+  const updated = await Order.findOneAndUpdate(filter, update, { new: true, runValidators: true });
+  // Nor does it run the post-save hooks. Today every customer transition ends in pending /
+  // processing; if one ever ends in a status that withdraws a Ritual Box suggestion or gives
+  // the voucher back, do that here so the order hooks aren't silently skipped.
+  if (updated && ['canceled', 'refund', 'pending_refund'].includes(changes.order_status)) {
+    try {
+      await subscriptionService.withdrawSuggestionsForOrder(updated.order_id);
+    } catch (err) {
+      console.error(`Withdrawing Ritual Box suggestions for order ${updated.order_id} failed:`, err);
+    }
+  }
+  if (updated && changes.order_status === 'processing' && updated.user_id) {
+    try {
+      await pointsService.awardPurchasePoints(updated);
+    } catch (err) {
+      console.error(`Awarding purchase points for order ${updated.order_id} failed:`, err);
+    }
+  }
+  if (updated && changes.order_status === 'canceled' && updated.coupon?.code) {
+    try {
+      await voucherService.releaseVoucherUsage(updated.coupon.code);
+    } catch (err) {
+      console.error(`Releasing voucher ${updated.coupon.code} for order ${updated.order_id} failed:`, err);
+    }
+  }
+  return updated;
 }
 
 // One-time lines matching an active Ritual Box suggest a shorter cycle (SUBSCRIPTION_ADJUSTED).
@@ -1098,7 +1123,7 @@ async function receiveOrder(req, res) {
     await order.save();
     socketService.emitOrderUpdated(order, 'status_change');
 
-    // Purchase points: pending now, posted once the refund window passes.
+    // Purchase points are pending since processing; this only covers orders from before that rule.
     try {
       await pointsService.awardPurchasePoints(order);
     } catch (pointsErr) {
@@ -1195,7 +1220,8 @@ async function requestRefund(req, res) {
       return res.status(403).json({ error: 'Access denied. You do not have permission to request refund for this order.' });
     }
 
-    if (order.order_status !== 'delivered' && order.order_status !== 'refund_rejected') {
+    // One request per order: a rejected request is final (refund_rejected can't ask again).
+    if (order.order_status !== 'delivered') {
       return res.status(400).json({ error: 'Refund/return can only be requested for delivered orders.' });
     }
 
@@ -1354,6 +1380,14 @@ async function deleteOrder(req, res) {
     const deleted = await Order.findOneAndDelete({ _id: order._id, order_status: 'pending' });
     if (deleted?.stock_reserved) {
       await inventoryService.releaseItems(deleted.items);
+    }
+    // Delete skips the save hooks: give the voucher use back here, as a cancel would.
+    if (deleted?.coupon?.code) {
+      try {
+        await voucherService.releaseVoucherUsage(deleted.coupon.code);
+      } catch (err) {
+        console.error(`Releasing voucher ${deleted.coupon.code} for order ${deleted.order_id} failed:`, err);
+      }
     }
 
     res.json({

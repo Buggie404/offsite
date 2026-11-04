@@ -113,12 +113,27 @@ test('order pending for 1h is left unchanged', async () => {
   assert.equal(f.notifications.length, 0);
 });
 
-test('pending COD order is left unchanged, however old', async () => {
+test('COD order not confirmed within 24h is canceled like the others', async () => {
   const f = fixture();
-  f.add('COD48', { ageHours: 48, method: 'cod' });
-  assert.equal(await f.service.expirePendingOrders(f.now), 0);
-  assert.equal(f.rows.get('COD48').order_status, 'pending');
-  assert.equal(f.released.length, 0);
+  f.add('COD25', { ageHours: 25, method: 'cod' });
+  f.add('COD1', { ageHours: 1, method: 'cod' });
+  assert.equal(await f.service.expirePendingOrders(f.now), 1);
+  const row = f.rows.get('COD25');
+  assert.equal(row.order_status, 'canceled');
+  assert.equal(row.status_history.at(-1).note, 'Order automatically canceled: Not confirmed for more than 24 hours');
+  assert.equal(f.rows.get('COD1').order_status, 'pending');
+  assert.deepEqual(f.released, [['COD25', ['COD25-SKU']]]);
+  assert.deepEqual(f.notifications, [{
+    recipient_id: 'USR1', sender: null, type: 'ORDER_CANCELED_BY_STORE', post_id: 'COD25',
+    comment_content: 'not confirmed within 24 hours'
+  }]);
+});
+
+test('expireIfStale cancels a stale COD order', async () => {
+  const f = fixture();
+  f.add('COD25', { ageHours: 25, method: 'cod' });
+  const loaded = await f.Order.findById('COD25');
+  assert.equal((await f.service.expireIfStale(loaded, f.now)).order_status, 'canceled');
 });
 
 test('running twice (in a row or overlapping) releases stock only once', async () => {

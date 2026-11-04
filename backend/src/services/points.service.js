@@ -6,8 +6,9 @@ const { activeRestriction } = require('./community-restriction.service');
 // Membership point rules
 //   Purchase: +1 point per USD of the order subtotal × tier multiplier.
 //   Review:   +1 point per review × tier multiplier.
-//   Purchase points go "pending" when the order is delivered and "posted"
-//   (added to Users.points) once the refund window has passed. A refund or
+//   Purchase points go "pending" when the order is paid / confirmed (processing)
+//   and "posted" (added to Users.points) once the refund window after delivery
+//   has passed. A canceled order reverses them. A refund or
 //   hidden content reverses them. The balance may go negative and is made up
 //   by later credits. Tiers are never downgraded.
 const TIER_MULTIPLIER = { Seed: 1, Leaf: 1.1, Bloom: 1.25, Zen: 1.5 };
@@ -60,7 +61,8 @@ async function adjustBalance(userId, delta) {
 
 // ─── Purchase ───────────────────────────────────────────────────
 
-// Order delivered → pending purchase points. Idempotent per order.
+// Order paid / confirmed (processing) → pending purchase points. Idempotent per order.
+// Called again on delivery as a fallback for orders that reached processing before this rule.
 async function awardPurchasePoints(order) {
   if (!order || order.is_guest || !order.user_id) return null;
   const existing = await PointTransaction.findOne({ type: 'purchase', ref_type: 'order', ref_id: order.order_id });
@@ -79,7 +81,21 @@ async function awardPurchasePoints(order) {
   });
 }
 
-// Refund approved → reverse the order's purchase points (taking them back if already posted).
+// A line was removed or swapped for a cheaper one while processing: the pending points follow
+// the new subtotal. Posted points are left as they are.
+async function updatePurchasePoints(order) {
+  if (!order || order.is_guest || !order.user_id) return null;
+  const txn = await PointTransaction.findOne({ type: 'purchase', ref_type: 'order', ref_id: order.order_id, status: 'pending' });
+  if (!txn) return null;
+  const amount = await earnedAmount(order.pricing?.subtotal || 0, order.user_id);
+  if (amount === txn.amount) return txn;
+  if (amount <= 0) return reverseTransaction(txn);
+  txn.amount = amount;
+  await txn.save();
+  return txn;
+}
+
+// Refund approved / order canceled → reverse the order's purchase points (taking them back if already posted).
 async function reversePurchasePoints(order) {
   if (!order) return null;
   const txn = await PointTransaction.findOne({
@@ -212,10 +228,16 @@ async function postPendingByType(types, holdMs, now, validateTxn, onPosted) {
 async function postDuePoints(now = new Date()) {
   let posted = 0;
 
+  // Points are pending from processing; they post only once the order was delivered and the
+  // refund window after delivery has passed.
   posted += await postPendingByType(['purchase'], HOLD_DAYS * DAY_MS, now, async (txn) => {
-    const order = await Order.findOne({ order_id: txn.ref_id }, { order_status: 1 }).lean();
-    if (order?.order_status === 'pending_refund') return 'skip';
-    if (order?.order_status === 'refund') return 'reverse';
+    const order = await Order.findOne({ order_id: txn.ref_id }, { order_status: 1, delivered_at: 1, status_history: 1 }).lean();
+    if (!order) return 'post';
+    if (['refund', 'canceled'].includes(order.order_status)) return 'reverse';
+    if (!['delivered', 'refund_rejected'].includes(order.order_status)) return 'skip';
+    const deliveredAt = order.delivered_at
+      || [...(order.status_history || [])].reverse().find(h => h.status === 'delivered')?.changed_at;
+    if (!deliveredAt || now.getTime() - new Date(deliveredAt).getTime() < HOLD_DAYS * DAY_MS) return 'skip';
     return 'post';
   });
 
@@ -277,6 +299,7 @@ module.exports = {
   calcPoints,
   awardPurchasePoints,
   reversePurchasePoints,
+  updatePurchasePoints,
   getOrderPoints,
   awardReviewPoints,
   reverseReviewPoints,

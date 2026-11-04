@@ -19,7 +19,20 @@ const orderItemSchema = new mongoose.Schema({
   subscription_frequency_days: { type: Number, enum: [7, 14, 30, null], default: null },
   // Marked by QLSP / Admin CC when the line can't be fulfilled after the order was placed.
   // The order is then cancelled (and refunded if paid); this line's stock isn't put back.
+  // Marked by staff while processing: out of stock after ordering, waiting for the customer to
+  // choose a replacement or agree to remove it. Never put back in stock.
   out_of_stock: { type: Boolean, default: false }
+}, { _id: false });
+
+// A line taken off a processing order (out of stock): removed, or swapped for another item.
+const removedItemSchema = new mongoose.Schema({
+  item:           { type: orderItemSchema, required: true },
+  action:         { type: String, enum: ['removed', 'swapped'], required: true },
+  replaced_by:    { type: orderItemSchema, default: null },  // the new line when swapped
+  refunded_amount: { type: Number, default: 0 },            // money given back for this change
+  reason:         { type: String, default: null },
+  changed_by:     { type: String, default: null },
+  changed_at:     { type: Date, default: Date.now }
 }, { _id: false });
 
 const deliveryInfoSchema = new mongoose.Schema({
@@ -153,6 +166,12 @@ const orderSchema = new mongoose.Schema({
   // status hooks below don't subtract it again and put it back on any cancel.
   stock_reserved: { type: Boolean, default: false },
 
+  // ─── Out-of-stock changes (partial) ──────────────────────
+  // Lines removed or swapped while processing; items[] and pricing already reflect them.
+  removed_items: { type: [removedItemSchema], default: [] },
+  // Money returned to the customer for those changes. payment_status stays 'paid' (partial refund).
+  refunded_amount: { type: Number, default: 0 },
+
   // ─── Admin internal notes ─────────────────────────────────
   internal_notes: { type: String, default: "" },
 
@@ -213,7 +232,8 @@ orderSchema.pre('save', async function(next) {
   if (this.payment && this.payment.method !== 'cod') {
     if (this.payment_status === 'paid' && this.order_status === 'pending') {
       this.order_status = 'processing';
-    } else if (this.payment_status === 'failed') {
+    } else if (this.payment_status === 'failed' && this.order_status !== 'canceled') {
+      // A failed payment keeps the order pending (24h to pay again), but never undoes a cancel.
       this.order_status = 'pending';
     } else if (this.isNew && this.payment_status === 'pending') {
       this.order_status = 'pending';
@@ -297,6 +317,16 @@ orderSchema.pre('save', async function(next) {
       }
     }
 
+    // Canceled orders don't count as a voucher use (countUserRedemptions skips them), so the
+    // use taken at checkout goes back to the voucher. A failure is logged, never fails the cancel.
+    if (newStatus === 'canceled' && !this.isNew && originalStatus && originalStatus !== 'canceled' && this.coupon?.code) {
+      try {
+        await require('../services/voucher.service').releaseVoucherUsage(this.coupon.code, this.$session());
+      } catch (error) {
+        console.error(`Releasing voucher ${this.coupon.code} for order ${this.order_id} failed:`, error);
+      }
+    }
+
     if (isDelivered) {
       for (const item of this.items) {
         await Product.updateOne(
@@ -321,6 +351,21 @@ orderSchema.pre('save', async function(next) {
       this.$locals.pantryEvent = 'refund';
       this.$locals.ritualDnaEvent = 'refund';
     }
+    // A paid order that is canceled (by the customer, the store, out of stock or expiry) is
+    // refunded in full.
+    if (newStatus === 'canceled' && this.payment_status === 'paid') {
+      this.payment_status = 'refunded';
+    }
+
+    // Purchase points: pending once the order is paid / confirmed (processing), taken back when
+    // it is canceled (refunds reverse them in the refund approval). Done after the save.
+    if (this.user_id && newStatus === 'processing' && originalStatus !== 'processing') {
+      this.$locals.purchasePoints = 'award';
+    }
+    if (this.user_id && newStatus === 'canceled' && originalStatus && originalStatus !== 'canceled') {
+      this.$locals.purchasePoints = 'reverse';
+    }
+
     // Canceled / refunded / refund requested: a Ritual Box suggestion this one-time order raised
     // is withdrawn after the save (post-save hook below).
     if (!this.isNew && ['canceled', 'refund', 'pending_refund'].includes(newStatus) && originalStatus !== newStatus) {
@@ -365,6 +410,20 @@ orderSchema.post('save', function ritualDnaSync(doc) {
 
     task.catch(error => console.error('Ritual DNA order sync failed:', error));
   });
+});
+
+// Purchase points follow the order (see the pre-save hook). Never fails saving the order.
+orderSchema.post('save', async function purchasePointsSync(doc) {
+  const action = this.$locals?.purchasePoints;
+  if (!action) return;
+  this.$locals.purchasePoints = undefined;
+  try {
+    const points = require('../services/points.service');
+    if (action === 'award') await points.awardPurchasePoints(doc);
+    else await points.reversePurchasePoints(doc);
+  } catch (error) {
+    console.error(`Purchase points (${action}) for order ${doc.order_id} failed:`, error);
+  }
 });
 
 // Runs only once the status change is saved; a failure here never fails saving the order.

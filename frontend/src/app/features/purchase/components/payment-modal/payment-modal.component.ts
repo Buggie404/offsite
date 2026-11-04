@@ -100,9 +100,11 @@ export class PaymentModalComponent implements OnChanges, OnDestroy {
         if (current > 1) {
           this.countdown.set(current - 1);
         } else {
+          // Not confirmed within 5s: the order stays pending (24h to confirm or cancel it from the
+          // order page). Nothing is confirmed on the customer's behalf.
           this.countdown.set(0);
           this.stopTimer();
-          this.confirmNow(true);
+          this.canceled.emit();
         }
       }, 1000);
     }

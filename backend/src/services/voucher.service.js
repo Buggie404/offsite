@@ -198,6 +198,21 @@ async function incrementVoucherUsage(voucherId, session = null) {
   return updateResult.modifiedCount > 0;
 }
 
+/**
+ * Gives back one use of a voucher (order canceled or discarded), so a one-use code isn't lost
+ * on an order that never went through. Never goes below 0. Returns true when a use was returned.
+ */
+async function releaseVoucherUsage(code, session = null) {
+  const codeUpper = String(code || '').trim().toUpperCase();
+  if (!codeUpper) return false;
+  const updateResult = await Voucher.updateOne(
+    { code: codeUpper, used_count: { $gt: 0 } },
+    { $inc: { used_count: -1 } },
+    session ? { session } : {}
+  );
+  return updateResult.modifiedCount > 0;
+}
+
 function parseAmount(value, { allowEmpty = false } = {}) {
   if (value === '' || value == null) return allowEmpty ? null : NaN;
   const number = Number(String(value).replace(/[$,\s]/g, ''));
@@ -346,6 +361,7 @@ function bucketUsage(dayCounts, start, end) {
 module.exports = {
   validateAndCalculateVoucher,
   incrementVoucherUsage,
+  releaseVoucherUsage,
   validateVoucherPayload,
   voucherStatus,
   businessToday,

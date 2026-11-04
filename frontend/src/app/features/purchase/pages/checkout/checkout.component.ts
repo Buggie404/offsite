@@ -30,8 +30,7 @@ import {
   LucidePencil,
   LucideRepeat,
   LucideTrophy,
-  LucideInfo,
-  LucideLogIn
+  LucideInfo
 } from '@lucide/angular';
 
 import {
@@ -56,7 +55,6 @@ import {
   getSubscriptionFrequencyLabel,
   isSubscriptionEligibleProduct
 } from '../../models/subscription-cart.model';
-import { AuthModalService } from '../../../../core/auth-modal.service';
 import { Product, ProductVariant } from '../../../../shared/models/product.model';
 import {
   BundleComponentSelection,
@@ -110,7 +108,6 @@ const VIETNAM_BANK_LIST = ['Vietcombank','BIDV','Techcombank','VietinBank','Agri
     LucideRepeat,
     LucideTrophy,
     LucideInfo,
-    LucideLogIn,
     AddressModalComponent,
     PaymentModalComponent
   ],
@@ -125,7 +122,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   authService = inject(AuthService);
   private router = inject(Router);
   private cartService = inject(CartService);
-  private authModalService = inject(AuthModalService);
 
   // Payment Verification Modal State
   showPaymentModal = signal(false);
@@ -1768,10 +1764,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   getSubscribeDiscount(item: CheckoutItem): number {
     return getSubscribeDiscountPercent(item.product);
-  }
-
-  openSignIn(): void {
-    this.authModalService.open('login');
   }
 
   isBundleItem(item: CheckoutItem): boolean {

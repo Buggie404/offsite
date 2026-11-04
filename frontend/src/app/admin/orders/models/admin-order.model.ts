@@ -92,8 +92,34 @@ export interface AdminOrderLineItem {
   subtotal: number;
   purchase_type?: 'one_time' | 'subscription';
   subscription_frequency_days?: number | null;
-  /** Marked out of stock after ordering (the order was cancelled for it). */
+  /** Out of stock after ordering: waiting for the customer to swap or remove it
+   *  (or the reason the order was cancelled, when every line was out of stock). */
   out_of_stock?: boolean;
+}
+
+/** A line taken off a processing order because it was out of stock. */
+export interface AdminOrderRemovedItem {
+  action: 'removed' | 'swapped';
+  product_name: string;
+  variant_name?: string | null;
+  quantity: number;
+  subtotal: number;
+  replaced_by: { product_name: string; variant_name?: string | null; subtotal: number } | null;
+  refunded_amount: number;
+  reason: string | null;
+  changed_at: string;
+}
+
+/** An item an out-of-stock line can be swapped for (same or lower price, enough stock). */
+export interface AdminReplacementOption {
+  product_id: string;
+  variant_id: string;
+  product_name: string;
+  variant_name: string;
+  category: string | null;
+  unit_price: number;
+  stock: number;
+  same_category: boolean;
 }
 
 export interface AdminOrderStatusHistoryEntry {
@@ -172,6 +198,9 @@ export interface AdminOrderDetail {
   status_history: AdminOrderStatusHistoryEntry[];
   refund_request: AdminOrderRefundRequest | null;
   internal_notes: AdminInternalNote[];
+  removed_items?: AdminOrderRemovedItem[];
+  /** Money returned for out-of-stock lines removed or swapped (payment stays 'paid'). */
+  refunded_amount?: number;
 }
 
 export interface AdminOrderDetailResponse {

@@ -1,15 +1,13 @@
 const Order = require('../models/Order');
 const notificationService = require('./notification.service');
 
-// Business rule: an online-payment order (QR / card) that is still 'pending' after the hold
-// window is canceled automatically, which puts its reserved stock back on the shelf.
+// Business rule: an order that is still 'pending' after the hold window is canceled
+// automatically, which puts its reserved stock back on the shelf. The window is the same for
+// every payment method: unpaid online orders (QR / card) and COD orders the shop hasn't confirmed.
 // This file is the ONLY place that defines the rule: the background job below and the
 // order-detail / order-status endpoints (orders.controller.js → expireIfStale) both use it.
 //
 // PENDING_ORDER_HOLD_MINUTES shortens the hold for demos (e.g. 2); default 24h, as before.
-//
-// TODO(COD): pending COD orders (not yet confirmed by the shop) are left alone on purpose —
-// the plan has no deadline for COD confirmation yet. Add one here when the plan defines it.
 const DEFAULT_HOLD_MINUTES = 24 * 60;
 const HOLD_MINUTES = (() => {
   const value = Number(process.env.PENDING_ORDER_HOLD_MINUTES);
@@ -22,14 +20,15 @@ const CLAIM_LEASE_MS = 2 * 60 * 1000;
 
 const holdLabel = HOLD_MINUTES % 60 === 0 ? `${HOLD_MINUTES / 60} hours` : `${HOLD_MINUTES} minutes`;
 const CANCEL_NOTE = `Order automatically canceled: Payment pending for more than ${holdLabel}`;
+const COD_CANCEL_NOTE = `Order automatically canceled: Not confirmed for more than ${holdLabel}`;
 
 function isStale(order, now = new Date()) {
-  if (!order || order.order_status !== 'pending' || order.payment?.method === 'cod') return false;
+  if (!order || order.order_status !== 'pending') return false;
   const created = new Date(order.created_at || order.createdAt).getTime();
   return Number.isFinite(created) && now.getTime() - created >= PENDING_ORDER_HOLD_MS;
 }
 
-// Cancel one order if it is still a stale pending online-payment order.
+// Cancel one order if it is still a stale pending order.
 // Returns the canceled document, or null when it wasn't (or no longer is) eligible.
 async function expireOrder(id, now = new Date()) {
   // Atomic claim: only one caller can match, because the claim moves updated_at to `now`
@@ -41,7 +40,6 @@ async function expireOrder(id, now = new Date()) {
     {
       _id: id,
       order_status: 'pending',
-      'payment.method': { $ne: 'cod' },
       created_at: { $lte: new Date(now.getTime() - PENDING_ORDER_HOLD_MS) },
       $or: [{ updated_at: { $lt: leaseCutoff } }, { updated_at: { $exists: false } }, { updated_at: null }]
     },
@@ -53,17 +51,26 @@ async function expireOrder(id, now = new Date()) {
   order.order_status = 'canceled';
   order.canceled_at = now;
   order._changedBy = 'system';
-  order._statusChangeNote = CANCEL_NOTE;
+  order._statusChangeNote = order.payment?.method === 'cod' ? COD_CANCEL_NOTE : CANCEL_NOTE;
   await order.save(); // pre-save hook releases the stock when stock_reserved is true
 
   if (order.user_id) { // guests have no account to notify
     try {
-      await notificationService.createNotification({
-        recipient_id: order.user_id,
-        sender: null,
-        type: 'ORDER_CANCELED',
-        post_id: order.order_id
-      });
+      // COD orders weren't waiting on a payment: say why in the store-cancel notification.
+      await notificationService.createNotification(order.payment?.method === 'cod'
+        ? {
+          recipient_id: order.user_id,
+          sender: null,
+          type: 'ORDER_CANCELED_BY_STORE',
+          post_id: order.order_id,
+          comment_content: `not confirmed within ${holdLabel}`
+        }
+        : {
+          recipient_id: order.user_id,
+          sender: null,
+          type: 'ORDER_CANCELED',
+          post_id: order.order_id
+        });
     } catch (err) {
       console.error(`Error creating auto-cancel notification for order ${order.order_id}:`, err);
     }
@@ -81,11 +88,10 @@ async function expireIfStale(order, now = new Date()) {
   return (await Order.findById(order._id)) || order;
 }
 
-// Cancel every stale pending online-payment order. Returns how many were canceled.
+// Cancel every stale pending order. Returns how many were canceled.
 async function expirePendingOrders(now = new Date()) {
   const due = await Order.find({
     order_status: 'pending',
-    'payment.method': { $ne: 'cod' },
     created_at: { $lte: new Date(now.getTime() - PENDING_ORDER_HOLD_MS) }
   }, { _id: 1 }).lean();
 

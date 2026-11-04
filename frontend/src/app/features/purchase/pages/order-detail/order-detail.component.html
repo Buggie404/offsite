@@ -47,10 +47,10 @@
         <h1 class="banner-title font-display">{{ config()?.bannerTitle }}</h1>
         <p class="banner-subtitle">
           <ng-container *ngIf="config()?.bannerStyle === 'canceled'">
-            <ng-container *ngIf="order().payment.method === 'cod'">
+            <ng-container *ngIf="order().payment_status !== 'refunded'">
               This order was canceled on {{ getOrderDateFormatted(order().updatedAt) }}. No charge was made to your payment method.
             </ng-container>
-            <ng-container *ngIf="order().payment.method !== 'cod'">
+            <ng-container *ngIf="order().payment_status === 'refunded'">
               This order was canceled on {{ getOrderDateFormatted(order().updatedAt) }}. A refund has been issued. Please allow 3–5 business days for your bank to process the refund.
             </ng-container>
           </ng-container>
