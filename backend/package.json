@@ -11,7 +11,8 @@
     "seed:admins": "node scripts/seed-admins.js",
     "seed:reviews": "node seed_reviews.js",
     "seed:refund-requests": "node seed_refund_requests.js",
-    "seed:ritual-dna": "node scripts/seed-ritual-dna.js"
+    "seed:ritual-dna": "node scripts/seed-ritual-dna.js",
+    "check:duplicate-subscriptions": "node scripts/check-duplicate-subscriptions.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

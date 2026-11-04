@@ -297,6 +297,16 @@ orderSchema.pre('save', async function(next) {
       }
     }
 
+    // Canceled orders don't count as a voucher use (countUserRedemptions skips them), so the
+    // use taken at checkout goes back to the voucher. A failure is logged, never fails the cancel.
+    if (newStatus === 'canceled' && !this.isNew && originalStatus && originalStatus !== 'canceled' && this.coupon?.code) {
+      try {
+        await require('../services/voucher.service').releaseVoucherUsage(this.coupon.code, this.$session());
+      } catch (error) {
+        console.error(`Releasing voucher ${this.coupon.code} for order ${this.order_id} failed:`, error);
+      }
+    }
+
     if (isDelivered) {
       for (const item of this.items) {
         await Product.updateOne(

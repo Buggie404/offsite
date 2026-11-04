@@ -194,7 +194,25 @@ async function applyCustomerTransition(order, action, changes, note) {
     };
   }
 
-  return Order.findOneAndUpdate(filter, update, { new: true, runValidators: true });
+  const updated = await Order.findOneAndUpdate(filter, update, { new: true, runValidators: true });
+  // Nor does it run the post-save hooks. Today every customer transition ends in pending /
+  // processing; if one ever ends in a status that withdraws a Ritual Box suggestion or gives
+  // the voucher back, do that here so the order hooks aren't silently skipped.
+  if (updated && ['canceled', 'refund', 'pending_refund'].includes(changes.order_status)) {
+    try {
+      await subscriptionService.withdrawSuggestionsForOrder(updated.order_id);
+    } catch (err) {
+      console.error(`Withdrawing Ritual Box suggestions for order ${updated.order_id} failed:`, err);
+    }
+  }
+  if (updated && changes.order_status === 'canceled' && updated.coupon?.code) {
+    try {
+      await voucherService.releaseVoucherUsage(updated.coupon.code);
+    } catch (err) {
+      console.error(`Releasing voucher ${updated.coupon.code} for order ${updated.order_id} failed:`, err);
+    }
+  }
+  return updated;
 }
 
 // One-time lines matching an active Ritual Box suggest a shorter cycle (SUBSCRIPTION_ADJUSTED).
@@ -1354,6 +1372,14 @@ async function deleteOrder(req, res) {
     const deleted = await Order.findOneAndDelete({ _id: order._id, order_status: 'pending' });
     if (deleted?.stock_reserved) {
       await inventoryService.releaseItems(deleted.items);
+    }
+    // Delete skips the save hooks: give the voucher use back here, as a cancel would.
+    if (deleted?.coupon?.code) {
+      try {
+        await voucherService.releaseVoucherUsage(deleted.coupon.code);
+      } catch (err) {
+        console.error(`Releasing voucher ${deleted.coupon.code} for order ${deleted.order_id} failed:`, err);
+      }
     }
 
     res.json({
