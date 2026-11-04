@@ -1,6 +1,7 @@
 import { Component, Input, inject, signal, afterNextRender, DestroyRef } from '@angular/core';
 import { RouterLink, Router } from '@angular/router';
 import { AuthService } from '../../../../core/auth.service';
+import { LucideArrowDown, LucideArrowRight, LucideAsterisk, LucideCoffee, LucideDroplet, LucideHeart, LucideLeaf, LucideSparkle, LucideSparkles, LucideStar } from '@lucide/angular';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 
 export interface HomeRitualProfile {
@@ -9,7 +10,7 @@ export interface HomeRitualProfile {
 }
 
 @Component({
-  selector: 'app-ritual-welcome', standalone: true, imports: [RouterLink],
+  selector: 'app-ritual-welcome', standalone: true, imports: [RouterLink, LucideArrowDown, LucideArrowRight, LucideAsterisk, LucideCoffee, LucideDroplet, LucideHeart, LucideLeaf, LucideSparkle, LucideSparkles, LucideStar],
   templateUrl: './ritual-welcome.component.html', styleUrl: './ritual-welcome.component.scss'
 })
 export class RitualWelcomeComponent {
