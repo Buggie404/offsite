@@ -171,16 +171,9 @@
               Customize in Build Your Bundle
             </button>
 
-            @if (!isAuthenticated()) {
-              <div class="starter-save">
-                <strong><svg lucideBookmark [size]="16" aria-hidden="true"></svg>Save this result</strong>
-                <p>Sign in to keep this kit on your account.</p>
-                <div class="starter-save__actions">
-                  <button type="button" class="starter-btn starter-btn--tiny" (click)="openAuth('login')">Sign in</button>
-                  <button type="button" class="starter-btn starter-btn--tiny starter-btn--ghost" (click)="openAuth('signup')">Create account</button>
-                </div>
-              </div>
-            }
+            <button type="button" class="starter-nav-btn starter-result__again" (click)="start()">
+              <svg lucideRotateCcw [size]="16" aria-hidden="true"></svg>Retake the quiz
+            </button>
           </div>
 
           <ul class="starter-products">
@@ -201,14 +194,6 @@
                 </div>
               </li>
             }
-            <li class="starter-summary">
-              <p class="starter-summary__row"><span>{{ result.items.length }} items, bought separately</span><span>{{ formatPrice(result.pricing.original) }}</span></p>
-              <p class="starter-summary__row starter-summary__row--save"><span>Bundle saving ({{ result.discountPercent }}%)</span><span>−{{ formatPrice(result.pricing.original - result.pricing.sale) }}</span></p>
-              <p class="starter-summary__row starter-summary__row--total"><span>Your kit</span><span>{{ formatPrice(result.pricing.sale) }}</span></p>
-              <button type="button" class="starter-nav-btn starter-result__again" (click)="start()">
-                <svg lucideRotateCcw [size]="16" aria-hidden="true"></svg>Retake the quiz
-              </button>
-            </li>
           </ul>
         </article>
       </div>

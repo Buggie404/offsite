@@ -3,13 +3,12 @@ import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { PLATFORM_ID } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import {
-  LucideArrowLeft, LucideArrowRight, LucideBlend, LucideBookmark, LucideCandy, LucideCheck, LucideClock,
+  LucideArrowLeft, LucideArrowRight, LucideBlend, LucideCandy, LucideCheck, LucideClock,
   LucideCoffee, LucideCupSoda, LucideDroplet, LucideFlame, LucideGem, LucideGift, LucideLeaf, LucideLoaderCircle,
   LucideMilk, LucidePackage, LucideRotateCcw, LucideScale, LucideSnowflake, LucideSparkles, LucideSun, LucideTag,
   LucideTimer, LucideUserRound, LucideWallet, LucideWrench
 } from '@lucide/angular';
 import { AuthService } from '../../../../core/auth.service';
-import { AuthModalService } from '../../../../core/auth-modal.service';
 import { CartService } from '../../../purchase/services/cart.service';
 import { createKitBundle } from '../../../purchase/models/bundle-cart.model';
 import type { Product as CartProduct } from '../../../../shared/models/product.model';
@@ -25,7 +24,7 @@ type QuizStep = 'intro' | 'question' | 'result';
   standalone: true,
   imports: [
     CommonModule, RouterLink,
-    LucideArrowLeft, LucideArrowRight, LucideBlend, LucideBookmark, LucideCandy, LucideCheck, LucideClock,
+    LucideArrowLeft, LucideArrowRight, LucideBlend, LucideCandy, LucideCheck, LucideClock,
     LucideCoffee, LucideCupSoda, LucideDroplet, LucideFlame, LucideGem, LucideGift, LucideLeaf, LucideLoaderCircle,
     LucideMilk, LucidePackage, LucideRotateCcw, LucideScale, LucideSnowflake, LucideSparkles, LucideSun, LucideTag,
     LucideTimer, LucideUserRound, LucideWallet, LucideWrench
@@ -40,7 +39,6 @@ export class StarterQuizComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly bundleState = inject(BundleBuilderStateService);
   private readonly auth = inject(AuthService);
-  private readonly authModal = inject(AuthModalService);
   private readonly platformId = inject(PLATFORM_ID);
 
   readonly step = signal<QuizStep>('intro');
@@ -57,8 +55,6 @@ export class StarterQuizComponent implements OnInit {
   readonly kit = signal<QuizKit | null>(null);
 
   private awaitingAccountSave = false;
-
-  readonly isAuthenticated = this.auth.isAuthenticated;
 
   readonly visibleQuestions = computed(() => {
     const chosen = this.answers();
@@ -201,11 +197,6 @@ export class StarterQuizComponent implements OnInit {
       slotProductOrder: kit.slotProductOrder as Partial<Record<SlotKey, number[]>>
     });
     this.router.navigate(['/shop/build-your-bundle']);
-  }
-
-  openAuth(mode: 'login' | 'signup'): void {
-    this.awaitingAccountSave = true;
-    this.authModal.open(mode);
   }
 
   formatPrice(amount: number): string {
