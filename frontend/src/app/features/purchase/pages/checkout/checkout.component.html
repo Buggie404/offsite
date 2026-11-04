@@ -761,21 +761,13 @@
           </ng-container>
         </div>
 
-        <ng-container *ngIf="hasSubscription()">
-          <div class="sub-signin" *ngIf="!authService.isAuthenticated(); else consentTpl">
-            <p>Sign in or create an account to start your Ritual Box. Subscriptions are managed from your account.</p>
-            <button type="button" class="sub-signin__btn" (click)="openSignIn()">
-              <svg lucideLogIn [size]="14"></svg>Sign in
-            </button>
-          </div>
-          <ng-template #consentTpl>
-            <label class="sub-consent">
-              <input type="checkbox" [checked]="autoBillingAgreed()" (change)="autoBillingAgreed.set($any($event.target).checked)" />
-              <span class="sub-consent__box" aria-hidden="true"><svg lucideCheck [size]="14"></svg></span>
-              <span>I agree to automatic billing for my Ritual Box. Skip, pause or cancel anytime in Account.</span>
-            </label>
-          </ng-template>
-        </ng-container>
+        <!-- Ritual Box lines can only be added to the cart by a signed-in customer, so checkout
+             only asks for the auto-billing consent (no sign-in prompt here). -->
+        <label class="sub-consent" *ngIf="hasSubscription()">
+          <input type="checkbox" [checked]="autoBillingAgreed()" (change)="autoBillingAgreed.set($any($event.target).checked)" />
+          <span class="sub-consent__box" aria-hidden="true"><svg lucideCheck [size]="14"></svg></span>
+          <span>I agree to automatic billing for my Ritual Box. Skip, pause or cancel anytime in Account.</span>
+        </label>
 
         <button type="button" class="confirm-btn" [disabled]="isFormInvalid" (click)="confirmOrder()">
           CONFIRM ORDER
