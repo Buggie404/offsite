@@ -29,6 +29,7 @@ export class BestSellerComponent implements OnInit, OnChanges, AfterViewInit {
   @Input() headingStyle: 'default' | 'plain' = 'default';
   @Input() compact = false;
   @Input() productsOverride: Product[] | null = null;
+  @Input() productFits: Record<number, { percent: number; name: string; archetypeId: string }> = {};
   @Input() showEyebrow = true;
   @Input() showViewAll = true;
 

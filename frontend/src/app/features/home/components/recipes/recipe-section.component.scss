@@ -98,9 +98,10 @@
 .brew-container {
   position:   relative;
   z-index:    1;
-  max-width:  1200px;
+  max-width:  1440px;
+  box-sizing: border-box;
   margin:     0 auto;
-  padding:    0 var(--space-container-h);
+  padding:    0 clamp(16px, 4.44vw, 64px);
   display:    flex;
   flex-direction: column;
   gap:        56px;

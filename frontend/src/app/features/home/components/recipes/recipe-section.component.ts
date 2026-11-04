@@ -34,6 +34,7 @@ import { ParallaxDirective } from '../../../../shared/directives/parallax.direct
   styleUrls: ['./recipe-section.component.scss'],
 })
 export class RecipeSectionComponent implements OnInit, OnChanges {
+  @Input() recipesOverride: Recipe[] | null = null;
   @Input() sectionHeading = 'Brew It Yourself';
   @Input() compact = false;
   @Input() embedded = false;
@@ -59,10 +60,14 @@ export class RecipeSectionComponent implements OnInit, OnChanges {
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
     this.loadSavedRecipes();
-    this.loadRecipes();
+    if (this.recipesOverride) { this.recipes = this.recipesOverride; this.isLoading = false; }
+    else this.loadRecipes();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['recipesOverride'] && this.recipesOverride) {
+      this.recipes = this.recipesOverride; this.isLoading = false; this.error = null; return;
+    }
     if (!changes['baseFilter'] || changes['baseFilter'].firstChange) return;
     if (!isPlatformBrowser(this.platformId)) return;
     this.loadRecipes();

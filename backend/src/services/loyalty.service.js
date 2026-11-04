@@ -727,7 +727,10 @@ async function awardRitualDnaQuizPoints(jwtUserId) {
   const appUserId = await resolveAppUserId(jwtUserId);
   if (!appUserId) return { ok: false, error: 'User not found.' };
 
-  const user = await User.findOne({ user_id: appUserId }, { ritual_dna_quiz_completed: 1 }).lean();
+  const user = await User.findOne({ user_id: appUserId }, { ritual_dna_quiz_completed: 1, ritual_dna: 1 }).lean();
+  if (!user?.ritual_dna?.quiz_taken_at) {
+    return { ok: false, error: 'Complete the Ritual DNA quiz first.' };
+  }
   if (user?.ritual_dna_quiz_completed) {
     return { ok: false, error: 'Quiz reward already claimed.' };
   }

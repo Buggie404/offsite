@@ -1,8 +1,19 @@
 <app-hero></app-hero>
 <app-promo-ticker></app-promo-ticker>
+<app-ritual-welcome [profile]="ritualProfile()" [loading]="ritualProfileLoading()"></app-ritual-welcome>
 <app-collection></app-collection>
-<app-best-seller></app-best-seller>
-<app-recipe-section [detailLinkState]="recipeDetailEntryState"></app-recipe-section>
+<div id="ritual-picks">
+  @if (ritualProducts().length) {
+    <app-best-seller [eyebrowText]="'Picked for ' + (ritualProfile()?.archetype?.name || 'your Ritual DNA')" sectionHeading="Your taste. Your next cup." [productsOverride]="ritualProducts()" [productFits]="ritualFits()"></app-best-seller>
+  } @else {
+    <app-best-seller></app-best-seller>
+  }
+</div>
+@if (ritualRecipes().length) {
+  <app-recipe-section sectionHeading="Recipes for your ritual" [recipesOverride]="ritualRecipes()" [detailLinkState]="recipeDetailEntryState"></app-recipe-section>
+} @else {
+  <app-recipe-section [detailLinkState]="recipeDetailEntryState"></app-recipe-section>
+}
 <app-brand-story></app-brand-story>
 <app-community></app-community>
 <app-back-to-top></app-back-to-top>

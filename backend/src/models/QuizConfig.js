@@ -7,7 +7,12 @@ const optionSchema = new mongoose.Schema({
   icon: { type: String, default: '' },
   // Rule code used by the starter-kit matcher (E1, M, light, ...).
   code: { type: String, required: true },
-  score_weights: { type: mongoose.Schema.Types.Mixed, default: {} }
+  score_weights: { type: mongoose.Schema.Types.Mixed, default: {} },
+  drink_lean: { type: Number, default: null },
+  lean_confirmed: { type: Boolean, default: null },
+  equipment_level: { type: String, default: null },
+  serving: { type: String, default: null },
+  occasion: { type: String, default: null }
 }, { _id: false });
 
 const quizConfigSchema = new mongoose.Schema({
@@ -16,6 +21,8 @@ const quizConfigSchema = new mongoose.Schema({
   code: { type: String, required: true },
   question: { type: String, required: true },
   order: { type: Number, required: true },
+  selection_limit: { type: Number, default: 1, min: 1, max: 2 },
+  quiz_version: { type: String, default: '1' },
   options: { type: [optionSchema], default: [] },
   // Conditional question. Example: Q2b only when Q2 = B.
   visible_when: {

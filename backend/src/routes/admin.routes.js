@@ -12,6 +12,7 @@ const adminActivityLogController = require('../controllers/admin-activity-log.co
 const adminCustomersController = require('../controllers/admin-customers.controller');
 const adminVouchersController = require('../controllers/admin-vouchers.controller');
 const adminModerationController = require('../controllers/admin-moderation.controller');
+const adminRitualDnaController = require('../controllers/admin-ritual-dna.controller');
 const {
   authMiddleware,
   requireRole,
@@ -59,6 +60,19 @@ router.get('/activity-logs/export', authMiddleware, requireRole('admin_cc'), adm
 router.get('/dashboard', authMiddleware, requireRole('admin_cc'), adminDashboardController.getDashboard);
 router.get('/sales-dashboard', authMiddleware, requireRole('admin_cc', 'qlsp'), adminDashboardController.getSalesDashboard);
 router.get('/services-dashboard', authMiddleware, requireRole('admin_cc', 'cskh'), adminDashboardController.getServicesDashboard);
+router.get('/ritual-dna/overview', authMiddleware, requireRole('admin_cc'), adminRitualDnaController.overview);
+router.post('/ritual-dna/archetype-releases', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.createDraft);
+router.put('/ritual-dna/archetype-releases/:version', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.saveDraft);
+router.post('/ritual-dna/archetype-releases/:version/impact', authMiddleware, requireRole('admin_cc'), adminRitualDnaController.signatureImpact);
+router.delete('/ritual-dna/archetype-releases/:version', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.deleteDraft);
+router.post('/ritual-dna/archetype-releases/:version/:action', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.changeStatus);
+router.post('/ritual-dna/quiz-releases', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.createQuizDraft);
+router.put('/ritual-dna/quiz-releases/:version', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.saveQuizDraft);
+router.delete('/ritual-dna/quiz-releases/:version', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.deleteQuizDraft);
+router.post('/ritual-dna/quiz-releases/:version/simulate', authMiddleware, requireRole('admin_cc'), adminRitualDnaController.simulateQuiz);
+router.post('/ritual-dna/quiz-releases/:version/:action', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.changeQuizStatus);
+router.get('/ritual-dna/customers', authMiddleware, requireRole('admin_cc'), adminRitualDnaController.customers);
+router.get('/ritual-dna/customers/:userId', authMiddleware, requireRole('admin_cc'), adminRitualDnaController.customerDetail);
 
 router.get('/orders', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminController.getAllOrders);
 router.get('/orders/:id', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminController.getOrderById);

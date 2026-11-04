@@ -1,9 +1,19 @@
 const mongoose = require('mongoose');
 
+const ritualDnaLogSchema = new mongoose.Schema({
+  surface: { type: String, enum: ['account', 'product_detail'], required: true },
+  prompt_version: { type: String, required: true },
+  viewed_product_id: { type: Number, default: null },
+  candidate_product_ids: { type: [String], default: [] },
+  candidate_recipe_ids: { type: [String], default: [] },
+  selected_product_ids: { type: [String], default: [] },
+  selected_recipe_ids: { type: [String], default: [] }
+}, { _id: false });
+
 const aiCallLogSchema = new mongoose.Schema({
   feature: {
     type: String,
-    enum: ['concierge', 'community_bridge'],
+    enum: ['concierge', 'community_bridge', 'ritual_dna'],
     default: 'concierge',
     index: true
   },
@@ -22,7 +32,9 @@ const aiCallLogSchema = new mongoose.Schema({
     default: 'success'
   },
   input_summary: { type: String, default: '' },
-  output_summary: { type: String, default: '' }
+  output_summary: { type: String, default: '' },
+  // Existing Dify logs keep this null; Ritual DNA logs only store IDs and counts, never prompts.
+  ritual_dna: { type: ritualDnaLogSchema, default: null }
 }, {
   collection: 'AiCallLogs',
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

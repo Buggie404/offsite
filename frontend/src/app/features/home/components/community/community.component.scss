@@ -106,9 +106,10 @@
 
 .container {
   width: 100%;
-  max-width: var(--container-max);
+  max-width: 1440px;
+  box-sizing: border-box;
   margin: 0 auto;
-  padding: 0 var(--container-padding-desktop);
+  padding: 0 clamp(16px, 4.44vw, 64px);
   position: relative;
   z-index: 1;
 }

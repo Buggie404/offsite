@@ -1,0 +1,393 @@
+<header class="page-header">
+  <div><p class="eyebrow">PERSONALIZATION · CONFIGURATION</p><h1>Ritual DNA</h1><p>Live quiz and archetype data used for customer profiles.</p></div>
+  <button type="button" class="refresh-button" (click)="load()" [disabled]="loading() || !!quizDraft() || !!archetypeDraft()" [title]="quizDraft() || archetypeDraft() ? 'Discard local edits before refreshing' : 'Refresh live data'">REFRESH DATA</button>
+</header>
+
+@if (loading()) {
+  <div class="state-card" role="status">Loading Ritual DNA configuration...</div>
+} @else if (error()) {
+  <div class="state-card state-card--error" role="alert"><p>{{ error() }}</p><button type="button" (click)="load()">TRY AGAIN</button></div>
+} @else if (overview(); as data) {
+  <section class="stat-grid" aria-label="Ritual DNA overview">
+    <div class="stat-card"><span>ACTIVE ARCHETYPES</span><strong>{{ data.summary.active_archetype_count }}</strong><small>{{ data.archetypes.length }} configured</small></div>
+    <div class="stat-card"><span>QUIZ QUESTIONS</span><strong>{{ data.summary.active_question_count }}</strong><small>Version {{ data.active_quiz.version || '—' }}</small></div>
+    <div class="stat-card"><span>CUSTOMER PROFILES</span><strong>{{ data.summary.profiles }}</strong><small>Saved in Users</small></div>
+    <div class="stat-card"><span>QUIZ COMPLETION</span><strong>{{ completionPercent }}%</strong><small>{{ data.summary.profiles }} of {{ data.summary.total_customers }} customer accounts</small></div>
+  </section>
+
+  <section class="flow-card" aria-label="How Ritual DNA works">
+    <p class="eyebrow">HOW THE LIVE CONFIGURATION WORKS</p>
+    <div class="flow-steps">
+      <div><b>01</b><strong>Seven quiz answers</strong><small>One or two selections per question</small></div>
+      <div><b>02</b><strong>Five-axis radar</strong><small>Brightness, Boldness, Sweetness, Skill, Tempo</small></div>
+      <div><b>03</b><strong>Closest archetype</strong><small>Compared with active signatures</small></div>
+      <div><b>04</b><strong>Living profile</strong><small>Qualified behavior updates the radar</small></div>
+    </div>
+  </section>
+
+  <nav class="dna-tabs" aria-label="Ritual DNA configuration sections">
+    <button type="button" [class.active]="tab() === 'archetypes'" [attr.aria-current]="tab() === 'archetypes' ? 'page' : null" (click)="tab.set('archetypes')">ARCHETYPES ({{ data.archetypes.length }})</button>
+    <button type="button" [class.active]="tab() === 'quiz'" [attr.aria-current]="tab() === 'quiz' ? 'page' : null" (click)="tab.set('quiz')">QUIZ · VERSION {{ data.active_quiz.version || '—' }}</button>
+    <button type="button" [class.active]="tab() === 'evolution'" [attr.aria-current]="tab() === 'evolution' ? 'page' : null" (click)="tab.set('evolution')">EVOLUTION RULES</button>
+    <button type="button" [class.active]="tab() === 'customers'" [attr.aria-current]="tab() === 'customers' ? 'page' : null" (click)="tab.set('customers')">CUSTOMERS</button>
+  </nav>
+
+  @if (tab() === 'archetypes') {
+    <section class="data-card release-manager" aria-label="Archetype releases">
+      <div class="release-manager__header"><div><p class="eyebrow">VERSION CONTROL</p><h2>Archetype releases</h2><p>Review a version, test its matching, then publish it for new results.</p></div>
+        <button type="button" class="primary-button" (click)="createDraft()" [disabled]="releaseBusy() || !!archetypeDraft()">+ Create draft</button>
+      </div>
+      <div class="release-list-viewport"><div class="release-list">
+        @for (release of data.archetype_releases; track release.version) {
+          <button type="button" class="release-item" [class.active]="selectedReleaseVersion() === release.version" [disabled]="!!archetypeDraft()" (click)="selectRelease(release.version)" [attr.aria-pressed]="selectedReleaseVersion() === release.version">
+            <span class="release-item__version">v{{ release.version }}</span>
+            <span class="release-item__details"><strong>{{ release.published_at ? 'Published release' : 'Unpublished draft' }}</strong><small>{{ releaseDate(release.updated_at) }}</small></span>
+            <span class="release-item__status" [attr.data-status]="release.status">{{ release.status === 'active' ? 'Live' : release.status === 'testing' ? 'Testing' : release.status === 'draft' ? 'Draft' : release.published_at ? 'Previous' : 'Discarded' }}</span>
+          </button>
+        }
+      </div></div>
+      @if (selectedRelease; as release) {
+        <div class="release-detail"><strong>Version {{ release.version }}</strong><span>{{ release.status === 'active' ? 'Visible to customers' : release.status === 'testing' ? 'Admin test only' : release.published_at ? 'Earlier public version' : 'Never published' }}</span></div>
+        @if (release.status === 'testing') {
+          <div class="release-test" aria-label="Admin matching test">
+            <p class="eyebrow">ADMIN TEST · SIMULATED RADAR</p>
+            <div class="release-test__inputs">
+              @for (axis of axes; track axis.key) { <label>{{ axis.label }} <input type="number" min="0" max="100" [value]="testRadar()[axis.key]" (input)="setTestRadar(axis.key, $event)"></label> }
+            </div>
+            <p>Closest match: <strong>{{ testDistances[0]?.name || '—' }}</strong></p>
+            <div class="release-test__results">@for (row of testDistances; track row.name) { <span>{{ row.name }} · {{ row.distance.toFixed(1) }}</span> }</div>
+            <small>This calculation only previews matching and does not change customer profiles.</small>
+          </div>
+        }
+        <div class="release-actions">
+          @if (release.status === 'draft') {
+            <button type="button" class="primary-button" [disabled]="releaseBusy()" (click)="transitionRelease('test')">Send to testing</button>
+            <button type="button" class="release-actions__delete" [disabled]="releaseBusy() || !!archetypeDraft()" (click)="deleteDraft()">Delete draft</button>
+          } @else if (release.status === 'testing') {
+            <button type="button" class="quiet-button" [disabled]="releaseBusy()" (click)="transitionRelease('edit')">Reopen draft</button>
+            <button type="button" class="primary-button" [disabled]="releaseBusy()" (click)="transitionRelease('publish')">Publish to users</button>
+          } @else if (release.status === 'archived' && release.published_at) {
+            <button type="button" class="quiet-button" [disabled]="releaseBusy() || !!archetypeDraft()" (click)="createDraft(release.version)">Create restore draft</button>
+          } @else if (release.status === 'archived') {
+            <button type="button" class="release-actions__delete" [disabled]="releaseBusy()" (click)="deleteDraft()">Delete draft</button>
+          }
+        </div>
+      }
+    </section>
+    <section class="quiz-toolbar archetype-toolbar" aria-label="Archetype list controls">
+      <div>
+        <p class="eyebrow">ARCHETYPES · {{ archetypes.length }} IN VERSION</p>
+        <h2>{{ selectedRelease?.status === 'active' ? 'Live archetypes' : selectedRelease?.status === 'draft' ? 'Draft archetypes' : 'Version preview' }}</h2>
+        <p>Select an archetype to inspect its signature and customer card.</p>
+      </div>
+      @if (selectedRelease?.status === 'draft') {
+        @if (selectedArchetype; as row) {
+          <button type="button" class="primary-button" (click)="openArchetypeModal(row.archetype_id)">Edit {{ row.name }}</button>
+        }
+      }
+    </section>
+    <div class="content-grid">
+    <section class="data-card" aria-label="Archetype list">
+          <div class="card-heading"><div><p class="eyebrow">{{ selectedRelease?.status === 'active' ? 'LIVE ARCHETYPES' : 'SELECTED VERSION' }}</p><h2>Profile signatures</h2></div><span>5 axes · 0–100</span></div>
+          @if (archetypes.length) {
+            <div class="archetype-list">
+              @for (row of archetypes; track row.archetype_id) {
+                <button type="button" class="archetype-row" [class.selected]="selectedArchetypeId() === row.archetype_id" [attr.data-archetype]="row.archetype_id" (click)="selectedArchetypeId.set(row.archetype_id)" [attr.aria-pressed]="selectedArchetypeId() === row.archetype_id" [attr.aria-label]="'Preview ' + row.name">
+                  <span class="archetype-symbol" aria-hidden="true">✦</span>
+                  <span class="archetype-identity"><strong>{{ row.name || 'Untitled archetype' }}</strong><small>{{ row.tagline }}</small></span>
+                  <span class="archetype-members">{{ row.member_count }} <small>profiles</small></span>
+                  <span class="status" [class.status--off]="!row.is_active">{{ row.is_active ? 'ACTIVE' : 'DISABLED' }}</span>
+                </button>
+              }
+            </div>
+          } @else { <p class="empty-message">No archetype records found.</p> }
+    </section>
+    @if (selectedArchetype; as row) {
+      <div class="archetype-inline-preview">
+        <ng-container *ngTemplateOutlet="archetypeCard; context: { $implicit: row }"></ng-container>
+      </div>
+    }
+    </div>
+    @if (archetypeModalOpen() && selectedArchetype; as row) {
+      <div class="archetype-modal-backdrop" (click)="closeArchetypeModal()">
+        <section class="archetype-modal" role="dialog" aria-modal="true" [attr.data-archetype]="row.archetype_id" [attr.aria-label]="'Edit ' + row.name" (click)="$event.stopPropagation()">
+          <header class="archetype-modal__header">
+            <div><p class="eyebrow">{{ row.archetype_id }} · VERSION {{ selectedRelease?.version }}</p><h2>Edit archetype</h2></div>
+            <button type="button" class="archetype-modal__close" (click)="closeArchetypeModal()" aria-label="Close archetype dialog" autofocus>×</button>
+          </header>
+          <div class="archetype-modal__body">
+            <div class="archetype-modal__fields">
+                <div class="archetype-editor__copy">
+                  <label>Name<input type="text" [value]="row.name" (input)="updateArchetypeText(row.archetype_id, 'name', $event)"></label>
+                  <label>Tagline on card<textarea rows="3" [value]="row.tagline" (input)="updateArchetypeText(row.archetype_id, 'tagline', $event)"></textarea></label>
+                  <label>Description<textarea rows="5" [value]="row.description" (input)="updateArchetypeText(row.archetype_id, 'description', $event)"></textarea></label>
+                </div>
+                <div class="archetype-editor__axes">
+                  <p class="eyebrow">SIGNATURE · 0–100</p>
+                  @for (axis of axes; track axis.key) {
+                    <label class="axis-editor"><span>{{ axis.label }}</span><input type="range" min="0" max="100" step="1" [value]="row.taste_profile[axis.key]" (input)="updateArchetypeAxis(row.archetype_id, axis.key, $event)" [attr.aria-label]="axis.label + ' signature value'"><input type="number" min="0" max="100" step="1" [value]="row.taste_profile[axis.key]" (input)="updateArchetypeAxis(row.archetype_id, axis.key, $event)" [attr.aria-label]="axis.label + ' number'"></label>
+                  }
+                  <small>New quiz results use this signature after the release is published. Existing customer profiles remain unchanged.</small>
+                </div>
+                <section class="signature-impact" aria-label="Signature impact simulation" aria-live="polite">
+                  <p class="eyebrow">IMPACT OF THIS SIGNATURE · SIMULATION</p>
+                  @if (impactLoading()) {
+                    <p class="signature-impact__message">Calculating from saved customer radars…</p>
+                  } @else if (impactError()) {
+                    <p class="signature-impact__message">{{ impactError() }}</p>
+                  } @else if (archetypeIssues.length) {
+                    <p class="signature-impact__message">Complete valid signature values to see the estimate.</p>
+                  } @else if (signatureImpact(); as impact) {
+                    @if (impact.total_profiles) {
+                      <p class="signature-impact__message"><span aria-hidden="true">⚠</span><strong>{{ impact.changed_nearest }} of {{ impact.total_profiles }}</strong> saved radars would have a different nearest archetype. <strong>{{ impact.toward_selected }}</strong> would be nearest to {{ row.name }}.@if (impact.most_common_origin_id) { Most were previously nearest to {{ impactOriginName }} ({{ impact.most_common_origin_count }}). }</p>
+                    } @else {
+                      <p class="signature-impact__message">No saved customer radars to simulate yet.</p>
+                    }
+                  }
+                  <small>This isolates {{ row.name }}'s signature against the live release. It compares nearest matches only; publishing does not reassign existing customers.</small>
+                </section>
+            </div>
+            <div class="archetype-modal__preview"><p class="eyebrow">LIVE CARD PREVIEW</p>
+              <ng-container *ngTemplateOutlet="archetypeCard; context: { $implicit: row }"></ng-container>
+              <small>Preview uses this archetype's signature. A customer card shows that customer's own radar.</small>
+            </div>
+          </div>
+          @if (archetypeIssues.length) {
+            <div class="archetype-modal__issues" role="alert"><strong>Review before saving</strong><ul>@for (issue of archetypeIssues; track $index) { <li>{{ issue }}</li> }</ul></div>
+          }
+          <footer class="archetype-modal__footer">
+            <button type="button" class="quiet-button" (click)="closeArchetypeModal()" [disabled]="releaseBusy()">Cancel</button>
+            <button type="button" class="primary-button" (click)="saveDraft()" [disabled]="releaseBusy() || !!archetypeIssues.length">{{ releaseBusy() ? 'Saving…' : 'Save archetype' }}</button>
+          </footer>
+        </section>
+      </div>
+    }
+    <ng-template #archetypeCard let-row>
+      <aside class="preview-card" [class.preview-card--disabled]="!row.is_active" [attr.data-archetype]="row.archetype_id" aria-label="Archetype card preview">
+        <div class="preview-card__top">
+          <div class="preview-card__brand"><img src="assets/images/logo-mark-dark.svg" alt=""><span>OFFSITE<small>RITUAL DNA</small></span></div>
+          <span class="preview-card__version">PROFILE · V{{ row.profile_version }}</span>
+        </div>
+        <div class="preview-card__intro"><span>YOUR CUP, YOUR WAY</span><span class="preview-card__spark" aria-hidden="true">✦</span></div>
+        <div class="preview-card__radar-panel">
+          <div class="preview-card__panel-heading"><span>THE RITUAL RADAR</span><span>05 NOTES</span></div>
+          <div class="radar-wrap">
+            <svg viewBox="0 0 200 200" role="img" [attr.aria-label]="'Radar signature for ' + row.name">
+              <polygon class="radar-grid" points="100,24 172.3,76.5 144.7,161.5 55.3,161.5 27.7,76.5"></polygon>
+              <polygon class="radar-grid" points="100,50 147.6,84.5 129.4,140.5 70.6,140.5 52.4,84.5"></polygon>
+              <polygon class="radar-grid" points="100,76 122.8,92.6 114.1,119.4 85.9,119.4 77.2,92.6"></polygon>
+              <line x1="100" y1="100" x2="100" y2="24"></line><line x1="100" y1="100" x2="172.3" y2="76.5"></line>
+              <line x1="100" y1="100" x2="144.7" y2="161.5"></line><line x1="100" y1="100" x2="55.3" y2="161.5"></line>
+              <line x1="100" y1="100" x2="27.7" y2="76.5"></line>
+              <polygon class="radar-signature" [attr.points]="radarPoints(row.taste_profile)"></polygon>
+            </svg>
+            <span class="axis-label axis-label--top">BRIGHTNESS</span><span class="axis-label axis-label--right">BOLDNESS</span><span class="axis-label axis-label--bottom-right">SWEETNESS</span><span class="axis-label axis-label--bottom-left">SKILL</span><span class="axis-label axis-label--left">TEMPO</span>
+          </div>
+        </div>
+        <div class="preview-card__identity"><span class="preview-card__eyebrow">YOUR ARCHETYPE</span><h2>{{ row.name }}</h2><p class="preview-card__tagline">{{ row.tagline }}</p><p class="preview-card__description">{{ row.description }}</p></div>
+        <div class="signature-list" aria-label="Archetype signature scores">
+          @for (axis of axes; track axis.key) { <span [title]="axis.label"><small>{{ axis.short }}</small><strong>{{ row.taste_profile[axis.key] }}</strong></span> }
+        </div>
+        <div class="preview-card__footer"><span>BREW YOUR OWN MOMENT</span><span aria-hidden="true">✳</span></div>
+      </aside>
+    </ng-template>
+  } @else if (tab() === 'quiz') {
+    <section class="data-card release-manager" aria-label="Quiz versions">
+      <div class="release-manager__header"><div><p class="eyebrow">QUIZ VERSION CONTROL</p><h2>Quiz releases</h2><p>Review all 7 questions, test scoring, then publish for new quiz sessions.</p></div>
+        <button type="button" class="primary-button" (click)="createQuizDraft()" [disabled]="quizBusy() || !!quizDraft()">+ Create draft</button>
+      </div>
+      <div class="release-list-viewport"><div class="release-list">
+        @for (release of data.quiz_releases; track release.version) {
+          <button type="button" class="release-item" [class.active]="selectedQuizVersion() === release.version" (click)="selectQuizRelease(release.version)" [attr.aria-pressed]="selectedQuizVersion() === release.version" [disabled]="!!quizDraft()">
+            <span class="release-item__version">v{{ release.version }}</span><span class="release-item__details"><strong>{{ release.published_at ? 'Published release' : 'Unpublished draft' }}</strong><small>{{ releaseDate(release.updated_at) }}</small></span>
+            <span class="release-item__status" [attr.data-status]="release.status">{{ release.status === 'active' ? 'Live' : (release.status === 'testing' ? 'Testing' : (release.status === 'archived' ? 'Archived' : 'Draft')) }}</span>
+          </button>
+        }
+      </div></div>
+      @if (selectedQuizRelease; as release) {
+        <div class="release-detail"><strong>Version {{ release.version }}</strong><span>{{ release.status === 'active' ? 'Visible to customers' : (release.published_at ? 'Previously published' : 'Never published') }}</span><span>{{ release.member_count }} customer profiles</span>@if (release.status === 'testing') { <span>{{ release.tested_at ? 'Full quiz test complete' : 'Full quiz test required' }}</span> }</div>
+        <div class="release-actions">
+          @if (release.status === 'draft') {
+            <button type="button" class="primary-button" (click)="transitionQuizRelease('test')" [disabled]="quizBusy() || !!quizDraft()">Send to testing</button>
+            <button type="button" class="release-actions__delete" (click)="deleteQuizDraft()" [disabled]="quizBusy() || !!quizDraft()">Delete draft</button>
+          } @else if (release.status === 'testing') {
+            <button type="button" class="primary-button" (click)="transitionQuizRelease('publish')" [disabled]="quizBusy() || !release.tested_at" [title]="release.tested_at ? 'Publish this tested version' : 'Run the full quiz test below first'">Publish version</button>
+            <button type="button" class="quiet-button" (click)="transitionQuizRelease('edit')" [disabled]="quizBusy()">Back to draft</button>
+          } @else if (release.status === 'archived') {
+            <button type="button" class="quiet-button" (click)="createQuizDraft(release.version)" [disabled]="quizBusy()">Create restore draft</button>
+          }
+        </div>
+      }
+    </section>
+    <section class="quiz-toolbar" aria-label="Quiz editor controls">
+      <div>
+        <p class="eyebrow">QUIZ · VERSION {{ selectedQuizVersion() || '—' }}</p>
+        <h2>{{ quizDraft() ? 'Editing draft questions' : 'Questions and scoring' }}</h2>
+        <p>{{ quizDraft() ? 'Save these changes before sending the version to testing.' : 'Select a question to inspect its answers. Draft versions can be edited.' }}</p>
+      </div>
+      <div class="quiz-toolbar__actions">
+        @if (quizDraft()) {
+          <button type="button" class="quiet-button" (click)="discardQuizEdit()" [disabled]="quizBusy()">DISCARD CHANGES</button>
+          <button type="button" class="quiet-button" [class.active]="quizView() === 'preview'" (click)="quizView.set(quizView() === 'preview' ? 'edit' : 'preview')">{{ quizView() === 'preview' ? 'BACK TO EDIT' : 'PREVIEW QUESTION' }}</button>
+          <button type="button" class="primary-button" (click)="saveQuizDraft()" [disabled]="quizBusy()">SAVE DRAFT{{ quizIssues.length ? ' · ' + quizIssues.length + ' TO FIX' : '' }}</button>
+        } @else {
+          @if (selectedQuizRelease?.status === 'draft') { <button type="button" class="primary-button" (click)="beginQuizEdit()" [disabled]="quizBusy()">EDIT DRAFT</button> }
+        }
+      </div>
+    </section>
+    @if (quizDraft()) {
+      <div class="draft-notice" role="status">Unsaved changes are visible only here until you select Save draft.</div>
+    }
+    <div class="content-grid content-grid--quiz">
+      <section class="data-card" aria-label="Quiz question list">
+        <div class="card-heading"><div><p class="eyebrow">VERSION {{ selectedQuizVersion() }}</p><h2>Questions and answers</h2></div><span>{{ quizQuestions.length }} questions</span></div>
+        @if (quizQuestions.length) {
+          <div class="question-list">
+            @for (row of quizQuestions; track row.question_id; let first = $first; let last = $last) {
+              <div class="question-list-item">
+                <button type="button" class="question-row" [class.selected]="selectedQuestionId() === row.question_id" (click)="selectedQuestionId.set(row.question_id)" [attr.aria-pressed]="selectedQuestionId() === row.question_id">
+                  <b>{{ row.order }} · {{ row.code }}</b><span><strong>{{ row.question }}</strong><small>{{ row.options.length }} answers · choose {{ row.selection_limit === 2 ? 'up to 2' : '1' }}</small></span>
+                </button>
+                @if (quizDraft()) { <div class="reorder-controls"><button type="button" [disabled]="first" (click)="moveQuestion(row.question_id, -1)" [attr.aria-label]="'Move ' + row.code + ' up'">↑</button><button type="button" [disabled]="last" (click)="moveQuestion(row.question_id, 1)" [attr.aria-label]="'Move ' + row.code + ' down'">↓</button></div> }
+              </div>
+            }
+          </div>
+        } @else { <p class="empty-message">No active Ritual DNA questions found.</p> }
+      </section>
+      @if (selectedQuestion; as question) {
+        <section class="data-card question-detail" aria-label="Selected question details">
+          <div class="card-heading"><div><p class="eyebrow">{{ question.code }} · {{ question.question_id }}</p><h2>{{ quizDraft() && quizView() === 'preview' ? 'Customer preview' : question.question }}</h2></div></div>
+          @if (quizDraft() && quizView() === 'preview') {
+            <div class="customer-preview">
+              <p class="eyebrow">RITUAL DNA QUIZ · QUESTION {{ question.order }} / 7</p>
+              <div class="customer-preview__progress"><span [style.width.%]="question.order / 7 * 100"></span></div>
+              <h3>{{ question.question }}</h3>
+              <p>Choose {{ question.selection_limit === 2 ? 'one or two answers' : 'one answer' }}</p>
+              <div class="customer-preview__options">
+                @for (option of question.options; track option.option_id) {
+                  <div><strong>{{ option.text || 'Untitled answer' }}</strong><small>{{ option.hint }}</small></div>
+                }
+              </div>
+            </div>
+          } @else if (quizDraft()) {
+            <div class="question-form">
+              <label>Question text<textarea rows="2" [value]="question.question" (input)="updateQuestionText(question.question_id, $event)"></textarea></label>
+              @for (issue of quizQuestionIssues(question); track issue) { <p class="quiz-field-error" role="alert">{{ issue }}</p> }
+              <p>Question IDs and selection limits follow the agreed scoring rules. Display order, answer order and text can be edited.</p>
+            </div>
+            <div class="answer-editor-list">
+              @for (option of question.options; track option.option_id; let first = $first; let last = $last) {
+                <section class="answer-editor" [attr.aria-label]="'Answer ' + option.option_id">
+                  <div class="answer-editor__heading"><strong>{{ option.option_id }}</strong><div class="reorder-controls"><button type="button" [disabled]="first" (click)="moveOption(question.question_id, option.option_id, -1)" [attr.aria-label]="'Move answer ' + option.option_id + ' up'">↑</button><button type="button" [disabled]="last" (click)="moveOption(question.question_id, option.option_id, 1)" [attr.aria-label]="'Move answer ' + option.option_id + ' down'">↓</button></div></div>
+                  <div class="answer-editor__copy"><label>Answer<input type="text" [value]="option.text" (input)="updateOptionText(question.question_id, option.option_id, 'text', $event)"></label><label>Supporting text<input type="text" [value]="option.hint || ''" (input)="updateOptionText(question.question_id, option.option_id, 'hint', $event)"></label></div>
+                  @if (question.code === 'D1') {
+                    <label class="answer-editor__attribute">Matcha preference · 0–100<input type="number" min="0" max="100" step="1" [value]="option.drink_lean ?? ''" (input)="updateOptionAttribute(question.question_id, option.option_id, 'drink_lean', $event)"></label>
+                  } @else {
+                    <div class="score-inputs" aria-label="Five axis score weights">
+                      @for (axis of axes; track axis.key) {
+                        <label [title]="axis.label">{{ axis.short }}<input type="number" min="0" max="5" step="1" [class.invalid]="invalidQuizScore(option, axis.key)" [attr.aria-invalid]="invalidQuizScore(option, axis.key)" [value]="option.score_weights[axis.key] ?? ''" (input)="updateOptionScore(question.question_id, option.option_id, axis.key, $event)" [attr.aria-label]="axis.label + ' score for ' + option.option_id"></label>
+                      }
+                    </div>
+                  }
+                  @if (question.code === 'D3') { <label class="answer-editor__attribute">Equipment level<select [value]="option.equipment_level || ''" (change)="updateOptionAttribute(question.question_id, option.option_id, 'equipment_level', $event)"><option value="">Choose level</option><option value="none">None</option><option value="basic">Basic</option><option value="full">Full</option></select></label> }
+                  @if (question.code === 'D6') { <label class="answer-editor__attribute">Serving style<select [value]="option.serving || ''" (change)="updateOptionAttribute(question.question_id, option.option_id, 'serving', $event)"><option value="">Choose style</option><option value="hot">Hot</option><option value="iced">Iced</option><option value="milk">Milk</option><option value="mixed">Mixed</option></select></label> }
+                  @if (question.code === 'D7') { <label class="answer-editor__attribute">Occasion<select [value]="option.occasion || ''" (change)="updateOptionAttribute(question.question_id, option.option_id, 'occasion', $event)"><option value="">Choose occasion</option><option value="morning">Morning</option><option value="work">Work</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option><option value="social">Social</option></select></label> }
+                  @for (issue of quizOptionIssues(question, option); track issue) { <p class="quiz-field-error" role="alert">{{ issue }}</p> }
+                </section>
+              }
+            </div>
+          } @else {
+            <p class="question-detail__hint">Choose {{ question.selection_limit === 2 ? 'one or two answers' : 'one answer' }}. Scores below contribute to the five-axis radar.</p>
+            <div class="answer-table-wrap"><table class="answer-table"><thead><tr><th>Answer</th>@for (axis of axes; track axis.key) { <th [title]="axis.label">{{ axis.short }}</th> }</tr></thead>
+              <tbody>@for (option of question.options; track option.option_id) {
+                <tr><td><strong>{{ option.text }}</strong><small>{{ option.hint }}</small></td>@for (axis of axes; track axis.key) { <td>{{ score(option, axis.key) }}</td> }</tr>
+              }</tbody>
+            </table></div>
+            @if (question.code === 'D1') { <p class="question-detail__hint">D1 records matcha/coffee preference; it does not change radar scores.</p> }
+          }
+        </section>
+      }
+    </div>
+    @if (quizDraft()) {
+      @if (quizIssues.length) {
+        <section class="validation-card quiz-validation-summary" aria-label="Quiz validation issues" role="alert"><strong>{{ quizIssues.length }} item{{ quizIssues.length === 1 ? '' : 's' }} to fix before saving</strong><ul>@for (issue of quizIssues; track $index) { <li>{{ issue }}</li> }</ul></section>
+      } @else { <div class="validation-card validation-card--clear" role="status">The draft passes the editor checks. Save it before testing.</div> }
+    }
+    @if (selectedQuizRelease?.status === 'testing') {
+      <section class="data-card quiz-test" aria-label="Test quiz scoring"><div class="card-heading"><div><p class="eyebrow">ADMIN TESTING · VERSION {{ selectedQuizVersion() }}</p><h2>Try a full quiz</h2></div></div>
+        <p class="quiz-test__intro">Choose answers for all 7 questions. This uses the real scoring rules and active archetypes; it does not change a customer profile.</p>
+        <div class="quiz-test__questions">
+          @for (question of quizQuestions; track question.question_id) {
+            <fieldset><legend><strong>{{ question.code }}</strong> {{ question.question }} <small>Choose {{ question.selection_limit === 2 ? 'up to 2' : '1' }}</small></legend>
+              <div class="quiz-test__options">@for (option of question.options; track option.option_id) {
+                <button type="button" [class.selected]="(quizTestAnswers()[question.question_id] || []).includes(option.option_id)" [attr.aria-pressed]="(quizTestAnswers()[question.question_id] || []).includes(option.option_id)" (click)="toggleQuizTestAnswer(question, option.option_id)">{{ option.text }}</button>
+              }</div>
+            </fieldset>
+          }
+        </div>
+        <div class="quiz-test__footer">
+          @if (quizSimulation(); as result) { <div class="quiz-test__result"><strong>{{ result.archetype.name }}</strong><span>@for (axis of axes; track axis.key) { {{ axis.short }} {{ result.radar[axis.key] }}{{ $last ? '' : ' · ' }} }</span></div> }
+          <button type="button" class="primary-button" (click)="simulateQuiz()" [disabled]="!quizTestComplete || quizBusy()">Calculate result</button>
+        </div>
+      </section>
+    }
+  } @else if (tab() === 'evolution') {
+    <section class="evolution-intro">
+      <div><p class="eyebrow">LIVE BEHAVIOR RULES · {{ data.behavior_rules.version }}</p><h2>How Ritual DNA evolves</h2><p>These values come from the backend rules currently used to update customer profiles. This page is read only.</p></div>
+      <span class="evolution-live">LIVE CONFIGURATION</span>
+    </section>
+
+    <div class="evolution-metrics" aria-label="Evolution thresholds">
+      <div><span>BEHAVIOR INFLUENCE</span><strong>Up to {{ data.behavior_rules.max_behavior_share * 100 }}%</strong><small>The quiz baseline keeps at least {{ (1 - data.behavior_rules.max_behavior_share) * 100 }}% of each radar axis.</small></div>
+      <div><span>FULL EVIDENCE</span><strong>{{ data.behavior_rules.evidence_target }} weight</strong><small>Behavior influence grows gradually until this weight is reached, per axis.</small></div>
+      <div><span>ARCHETYPE MARGIN</span><strong>{{ data.behavior_rules.archetype_margin }} points</strong><small>The new archetype must be this much closer than the current one.</small></div>
+      <div><span>CHANGE COOLDOWN</span><strong>{{ data.behavior_rules.archetype_cooldown_days }} days</strong><small>The radar can still change while the archetype name stays the same.</small></div>
+    </div>
+
+    <section class="data-card evolution-section" aria-label="Behavior events">
+      <div class="card-heading"><div><p class="eyebrow">CONNECTED EVENTS</p><h2>What changes the radar?</h2></div><span>Evidence weight · not direct radar points</span></div>
+      <div class="evolution-event-list">
+        @for (event of data.behavior_rules.events; track event.key) {
+          <div class="evolution-event">
+            <div><strong>{{ event.label }}</strong><p>@switch (event.key) {
+              @case ('order') { Only after delivery. The purchased products must carry usable taste or tool metadata. }
+              @case ('recipe_saved') { A published recipe and its related products must provide a usable signal. }
+              @case ('product_saved') { The saved product must provide a usable signal. }
+            }</p></div>
+            <span class="evolution-weight">WEIGHT {{ event.weight }}</span>
+            <small>{{ event.daily_cap ? 'Max ' + event.daily_cap + ' per day (Vietnam time)' : 'No daily cap' }}</small>
+          </div>
+        }
+      </div>
+      <p class="evolution-footnote">Only events after a completed quiz count. Each item or order is recorded once. Saving again after an unsave does not reopen that item’s evidence; unsaving also does not reopen a daily slot. Search, views, likes, and cart activity have no direct DNA effect.</p>
+    </section>
+
+    <div class="evolution-lower-grid">
+      <section class="data-card evolution-section" aria-label="Worked scoring example">
+        <div class="card-heading"><div><p class="eyebrow">WORKED EXAMPLE</p><h2>One event, one radar axis</h2></div><span>Illustration only</span></div>
+        <div class="evolution-example">
+          <p>Assume this axis has no earlier behavior evidence. Choose an event and its metadata target to see the calculation.</p>
+          <div class="evolution-inputs">
+            <label>Event<select [value]="exampleEvent()" (change)="exampleEvent.set($any($event.target).value)">@for (event of data.behavior_rules.events; track event.key) { <option [value]="event.key">{{ event.label }} · weight {{ event.weight }}</option> }</select></label>
+            <label>Quiz baseline<input type="number" min="0" max="100" [value]="exampleBaseline()" (input)="setExampleScore('baseline', $event)"></label>
+            <label>Event target<input type="number" min="0" max="100" [value]="exampleTarget()" (input)="setExampleScore('target', $event)"></label>
+          </div>
+          <div class="evolution-equation"><span>Behavior share</span><strong>{{ data.behavior_rules.max_behavior_share }} × min({{ exampleWeight }} / {{ data.behavior_rules.evidence_target }}, 1) = {{ (exampleShare * 100).toFixed(1) }}%</strong></div>
+          <div class="evolution-result"><div><span>NEW AXIS SCORE</span><strong>{{ exampleResult }}</strong></div><p>round({{ exampleBaseline() }} × {{ (1 - exampleShare).toFixed(3) }} + {{ exampleTarget() }} × {{ exampleShare.toFixed(3) }})</p></div>
+          <small>With multiple events, the target is their weight-adjusted average. Each radar axis uses only events with a signal for that axis; without one, it stays at the quiz baseline. These inputs do not change customer data.</small>
+        </div>
+      </section>
+      <section class="data-card evolution-section" aria-label="Archetype and reversals">
+        <div class="card-heading"><div><p class="eyebrow">AFTER RECALCULATION</p><h2>Archetype & reversals</h2></div></div>
+        <div class="evolution-notes">
+          <div><b>01</b><strong>Find the closest active archetype</strong><p>The system compares the updated five-axis radar with each active archetype signature by Euclidean distance.</p></div>
+          <div><b>02</b><strong>Check the change conditions</strong><p>The candidate must be at least {{ data.behavior_rules.archetype_margin }} distance points closer than the current archetype, and {{ data.behavior_rules.archetype_cooldown_days }} days must have passed since the last change. If the current archetype is no longer active, the closest active one is used.</p></div>
+          <div><b>03</b><strong>Reverse or correct evidence</strong><p>Unsave reverses its saved-item evidence. A full refund reverses the order; a partial refund recalculates the remaining order signal. The radar and archetype are then recalculated.</p></div>
+          <div><b>04</b><strong>Retake the quiz</strong><p>A new quiz result starts a new baseline. Earlier behavior remains in history but does not affect the new radar.</p></div>
+        </div>
+      </section>
+    </div>
+  } @else {
+    <app-admin-ritual-dna-customers [archetypes]="data.archetypes"></app-admin-ritual-dna-customers>
+  }
+}

@@ -1,0 +1,218 @@
+:host { display: block; }
+
+.ritual-account { color: #1d1c1a; }
+.ritual-intro { margin: 0 0 22px; color: #756b63; font-size: 14px; }
+.ritual-top-grid { display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); gap: 22px; align-items: start; }
+
+.dna-card {
+  --card-tint: #eaf3e4;
+  --card-accent: #406f49;
+  --card-accent-strong: #244f2d;
+  --card-sticker: #d8e9b9;
+  --card-orb: rgba(178, 213, 142, .32);
+  --radar-accent: #c9e9aa;
+  --radar-glow: #83ba68;
+  --radar-fill: rgba(166, 212, 132, .38);
+  position: relative;
+  align-self: start;
+  isolation: isolate;
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  padding: 22px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--card-accent) 30%, #e6dfd5);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 96% 2%, var(--card-orb) 0, transparent 34%),
+    linear-gradient(160deg, #fffdf8 0%, color-mix(in srgb, var(--card-tint) 34%, #f8f3e9) 100%);
+  color: var(--color-near-black);
+  box-shadow: 0 18px 40px color-mix(in srgb, var(--card-accent) 13%, transparent);
+}
+
+.dna-card::before { position: absolute; z-index: -1; top: 0; right: 0; left: 0; height: 5px; background: linear-gradient(90deg, var(--card-accent-strong), var(--card-accent), var(--card-sticker)); content: ''; }
+.dna-card::after { position: absolute; z-index: -1; top: 72px; right: -88px; width: 220px; height: 220px; border: 1px solid color-mix(in srgb, var(--card-accent) 18%, transparent); border-radius: 50%; box-shadow: 0 0 0 34px color-mix(in srgb, var(--card-accent) 4%, transparent); content: ''; }
+.dna-card[data-archetype='ARC0002'] { --card-tint: #f5e5ef; --card-accent: #914b79; --card-accent-strong: #642e52; --card-sticker: #e7b2d2; --card-orb: rgba(225, 168, 203, .3); --radar-accent: #f5b7df; --radar-glow: #c968a9; --radar-fill: rgba(229, 142, 195, .38); }
+.dna-card[data-archetype='ARC0003'] { --card-tint: #f7e7ca; --card-accent: #a96824; --card-accent-strong: #764315; --card-sticker: #edbd6b; --card-orb: rgba(232, 177, 89, .31); --radar-accent: #ffd48c; --radar-glow: #d9963b; --radar-fill: rgba(235, 174, 88, .39); }
+.dna-card[data-archetype='ARC0004'] { --card-tint: #f7e3de; --card-accent: #ae5c52; --card-accent-strong: #773c36; --card-sticker: #efaaa0; --card-orb: rgba(226, 145, 133, .29); --radar-accent: #ffc3b4; --radar-glow: #d9756c; --radar-fill: rgba(237, 147, 135, .37); }
+
+.dna-card__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dna-card__brand { display: flex; align-items: center; gap: 7px; color: #273c28; font: 16px/1 var(--font-display); letter-spacing: -.03em; }
+.dna-card__brand img { width: 30px; height: 30px; object-fit: contain; }
+.dna-card__brand small { display: block; margin-top: 3px; color: #6d7860; font: 9px/1.5 var(--font-mono); letter-spacing: .12em; }
+.dna-card__badge {
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--card-accent) 28%, #e5ddd1);
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .7);
+  color: var(--card-accent-strong);
+  font: 9px var(--font-mono);
+  white-space: nowrap;
+}
+
+.dna-card__intro { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--card-accent-strong); font: 18px/1.2 var(--font-display); }
+.dna-card__spark { display: grid; place-items: center; flex: 0 0 43px; width: 43px; height: 43px; border: 1px solid color-mix(in srgb, var(--card-accent) 28%, transparent); border-radius: 50%; background: var(--card-sticker); color: var(--card-accent-strong); font: 25px/1 var(--font-body); box-shadow: 0 8px 18px color-mix(in srgb, var(--card-accent) 19%, transparent); }
+.dna-card__radar-panel { position: relative; overflow: hidden; padding: 16px 15px 12px; border: 1px solid #353630; border-radius: 14px; background: radial-gradient(circle 150px at 50% 53%, color-mix(in srgb, var(--radar-glow) 46%, #1c1d1a) 0%, color-mix(in srgb, var(--radar-glow) 24%, #1c1d1a) 33%, color-mix(in srgb, var(--radar-glow) 7%, #1c1d1a) 68%, #1c1d1a 100%); box-shadow: inset 0 0 35px rgba(0, 0, 0, .2); }
+.dna-card__radar-panel::after { position: absolute; right: -35px; bottom: -48px; width: 128px; height: 128px; border: 1px dashed rgba(255, 255, 255, .09); border-radius: 50%; content: ''; }
+.dna-card__panel-heading { position: relative; z-index: 2; display: flex; justify-content: space-between; gap: 8px; color: #e8e5dc; font: 9px var(--font-mono); letter-spacing: .08em; }
+
+.radar-wrap {
+  position: relative;
+  width: min(100%, 270px);
+  aspect-ratio: 1;
+  margin: 15px auto 5px;
+}
+
+.radar-wrap svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.radar-grid,
+.radar-wrap line {
+  fill: none;
+  stroke: rgba(236, 237, 229, .28);
+  stroke-width: .8;
+}
+
+.radar-shape {
+  fill: var(--radar-fill);
+  stroke: var(--radar-accent);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 10px var(--radar-glow));
+  transition: all .25s ease;
+}
+
+.axis {
+  position: absolute;
+  font-family: var(--font-mono);
+  letter-spacing: .11em;
+  color: #eeece5;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.axis--brightness { top: -3px; left: 50%; transform: translateX(-50%); }
+.axis--boldness { top: 40%; right: -8px; }
+.axis--sweetness { right: 2px; bottom: -1px; }
+.axis--skill { bottom: -1px; left: 5px; }
+.axis--tempo { top: 40%; left: -2px; }
+
+.dna-card__identity {
+  padding: 1px 2px 0;
+}
+
+.dna-card__identity span { color: var(--card-accent); font: 10px var(--font-mono); letter-spacing: .1em; }
+
+.dna-card__identity h2 {
+  margin: 7px 0 5px;
+  color: var(--card-accent-strong);
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 400;
+  line-height: 1.08;
+}
+
+.dna-card__footer { display: flex; justify-content: space-between; align-items: center; padding-top: 11px; border-top: 1px solid #dce5d2; color: #72816a; font: 9px var(--font-mono); letter-spacing: .09em; }
+.dna-card__footer span:last-child { color: var(--card-accent); font-size: 20px; line-height: 12px; }
+
+.summary-heading > span, .ritual-history__heading span { font: 10px var(--font-mono); letter-spacing: .14em; }
+
+.ritual-summary, .ritual-history { padding: 26px; border: 1px solid #e5ddd4; border-radius: 15px; background: #fffdfb; }
+.summary-heading > span, .ritual-history__heading span { color: #6a8669; }
+.summary-heading h2 { margin: 9px 0; font-size: 24px; line-height: 1.2; }
+.summary-heading p { margin: 0; max-width: 560px; color: #6e655d; font-size: 13px; line-height: 1.6; }
+.axis-scores { display: grid; gap: 13px; margin: 26px 0 20px; }
+.axis-score { display: grid; grid-template-columns: minmax(126px, 1.2fr) minmax(70px, 1fr) 30px; gap: 12px; align-items: center; }
+.axis-score__label { display: grid; gap: 2px; }
+.axis-score__label strong { font-size: 12px; }
+.axis-score__label small { color: #92877d; font-size: 10px; }
+.axis-score__bar { height: 7px; border-radius: 999px; background: #ece9e2; overflow: hidden; }
+.axis-score__bar span { display: block; height: 100%; border-radius: inherit; background: var(--profile-accent); }
+.axis-score__value { text-align: right; font: 12px var(--font-mono); }
+.ritual-preferences { display: flex; flex-wrap: wrap; gap: 7px; }
+.ritual-preferences span { padding: 7px 10px; border-radius: 999px; background: #eff4e9; color: #39583d; font-size: 11px; }
+.ritual-actions { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 25px; padding-top: 18px; border-top: 1px solid #ece7e0; }
+.ritual-actions a, .ritual-state a { display: inline-flex; align-items: center; gap: 8px; padding: 11px 15px; border-radius: 5px; background: #36563b; color: #fff; text-decoration: none; font: 11px var(--font-mono); letter-spacing: .04em; }
+.ritual-actions > span { color: #857a70; font-size: 11px; }
+
+.ritual-history { margin-top: 22px; }
+.ritual-history__heading { display: flex; justify-content: space-between; align-items: end; gap: 16px; }
+.ritual-history__heading h2 { margin: 7px 0 0; font-size: 20px; }
+.ritual-history__heading p, .ritual-history__empty { margin: 0; color: #81766c; font-size: 12px; line-height: 1.5; }
+.ritual-history__empty { margin-top: 24px; padding: 18px; border-radius: 9px; background: #f5f5f0; }
+.ritual-comparison { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 22px; }
+.ritual-comparison > div { display: grid; gap: 6px; padding: 12px; border-radius: 8px; background: #f1f5eb; font-size: 11px; }
+.ritual-comparison strong { color: #36563b; }
+.ritual-timeline { display: grid; grid-auto-rows: max-content; align-content: start; gap: 16px; margin: 23px 0 0; padding: 0; list-style: none; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #a7b69b transparent; }
+.ritual-timeline:focus-visible { outline: 2px solid var(--color-forest-green); outline-offset: 4px; }
+.ritual-timeline li { display: flex; align-items: center; gap: 11px; }
+.ritual-timeline__dot { width: 10px; height: 10px; border-radius: 50%; background: #6f936c; }
+.ritual-timeline li div { display: grid; gap: 3px; font-size: 12px; }
+.ritual-timeline small { color: #8d8277; }
+
+.ritual-state { padding: 50px 20px; border: 1px solid #e5ddd4; border-radius: 14px; background: #fffdfb; text-align: center; color: #71665e; }
+.ritual-state--empty { display: flex; flex-direction: column; align-items: center; }
+.ritual-state__mark { display: grid; place-items: center; width: 70px; height: 70px; border-radius: 50%; background: #d7e6c2; color: #35563a; font-size: 30px; }
+.ritual-state h2 { margin: 17px 0 6px; color: #1e1d1b; font-size: 23px; }
+.ritual-state p { margin: 0 0 18px; max-width: 370px; font-size: 13px; line-height: 1.6; }
+.ritual-state--error button { border: 0; padding: 10px 15px; border-radius: 5px; background: #36563b; color: #fff; cursor: pointer; }
+
+.ritual-picks { margin-top: 22px; padding: 26px; border: 1px solid #e5ddd4; border-radius: 15px; background: #fffdfb; }
+.ritual-picks__heading { display: flex; justify-content: space-between; align-items: end; gap: 16px; }
+.ritual-picks__heading span { font: 10px var(--font-mono); letter-spacing: .14em; color: #6a8669; }
+.ritual-picks__heading h2 { margin: 7px 0 0; font-size: 20px; }
+.ritual-picks__heading small { color: #527052; font-size: 11px; }
+.ritual-picks h3 { margin: 24px 0 12px; font-size: 15px; }
+.ritual-picks__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.ritual-pick { overflow: hidden; border: 1px solid #e8e3dc; border-radius: 10px; background: #faf8f4; color: inherit; text-decoration: none; }
+.ritual-pick img { display: block; width: 100%; height: 145px; object-fit: cover; background: #eee9e1; }
+.ritual-pick > div { padding: 13px; }
+.ritual-pick strong { font-size: 13px; }
+.ritual-pick p { min-height: 36px; margin: 7px 0; color: #756b63; font-size: 11px; line-height: 1.5; }
+.ritual-pick span { color: #36563b; font-size: 11px; font-weight: 600; }
+.ritual-picks__status { margin: 22px 0 0; color: #71665e; font-size: 13px; }
+.ritual-picks__status button { border: 0; background: none; color: #36563b; text-decoration: underline; cursor: pointer; }
+
+@media (max-width: 1100px) { .ritual-top-grid { grid-template-columns: 1fr; } .dna-card { max-width: 360px; width: 100%; box-sizing: border-box; margin: auto; } }
+@media (max-width: 640px) { .ritual-summary, .ritual-history, .ritual-picks { padding: 20px 16px; } .ritual-history__heading { display: block; } .ritual-history__heading p { margin-top: 9px; } .ritual-comparison { grid-template-columns: repeat(2, 1fr); } .axis-score { grid-template-columns: minmax(100px, 1fr) minmax(55px, 1fr) 26px; gap: 8px; } .axis-score__label small { display: none; } }
+
+.ritual-top-grid { --profile-accent: #406f49; }
+.ritual-top-grid[data-archetype='ARC0002'] { --profile-accent: #914b79; }
+.ritual-top-grid[data-archetype='ARC0003'] { --profile-accent: #a96824; }
+.ritual-top-grid[data-archetype='ARC0004'] { --profile-accent: #ae5c52; }
+.summary-heading h2 { color: var(--profile-accent); }
+
+/* A compact, data-backed story instead of the account activity log. */
+.ritual-history { --story-accent: #406f49; --story-soft: #dce9ce; overflow: hidden; }
+.ritual-history[data-archetype='ARC0002'] { --story-accent: #914b79; --story-soft: #f1dbe9; }
+.ritual-history[data-archetype='ARC0003'] { --story-accent: #a96824; --story-soft: #f5e6c8; }
+.ritual-history[data-archetype='ARC0004'] { --story-accent: #ae5c52; --story-soft: #f6e1dc; }
+.ritual-history__heading { align-items: center; }
+.ritual-history__heading h2 { font-size: 24px; }
+.ritual-history__heading .ritual-history__period { color: var(--story-accent); font: 10px var(--font-mono); letter-spacing: .08em; }
+.ritual-history__lead { margin: 14px 0 0; color: #625b54; font-size: 13px; line-height: 1.55; }
+.evolution-chart { margin-top: 20px; padding: 18px 20px 12px; border: 1px solid color-mix(in srgb, var(--story-accent) 15%, #e5ddd4); border-radius: 12px; background: linear-gradient(160deg, #fffdfb, color-mix(in srgb, var(--story-soft) 25%, #fffdfb)); }
+.evolution-chart svg { display: block; width: 100%; height: 160px; overflow: visible; }
+.evolution-chart__grid { fill: none; stroke: #e6e4dd; stroke-width: 1; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; }
+.evolution-chart__line { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.evolution-chart__line--first { stroke: var(--story-accent); }
+.evolution-chart__line--second { stroke: #d39b83; stroke-dasharray: 5 5; }
+.evolution-chart__dates { display: flex; justify-content: space-between; color: #81776e; font: 10px var(--font-mono); }
+.evolution-chart__legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.evolution-chart__axis { display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px; border-radius: 7px; background: var(--story-soft); color: #3d3934; font-size: 12px; }
+.evolution-chart__axis--second { background: #f7e9e2; }
+.evolution-chart__axis strong { font-weight: 600; }
+.evolution-chart__axis small { color: var(--story-accent); font-weight: 700; }
+.evolution-chart__swatch { width: 15px; border-top: 2px solid var(--story-accent); }
+.evolution-chart__axis--second .evolution-chart__swatch { border-color: #d39b83; border-top-style: dashed; }
+.ritual-history__hint { margin: 16px 0 0; color: #81776e; font-size: 11px; line-height: 1.5; }
+@media (max-width: 640px) { .ritual-history__heading .ritual-history__period { display: block; margin-top: 9px; } .evolution-chart { padding-inline: 10px; } .evolution-chart svg { height: 130px; } }

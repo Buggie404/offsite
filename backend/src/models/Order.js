@@ -314,10 +314,12 @@ orderSchema.pre('save', async function(next) {
     if (this.user_id && isDelivered) {
       this._pantryEvent = 'delivered';
       this.$locals.pantryEvent = 'delivered';
+      this.$locals.ritualDnaEvent = 'delivered';
     }
     if (this.user_id && newStatus === 'refund' && originalStatus !== 'refund') {
       this._pantryEvent = 'refund';
       this.$locals.pantryEvent = 'refund';
+      this.$locals.ritualDnaEvent = 'refund';
     }
   }
 
@@ -339,6 +341,20 @@ orderSchema.post('save', function pantrySync(doc) {
       ? pantry.removeItemsForRefund(doc, refundItems)
       : pantry.addItemsForDeliveredOrder(doc);
     task.catch(error => console.error('Pantry sync failed:', error));
+  });
+});
+
+// Every save path (customer receipt and staff refund) uses the same idempotent DNA handler.
+orderSchema.post('save', function ritualDnaSync(doc) {
+  const event = this.$locals?.ritualDnaEvent;
+  if (this.$locals) this.$locals.ritualDnaEvent = undefined;
+  if (!event || !doc.user_id) return;
+  const snapshot = doc.toObject();
+  const refundItems = this.$locals?.refundItems || this._refundItems || null;
+  setImmediate(() => {
+    const service = require('../services/ritual-dna.behavior');
+    const task = event === 'refund' ? service.orderRefunded(snapshot, refundItems) : service.orderDelivered(snapshot);
+    task.catch(error => console.error('Ritual DNA order sync failed:', error));
   });
 });
 

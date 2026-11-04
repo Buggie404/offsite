@@ -3,6 +3,13 @@
 // user.suspend, community_user_suspend and community.lock are no longer written (admins cannot lock
 // customers); they stay listed so older logs keep their name and can still be filtered.
 const ACTION_TYPES = [
+  { value: 'ritual-dna.draft', label: 'Ritual DNA draft created', group: 'Ritual DNA' },
+  { value: 'ritual-dna.save-draft', label: 'Ritual DNA draft saved', group: 'Ritual DNA' },
+  { value: 'ritual-dna.test', label: 'Ritual DNA testing started', group: 'Ritual DNA' },
+  { value: 'ritual-dna.edit', label: 'Ritual DNA draft reopened', group: 'Ritual DNA' },
+  { value: 'ritual-dna.publish', label: 'Ritual DNA version published', group: 'Ritual DNA' },
+  { value: 'ritual-dna.archive', label: 'Ritual DNA draft archived', group: 'Ritual DNA' },
+  { value: 'ritual-dna.delete-draft', label: 'Ritual DNA draft deleted', group: 'Ritual DNA' },
   { value: 'order.update-status', label: 'Order status changed', group: 'Orders' },
   { value: 'order.add-internal-note', label: 'Internal note added', group: 'Orders' },
   { value: 'order.mark-out-of-stock', label: 'Marked out of stock', group: 'Orders' },

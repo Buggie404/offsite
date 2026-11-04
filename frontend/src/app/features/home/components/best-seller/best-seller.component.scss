@@ -210,7 +210,8 @@ $pill-bg: #EAE1DC;
   width: 100%;
   max-width: 1440px;
   min-height: 828px;
-  padding: 88px 16px; // giảm padding 2 bên (32→16) để nhường width cho card
+  box-sizing: border-box;
+  padding: 88px clamp(16px, 4.44vw, 64px);
   gap: 24px;
   margin: 0 auto;
   position: relative;
@@ -384,6 +385,7 @@ $pill-bg: #EAE1DC;
 
 // ── GRID ──
 .product-grid {
+  box-sizing: border-box;
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
@@ -644,6 +646,18 @@ $pill-bg: #EAE1DC;
     gap: 40px; // sets_bundles ít thành phần, gap lớn để lấp khoảng trống
   }
 }
+
+.ritual-fit { --fit-accent: #406f49; margin: 2px 0 14px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--fit-accent) 18%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--fit-accent) 5%, #fffdf8); }
+.ritual-fit[data-archetype='ARC0002'] { --fit-accent: #914b79; }
+.ritual-fit[data-archetype='ARC0003'] { --fit-accent: #a96824; }
+.ritual-fit[data-archetype='ARC0004'] { --fit-accent: #ae5c52; }
+.ritual-fit__heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--fit-accent); }
+.ritual-fit__heading > span { font: 9px var(--font-mono); letter-spacing: .08em; }
+.ritual-fit__heading strong { font-size: 13px; white-space: nowrap; }
+.ritual-fit__track { height: 5px; margin: 10px 0 7px; overflow: hidden; border-radius: 99px; background: color-mix(in srgb, var(--fit-accent) 13%, #fffdf8); }
+.ritual-fit__track > span { display: block; height: 100%; border-radius: inherit; background: var(--fit-accent); }
+.ritual-fit__name { display: block; color: var(--fit-accent); font-size: 11px; font-weight: 600; }
+
 
 // ── TITLE + RATING ──
 .title-rating-row {

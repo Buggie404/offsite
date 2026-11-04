@@ -28,6 +28,7 @@ import { Product } from '../../home/models/product.model';
 import { RewardsReferralComponent } from '../components/rewards-referral/rewards-referral.component';
 import { MyPantryComponent } from '../components/my-pantry/my-pantry.component';
 import { PantryService } from '../components/my-pantry/pantry.service';
+import { MyRitualDnaComponent } from '../components/my-ritual-dna/my-ritual-dna.component';
 
 const VIETNAM_BANK_LIST = ['Vietcombank', 'BIDV', 'Techcombank', 'VietinBank', 'Agribank', 'MB Bank', 'VPBank', 'ACB', 'Sacombank', 'TPBank', 'VIB', 'SHB', 'MSB', 'SeABank'];
 import {
@@ -128,7 +129,8 @@ import { isWithinRefundWindow } from '../../purchase/models/refund-window.model'
     LucideArchive,
     RitualBoxComponent,
     BrewResumeModalComponent,
-    MyPantryComponent
+    MyPantryComponent,
+    MyRitualDnaComponent
   ],
   templateUrl: './account.component.html',
   styleUrl: './account.component.scss'
@@ -184,7 +186,7 @@ export class AccountComponent implements OnInit, OnDestroy {
       tabs: [
         { key: 'profile', label: 'Profile information', icon: 'user' },
         { key: 'rewards', label: 'Rewards',              icon: 'trophy' },
-        { key: 'dna',     label: 'My Ritual DNA',        icon: 'activity', comingSoon: true },
+        { key: 'dna',     label: 'My Ritual DNA',        icon: 'activity' },
       ]
     }
   ];
