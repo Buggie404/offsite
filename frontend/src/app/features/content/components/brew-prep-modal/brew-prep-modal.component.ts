@@ -37,8 +37,17 @@ export class BrewPrepModalComponent implements OnInit, OnDestroy {
   @Input() prepMinutes = 0;
   @Output() closed = new EventEmitter<void>();
   @Output() toggled = new EventEmitter<string>();
+  @Output() selectAll = new EventEmitter<boolean>();
   @Output() started = new EventEmitter<void>();
   @Output() pantrySelected = new EventEmitter<{ name: string; id: string }>();
+
+  get allSelected(): boolean {
+    return this.items.length > 0 && this.items.every(item => item.checked);
+  }
+
+  get someSelected(): boolean {
+    return this.items.some(item => item.checked);
+  }
 
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
@@ -65,6 +74,10 @@ export class BrewPrepModalComponent implements OnInit, OnDestroy {
 
   onToggle(key: string): void {
     this.toggled.emit(key);
+  }
+
+  onToggleSelectAll(): void {
+    this.selectAll.emit(!this.allSelected);
   }
 
   onPantrySelect(item: BrewPrepItem, id: string): void {

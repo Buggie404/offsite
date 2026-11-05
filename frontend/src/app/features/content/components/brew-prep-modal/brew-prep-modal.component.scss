@@ -96,6 +96,23 @@ $white: #ffffff;
   }
 }
 
+.prep-select-all {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding-bottom: 4px;
+}
+
+.prep-select-all-label {
+  font-family: var(--font-body), 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: $text;
+}
+
 .prep-list {
   list-style: none;
   width: 100%;
@@ -206,6 +223,12 @@ $white: #ffffff;
   &.is-checked {
     background: $forest-green;
     border-color: $forest-green;
+  }
+
+  &.is-partial:not(.is-checked) {
+    background: rgba($forest-green, 0.18);
+    border-color: $forest-green;
+    color: $forest-green;
   }
 }
 

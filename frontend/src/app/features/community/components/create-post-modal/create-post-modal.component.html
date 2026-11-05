@@ -59,7 +59,7 @@
 
           <textarea
             class="content-textarea"
-            placeholder="Title your post and tell the story..."
+            [placeholder]="contentPlaceholder"
             [ngModel]="content"
             (ngModelChange)="onContentChange($event)"
             name="content"

@@ -14,8 +14,23 @@
 
     <p class="prep-note">
       <svg lucideVolume2 [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
-      <span>Gather these. We will read each step aloud.</span>
+      <span>Gather these. Turn on Voice on in brew mode to hear each step.</span>
     </p>
+
+    <div class="prep-select-all" *ngIf="items.length">
+      <button
+        class="prep-check"
+        type="button"
+        [class.is-checked]="allSelected"
+        [class.is-partial]="someSelected && !allSelected"
+        (click)="onToggleSelectAll()"
+        [attr.aria-pressed]="allSelected"
+        aria-label="Select all items"
+      >
+        <svg *ngIf="allSelected || someSelected" lucideCheck [size]="12" [strokeWidth]="2.5"></svg>
+      </button>
+      <span class="prep-select-all-label">Select all</span>
+    </div>
 
     <ul class="prep-list" [class.is-scrollable]="items.length > 6">
       <li class="prep-row" *ngFor="let item of items; trackBy: trackItem">

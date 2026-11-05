@@ -264,6 +264,7 @@
     [stepCount]="recipe.steps.length"
     [prepMinutes]="recipe.metadata.prepTime"
     (toggled)="toggleItem($event)"
+    (selectAll)="toggleSelectAll($event)"
     (pantrySelected)="selectPrepPantry($event)"
     (started)="confirmStartBrewing()"
     (closed)="prepModalOpen = false"

@@ -202,6 +202,13 @@ a.btn {
     height: 100%;
     object-fit: cover;
     display: block;
+
+    &.is-placeholder {
+      object-fit: contain;
+      object-position: center;
+      padding: 10px 14px;
+      box-sizing: border-box;
+    }
   }
 
   &--banner {

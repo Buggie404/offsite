@@ -1,9 +1,9 @@
-<div class="brew-coach" [class.is-awaiting-auth]="awaitingAuth" role="dialog" aria-modal="true" aria-label="Brew coach">
+<div #coachRoot class="brew-coach" [class.is-awaiting-auth]="awaitingAuth" role="dialog" aria-modal="true" aria-label="Brew coach">
   <div class="deco" aria-hidden="true">
     <img class="deco-right-arc" src="assets/brew-coach/deco-right-arc.svg" width="584" height="760" alt="" />
     <img class="deco-left-ring" src="assets/brew-coach/deco-left-ring.svg" width="280" height="280" alt="" />
-    <svg lucideSparkle class="spark spark-a" [size]="18" [strokeWidth]="1.25" aria-hidden="true"></svg>
-    <svg lucideSparkle class="spark spark-c" [size]="14" [strokeWidth]="1.25" aria-hidden="true"></svg>
+    <svg lucideSparkle class="spark spark-a" [size]="22" [strokeWidth]="1.5" aria-hidden="true"></svg>
+    <svg lucideSparkle class="spark spark-c" [size]="18" [strokeWidth]="1.5" aria-hidden="true"></svg>
   </div>
 
   <div class="coach-top">
@@ -20,12 +20,27 @@
     </p>
 
     <div class="header-meta">
-      <button class="pill-btn" type="button" (click)="toggleVoice()" [attr.aria-pressed]="voiceOn">
+      <button
+        class="pill-btn"
+        type="button"
+        (click)="toggleVoice()"
+        [class.is-on]="voiceOn"
+        [attr.aria-pressed]="voiceOn"
+      >
         <svg *ngIf="voiceOn; else voiceOffIcon" lucideVolume2 [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
         <ng-template #voiceOffIcon>
           <svg lucideVolumeX [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
         </ng-template>
         <span>{{ voiceOn ? 'Voice on' : 'Voice off' }}</span>
+      </button>
+      <button
+        class="pill-btn"
+        type="button"
+        (click)="toggleAutoNext()"
+        [class.is-on]="autoNext"
+        [attr.aria-pressed]="autoNext"
+      >
+        <span>{{ autoNext ? 'Auto next on' : 'Auto next' }}</span>
       </button>
       <span class="v-rule" aria-hidden="true"></span>
       <span class="meta-clock">{{ formatClock(elapsed) }}</span>
@@ -44,7 +59,8 @@
   </div>
 
   <div class="stage" *ngIf="steps.length">
-    <section class="coach-main" *ngIf="step as current">
+    <section class="coach-main" [class.is-entering]="stepEntering" [attr.data-step]="stepIndex">
+      <ng-container *ngIf="step as current">
       <div class="adjust" *ngIf="showAdjustmentBanner">
         <div class="adjust-heading">
           <p class="adjust-kicker">{{ adjustmentLabel }}</p>
@@ -69,10 +85,6 @@
           <span class="dot" aria-hidden="true">·</span>
           <span>{{ current.timerSeconds ? 'Timed · ' + formatClock(current.timerSeconds) : 'At your pace' }}</span>
         </div>
-        <button class="pill-btn read-btn" type="button" (click)="readAloud()">
-          <svg lucideVolume1 [size]="14" [strokeWidth]="1.75" aria-hidden="true"></svg>
-          <span>Read aloud</span>
-        </button>
       </div>
 
       <h1>{{ current.title }}</h1>
@@ -147,7 +159,7 @@
         </div>
 
         <img class="timer-swirl" src="assets/brew-coach/timer-swirl.svg" width="160" height="160" alt="" />
-        <svg lucideSparkle class="timer-spark" [size]="22" [strokeWidth]="1.25" aria-hidden="true"></svg>
+        <svg lucideSparkle class="timer-spark" [size]="26" [strokeWidth]="1.5" aria-hidden="true"></svg>
       </div>
 
       <div class="nav-row">
@@ -159,6 +171,7 @@
           @if (stepIndex !== steps.length - 1) { <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg> }
         </button>
       </div>
+      </ng-container>
     </section>
 
     <aside class="coach-side">
@@ -247,7 +260,7 @@
           max="5"
           step="1"
           [value]="intensity"
-          [style.--fill]="intensityFill"
+          [style.--ratio]="intensityRatio"
           (input)="setIntensity($event)"
           aria-label="Flavor intensity"
         />
@@ -356,7 +369,7 @@
       </div>
 
       <p class="save-error" *ngIf="saveError">{{ saveError }}</p>
-      <button class="save-results" type="submit" [disabled]="saving">
+      <button class="save-results" type="submit" [disabled]="saving || !rating">
         {{ saving ? 'Saving...' : (signedIn ? 'Save results' : 'Sign in to save') }}
       </button>
       <button class="review-skip" type="button" *ngIf="!signedIn" (click)="skipReview()" [disabled]="saving">

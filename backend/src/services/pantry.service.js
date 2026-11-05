@@ -35,7 +35,8 @@ const {
 } = require('./pantry.logic');
 
 const VISIBLE_STATUSES = ['active', 'used_up', 'expired'];
-const DEDUCTABLE_STATUSES = ['active', 'expired'];
+// Expired stays on the pantry list but does not cover recipes or brew stock.
+const DEDUCTABLE_STATUSES = ['active'];
 
 function displayName(line) {
   const productName = String(line.product_name || '').trim();
@@ -853,7 +854,7 @@ async function pantryIdeas(userId, historyIds) {
   };
   const items = await PantryItem.find({
     user_id: userId,
-    status: { $in: ['active', 'expired'] }
+    status: 'active'
   }).select('name product_id category').lean();
   if (!items.length) return empty;
 

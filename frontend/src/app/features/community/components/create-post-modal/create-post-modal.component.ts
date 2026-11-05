@@ -59,13 +59,18 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
 
   // ----- State bài viết -----
   content = '';
+  contentPlaceholder = 'Title your post and tell the story...';
   tagInput = '';
   tags: TagChip[] = [];
   files: File[] = [];
-  previews: MediaPreview[] = []; 
-  activeIndex = 0;               
+  previews: MediaPreview[] = []; // object URL (hoặc url Cloudinary khi sửa bài)
+  /** Media already hosted (e.g. recipe hero) — skip re-upload on submit */
+  remoteMedia: CloudinaryUploadResult[] = [];
+  activeIndex = 0;               // ảnh/video đang hiện ở khung lớn
   isSubmitting = false;
   errorMessage = '';
+
+  private readonly brewShareDraftKey = 'offsite.brewShareDraft';
 
   readonly maxFiles = 4;
   readonly maxImageMb = 10;
@@ -136,34 +141,40 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const p = this.post;
-    if (!p) return;
+    if (p) {
+      const tagRe = /#[^\s#]+/g;
+      const hashtags = (p.content?.match(tagRe) || []).map(t => t.slice(1));
+      this.content = (p.content || '').replace(tagRe, '').replace(/[ \t]{2,}/g, ' ').trim();
 
-    const tagRe = /#[^\s#]+/g;
-    const hashtags = (p.content?.match(tagRe) || []).map(t => t.slice(1));
-    this.content = (p.content || '').replace(tagRe, '').replace(/[ \t]{2,}/g, ' ').trim();
+      this.tags = [];
+      if (p.base === 'COFFEE' || p.base === 'MATCHA') {
+        this.tags.push({ label: p.base.toLowerCase(), isBase: true });
+      }
+      hashtags.forEach(h => this.tags.push({ label: h, isBase: false }));
 
-    this.tags = [];
-    if (p.base === 'COFFEE' || p.base === 'MATCHA') {
-      this.tags.push({ label: p.base.toLowerCase(), isBase: true });
+      this.selectedProducts = (p.products || []).map(c => ({
+        product_id: c.product_id,
+        name: c.name,
+        image_url: c.image_url,
+        source: 'manual' as const,
+        confidence: null,
+      }));
+
+      // Ảnh/video giữ nguyên khi sửa, chỉ để xem
+      this.previews = (p.media || []).map(m => ({ url: m.url, type: m.type }));
+
+      this.initialSnapshot = this.snapshot();
+      return;
     }
-    hashtags.forEach(h => this.tags.push({ label: h, isBase: false }));
 
-    this.selectedProducts = (p.products || []).map(c => ({
-      product_id: c.product_id,
-      name: c.name,
-      image_url: c.image_url,
-      source: 'manual' as const,
-      confidence: null,
-    }));
-
-    // Ảnh/video giữ nguyên khi sửa, chỉ để xem
-    this.previews = (p.media || []).map(m => ({ url: m.url, type: m.type }));
-
+    this.applyBrewShareDraft();
     this.initialSnapshot = this.snapshot();
   }
 
   ngOnDestroy(): void {
-    this.previews.forEach(p => URL.revokeObjectURL(p.url));
+    this.previews.forEach(p => {
+      if (p.url.startsWith('blob:')) URL.revokeObjectURL(p.url);
+    });
   }
 
   private snapshot(): string {
@@ -240,8 +251,12 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
 
   // ================== Photo & Media ==================
 
+  get mediaCount(): number {
+    return this.files.length + this.remoteMedia.length;
+  }
+
   get canAddMoreFiles(): boolean {
-    return !this.isEdit && this.files.length < this.maxFiles;
+    return !this.isEdit && this.mediaCount < this.maxFiles;
   }
 
   get activePreview(): MediaPreview | null {
@@ -253,7 +268,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     if (!input.files || input.files.length === 0) return;
 
     const incoming = Array.from(input.files);
-    const room = Math.max(this.maxFiles - this.files.length, 0);
+    const room = Math.max(this.maxFiles - this.mediaCount, 0);
     const rejected: string[] = [];
     const accepted: File[] = [];
 
@@ -291,9 +306,17 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
 
   removeFile(index: number): void {
     if (this.isEdit) return;
-    URL.revokeObjectURL(this.previews[index].url);
-    this.files.splice(index, 1);
-    this.previews.splice(index, 1);
+    const remoteCount = this.remoteMedia.length;
+    if (index < remoteCount) {
+      this.remoteMedia.splice(index, 1);
+      this.previews.splice(index, 1);
+    } else {
+      const fileIndex = index - remoteCount;
+      const preview = this.previews[index];
+      if (preview?.url?.startsWith('blob:')) URL.revokeObjectURL(preview.url);
+      this.files.splice(fileIndex, 1);
+      this.previews.splice(index, 1);
+    }
     this.activeIndex = Math.max(0, Math.min(this.activeIndex, this.previews.length - 1));
   }
 
@@ -427,6 +450,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       this.content.trim().length > 0 ||
       this.tags.length > 0 ||
       this.files.length > 0 ||
+      this.remoteMedia.length > 0 ||
       this.selectedProducts.length > 0 ||
       this.aiProducts.length > 0
     );
@@ -457,11 +481,15 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
 
   private resetForm(): void {
     this.content = '';
+    this.contentPlaceholder = 'Title your post and tell the story...';
     this.tagInput = '';
     this.tags = [];
-    this.previews.forEach(p => URL.revokeObjectURL(p.url));
+    this.previews.forEach(p => {
+      if (p.url.startsWith('blob:')) URL.revokeObjectURL(p.url);
+    });
     this.previews = [];
     this.files = [];
+    this.remoteMedia = [];
     this.activeIndex = 0;
     this.errorMessage = '';
     this.selectedProducts = [];
@@ -473,6 +501,41 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     this.hasSuggested = false;
     this.regenCount = 0;
     this.suggestMessage = '';
+  }
+
+  private applyBrewShareDraft(): void {
+    try {
+      const raw = sessionStorage.getItem(this.brewShareDraftKey);
+      if (!raw) return;
+      sessionStorage.removeItem(this.brewShareDraftKey);
+      const draft = JSON.parse(raw) as {
+        captionHint?: string;
+        imageUrl?: string;
+        publicId?: string;
+        base?: string;
+        recipeTitle?: string;
+      };
+      if (typeof draft.captionHint === 'string' && draft.captionHint.trim()) {
+        this.contentPlaceholder = draft.captionHint.trim();
+      }
+      const base = (draft.base || '').toUpperCase();
+      if (base === 'COFFEE' || base === 'MATCHA') {
+        this.tags = [{ label: base.toLowerCase(), isBase: true }];
+      }
+      const imageUrl = typeof draft.imageUrl === 'string' ? draft.imageUrl.trim() : '';
+      if (imageUrl) {
+        const publicId = typeof draft.publicId === 'string' ? draft.publicId.trim() : '';
+        this.remoteMedia = [{
+          url: imageUrl,
+          public_id: publicId || imageUrl,
+          type: 'image',
+        }];
+        this.previews = [{ url: imageUrl, type: 'image' }];
+        this.activeIndex = 0;
+      }
+    } catch {
+      sessionStorage.removeItem(this.brewShareDraftKey);
+    }
   }
 
   // ================== Submit ==================
@@ -488,7 +551,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       this.errorMessage = 'Please select a base tag (coffee or matcha).';
       return;
     }
-    if (!this.content.trim() && this.files.length === 0 && !this.isEdit) {
+    if (!this.content.trim() && this.mediaCount === 0 && !this.isEdit) {
       this.errorMessage = 'Add some content or media before posting.';
       return;
     }
@@ -502,8 +565,10 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     const linkedProducts = [...this.selectedProducts, ...this.aiProducts]
       .slice(0, this.maxProducts)
       .map(p => p.product_id);
+    const remote = [...this.remoteMedia];
 
-    const afterUpload = (media: CloudinaryUploadResult[]) => {
+    const afterUpload = (uploaded: CloudinaryUploadResult[]) => {
+      const media = [...remote, ...uploaded];
       if (this.post) {
         const editedId = this.post.post_id;
         this.communityService

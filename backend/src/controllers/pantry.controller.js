@@ -45,6 +45,10 @@ function parseManualExpiry(value) {
   }
   const date = new Date(`${value}T00:00:00+07:00`);
   if (Number.isNaN(date.getTime())) return { error: 'Best before must be a date' };
+  const days = daysUntil(date, new Date());
+  if (days == null || days <= 0) {
+    return { error: 'Best before must be after today.' };
+  }
   return { date };
 }
 

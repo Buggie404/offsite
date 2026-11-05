@@ -61,6 +61,8 @@ export class MyPantryComponent implements OnInit {
   addQuantity = '';
   addUnit = 'g';
   addBestBefore = '';
+  /** YYYY-MM-DD; date picker rejects today and earlier. */
+  minBestBefore = this.localDatePlusDays(1);
 
   readonly counts = computed(() => {
     const items = this.pantry.items();
@@ -128,6 +130,15 @@ export class MyPantryComponent implements OnInit {
     if (item.daysLeft === null) return '';
     if (item.daysLeft === 1) return '1 day left';
     return `${item.daysLeft} days left`;
+  }
+
+  itemImage(item: PantryItem): string {
+    if (item.source === 'manual') return 'assets/images/placeholder.svg';
+    return item.imageUrl || 'assets/images/placeholder.svg';
+  }
+
+  usesGenericPlaceholder(item: PantryItem): boolean {
+    return item.source !== 'manual' && !item.imageUrl;
   }
 
   sourceLabel(item: PantryItem): string {
@@ -269,6 +280,7 @@ export class MyPantryComponent implements OnInit {
     this.addQuantity = '';
     this.addUnit = 'g';
     this.addBestBefore = '';
+    this.minBestBefore = this.localDatePlusDays(1);
     this.addError.set('');
     this.addOpen.set(true);
     this.openMenuId.set(null);
@@ -296,6 +308,10 @@ export class MyPantryComponent implements OnInit {
       }
       quantity = value;
     }
+    if (this.addBestBefore && this.addBestBefore <= this.localDatePlusDays(0)) {
+      this.addError.set('Best before must be after today.');
+      return;
+    }
     this.saving.set(true);
     this.addError.set('');
     try {
@@ -312,6 +328,16 @@ export class MyPantryComponent implements OnInit {
       this.addError.set(this.errorText(error, 'Could not add this item.'));
       this.saving.set(false);
     }
+  }
+
+  private localDatePlusDays(days: number): string {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + days);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   trackById(_index: number, item: { id: string }): string {

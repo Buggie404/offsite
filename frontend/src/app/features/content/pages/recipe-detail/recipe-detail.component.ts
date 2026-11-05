@@ -426,6 +426,25 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     }
   }
 
+  toggleSelectAll(select: boolean): void {
+    if (!this.recipe) return;
+    const keys = [
+      ...this.recipe.ingredients.map((_, index) => `ing-${index}`),
+      ...this.recipe.tools.map((_, index) => `tool-${index}`),
+    ];
+    if (select) {
+      keys.forEach(key => {
+        this.dismissedChecks.delete(key);
+        this.checkedItemKeys.add(key);
+      });
+      return;
+    }
+    keys.forEach(key => {
+      this.checkedItemKeys.delete(key);
+      this.dismissedChecks.add(key);
+    });
+  }
+
   isItemChecked(key: string): boolean {
     return this.checkedItemKeys.has(key);
   }

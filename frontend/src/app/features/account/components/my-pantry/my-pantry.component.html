@@ -37,7 +37,13 @@
       [class.is-expired]="item.countdown === 'expired' || item.status === 'used_up'"
     >
       <div class="thumb thumb--banner">
-        <img [src]="item.imageUrl || 'assets/pantry/image-placeholder.svg'" alt="" width="36" height="36" />
+        <img
+          [src]="itemImage(item)"
+          [class.is-placeholder]="usesGenericPlaceholder(item)"
+          alt=""
+          width="240"
+          height="140"
+        />
         <span class="meta-chip thumb-tag thumb-tag--source" [class.meta-chip--neutral]="item.source === 'manual'">{{ sourceLabel(item) }}</span>
         <span
           class="meta-chip thumb-tag thumb-tag--status"
@@ -117,7 +123,13 @@
       <article class="recipe-card" [class.selected]="isRecipeSelected(recipe.id)" *ngFor="let recipe of pantry.recipes(); trackBy: trackById">
         <div class="thumb thumb--recipe">
           <a class="thumb-link" [routerLink]="['/recipes', recipe.slug]" [attr.aria-label]="recipe.name"></a>
-          <img [src]="recipe.imageUrl || 'assets/pantry/image-placeholder.svg'" alt="" width="36" height="36" />
+          <img
+            [src]="recipe.imageUrl || 'assets/images/placeholder.svg'"
+            [class.is-placeholder]="!recipe.imageUrl"
+            alt=""
+            width="36"
+            height="36"
+          />
           <label class="pantry-check pantry-check--float" (click)="$event.stopPropagation()">
             <input type="checkbox" [checked]="isRecipeSelected(recipe.id)" (change)="toggleRecipe(recipe.id)" [attr.aria-label]="'Select ' + recipe.name" />
             <span class="pantry-check__box"></span>
@@ -166,7 +178,13 @@
         <article class="suggest-card" *ngFor="let idea of pantry.suggestions().ready; trackBy: trackById">
           <a class="suggest-card__media" [routerLink]="['/recipes', idea.slug]" [attr.aria-label]="idea.name">
             <div class="thumb thumb--suggest" aria-hidden="true">
-              <img [src]="idea.imageUrl || 'assets/pantry/image-placeholder.svg'" alt="" width="36" height="36" />
+              <img
+                [src]="idea.imageUrl || 'assets/images/placeholder.svg'"
+                [class.is-placeholder]="!idea.imageUrl"
+                alt=""
+                width="36"
+                height="36"
+              />
             </div>
           </a>
           <div class="suggest-card__body">
@@ -190,7 +208,13 @@
         <article class="suggest-card" *ngFor="let idea of pantry.suggestions().almost; trackBy: trackById">
           <a class="suggest-card__media" [routerLink]="['/recipes', idea.slug]" [attr.aria-label]="idea.name">
             <div class="thumb thumb--suggest" aria-hidden="true">
-              <img [src]="idea.imageUrl || 'assets/pantry/image-placeholder.svg'" alt="" width="36" height="36" />
+              <img
+                [src]="idea.imageUrl || 'assets/images/placeholder.svg'"
+                [class.is-placeholder]="!idea.imageUrl"
+                alt=""
+                width="36"
+                height="36"
+              />
             </div>
           </a>
           <div class="suggest-card__body">
@@ -215,7 +239,13 @@
       <article class="missing-card" *ngFor="let product of pantry.missing(); trackBy: trackById">
         <a class="missing-card__link" [routerLink]="productLink(product)">
           <div class="thumb thumb--square" aria-hidden="true">
-            <img [src]="product.imageUrl || 'assets/pantry/image-placeholder.svg'" alt="" width="36" height="36" />
+            <img
+              [src]="product.imageUrl || 'assets/images/placeholder.svg'"
+              [class.is-placeholder]="!product.imageUrl"
+              alt=""
+              width="36"
+              height="36"
+            />
           </div>
           <div class="missing-card__copy">
             <h3>{{ product.name }}</h3>
@@ -262,8 +292,8 @@
 
         <label class="field">
           <span>Best before</span>
-          <input type="date" name="pantryBestBefore" [(ngModel)]="addBestBefore" [class.is-empty]="!addBestBefore" aria-label="Best before" />
-          <small>Leave empty if the item has no expiry date.</small>
+          <input type="date" name="pantryBestBefore" [(ngModel)]="addBestBefore" [min]="minBestBefore" [class.is-empty]="!addBestBefore" aria-label="Best before" />
+          <small>Must be after today, or leave empty if there is no expiry date.</small>
         </label>
       </div>
 

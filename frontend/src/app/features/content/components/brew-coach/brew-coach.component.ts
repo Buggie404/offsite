@@ -1,8 +1,8 @@
-import { ChangeDetectorRef, Component, EventEmitter, HostListener, Input, NgZone, OnDestroy, OnInit, Output, effect, inject, PLATFORM_ID } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, EventEmitter, HostListener, Input, NgZone, OnDestroy, OnInit, Output, ViewChild, effect, inject, PLATFORM_ID } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { LucideArchive, LucideArrowLeft, LucideCheck, LucideChevronDown, LucideMinus, LucidePlus, LucideShare2, LucideSparkle, LucideStar, LucideTrash2, LucideVolume1, LucideVolume2, LucideVolumeX, LucideX, LucideArrowRight } from '@lucide/angular';
+import { LucideArchive, LucideArrowLeft, LucideArrowRight, LucideCheck, LucideChevronDown, LucideMinus, LucidePlus, LucideShare2, LucideSparkle, LucideStar, LucideTrash2, LucideVolume2, LucideVolumeX, LucideX } from '@lucide/angular';
 import { Recipe } from '../../../../shared/models/recipe.model';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { AuthService } from '../../../../core/auth.service';
@@ -92,7 +92,6 @@ interface StashedBrewReview {
     LucideSparkle,
     LucideStar,
     LucideTrash2,
-    LucideVolume1,
     LucideVolume2,
     LucideVolumeX,
     LucideX,
@@ -112,6 +111,8 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
   private pantry = inject(PantryService);
   private router = inject(Router);
 
+  @ViewChild('coachRoot') private coachRoot?: ElementRef<HTMLElement>;
+
   @Input({ required: true }) recipe!: Recipe;
   @Input() pantrySelections: { ingredient_name: string; pantry_item_id: string }[] | null = null;
   @Output() closed = new EventEmitter<void>();
@@ -121,11 +122,12 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
   stepIndex = 0;
   completedUntil = 0;
   voiceOn = false;
+  autoNext = false;
   reviewOpen = false;
   exitConfirmOpen = false;
-  rating = 4;
+  rating = 0;
   hoverRating = 0;
-  intensity = 4;
+  intensity = 1;
   adjustRecipe = true;
   reviewNote = '';
   reviewRows: ReviewRow[] = [];
@@ -137,6 +139,7 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
   adjustmentHidden = false;
   readonly stars = [1, 2, 3, 4, 5];
   readonly ratingLabels = ['', 'Not for me', 'Okay', 'Good', 'Really good', 'Excellent'];
+  stepEntering = true;
   elapsed = 0;
   timerLeft = 0;
   timerTotal = 0;
@@ -171,6 +174,15 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
   private brewFinished = false;
   private discardProgress = false;
   private sessionStartedAt = new Date();
+  private autoNextHandle: number | null = null;
+  private preferredVoice: SpeechSynthesisVoice | null = null;
+  private voicesReady = false;
+  private speakToken = 0;
+  private stepCueToken = 0;
+  private readonly brewShareDraftKey = 'offsite.brewShareDraft';
+  private readonly autoNextAfterTimerMs = 4000;
+  private readonly autoNextNoTimerMs = 5000;
+  private readonly movingLine = 'Moving to the next step.';
 
   constructor() {
     effect(() => {
@@ -199,11 +211,11 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
   }
 
   get shownRating(): number {
-    return this.hoverRating || this.rating;
+    return this.hoverRating || this.rating || 0;
   }
 
-  get intensityFill(): string {
-    return `${((this.intensity - 1) / 4) * 100}%`;
+  get intensityRatio(): number {
+    return (this.intensity - 1) / 4;
   }
 
   get signedIn(): boolean {
@@ -294,8 +306,6 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
       if (this.savedReview) {
         this.adjustRecipe = this.savedReview.adjustRecipe;
         this.reviewNote = this.savedReview.note;
-        if (this.savedReview.rating) this.rating = this.savedReview.rating;
-        if (this.savedReview.intensity) this.intensity = this.savedReview.intensity;
       }
     } else {
       this.resetPersonalRecipe();
@@ -315,6 +325,8 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     document.documentElement.style.overflow = 'hidden';
     this.persistProgress();
     void this.loadPantryCoverage();
+    this.warmVoices();
+    this.scheduleAutoNext();
     this.elapsedHandle = window.setInterval(() => {
       this.elapsed += 1;
       if (this.elapsed % 5 === 0) this.persistProgress();
@@ -324,12 +336,15 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    this.stepCueToken += 1;
+    this.clearAutoNext();
     this.pauseTimer();
     if (!this.savedToServer && !this.discardProgress) this.persistProgress();
     if (this.elapsedHandle != null) window.clearInterval(this.elapsedHandle);
     if (isPlatformBrowser(this.platformId)) {
       document.body.style.overflow = this.previousBodyOverflow;
       document.documentElement.style.overflow = this.previousHtmlOverflow;
+      this.speakToken += 1;
       window.speechSynthesis?.cancel();
     }
   }
@@ -372,6 +387,19 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     this.askToExit();
   }
 
+  @HostListener('document:keydown.space', ['$event'])
+  onSpace(event: Event): void {
+    const keyboard = event as KeyboardEvent;
+    if (keyboard.repeat) return;
+    if (this.reviewOpen || this.exitConfirmOpen || this.savedOpen || this.awaitingAuth) return;
+    if (this.authPrompt.isOpen() || this.authModal.isOpen() || this.authModal.successOpen()) return;
+    const target = keyboard.target as HTMLElement | null;
+    const tag = target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+    keyboard.preventDefault();
+    this.finishOrNext();
+  }
+
   askToExit(): void {
     this.exitConfirmOpen = true;
   }
@@ -410,15 +438,40 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
   toggleVoice(): void {
     this.voiceOn = !this.voiceOn;
     if (!this.voiceOn) {
+      this.stepCueToken += 1;
+      this.speakToken += 1;
       if (isPlatformBrowser(this.platformId)) window.speechSynthesis?.cancel();
+      this.scheduleAutoNext();
       return;
     }
-    this.readAloud();
+    void this.cueCurrentStep();
   }
 
-  readAloud(): void {
+  toggleAutoNext(): void {
+    this.autoNext = !this.autoNext;
+    if (!this.autoNext) {
+      this.clearAutoNext();
+      return;
+    }
+    if (
+      this.voiceOn
+      && isPlatformBrowser(this.platformId)
+      && (window.speechSynthesis?.speaking || window.speechSynthesis?.pending)
+    ) {
+      // Current step cue will schedule once speech ends.
+      return;
+    }
+    if (this.voiceOn) {
+      void this.cueCurrentStep({ restartVoice: false });
+      return;
+    }
+    this.scheduleAutoNext();
+  }
+
+  private readAloud(): Promise<void> {
     const step = this.step;
-    this.speak([step.title, step.description].filter(Boolean).join('. '));
+    if (!step) return Promise.resolve();
+    return this.speak([step.title, step.description].filter(Boolean).join('. '));
   }
 
   isDone(index: number): boolean {
@@ -431,12 +484,15 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
       if (this.reviewOpen) return;
     }
     if (index < 0 || index >= this.steps.length || index === this.stepIndex) return;
+    this.clearAutoNext();
     this.persistTimer();
     this.pauseTimer();
     this.stepIndex = index;
     this.restoreTimer();
     this.persistProgress();
-    if (this.voiceOn) this.readAloud();
+    this.scrollCoachToTop();
+    this.playStepMotion();
+    void this.cueCurrentStep();
     this.cdr.markForCheck();
   }
 
@@ -445,15 +501,20 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
   }
 
   finishOrNext(): void {
+    this.stepCueToken += 1;
+    this.clearAutoNext();
     this.completedUntil = Math.max(this.completedUntil, this.stepIndex + 1);
     if (this.stepIndex >= this.steps.length - 1) {
       this.persistTimer();
       this.pauseTimer();
       this.brewFinished = true;
       this.adjustRecipe = false;
+      this.rating = 0;
+      this.hoverRating = 0;
+      this.intensity = 1;
       this.reviewOpen = true;
       this.persistProgress();
-      if (this.voiceOn) this.speak('How was it?');
+      if (this.voiceOn) void this.speak('How was it?');
       this.cdr.markForCheck();
       return;
     }
@@ -669,6 +730,10 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     event.preventDefault();
     if (this.saving || this.awaitingAuth || this.savedOpen) return;
     this.saveError = '';
+    if (!this.rating) {
+      this.saveError = 'Pick a rating before saving.';
+      return;
+    }
     const review = this.buildReview();
     this.persistProgress();
     if (!this.auth.isAuthenticated()) {
@@ -691,8 +756,9 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
   }
 
   shareToCommunity(): void {
+    this.stashShareDraft();
     this.exit();
-    void this.router.navigate(['/community']);
+    void this.router.navigate(['/community'], { queryParams: { create: 'post' } });
   }
 
   startOrPause(): void {
@@ -706,6 +772,7 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
       return;
     }
+    this.clearAutoNext();
     if (this.remainingMs <= 0) {
       const seconds = this.step?.timerSeconds ?? 0;
       if (seconds <= 0) return;
@@ -721,6 +788,7 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
   }
 
   addTenSeconds(): void {
+    this.clearAutoNext();
     this.captureRemaining();
     this.timerTotal += 10;
     this.remainingMs += 10000;
@@ -732,6 +800,7 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
   }
 
   resetTimer(): void {
+    this.clearAutoNext();
     this.pauseTimer();
     const seconds = this.step?.timerSeconds ?? 0;
     this.timerLeft = seconds;
@@ -1066,8 +1135,8 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     this.adjustRecipe = false;
     this.reviewNote = '';
     this.reviewRows = [];
-    this.rating = 4;
-    this.intensity = 4;
+    this.rating = 0;
+    this.intensity = 1;
     this.adjustmentHidden = false;
   }
 
@@ -1204,8 +1273,8 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
       timerLeft: this.currentRemainingMs() / 1000,
       timerTotal: this.timerTotal,
       reviewOpen: this.keepsPersonalRecipe() ? this.reviewOpen : false,
-      rating: this.keepsPersonalRecipe() ? this.rating : 4,
-      intensity: this.keepsPersonalRecipe() ? this.intensity : 4,
+      rating: this.keepsPersonalRecipe() ? this.rating : 0,
+      intensity: this.keepsPersonalRecipe() ? this.intensity : 1,
       adjustRecipe: this.keepsPersonalRecipe() ? this.adjustRecipe : false,
       reviewNote: this.keepsPersonalRecipe() ? this.reviewNote : '',
       reviewRows: this.keepsPersonalRecipe() ? this.reviewRows : [],
@@ -1542,7 +1611,26 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     this.clearClock();
     this.snapRing(0, null);
     this.persistProgress();
-    if (this.voiceOn) this.speak('Time is up. Confirm when you are ready.');
+    const cue = this.stepCueToken;
+    const last = this.isLastStep();
+    const line = this.autoNext && !last
+      ? 'Time is up. Moving to the next step.'
+      : this.autoNext
+        ? 'Time is up.'
+        : 'Time is up. Confirm when you are ready.';
+    if (this.voiceOn) {
+      const advanceAt = Date.now() + this.autoNextAfterTimerMs;
+      void this.speak(line).then(() => {
+        if (this.destroyed || cue !== this.stepCueToken || !this.autoNext) return;
+        const wait = Math.max(0, advanceAt - Date.now());
+        this.zone.run(() => {
+          if (wait <= 0) this.finishOrNext();
+          else this.armAutoNext(wait);
+        });
+      });
+      return;
+    }
+    if (this.autoNext) this.armAutoNext(this.autoNextAfterTimerMs);
   }
 
   private ringOffsetFor(ms: number): number {
@@ -1602,11 +1690,238 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     this.clockHandle = null;
   }
 
-  private speak(text: string): void {
-    if (!isPlatformBrowser(this.platformId) || !window.speechSynthesis) return;
+  private speak(text: string): Promise<void> {
+    if (!isPlatformBrowser(this.platformId) || !window.speechSynthesis) return Promise.resolve();
+    const token = ++this.speakToken;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    window.speechSynthesis.speak(utterance);
+    return new Promise(resolve => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      // cancel() + speak() in the same tick can drop the new utterance in Chromium.
+      window.setTimeout(() => {
+        if (token !== this.speakToken) {
+          finish();
+          return;
+        }
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.92;
+        utterance.pitch = 1.05;
+        utterance.volume = 1;
+        const voice = this.preferredVoice || this.pickVoice();
+        if (voice) {
+          this.preferredVoice = voice;
+          utterance.voice = voice;
+          utterance.lang = voice.lang || 'en-US';
+        } else {
+          utterance.lang = 'en-US';
+        }
+        utterance.onend = finish;
+        utterance.onerror = finish;
+        window.speechSynthesis.speak(utterance);
+        window.setTimeout(() => {
+          if (token !== this.speakToken || settled) return;
+          if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) finish();
+        }, 300);
+      }, 40);
+    });
+  }
+
+  private warmVoices(): void {
+    if (!window.speechSynthesis) return;
+    const capture = () => {
+      this.preferredVoice = this.pickVoice();
+      this.voicesReady = !!this.preferredVoice || window.speechSynthesis.getVoices().length > 0;
+    };
+    capture();
+    if (this.voicesReady) return;
+    window.speechSynthesis.addEventListener('voiceschanged', capture, { once: true });
+  }
+
+  private pickVoice(): SpeechSynthesisVoice | null {
+    if (!isPlatformBrowser(this.platformId) || !window.speechSynthesis) return null;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return null;
+
+    const score = (voice: SpeechSynthesisVoice): number => {
+      const label = `${voice.name} ${voice.lang}`.toLowerCase();
+      let points = 0;
+      if (/^en(-|_)/i.test(voice.lang)) points += 10;
+      if (/en-us/i.test(voice.lang)) points += 6;
+      if (/en-gb/i.test(voice.lang)) points += 3;
+      if (/natural|neural|premium|enhanced|online/.test(label)) points += 8;
+      if (/google/.test(label)) points += 7;
+      if (/microsoft/.test(label) && /(aria|jenny|guy|sara|libby)/.test(label)) points += 7;
+      if (/(samantha|karen|moira|serena|fiona|zira|susan)/.test(label)) points += 6;
+      if (/(female|woman)/.test(label)) points += 2;
+      if (voice.localService) points += 1;
+      if (/compact|eloquence/.test(label)) points -= 4;
+      return points;
+    };
+
+    return [...voices].sort((a, b) => score(b) - score(a))[0] || null;
+  }
+
+  private cueCurrentStep(options?: { restartVoice?: boolean }): Promise<void> {
+    const cue = ++this.stepCueToken;
+    this.clearAutoNext();
+    if (this.reviewOpen || this.exitConfirmOpen || this.savedOpen) return Promise.resolve();
+
+    const restartVoice = options?.restartVoice !== false;
+    const announce = this.voiceOn && restartVoice
+      ? this.readAloud()
+      : Promise.resolve();
+
+    return announce.then(() => {
+      if (this.destroyed || cue !== this.stepCueToken) return;
+      this.zone.run(() => this.afterStepAnnounced(cue));
+    });
+  }
+
+  private afterStepAnnounced(cue: number): void {
+    if (this.destroyed || cue !== this.stepCueToken || this.reviewOpen || this.exitConfirmOpen || this.savedOpen) {
+      return;
+    }
+    const step = this.step;
+    if (!step) return;
+
+    if (step.timerSeconds) {
+      if (this.timerRunning) return;
+      if (this.timerTotal > 0 && this.timerLeft <= 0) {
+        if (this.autoNext) this.armAutoNext(this.autoNextAfterTimerMs);
+        return;
+      }
+      if (this.voiceOn) {
+        this.startTimerQuietly();
+        return;
+      }
+      return;
+    }
+
+    if (!this.autoNext) return;
+    if (this.voiceOn && !this.isLastStep()) {
+      this.queueMovingLine(cue);
+      return;
+    }
+    this.armAutoNext(this.autoNextNoTimerMs);
+  }
+
+  private queueMovingLine(cue: number): void {
+    this.clearAutoNext();
+    if (!isPlatformBrowser(this.platformId) || !this.autoNext) return;
+    this.autoNextHandle = window.setTimeout(() => {
+      this.autoNextHandle = null;
+      if (this.destroyed || cue !== this.stepCueToken || !this.autoNext || this.isLastStep()) return;
+      if (this.reviewOpen || this.exitConfirmOpen || this.savedOpen) return;
+      this.zone.run(() => {
+        void this.speak(this.movingLine).then(() => {
+          if (this.destroyed || cue !== this.stepCueToken || !this.autoNext || this.isLastStep()) return;
+          this.zone.run(() => this.finishOrNext());
+        });
+      });
+    }, this.autoNextNoTimerMs);
+  }
+
+  private isLastStep(): boolean {
+    return this.stepIndex >= this.steps.length - 1;
+  }
+
+  private scrollCoachToTop(): void {
+    const root = this.coachRoot?.nativeElement;
+    if (!root) return;
+    root.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  private playStepMotion(): void {
+    this.stepEntering = false;
+    if (!isPlatformBrowser(this.platformId)) {
+      this.stepEntering = true;
+      return;
+    }
+    this.cdr.detectChanges();
+    requestAnimationFrame(() => {
+      if (this.destroyed) return;
+      this.stepEntering = true;
+      this.cdr.detectChanges();
+    });
+  }
+
+  private startTimerQuietly(): void {
+    if (this.timerRunning || this.reviewOpen || this.exitConfirmOpen || this.savedOpen) return;
+    const seconds = this.step?.timerSeconds ?? 0;
+    if (seconds <= 0) return;
+    if (this.remainingMs <= 0) {
+      this.timerTotal = seconds;
+      this.remainingMs = seconds * 1000;
+      this.timerLeft = seconds;
+    }
+    this.clearAutoNext();
+    this.timerRunning = true;
+    this.timerEndsAt = Date.now() + this.remainingMs;
+    this.snapRing(this.remainingMs, this.remainingMs);
+    this.armClock();
+    this.persistProgress();
+    this.cdr.markForCheck();
+  }
+
+  private scheduleAutoNext(): void {
+    this.clearAutoNext();
+    if (!this.autoNext || this.reviewOpen || this.exitConfirmOpen || this.savedOpen) return;
+    if (this.voiceOn) {
+      void this.cueCurrentStep({ restartVoice: false });
+      return;
+    }
+    const step = this.step;
+    if (!step) return;
+    if (step.timerSeconds) {
+      if (this.timerTotal > 0 && this.timerLeft <= 0 && !this.timerRunning) {
+        this.armAutoNext(this.autoNextAfterTimerMs);
+      }
+      return;
+    }
+    this.armAutoNext(this.autoNextNoTimerMs);
+  }
+
+  private armAutoNext(delayMs: number): void {
+    this.clearAutoNext();
+    if (!isPlatformBrowser(this.platformId) || !this.autoNext) return;
+    this.autoNextHandle = window.setTimeout(() => {
+      this.autoNextHandle = null;
+      if (this.destroyed || !this.autoNext || this.reviewOpen || this.exitConfirmOpen || this.savedOpen) return;
+      this.zone.run(() => this.finishOrNext());
+    }, delayMs);
+  }
+
+  private clearAutoNext(): void {
+    if (this.autoNextHandle == null) return;
+    window.clearTimeout(this.autoNextHandle);
+    this.autoNextHandle = null;
+  }
+
+  private stashShareDraft(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const hero = this.recipe.heroImage;
+    const base = this.shareBase();
+    const title = this.recipe.title?.trim() || 'this recipe';
+    sessionStorage.setItem(this.brewShareDraftKey, JSON.stringify({
+      captionHint: 'Just finished a brew — here’s how it turned out…',
+      imageUrl: hero?.url || '',
+      publicId: hero?.public_id || '',
+      base,
+      recipeTitle: title,
+    }));
+  }
+
+  private shareBase(): 'MATCHA' | 'COFFEE' {
+    const hay = [
+      this.recipe.title,
+      this.recipe.description,
+      ...(this.recipe.metadata?.tags || []),
+    ].join(' ').toLowerCase();
+    if (/\bcoffee\b/.test(hay)) return 'COFFEE';
+    return 'MATCHA';
   }
 }
