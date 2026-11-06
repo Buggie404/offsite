@@ -65,8 +65,9 @@ const PURPOSE_FILTERS = {
 
 function listFilter(query) {
   const filter = {};
-  const purpose = PURPOSE_FILTERS[String(query.purpose || '')];
-  if (purpose) filter.purpose = purpose;
+  const purposeKey = String(query.purpose || '');
+  if (purposeKey === 'loyalty') filter.purpose = { $in: ['loyalty_redeem', 'archetype'] };
+  else if (PURPOSE_FILTERS[purposeKey]) filter.purpose = PURPOSE_FILTERS[purposeKey];
 
   const type = String(query.type || '');
   if (type === 'discount' || type === 'shipping') filter.voucher_type = type;
@@ -89,7 +90,7 @@ function listFilter(query) {
 
   const and = [];
   // Personal vouchers (assigned to one customer) stay out of the default list.
-  const personalPurpose = purpose === 'complaint' || purpose === 'loyalty_redeem' || purpose === 'referral';
+  const personalPurpose = purposeKey === 'complaint' || purposeKey === 'loyalty' || purposeKey === 'referral';
   if (!personalPurpose) {
     and.push({
       $or: [
@@ -423,6 +424,8 @@ async function performanceFor(voucher) {
   }
   const range = voucherService.performanceWindow(voucher);
   const buckets = voucherService.bucketUsage(dayCounts, range.start, range.end);
+  const shown = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
+  if (!orders || !shown) return voucherService.samplePerformance(voucher);
   const round = (amount) => Math.round((Number(amount) || 0) * 100) / 100;
   return {
     code: voucher.code,

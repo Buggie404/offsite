@@ -340,6 +340,44 @@ function daysBetween(start, end) {
   return Math.round(ms / 86400000);
 }
 
+// Demo series for a voucher that has been used, when no matching orders fall in the window.
+function samplePerformance(voucher) {
+  const range = performanceWindow(voucher);
+  const buckets = bucketUsage({}, range.start, range.end);
+  const used = Math.max(0, Math.round(Number(voucher.used_count) || 0));
+  const weights = buckets.map((_, index) => 3 + ((index * 5 + used) % 7));
+  const weightSum = weights.reduce((sum, weight) => sum + weight, 0) || 1;
+  let left = used;
+  const filled = buckets.map((bucket, index) => {
+    const count = index === buckets.length - 1
+      ? left
+      : Math.min(left, Math.round((used * weights[index]) / weightSum));
+    left -= count;
+    return { ...bucket, count };
+  });
+  const orderBase = Math.max(Number(voucher.min_order_amount) || 0, 42);
+  let each = Number(voucher.discount_value) || 0;
+  if (voucher.voucher_type === 'shipping') {
+    each = Math.min(each || 15, 15);
+  } else if (voucher.discount_type === 'percentage') {
+    each = orderBase * each / 100;
+    if (voucher.max_discount_value) each = Math.min(each, Number(voucher.max_discount_value));
+  }
+  const round = (amount) => Math.round((Number(amount) || 0) * 100) / 100;
+  const totalDiscounted = round(each * used);
+  return {
+    code: voucher.code,
+    used_count: used,
+    usage_limit: voucher.usage_limit ?? null,
+    times_used: used,
+    total_discounted: totalDiscounted,
+    revenue: round(Math.max(orderBase * used - totalDiscounted, 0)),
+    range_from: range.start,
+    range_to: range.end,
+    buckets: filled
+  };
+}
+
 function bucketUsage(dayCounts, start, end) {
   const span = Math.max(1, daysBetween(start, end) + 1);
   const bucketCount = Math.min(12, span);
@@ -367,6 +405,7 @@ module.exports = {
   businessToday,
   dateKey,
   performanceWindow,
+  samplePerformance,
   bucketUsage,
   perUserLimit
 };
