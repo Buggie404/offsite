@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -23,6 +23,7 @@ import {
   KitLevel,
   KitSlot,
   KitStatus,
+  QuizOption,
   MatchingRole,
   QuizKit,
   QuizQuestion,
@@ -59,6 +60,7 @@ export const ROLE_OPTIONS: { value: MatchingRole; badge: string; select: string 
 })
 export class AdminStarterQuizComponent implements OnInit {
   private readonly api = inject(AdminStarterQuizService);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   private readonly previewRequests = new Subject<void>();
 
@@ -66,12 +68,33 @@ export class AdminStarterQuizComponent implements OnInit {
   readonly drinks: KitDrink[] = ['matcha', 'coffee', 'mixed', 'any'];
   readonly levels: KitLevel[] = ['beginner', 'ritual', 'craft', 'any'];
   readonly budgets: { value: KitBudget; label: string }[] = [
+    { value: 'under_60', label: '< $60' },
+    { value: 'mid_60_120', label: '$60–120' },
+    { value: 'over_120', label: '> $120' }
+  ];
+  readonly drinkChoices: { value: KitDrink; label: string }[] = [
+    { value: 'matcha', label: 'Matcha' },
+    { value: 'coffee', label: 'Coffee' },
+    { value: 'mixed', label: 'Mixed' },
+    { value: 'any', label: 'Any' }
+  ];
+  readonly levelChoices: { value: KitLevel; label: string }[] = [
+    { value: 'beginner', label: 'Just starting' },
+    { value: 'ritual', label: 'Ritual' },
+    { value: 'craft', label: 'Craft' },
+    { value: 'any', label: 'Any' }
+  ];
+  readonly budgetChoices: { value: KitBudget; label: string }[] = [
     { value: 'under_60', label: 'Under $60' },
     { value: 'mid_60_120', label: '$60–120' },
     { value: 'over_120', label: 'Over $120' }
   ];
   readonly tiers = ['Everyday Sip', 'Ritual', 'Craft'];
-  readonly statuses: KitStatus[] = ['draft', 'active', 'suspended'];
+  readonly statuses: { value: KitStatus; label: string }[] = [
+    { value: 'draft', label: 'Draft' },
+    { value: 'active', label: 'Active' },
+    { value: 'suspended', label: 'Suspended' }
+  ];
   readonly constraints = ['Any price', 'Price ≤ $20', 'Price ≤ $40', 'Price ≤ $60', 'Size ≤ 50g'];
 
   tab: 'questions' | 'kits' = 'questions';
@@ -114,7 +137,9 @@ export class AdminStarterQuizComponent implements OnInit {
   }
 
   load(): void {
-    this.loading = true;
+    this.loading = this.questions.length === 0 && this.kits.length === 0;
+    this.error = '';
+    this.paint();
     this.api.getConfig().subscribe({
       next: (response) => {
         this.enabled = response.enabled;
@@ -125,29 +150,45 @@ export class AdminStarterQuizComponent implements OnInit {
         }
         this.resetDraft();
         this.loading = false;
+        this.paint();
+        this.loadMetrics();
         this.runTest();
       },
       error: (error) => {
         this.loading = false;
         this.error = error?.error?.error || 'The quiz configuration could not be loaded.';
+        this.paint();
       }
     });
+  }
+
+  private loadMetrics(): void {
+    this.api.getKitMetrics().subscribe({
+      next: (response) => {
+        this.kits = response.kits;
+        this.paint();
+      }
+    });
+  }
+
+  private paint(): void {
+    this.cdr.markForCheck();
   }
 
   roleBadge(role: MatchingRole): string {
     return this.roles.find((item) => item.value === role)?.badge || role;
   }
 
-  toggleQuiz(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const next = input.checked;
+  toggleQuiz(): void {
+    const next = !this.enabled;
+    this.enabled = next;
     this.api.updateSettings(next).subscribe({
       next: (response) => {
         this.enabled = response.enabled;
         this.error = '';
       },
       error: (error) => {
-        input.checked = this.enabled;
+        this.enabled = !next;
         this.error = error?.error?.error || 'The quiz switch could not be saved.';
       }
     });
@@ -303,6 +344,7 @@ export class AdminStarterQuizComponent implements OnInit {
   }
 
   addSlot(): void {
+    if (this.kitForm.slots.length >= 3) return;
     this.kitForm.slots = [
       ...this.kitForm.slots,
       {
@@ -314,6 +356,12 @@ export class AdminStarterQuizComponent implements OnInit {
         hero: false
       }
     ];
+    this.previewRequests.next();
+  }
+
+  removeSlot(slotId: string): void {
+    if (this.kitForm.slots.length <= 2) return;
+    this.kitForm.slots = this.kitForm.slots.filter((slot) => slot.slot_id !== slotId);
     this.previewRequests.next();
   }
 
@@ -377,11 +425,28 @@ export class AdminStarterQuizComponent implements OnInit {
     return `$${Number(amount || 0).toFixed(2)}`;
   }
 
-  priceSpan(kit: QuizKit): string {
+  priceSpan(kit: QuizKit | null): string {
+    if (!kit?.retail || !kit.bundle) return '';
     const same = Math.abs(kit.retail.min - kit.retail.max) < 0.001;
     const retail = same ? this.money(kit.retail.min) : `${this.money(kit.retail.min)}–${this.money(kit.retail.max)}`;
     const bundle = same ? this.money(kit.bundle.min) : `${this.money(kit.bundle.min)}–${this.money(kit.bundle.max)}`;
     return `${retail} → ${bundle}`;
+  }
+
+  listPrice(kit: QuizKit): string {
+    if (!kit.retail || !kit.bundle) return '—';
+    return `${this.money(kit.retail.min)} → ${this.money(kit.bundle.min)}`;
+  }
+
+  setLabel(question: QuizQuestion, option: QuizOption): string {
+    const axis = question.matching_role === 'primary'
+      ? 'drink'
+      : question.matching_role === 'secondary'
+        ? 'level'
+        : question.matching_role === 'hard_filter'
+          ? 'budget'
+          : 'copy';
+    return `${axis} = ${option.code || '—'}`;
   }
 
   private resetDraft(): void {
@@ -400,7 +465,8 @@ export class AdminStarterQuizComponent implements OnInit {
       discount_percent: 20,
       status: 'draft',
       slots: [
-        { slot_id: 'S1', name: 'Matcha powder', category: 'matcha', attribute: 'Any grade', constraint: 'Any price', hero: true }
+        { slot_id: 'S1', name: 'Matcha powder', category: 'matcha', attribute: 'Any grade', constraint: 'Any price', hero: true },
+        { slot_id: 'S2', name: 'Drinkware', category: 'drinkware', attribute: 'Any type', constraint: 'Any price', hero: false }
       ]
     };
   }

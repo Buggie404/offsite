@@ -118,6 +118,7 @@ router.get('/contact-messages/:contactId', authMiddleware, requireRole('admin_cc
 router.patch('/contact-messages/:contactId', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), contactMessagesController.updateContactMessage);
 
 router.get('/starter-quiz', authMiddleware, requireRole('admin_cc'), adminStarterQuizController.getConfig);
+router.get('/starter-quiz/metrics', authMiddleware, requireRole('admin_cc'), adminStarterQuizController.getKitMetrics);
 router.patch('/starter-quiz/settings', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.updateSettings);
 router.post('/starter-quiz/questions', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.createQuestion);
 router.put('/starter-quiz/questions/reorder', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.reorderQuestions);

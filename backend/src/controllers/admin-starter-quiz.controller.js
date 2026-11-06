@@ -2,6 +2,7 @@ const QuizConfig = require('../models/QuizConfig');
 const QuizSettings = require('../models/QuizSettings');
 const StarterKit = require('../models/StarterKit');
 const Product = require('../models/Product');
+const { annotateSlot, bestInStock, slotMatches } = require('../services/starter-quiz.slots');
 
 const SETTINGS_ID = 'starter_kit';
 const ROLES = ['copy_only', 'primary', 'secondary', 'hard_filter'];
@@ -160,69 +161,6 @@ function publicQuestion(question) {
   };
 }
 
-function variantPrice(product) {
-  const variants = product.variants || [];
-  const priced = variants.find((variant) => variant.is_default) || variants[0];
-  return priced ? Number(priced.price) || 0 : 0;
-}
-
-function inStock(product) {
-  return (product.variants || []).some((variant) => (variant.stock ?? 0) > 0);
-}
-
-function attributeText(product) {
-  return [
-    product.name,
-    product.matcha?.product_grade,
-    product.coffee?.roast_level,
-    product.tools?.tool_type,
-    product.tools?.tool_category,
-    product.drinkware?.ware_type,
-    product.drinkware?.product_size
-  ].filter(Boolean).join(' ').toLowerCase();
-}
-
-function slotMatches(product, slot) {
-  if (!product || product.is_active === false || product.quiz_eligible === false) return false;
-  if (slot.category && product.category !== slot.category) return false;
-  const attribute = String(slot.attribute || '').trim().toLowerCase();
-  if (attribute && !attribute.startsWith('any')) {
-    const wanted = attribute.replace(/^type:\s*/, '').trim();
-    if (wanted && !attributeText(product).includes(wanted)) return false;
-  }
-  const constraint = String(slot.constraint || '');
-  const priceCap = constraint.match(/price\s*[≤<]=?\s*\$?\s*(\d+(?:\.\d+)?)/i);
-  if (priceCap && variantPrice(product) > Number(priceCap[1])) return false;
-  const sizeCap = constraint.match(/size\s*[≤<]=?\s*(\d+(?:\.\d+)?)\s*g/i);
-  if (sizeCap) {
-    const size = attributeText(product).match(/(\d+(?:\.\d+)?)\s*g/);
-    if (size && Number(size[1]) > Number(sizeCap[1])) return false;
-  }
-  return true;
-}
-
-function bestInStock(products) {
-  return [...products].filter(inStock).sort((a, b) => {
-    const sold = (b.total_sold_quantity || 0) - (a.total_sold_quantity || 0);
-    if (sold) return sold;
-    return variantPrice(a) - variantPrice(b);
-  })[0] || null;
-}
-
-function annotateSlot(slot, products) {
-  const matches = products.filter((product) => slotMatches(product, slot));
-  const stocked = matches.filter(inStock);
-  const prices = (stocked.length ? stocked : matches).map(variantPrice).filter((price) => price > 0);
-  return {
-    ...slot,
-    match_count: matches.length,
-    stock_count: stocked.length,
-    min_price: prices.length ? Math.min(...prices) : 0,
-    max_price: prices.length ? Math.max(...prices) : 0,
-    pick: bestInStock(matches)
-  };
-}
-
 function stockLabel(slots) {
   const heroEmpty = slots.some((slot) => slot.hero && slot.stock_count === 0);
   if (heroEmpty) return { code: 'hero_oos', label: 'Hero range OOS' };
@@ -267,7 +205,9 @@ function annotateKit(kit, products) {
 }
 
 async function loadProducts() {
-  return Product.find({ is_active: { $ne: false } }).lean();
+  return Product.find({ is_active: { $ne: false } })
+    .select('product_id name slug category product_tag is_active quiz_eligible images variants matcha coffee tools drinkware total_sold_quantity rating_avg')
+    .lean();
 }
 
 async function ensureSettings() {
@@ -351,7 +291,7 @@ function cleanSlot(slot, index) {
   };
 }
 
-function cleanKit(body) {
+function cleanKit(body, { enforceSlotCount = true } = {}) {
   const name = String(body.name || '').trim();
   if (!name) {
     const error = new Error('Kit name is required.');
@@ -364,6 +304,11 @@ function cleanKit(body) {
     throw error;
   }
   const slots = (Array.isArray(body.slots) ? body.slots : []).map(cleanSlot);
+  if (enforceSlotCount && (slots.length < 2 || slots.length > 3)) {
+    const error = new Error('A kit needs 2 or 3 slots.');
+    error.status = 400;
+    throw error;
+  }
   if (!slots.length) {
     const error = new Error('A kit needs at least one slot.');
     error.status = 400;
@@ -470,20 +415,55 @@ function sendError(res, error) {
   return res.status(status).json({ error: error.message || 'Something went wrong.' });
 }
 
+function summarizeKit(kit) {
+  return {
+    kit_id: kit.kit_id,
+    name: kit.name,
+    tier: kit.tier,
+    description: kit.description || '',
+    image_url: kit.image_url || '',
+    drink: kit.drink,
+    level: kit.level,
+    budget: kit.budget,
+    budget_label: budgetLabel(kit.budget),
+    discount_percent: kit.discount_percent,
+    status: kit.status,
+    display_status: kit.status,
+    order: kit.order,
+    slots: kit.slots || [],
+    slot_summary: (kit.slots || []).map((slot) => slot.name).join(' · '),
+    stock: null,
+    retail: null,
+    bundle: null,
+    price_label: ''
+  };
+}
+
 async function getConfig(_req, res) {
   try {
-    const [settings, questions, products] = await Promise.all([
+    const [settings, questions] = await Promise.all([
       ensureSettings(),
-      QuizConfig.find({ quiz_type: 'starter_kit' }).sort({ order: 1 }).lean(),
-      loadProducts()
+      QuizConfig.find({ quiz_type: 'starter_kit' }).sort({ order: 1 }).lean()
     ]);
     await ensureKits();
     const kits = await StarterKit.find().sort({ order: 1, name: 1 }).lean();
     return res.json({
       enabled: settings.enabled !== false,
       questions: questions.map(publicQuestion),
-      kits: kits.map((kit) => annotateKit(kit, products))
+      kits: kits.map(summarizeKit)
     });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+async function getKitMetrics(_req, res) {
+  try {
+    const [kits, products] = await Promise.all([
+      StarterKit.find().sort({ order: 1, name: 1 }).lean(),
+      loadProducts()
+    ]);
+    return res.json({ kits: kits.map((kit) => annotateKit(kit, products)) });
   } catch (error) {
     return sendError(res, error);
   }
@@ -641,7 +621,7 @@ async function previewKit(req, res) {
       discount_percent: req.body?.discount_percent ?? 20,
       status: req.body?.status || 'draft',
       slots: req.body?.slots || []
-    });
+    }, { enforceSlotCount: false });
     const products = await loadProducts();
     return res.json({ kit: annotateKit({ kit_id: 'preview', order: 0, ...cleaned }, products) });
   } catch (error) {
@@ -664,6 +644,7 @@ async function testRules(req, res) {
 
 module.exports = {
   getConfig,
+  getKitMetrics,
   updateSettings,
   createQuestion,
   updateQuestion,

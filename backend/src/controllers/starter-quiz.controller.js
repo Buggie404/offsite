@@ -5,6 +5,8 @@ const Product = require('../models/Product');
 const QuizSettings = require('../models/QuizSettings');
 const { STARTER_QUESTIONS } = require('../services/starter-quiz.questions');
 const { matchStarterKit } = require('../services/starter-quiz.matcher');
+const { matchConfiguredKit } = require('../services/starter-quiz.configured-match');
+const StarterKit = require('../models/StarterKit');
 const { resolveUserIdString } = require('./cart.controller');
 
 const RESULT_COUNTER_ID = 'starter_quiz_result';
@@ -149,12 +151,17 @@ function previousItemsFromSnapshot(snapshot) {
 }
 
 async function buildKit(questions, answers, previousSnapshot) {
-  const products = await Product.find({ is_active: { $ne: false } }).lean();
-  const matched = matchStarterKit(
-    codesFromAnswers(questions, answers),
-    products,
-    previousItemsFromSnapshot(previousSnapshot)
-  );
+  const [products, kits] = await Promise.all([
+    Product.find({ is_active: { $ne: false } })
+      .select('product_id name slug category product_tag is_active quiz_eligible images variants matcha coffee tools drinkware total_sold_quantity rating_avg')
+      .lean(),
+    StarterKit.find({ status: 'active' }).sort({ order: 1 }).lean()
+  ]);
+  const previousItems = previousItemsFromSnapshot(previousSnapshot);
+  const configured = matchConfiguredKit({ questions, answers, kits, products, previousItems });
+  const matched = configured.error === 'NO_ACTIVE_KITS'
+    ? matchStarterKit(codesFromAnswers(questions, answers), products, previousItems)
+    : configured;
   if (matched.error) {
     const error = new Error(matched.error);
     error.status = 422;

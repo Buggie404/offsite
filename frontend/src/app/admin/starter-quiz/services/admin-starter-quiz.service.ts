@@ -57,9 +57,9 @@ export interface QuizKit {
   order: number;
   slots: KitSlot[];
   slot_summary: string;
-  stock: { code: 'ok' | 'range_low' | 'hero_oos'; label: string };
-  retail: { min: number; max: number };
-  bundle: { min: number; max: number };
+  stock: { code: 'ok' | 'range_low' | 'hero_oos'; label: string } | null;
+  retail: { min: number; max: number } | null;
+  bundle: { min: number; max: number } | null;
   price_label: string;
 }
 
@@ -98,6 +98,10 @@ export class AdminStarterQuizService {
 
   getConfig(): Observable<QuizConfigResponse> {
     return this.http.get<QuizConfigResponse>(this.api);
+  }
+
+  getKitMetrics(): Observable<{ kits: QuizKit[] }> {
+    return this.http.get<{ kits: QuizKit[] }>(`${this.api}/metrics`);
   }
 
   updateSettings(enabled: boolean): Observable<{ enabled: boolean }> {

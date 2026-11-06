@@ -11,7 +11,9 @@
       </a>
       <label class="quiz-switch">
         <span>Quiz on</span>
-        <input type="checkbox" [checked]="enabled" (change)="toggleQuiz($event)" />
+        <button type="button" class="toggle" [class.is-on]="enabled" (click)="toggleQuiz()" [attr.aria-pressed]="enabled" aria-label="Quiz on">
+          <span></span>
+        </button>
       </label>
     </div>
   </header>
@@ -44,7 +46,7 @@
       <aside class="panel question-list">
         <header>
           <span>Questions</span>
-          <span>{{ questions.length }} of 5–6</span>
+          <span class="question-list__count">{{ questions.length }} of 5–6</span>
         </header>
         <ul>
           @for (question of questions; track question.question_id) {
@@ -79,9 +81,9 @@
       @if (draft) {
         <article class="panel question-editor">
           <header>
-            <h2>Question {{ draft.order }} · {{ draft.code }}</h2>
+            <h2>Question {{ draft.order }} · {{ draft.question }}</h2>
             <button type="button" class="btn btn--danger" (click)="askDelete()">
-              <svg lucideTrash2 aria-hidden="true" [size]="14"></svg>
+              <svg lucideTrash2 aria-hidden="true" [size]="16"></svg>
               Delete
             </button>
           </header>
@@ -99,12 +101,12 @@
               }
             </select>
           </label>
-          <p class="field-note">Hard filter removes kits outside the answer. Primary and secondary must match the kit rule. Copy only changes the result headline, not the products.</p>
+          <p class="field-note">Hard filter → removes kits outside the answer · Primary/Secondary → must match the kit rule · Copy only → changes result headline, not products.</p>
 
+          <p class="option-table__title">
+            Options <svg lucideArrowRight class="inline-icon" aria-hidden="true" [size]="14"></svg> answer value
+          </p>
           <div class="option-table">
-            <header>
-              <span>Options <svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg> answer value</span>
-            </header>
             <div class="option-table__head">
               <span>Icon</span>
               <span>Label</span>
@@ -118,13 +120,13 @@
                   <input [(ngModel)]="option.text" (blur)="saveDraft()" aria-label="Option label" />
                   <input [(ngModel)]="option.code" (blur)="saveDraft()" aria-label="Answer value" />
                   <button type="button" class="icon-btn" [disabled]="draft.options.length < 2" (click)="removeOption(option.option_id)" aria-label="Remove option">
-                    <svg lucideTrash2 aria-hidden="true" [size]="14"></svg>
+                    <svg lucideTrash2 aria-hidden="true" [size]="16"></svg>
                   </button>
                 } @else {
                   <strong>{{ option.text }}</strong>
-                  <em>{{ option.code }}</em>
+                  <em>{{ setLabel(draft, option) }}</em>
                   <button type="button" class="icon-btn" (click)="editingOptionId = option.option_id" aria-label="Edit option">
-                    <svg lucidePencil aria-hidden="true" [size]="14"></svg>
+                    <svg lucidePencil aria-hidden="true" [size]="16"></svg>
                   </button>
                 }
               </div>
@@ -163,12 +165,18 @@
                 <td>{{ kit.level }}</td>
                 <td>{{ kit.budget_label }}</td>
                 <td>{{ kit.slot_summary }}</td>
-                <td>{{ priceSpan(kit) }}</td>
-                <td><span class="stock" [attr.data-stock]="kit.stock.code">{{ kit.stock.label }}</span></td>
+                <td>{{ listPrice(kit) }}</td>
+                <td>
+                  @if (kit.stock) {
+                    <span class="stock" [attr.data-stock]="kit.stock.code">{{ kit.stock.label }}</span>
+                  } @else {
+                    —
+                  }
+                </td>
                 <td><span class="status" [attr.data-status]="kit.display_status">{{ kit.display_status }}</span></td>
                 <td>
                   <button type="button" class="icon-btn" (click)="openEditKit(kit)" [attr.aria-label]="'Edit ' + kit.name">
-                    <svg lucidePencil aria-hidden="true" [size]="14"></svg>
+                    <svg lucidePencil aria-hidden="true" [size]="16"></svg>
                   </button>
                 </td>
               </tr>
@@ -187,23 +195,23 @@
             <label>
               <span>Q2 Drink</span>
               <select [(ngModel)]="testDrink" (ngModelChange)="runTest()">
-                @for (drink of drinks; track drink) {
-                  <option [value]="drink">{{ drink }}</option>
+                @for (drink of drinkChoices; track drink.value) {
+                  <option [value]="drink.value">{{ drink.label }}</option>
                 }
               </select>
             </label>
             <label>
               <span>Q3 Level</span>
               <select [(ngModel)]="testLevel" (ngModelChange)="runTest()">
-                @for (level of levels; track level) {
-                  <option [value]="level">{{ level }}</option>
+                @for (level of levelChoices; track level.value) {
+                  <option [value]="level.value">{{ level.label }}</option>
                 }
               </select>
             </label>
             <label>
               <span>Q4 Budget</span>
               <select [(ngModel)]="testBudget" (ngModelChange)="runTest()">
-                @for (budget of budgets; track budget.value) {
+                @for (budget of budgetChoices; track budget.value) {
                   <option [value]="budget.value">{{ budget.label }}</option>
                 }
               </select>
@@ -216,15 +224,21 @@
                 <li>{{ step }}</li>
               }
             </ol>
-            <p class="tester__result">{{ test.result }}</p>
+            @if (test.kit && test.result.startsWith('Result:')) {
+              <p class="tester__result">
+                Result: <strong>{{ test.kit.name }}</strong> · {{ money(test.kit.bundle?.min) }} · headline “{{ test.kit.description || test.kit.name }}”
+              </p>
+            } @else {
+              <p class="tester__result">{{ test.result }}</p>
+            }
           }
-          <p class="field-note">No kit left after a step shows the closest kit and is logged as a no-match.</p>
+          <p class="field-note">No kit left after a step → show the closest kit with honest copy and log a no-match event (Guideline §3).</p>
         </section>
 
         <aside class="panel stock-rules">
           <h2>Stock rules</h2>
-          <p><span class="stock" data-stock="range_low">1 range low</span> A slot’s filter still matches in-stock products, but fewer than 3. The quiz still sells and picks the next in-stock match.</p>
-          <p><span class="stock" data-stock="hero_oos">Hero range OOS</span> No product in the hero slot’s range is in stock. The kit is suspended and skipped by the quiz.</p>
+          <p><span class="stock" data-stock="range_low">1 range low</span> A slot’s filter still matches in-stock products, but fewer than 3 → kit still sold, quiz picks the next in-stock match.</p>
+          <p><span class="stock" data-stock="hero_oos">Hero range OOS</span> No product in the hero slot’s range is in stock → kit suspended automatically and skipped by the quiz.</p>
           <p><span class="status" data-status="draft">Draft</span> Not used by the quiz yet.</p>
         </aside>
       </div>
@@ -242,8 +256,8 @@
         </button>
       </header>
 
+      <div class="kit-dialog__body">
       <div class="kit-dialog__intro">
-        <div class="kit-image" aria-hidden="true"></div>
         <div>
           <label>
             <span>Name</span>
@@ -272,6 +286,7 @@
           <span>Product range (filters)</span>
           <span>Matches</span>
           <span>Hero</span>
+          <span></span>
         </div>
         @for (slot of kitForm.slots; track slot.slot_id; let index = $index) {
           <div class="slot-row">
@@ -298,22 +313,27 @@
             </div>
             <p class="slot-matches">
               <strong>{{ slotPreview(slot.slot_id)?.match_count || 0 }} products</strong>
-              <span>{{ slotPreview(slot.slot_id)?.stock_count || 0 }} in stock</span>
+              <span>{{ slotPreview(slot.slot_id)?.stock_count || 0 }} in stock · Preview</span>
             </p>
-            <label class="hero-switch">
-              <input type="checkbox" [checked]="slot.hero" (change)="setHero(slot, $any($event.target).checked)" />
-            </label>
+            <button type="button" class="toggle" [class.is-on]="slot.hero" (click)="setHero(slot, !slot.hero)" [attr.aria-pressed]="slot.hero" [attr.aria-label]="'Hero for ' + slot.name">
+              <span></span>
+            </button>
+            <button type="button" class="icon-btn" (click)="removeSlot(slot.slot_id)" [disabled]="kitForm.slots.length <= 2" aria-label="Remove slot">
+              <svg lucideTrash2 aria-hidden="true" [size]="16"></svg>
+            </button>
           </div>
         }
       </div>
-      <button type="button" class="btn btn--ghost" (click)="addSlot()">
-        <svg lucidePlus aria-hidden="true" [size]="14"></svg>
-        Add slot
-      </button>
-      <p class="note-banner">
-        <svg lucideInfo aria-hidden="true" [size]="16"></svg>
-        The quiz picks the best-selling in-stock product inside each range, so no fixed substitute is needed. If the hero slot’s range has nothing in stock, the kit is suspended.
-      </p>
+      <div class="slot-actions">
+        <button type="button" class="btn btn--ghost" (click)="addSlot()" [disabled]="kitForm.slots.length >= 3">
+          <svg lucidePlus aria-hidden="true" [size]="14"></svg>
+          Add slot
+        </button>
+        <p class="note-banner">
+          <svg lucideInfo aria-hidden="true" [size]="16"></svg>
+          The quiz picks the best-selling in-stock product inside each range, so no fixed substitute is needed. If the hero slot’s range has nothing in stock, the kit is suspended.
+        </p>
+      </div>
 
       <section class="match-rule">
         <h3>Matching rule · same values as quiz answers</h3>
@@ -350,20 +370,25 @@
       </section>
 
       <div class="kit-footer-fields">
-        <label>
+        <label class="discount-field">
           <span>Bundle discount</span>
-          <input type="number" min="0" max="100" [(ngModel)]="kitForm.discount_percent" name="discount" (ngModelChange)="queuePreview()" />
+          <div>
+            <input type="number" min="0" max="100" [(ngModel)]="kitForm.discount_percent" name="discount" (ngModelChange)="queuePreview()" />
+            <em>%</em>
+          </div>
         </label>
-        <label>
+        <label class="price-preview">
           <span>Price preview (range)</span>
-          <input readonly [value]="kitPreview ? priceSpan(kitPreview) : ''" />
-          <small>depends on picked products</small>
+          <div>
+            <input readonly [value]="kitPreview ? priceSpan(kitPreview) : ''" />
+            <small>depends on picked products</small>
+          </div>
         </label>
         <label>
           <span>Status</span>
           <select [(ngModel)]="kitForm.status" name="kitStatus">
-            @for (status of statuses; track status) {
-              <option [value]="status">{{ status }}</option>
+            @for (status of statuses; track status.value) {
+              <option [value]="status.value">{{ status.label }}</option>
             }
           </select>
         </label>
@@ -373,6 +398,7 @@
         <p class="quiz-error" role="alert">{{ kitError }}</p>
       }
 
+      </div>
       <footer>
         <button type="button" class="btn btn--ghost" (click)="closeKit()">Cancel</button>
         <button type="submit" class="btn btn--forest" [disabled]="saving">Save kit</button>
