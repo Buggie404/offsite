@@ -135,7 +135,8 @@ test('creating staff leaves null sparse-unique fields out and reports a customer
     '../models/User': FakeUser,
     '../models/ChatConversation': {},
     '../models/AiChatSession': {},
-    '../services/socket.service': { emitChatEvent: () => {} }
+    '../services/socket.service': { emitChatEvent: () => {} },
+    '../services/user-id.service': { nextUserId: async () => 'USR00042' }
   });
   const req = { body: { profile_name: 'Thuy  Zy', email: 'Thuy.Zy@Offsite.vn', role: 'cskh' }, user: { user_id: 'mongo-ME', role: 'admin_cc' },
     writeActivityLog: async entry => { logs.push(entry); } };
@@ -147,6 +148,7 @@ test('creating staff leaves null sparse-unique fields out and reports a customer
   assert.equal(inserted[0].profile_name, 'Thuy Zy');
   for (const field of ['phone', 'community_name', 'referral_code']) assert.equal(field in inserted[0], false);
   assert.equal(inserted[0].must_change_password, true);
+  assert.equal(inserted[0].user_id, 'USR00042');
   assert.ok(res.body.temp_password);
   assert.equal(logs[0].actionType, 'staff.create');
 

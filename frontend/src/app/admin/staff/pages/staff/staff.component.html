@@ -167,7 +167,7 @@
 
       <footer class="modal__footer">
         <button type="button" class="btn btn--outline" (click)="closeAdd()">Cancel</button>
-        <button type="button" class="btn btn--primary" [disabled]="addSaving || emailChecking" (click)="createStaff()">
+        <button type="button" class="btn btn--primary" [disabled]="!canCreate" (click)="createStaff()">
           {{ addSaving ? 'Creating...' : 'Create account' }}
         </button>
       </footer>

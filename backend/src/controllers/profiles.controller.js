@@ -4,6 +4,9 @@ const Follow = require('../models/Follow');
 const { countVisibleFollows } = require('../services/follow-list');
 const AccountReport = require('../models/AccountReport');
 const { REPORT_REASONS } = require('../models/PostReport');
+const { archetypeForProfile } = require('../services/ritual-dna.archetype-release');
+const { rereportBlock, duplicateReportMessage, restoredAfterFrom } = require('../services/report-rereport.service');
+const ModerationAction = require('../models/ModerationAction');
 
 const { resolveCommunityUserId: currentCommunityUserId } = require('../services/follow.service');
 
@@ -13,9 +16,13 @@ async function getPublicProfile(req, res) {
     const { userId } = req.params;
     const user = await User.findOne(
       { user_id: userId, status: 'active' },
-      'user_id community_name profile_name avatar_url bio membership_tier ritual_dna_quiz_completed createdAt'
+      'user_id community_name profile_name avatar_url bio membership_tier ritual_dna_quiz_completed ritual_dna.archetype_id ritual_dna.archetype_profile_version createdAt'
     ).lean();
     if (!user) return res.status(404).json({ error: 'Profile not found' });
+
+    // The DNA badge shows the archetype the customer holds now, named as in their archetype release.
+    const dna = user.ritual_dna;
+    const archetype = dna?.archetype_id ? await archetypeForProfile(dna.archetype_id, dna.archetype_profile_version) : null;
 
     const currentUserId = await currentCommunityUserId(req);
     const isSelf = currentUserId === userId;
@@ -34,6 +41,7 @@ async function getPublicProfile(req, res) {
       bio: user.bio || '',
       membership_tier: user.membership_tier || 'Seed',
       ritual_dna_completed: !!user.ritual_dna_quiz_completed,
+      ritual_dna_archetype: archetype ? { archetype_id: archetype.archetype_id, name: archetype.name } : null,
       joined_at: user.createdAt,
       post_count: postCount,
       recipe_count: recipeCount,
@@ -57,12 +65,22 @@ async function reportAccount(req, res) {
     if (!REPORT_REASONS.includes(reason)) return res.status(400).json({ error: 'Invalid report reason' });
     if (reason === 'other' && !note) return res.status(400).json({ error: 'A note is required when the reason is Other' });
     if (!reporterId || reporterId === targetId) return res.status(400).json({ error: 'You cannot report your own account' });
-    const target = await User.exists({ user_id: targetId, status: 'active' });
+    const target = await User.findOne({ user_id: targetId, status: 'active' }, 'user_id community_restriction').lean();
     if (!target) return res.status(404).json({ error: 'Profile not found' });
+
+    const blocked = await rereportBlock({
+      Model: AccountReport, filter: { reported_user_id: targetId, reporter_id: reporterId }, type: 'account', loadOwner: () => target,
+      restoredAfter: restoredAfterFrom(ModerationAction, 'account', targetId)
+    });
+    if (blocked) return res.status(409).json({ error: blocked, code: 'ALREADY_REPORTED' });
     try {
       await AccountReport.create({ reported_user_id: targetId, reporter_id: reporterId, reason, note });
     } catch (error) {
-      if (error.code === 11000) return res.status(409).json({ error: 'You have already reported this' });
+      // Two submits at the same moment: the open-report index lets only one through.
+      if (error.code === 11000) {
+        const message = await duplicateReportMessage({ Model: AccountReport, filter: { reported_user_id: targetId, reporter_id: reporterId }, type: 'account' });
+        return res.status(409).json({ error: message, code: 'ALREADY_REPORTED' });
+      }
       throw error;
     }
     res.status(201).json({ message: 'Report submitted' });

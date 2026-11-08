@@ -32,27 +32,143 @@ test('all report types share Reports and queries remain scoped to their target t
     assert.equal(Model.find({ status: 'pending' }).getFilter().target_type, type);
     const index = Report.schema.indexes().find(([, options]) => options.unique && options.partialFilterExpression.target_type === type);
     assert.ok(index, `missing unique index for ${type}`);
-    assert.ok(!Object.hasOwn(index[0], 'status'), 'dismissed reports must still prevent a second report');
+    // Only an open report blocks a second one; the re-report rules live in report-rereport.service.
+    assert.equal(index[1].partialFilterExpression.status, 'pending');
   }
 });
 
-test('duplicate post/comment/account reports return 409 with a consistent message', async () => {
-  const duplicate = { create: async () => { throw Object.assign(new Error('duplicate'), { code: 11000 }); }, REPORT_REASONS: ['spam'] };
-  const common = { '../models/PostReport': duplicate, '../models/CommentReport': duplicate, '../models/AccountReport': duplicate,
-    './profiles.controller': { currentCommunityUserId: async () => 'USR2' } };
-  for (const [controller, method, model, doc, params, extra] of [
-    ['posts', 'reportPost', '../models/Post', { post_id: 'P1', user_id: 'USR1' }, { id: 'P1' }, {}],
-    ['comments', 'reportComment', '../models/Comment', { comment_id: 'C1', post_id: 'P1', user_id: 'USR1' }, { id: 'C1' }, {}],
-    ['profiles', 'reportAccount', '../models/User', null, { userId: 'USR1' }, {
-      '../models/User': { findById: () => ({ lean: () => Promise.resolve({ user_id: 'USR2' }) }), exists: async () => true }
-    }]
-  ]) {
-    const api = load('../src/controllers/' + controller + '.controller.js', { ...common, [model]: { findOne: async () => doc }, ...extra });
-    const res = response();
-    await api[method]({ params, body: { reason: 'spam' }, user: { user_id: '507f1f77bcf86cd799439011' } }, res);
-    assert.equal(res.statusCode, 409);
-    assert.equal(res.body.error, 'You have already reported this');
+// Reporter USR2 reports P1 / C1 by USR1. `latest` is USR2's newest earlier report on it, if any.
+async function reportContentAgain(kind, { latest = null, restriction = null, createError = null, openNow = null, restored = false } = {}) {
+  const created = [];
+  const ReportModel = {
+    REPORT_REASONS: ['spam'],
+    findOne: () => ({ sort: () => ({ lean: async () => latest }), lean: async () => openNow }),
+    create: async (doc) => { if (createError) throw createError; created.push(doc); }
+  };
+  const [controller, method, model, doc, params] = kind === 'post'
+    ? ['posts', 'reportPost', '../models/Post', { post_id: 'P1', user_id: 'USR1' }, { id: 'P1' }]
+    : ['comments', 'reportComment', '../models/Comment', { comment_id: 'C1', post_id: 'P1', user_id: 'USR1' }, { id: 'C1' }];
+  const api = load('../src/controllers/' + controller + '.controller.js', {
+    '../models/PostReport': ReportModel, '../models/CommentReport': ReportModel,
+    '../models/ModerationAction': { exists: async () => (restored ? { _id: 'A1' } : null) },
+    '../models/User': { findOne: () => ({ lean: async () => ({ user_id: 'USR1', community_restriction: restriction }) }) },
+    './profiles.controller': { currentCommunityUserId: async () => 'USR2' },
+    [model]: { findOne: async () => doc }
+  });
+  const res = response();
+  await api[method]({ params, body: { reason: 'spam' }, user: { user_id: '507f1f77bcf86cd799439011' } }, res);
+  return { res, created };
+}
+
+test('posts and comments follow the same re-report rules as accounts', async () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  for (const kind of ['post', 'comment']) {
+    const open = await reportContentAgain(kind, { latest: { status: 'pending' } });
+    assert.equal(open.res.statusCode, 409, `${kind}: open report`);
+    assert.match(open.res.body.error, new RegExp(`reported this ${kind}. We are still reviewing`));
+
+    const serving = await reportContentAgain(kind, { latest: { status: 'reviewed' }, restriction: { level: 2, until: new Date(Date.now() + DAY_MS) } });
+    assert.equal(serving.res.statusCode, 409, `${kind}: penalty running`);
+    assert.match(serving.res.body.error, /Its author is already serving a penalty until/);
+
+    // Staff restored the content after the report was closed: it can be reported again, penalty or not.
+    const restored = await reportContentAgain(kind, {
+      latest: { status: 'reviewed', updated_at: new Date(Date.now() - DAY_MS) },
+      restriction: { level: 2, until: new Date(Date.now() + DAY_MS) },
+      restored: true
+    });
+    assert.equal(restored.res.statusCode, 201, `${kind}: restored after the report`);
+
+    for (const allowed of [
+      {},
+      { latest: { status: 'dismissed' } },
+      { latest: { status: 'reviewed' } },
+      { latest: { status: 'reviewed' }, restriction: { level: 3, until: new Date(Date.now() - DAY_MS) } }
+    ]) {
+      const { res, created } = await reportContentAgain(kind, allowed);
+      assert.equal(res.statusCode, 201, `${kind}: ${JSON.stringify(allowed)}`);
+      assert.equal(created.length, 1);
+    }
+
+    const duplicate = Object.assign(new Error('duplicate'), { code: 11000 });
+    const race = await reportContentAgain(kind, { createError: duplicate, openNow: { _id: 'R1' } });
+    assert.equal(race.res.statusCode, 409, `${kind}: double submit`);
+    assert.match(race.res.body.error, /still reviewing/);
+
+    // Old index still in place: a closed report blocks the insert, and the message must not say it is under review.
+    const oldIndex = await reportContentAgain(kind, { latest: { status: 'dismissed' }, createError: duplicate });
+    assert.equal(oldIndex.res.statusCode, 409, `${kind}: old index`);
+    assert.doesNotMatch(oldIndex.res.body.error, /still reviewing/);
   }
+});
+
+// Reporter USR2 reports USR1. `latest` is USR2's newest earlier report on USR1, if any.
+async function reportAccountAgain({ latest = null, restriction = null, createError = null, openNow = null, restored = false } = {}) {
+  const created = [];
+  const AccountReport = {
+    // .sort() -> the latest report; plain .lean() -> the open-report lookup after a duplicate key error.
+    findOne: () => ({ sort: () => ({ lean: async () => latest }), lean: async () => openNow }),
+    create: async (doc) => { if (createError) throw createError; created.push(doc); }
+  };
+  const api = load('../src/controllers/profiles.controller.js', {
+    '../models/AccountReport': AccountReport,
+    '../models/ModerationAction': { exists: async () => (restored ? { _id: 'A1' } : null) },
+    '../models/User': { findOne: () => ({ lean: async () => ({ user_id: 'USR1', community_restriction: restriction }) }) },
+    '../services/follow.service': { resolveCommunityUserId: async () => 'USR2' }
+  });
+  const res = response();
+  await api.reportAccount({ params: { userId: 'USR1' }, body: { reason: 'spam' } }, res);
+  return { res, created };
+}
+
+const DAY = 24 * 60 * 60 * 1000;
+
+test('an account can be reported when the reporter has no earlier report on it', async () => {
+  const { res, created } = await reportAccountAgain();
+  assert.equal(res.statusCode, 201);
+  assert.equal(created.length, 1);
+});
+
+test('an account cannot be reported again while the earlier report is still open', async () => {
+  const { res, created } = await reportAccountAgain({ latest: { status: 'pending' } });
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'ALREADY_REPORTED');
+  assert.match(res.body.error, /still reviewing/);
+  assert.equal(created.length, 0);
+});
+
+test('an account cannot be reported again while the penalty from the earlier report runs', async () => {
+  const until = new Date(Date.now() + 2 * DAY);
+  const { res, created } = await reportAccountAgain({ latest: { status: 'reviewed' }, restriction: { level: 2, until } });
+  assert.equal(res.statusCode, 409);
+  assert.match(res.body.error, /serving a penalty until/);
+  assert.equal(created.length, 0);
+});
+
+test('an account can be reported again once staff lift its penalty early', async () => {
+  const until = new Date(Date.now() + 2 * DAY);
+  const { res } = await reportAccountAgain({ latest: { status: 'reviewed' }, restriction: { level: 2, until }, restored: true });
+  assert.equal(res.statusCode, 201);
+});
+
+test('an account can be reported again once the penalty is over', async () => {
+  const until = new Date(Date.now() - DAY);
+  const { res, created } = await reportAccountAgain({ latest: { status: 'reviewed' }, restriction: { level: 3, until } });
+  assert.equal(res.statusCode, 201);
+  assert.equal(created.length, 1);
+});
+
+test('a warning without a suspension, or a dismissed report, does not block a new report', async () => {
+  for (const latest of [{ status: 'reviewed' }, { status: 'dismissed' }]) {
+    const { res } = await reportAccountAgain({ latest });
+    assert.equal(res.statusCode, 201);
+  }
+});
+
+test('two account reports sent at the same moment: the second gets 409', async () => {
+  const { res } = await reportAccountAgain({ createError: Object.assign(new Error('duplicate'), { code: 11000 }), openNow: { _id: 'R1' } });
+  assert.equal(res.statusCode, 409);
+  assert.match(res.body.error, /still reviewing/);
 });
 
 test('community point reversal/restoration is idempotent for pending and posted rewards', async () => {

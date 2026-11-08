@@ -41,6 +41,7 @@ router.post('/staff/:userId/reset-password', authMiddleware, requireRole('admin_
 const CUSTOMER_ROLES = ['admin_cc', 'qlsp'];
 router.get('/customers', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.listCustomers);
 router.get('/customers/:userId', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.getCustomer);
+router.get('/customers/:userId/orders', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.listCustomerOrders);
 router.post('/customers/:userId/notes', authMiddleware, requireRole(...CUSTOMER_ROLES), adminActivityLog(), adminCustomersController.addCustomerNote);
 router.patch('/customers/:userId/status', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminCustomersController.setCustomerStatus);
 

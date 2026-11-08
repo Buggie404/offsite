@@ -134,6 +134,8 @@ export class FollowModalComponent implements AfterViewInit, OnDestroy {
   toggle(user: FollowUser): void {
     if (user.is_self || this.busy.has(user.user_id)) return;
     if (!this.auth.isAuthenticated()) { this.close.emit(); this.authModal.open('login'); return; }
+    const blocked = this.community.restrictionMessage('interact');
+    if (blocked) { this.toast.error(blocked); return; }
     this.busy.add(user.user_id);
     this.community.toggleFollow(user.user_id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: result => {

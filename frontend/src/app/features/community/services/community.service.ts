@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, map, tap } from 'rxjs';
 
 import { Post, ProductTag } from '../models/post.model';
 import { Comment } from '../models/comment.model';
@@ -32,6 +32,7 @@ export interface PublicProfile {
   bio: string;
   membership_tier: 'Seed' | 'Leaf' | 'Bloom' | 'Zen';
   ritual_dna_completed: boolean;
+  ritual_dna_archetype: { archetype_id: string; name: string } | null;
   joined_at: string;
   post_count: number;
   recipe_count: number;
@@ -179,9 +180,32 @@ export class CommunityService {
     );
   }
 
+  // The signed-in customer's Community suspension, kept so buttons can be blocked before any request.
+  // Refreshed by the restriction banner on each Community page; the server still checks every action.
+  private restriction: CommunityRestriction | null = null;
+
   getMyRestriction(): Observable<CommunityRestriction | null> {
     return this.http.get<{ user: { community_restriction?: CommunityRestriction | null } }>('/api/auth/me')
-      .pipe(map((res) => res.user?.community_restriction || null));
+      .pipe(
+        map((res) => res.user?.community_restriction || null),
+        tap((restriction) => { this.restriction = restriction; })
+      );
+  }
+
+  clearRestriction(): void {
+    this.restriction = null;
+  }
+
+  // Level 2 blocks posting and commenting ('write'); level 3 also blocks likes, saves, shares,
+  // reports and follows ('interact'). Returns the message to show when blocked, otherwise null.
+  restrictionMessage(kind: 'write' | 'interact'): string | null {
+    const restriction = this.restriction;
+    if (!restriction?.until || new Date(restriction.until) <= new Date()) return null;
+    if (kind === 'interact' && restriction.level < 3) return null;
+    const date = new Date(restriction.until).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return kind === 'write'
+      ? `You cannot post or comment until ${date}.`
+      : `You can only view Community until ${date}.`;
   }
 
   getPublicProfile(userId: string): Observable<PublicProfile> {

@@ -214,12 +214,20 @@ export class FeedComponent implements OnInit, OnDestroy {
     this.loadFeed();
   }
 
+  // True when the action may go ahead; during a suspension the message is shown instead.
+  private allowed(kind: 'write' | 'interact'): boolean {
+    const message = this.communityService.restrictionMessage(kind);
+    if (message) this.toast.error(message);
+    return !message;
+  }
+
   // ── FIX LỖI MẤT TRẠNG THÁI LIKE/SAVE Ở ĐÂY ──
   likePost(postId: string): void {
     if (!this.isLoggedIn()) {
       this.openLoginModal();
       return;
     }
+    if (!this.allowed('interact')) return;
 
     this.communityService.likePost(postId).subscribe(res => {
       const postIndex = this.posts.findIndex(p => p.post_id === postId);
@@ -237,6 +245,7 @@ export class FeedComponent implements OnInit, OnDestroy {
       this.openLoginModal();
       return;
     }
+    if (!this.allowed('interact')) return;
 
     this.communityService.savePost(postId).subscribe(res => {
       const postIndex = this.posts.findIndex(p => p.post_id === postId);
@@ -250,6 +259,7 @@ export class FeedComponent implements OnInit, OnDestroy {
   }
 
   sharePost(postId: string): void {
+    if (!this.allowed('interact')) return;
     const postIndex = this.posts.findIndex(p => p.post_id === postId);
     if (postIndex > -1) {
       this.shareUrl = `${window.location.origin}/community/post/${postId}`;
@@ -271,6 +281,7 @@ export class FeedComponent implements OnInit, OnDestroy {
 
   openReport(postId: string): void {
     if (!this.isLoggedIn()) return this.openLoginModal();
+    if (!this.allowed('interact')) return;
     this.reportingPostId = postId;
   }
 
@@ -294,7 +305,7 @@ export class FeedComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.reportSubmitting = false;
         this.reportingPostId = null;
-        this.toast.error(err?.status === 409 ? 'You have already reported this' : err?.error?.error || 'Failed to submit report. Please try again.');
+        this.toast.error(err?.error?.error || (err?.status === 409 ? 'You have already reported this' : 'Failed to submit report. Please try again.'));
         this.cdr.markForCheck();
       }
     });
@@ -341,6 +352,7 @@ export class FeedComponent implements OnInit, OnDestroy {
 
   openCreatePost(): void {
     if (!this.isLoggedIn()) return this.openLoginModal();
+    if (!this.allowed('write')) return;
     this.editingPost = null;
     this.showCreatePost = true;
   }
@@ -352,6 +364,7 @@ export class FeedComponent implements OnInit, OnDestroy {
 
   openEdit(post: Post): void {
     if (!this.isLoggedIn()) return this.openLoginModal();
+    if (!this.allowed('write')) return;
     this.editingPost = post;
     this.showCreatePost = true;
   }
@@ -365,6 +378,7 @@ export class FeedComponent implements OnInit, OnDestroy {
 
   openCreateRecipe(): void {
     if (!this.isLoggedIn()) return this.openLoginModal();
+    if (!this.allowed('write')) return;
     this.showCreateRecipe = true;
   }
 

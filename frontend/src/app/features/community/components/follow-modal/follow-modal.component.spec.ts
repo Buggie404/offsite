@@ -11,13 +11,15 @@ import { ToastService } from '../../../../shared/services/toast.service';
 describe('FollowModalComponent', () => {
   let fixture: ComponentFixture<FollowModalComponent>;
   const person = { user_id: 'USR2', username: 'linh.cafe', avatar_url: null, membership_tier: 'Leaf', is_following: false, is_self: false };
-  const api = { getFollowList: vi.fn(), toggleFollow: vi.fn() };
+  const api = { getFollowList: vi.fn(), toggleFollow: vi.fn(), restrictionMessage: vi.fn((): string | null => null) };
   const login = { open: vi.fn() };
   const auth = { isAuthenticated: vi.fn(() => true) };
+  const toast = { error: vi.fn() };
 
   beforeEach(async () => {
     vi.clearAllMocks();
     auth.isAuthenticated.mockReturnValue(true);
+    api.restrictionMessage.mockReturnValue(null);
     api.getFollowList.mockImplementation(() => of({ data: [{ ...person }], total: 1, has_more: false }));
     api.toggleFollow.mockReturnValue(of({ following: true }));
     HTMLDialogElement.prototype.showModal = vi.fn();
@@ -25,7 +27,7 @@ describe('FollowModalComponent', () => {
       imports: [FollowModalComponent],
       providers: [provideRouter([]),
         { provide: CommunityService, useValue: api }, { provide: AuthService, useValue: auth },
-        { provide: AuthModalService, useValue: login }, { provide: ToastService, useValue: { error: vi.fn() } }]
+        { provide: AuthModalService, useValue: login }, { provide: ToastService, useValue: toast }]
     }).compileComponents();
     fixture = TestBed.createComponent(FollowModalComponent);
     fixture.componentRef.setInput('userId', 'USR1');
@@ -69,6 +71,14 @@ describe('FollowModalComponent', () => {
     expect(api.toggleFollow).toHaveBeenCalledWith('USR2');
     expect(emit).toHaveBeenCalledWith({ userId: 'USR2', following: true });
     expect(fixture.componentInstance.users[0].is_following).toBe(true);
+  });
+
+  it('does not follow during a level 3 suspension and says why', () => {
+    api.restrictionMessage.mockReturnValue('You can only view Community until Nov 12, 10:00 AM.');
+    fixture.componentInstance.toggle(fixture.componentInstance.users[0]);
+    expect(api.restrictionMessage).toHaveBeenCalledWith('interact');
+    expect(api.toggleFollow).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith('You can only view Community until Nov 12, 10:00 AM.');
   });
 
   it('opens login for guests before attempting to follow', () => {

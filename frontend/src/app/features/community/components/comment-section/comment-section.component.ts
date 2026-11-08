@@ -114,7 +114,20 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
     }));
   }
 
+  // During a suspension the composer is replaced by this message.
+  get writeBlockedMessage(): string | null {
+    return this.communityService.restrictionMessage('write');
+  }
+
+  // True when the action may go ahead; otherwise the suspension message is shown.
+  private allowed(kind: 'write' | 'interact'): boolean {
+    const message = this.communityService.restrictionMessage(kind);
+    if (message) this.toast.error(message);
+    return !message;
+  }
+
   startReply(parentId: string, anchorId: string, username: string): void {
+    if (!this.allowed('write')) return;
     this.replyingTo = { parentId, anchorId, username };
     this.replyCommentText = ''; // Xóa sạch chữ cũ của ô reply khi bấm mở lại
   }
@@ -127,6 +140,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
   submitComment(isReply: boolean): void {
     const text = isReply ? this.replyCommentText : this.mainCommentText;
     if (!this.postId || !text.trim() || this.postingComment) return;
+    if (!this.allowed('write')) return;
 
     this.postingComment = true;
     const parentId = isReply ? (this.replyingTo?.parentId || null) : null;
@@ -157,6 +171,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
   }
 
   toggleLikeComment(comment: Comment): void {
+    if (!this.allowed('interact')) return;
     const alreadyLiked = this.likedCommentIds.has(comment.comment_id);
     const action = alreadyLiked ? 'unlike' : 'like';
 
@@ -207,6 +222,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
 
   openReportComment(comment: Comment): void {
     this.showCommentOptionsFor = null;
+    if (!this.allowed('interact')) return;
     this.reportTarget = comment;
   }
 
@@ -225,7 +241,7 @@ export class CommentSectionComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.reportSubmitting = false;
-        this.toast.error(err?.status === 409 ? 'You have already reported this' : err?.error?.error || 'Failed to submit report. Please try again.');
+        this.toast.error(err?.error?.error || (err?.status === 409 ? 'You have already reported this' : 'Failed to submit report. Please try again.'));
       }
     });
   }

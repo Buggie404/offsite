@@ -3,6 +3,8 @@ const Post = require('../models/Post');
 const User = require('../models/User');
 const PostReport = require('../models/PostReport');
 const CommentReport = require('../models/CommentReport');
+const { rereportBlock, duplicateReportMessage, restoredAfterFrom } = require('../services/report-rereport.service');
+const ModerationAction = require('../models/ModerationAction');
 const mongoose = require('mongoose');
 
 // Helper to resolve postId parameter to post_id string
@@ -354,6 +356,13 @@ async function reportComment(req, res) {
       return res.status(400).json({ error: 'You cannot report your own comment' });
     }
 
+    const blocked = await rereportBlock({
+      Model: CommentReport, filter: { comment_id: comment.comment_id, reporter_id: reporterId }, type: 'comment',
+      loadOwner: () => User.findOne({ user_id: comment.user_id }, 'community_restriction').lean(),
+      restoredAfter: restoredAfterFrom(ModerationAction, 'comment', comment.comment_id)
+    });
+    if (blocked) return res.status(409).json({ error: blocked, code: 'ALREADY_REPORTED' });
+
     try {
       await CommentReport.create({
         comment_id: comment.comment_id,
@@ -363,7 +372,11 @@ async function reportComment(req, res) {
         note: String(note).trim().slice(0, 500)
       });
     } catch (err) {
-      if (err.code === 11000) return res.status(409).json({ error: 'You have already reported this' });
+      // Two submits at the same moment: the open-report index lets only one through.
+      if (err.code === 11000) {
+        const error = await duplicateReportMessage({ Model: CommentReport, filter: { comment_id: comment.comment_id, reporter_id: reporterId }, type: 'comment' });
+        return res.status(409).json({ error, code: 'ALREADY_REPORTED' });
+      }
       throw err;
     }
 

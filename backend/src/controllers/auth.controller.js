@@ -4,6 +4,7 @@ const { getCollections } = require('../config/db');
 const ADMIN_ROLES = new Set(['admin_cc', 'cskh', 'qlsp']);
 const { ObjectId } = require('mongodb');
 const { mergeGuestCartIntoUser } = require('../services/cart-merge.service');
+const { nextUserId } = require('../services/user-id.service');
 const { AUTH_TOKEN_TTL, JWT_SECRET: ACCESS_SECRET, REFRESH_SECRET } = require('../config/auth');
 
 // Chuẩn hóa
@@ -237,14 +238,8 @@ async function verifyRegistrationOtp(req, res) {
       return res.status(400).json({ error: `OTP không chính xác. Còn ${remaining} lần thử.`, code: 'INVALID_OTP', remainingAttempts: remaining });
     }
 
-    // Sinh user_id tuần tự
-    const lastUser = await userCollection.findOne({}, { sort: { user_id: -1 } });
-    let nextNum = 1;
-    if (lastUser?.user_id) {
-      const match = lastUser.user_id.match(/USR(\d+)/);
-      if (match) nextNum = parseInt(match[1], 10) + 1;
-    }
-    const user_id = `USR${String(nextNum).padStart(5, '0')}`;
+    // Sinh user_id tuần tự từ bộ đếm dùng chung
+    const user_id = await nextUserId();
 
     // Sinh community_name
     const community_name = await generateCommunityName(userCollection, pending.profile_name);

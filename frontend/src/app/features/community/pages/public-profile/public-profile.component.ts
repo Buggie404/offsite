@@ -44,6 +44,7 @@ import { PostCardComponent } from '../../components/post-card/post-card.componen
 import { CreatePostModalComponent } from '../../components/create-post-modal/create-post-modal.component';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { FollowModalComponent } from '../../components/follow-modal/follow-modal.component';
+import { RestrictionBannerComponent } from '../../components/restriction-banner/restriction-banner.component';
 import { avatarInitials } from '../../../../shared/utils/avatar';
 
 type ProfileTab = 'posts' | 'recipes';
@@ -87,6 +88,7 @@ interface ContactChange {
     CreatePostModalComponent,
     ConfirmationModalComponent,
     FollowModalComponent,
+    RestrictionBannerComponent,
     LucideArrowLeft,
     LucideCheck,
     LucideEllipsis,
@@ -211,8 +213,16 @@ export class PublicProfileComponent implements OnInit {
     this.menuOpen = !this.menuOpen;
   }
 
+  // True when the action may go ahead; during a suspension the message is shown instead.
+  private allowed(kind: 'write' | 'interact'): boolean {
+    const message = this.community.restrictionMessage(kind);
+    if (message) this.toast.error(message);
+    return !message;
+  }
+
   openShareAccount(): void {
     this.menuOpen = false;
+    if (!this.allowed('interact')) return;
     this.shareOpen = true;
   }
 
@@ -222,6 +232,7 @@ export class PublicProfileComponent implements OnInit {
       this.authModal.open('login');
       return;
     }
+    if (!this.allowed('interact')) return;
     this.reportOpen = true;
   }
 
@@ -277,6 +288,7 @@ export class PublicProfileComponent implements OnInit {
       this.authModal.open('login');
       return;
     }
+    if (!this.allowed('interact')) return;
     this.followBusy = true;
     this.community.toggleFollow(this.profile.user_id).subscribe({
       next: (result) => {
@@ -304,6 +316,7 @@ export class PublicProfileComponent implements OnInit {
       this.authModal.open('login');
       return;
     }
+    if (!this.allowed('interact')) return;
     this.community.likePost(postId).subscribe((res) => {
       const p = this.posts.find((x) => x.post_id === postId);
       if (p) {
@@ -319,6 +332,7 @@ export class PublicProfileComponent implements OnInit {
       this.authModal.open('login');
       return;
     }
+    if (!this.allowed('interact')) return;
     this.community.savePost(postId).subscribe((res) => {
       const p = this.posts.find((x) => x.post_id === postId);
       if (p) {
@@ -330,6 +344,7 @@ export class PublicProfileComponent implements OnInit {
   }
 
   sharePost(postId: string): void {
+    if (!this.allowed('interact')) return;
     this.postShareUrl = `${window.location.origin}/community/post/${postId}`;
     this.postShareOpen = true;
     this.cdr.markForCheck();
@@ -351,6 +366,7 @@ export class PublicProfileComponent implements OnInit {
       this.authModal.open('login');
       return;
     }
+    if (!this.allowed('interact')) return;
     this.reportingPostId = postId;
   }
 
@@ -369,9 +385,7 @@ export class PublicProfileComponent implements OnInit {
         this.postReportSubmitting = false;
         this.reportingPostId = null;
         this.toast.error(
-          error?.status === 409
-            ? 'You have already reported this'
-            : error?.error?.error || 'Failed to submit report. Please try again.',
+          error?.error?.error || (error?.status === 409 ? 'You have already reported this' : 'Failed to submit report. Please try again.'),
         );
         this.cdr.markForCheck();
       },
@@ -403,6 +417,7 @@ export class PublicProfileComponent implements OnInit {
   }
 
   openEdit(post: Post): void {
+    if (!this.allowed('write')) return;
     this.editingPost = post;
     this.editPostOpen = true;
   }
@@ -420,6 +435,7 @@ export class PublicProfileComponent implements OnInit {
   }
 
   openCreatePost(): void {
+    if (!this.allowed('write')) return;
     void this.router.navigate(['/community'], { queryParams: { create: 'post' } });
   }
 
@@ -639,10 +655,9 @@ export class PublicProfileComponent implements OnInit {
       },
       error: (error) => {
         this.reportSubmitting = false;
+        // 409 says why: the earlier report is still open, or the account is still serving its penalty.
         this.toast.error(
-          error?.status === 409
-            ? 'You have already reported this'
-            : error?.error?.error || 'Failed to submit report.',
+          error?.error?.error || (error?.status === 409 ? 'You have already reported this' : 'Failed to submit report.'),
         );
         this.cdr.markForCheck();
       },

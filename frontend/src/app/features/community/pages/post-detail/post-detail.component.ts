@@ -121,6 +121,13 @@ export class PostDetailComponent implements OnInit, OnDestroy {
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
+  // True when the action may go ahead; during a suspension the message is shown instead.
+  private allowed(kind: 'write' | 'interact'): boolean {
+    const message = this.communityService.restrictionMessage(kind);
+    if (message) this.toast.error(message);
+    return !message;
+  }
+
   onMenuSave(): void {
     this.showPostOptions = false;
     this.savePost();
@@ -128,6 +135,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
 
   openReport(): void {
     this.showPostOptions = false;
+    if (!this.allowed('interact')) return;
     this.showReportModal = true;
   }
 
@@ -141,6 +149,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
 
   openEdit(): void {
     this.showPostOptions = false;
+    if (!this.allowed('write')) return;
     this.showEditModal = true;
   }
 
@@ -170,7 +179,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.reportSubmitting = false;
         this.showReportModal = false;
-        this.toast.error(err?.status === 409 ? 'You have already reported this' : err?.error?.error || 'Failed to submit report. Please try again.');
+        this.toast.error(err?.error?.error || (err?.status === 409 ? 'You have already reported this' : 'Failed to submit report. Please try again.'));
         this.cdr.markForCheck();
       }
     });
@@ -283,7 +292,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
 
   // ── Like / Save post ──
   likePost(): void {
-    if (!this.post) return;
+    if (!this.post || !this.allowed('interact')) return;
     this.communityService.likePost(this.post.post_id).subscribe({
       next: res => {
         if (this.post) {
@@ -297,7 +306,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   }
 
   savePost(): void {
-    if (!this.post) return;
+    if (!this.post || !this.allowed('interact')) return;
     this.communityService.savePost(this.post.post_id).subscribe({
       next: (res) => {
         if (this.post) {
@@ -316,8 +325,8 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   }
 
   sharePost(): void {
+    if (!this.post || !this.allowed('interact')) return;
     this.showShareModal = true;
-    if (!this.post) return;
     this.communityService.sharePost(this.post.post_id).subscribe({
       next: (res) => {
         if (this.post) {

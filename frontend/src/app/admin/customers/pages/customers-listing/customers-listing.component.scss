@@ -176,55 +176,6 @@
   color: var(--color-warm-brown);
 }
 
-.table-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-  border-top: 1px solid $border-default;
-  font-size: 12px;
-  color: var(--color-warm-brown);
-}
-
-.pagination {
-  display: flex;
-  gap: 6px;
-}
-
-.page-btn {
-  display: grid;
-  place-items: center;
-  min-width: 30px;
-  height: 30px;
-  box-sizing: border-box;
-  padding: 0 6px;
-  border: 1px solid $border-strong;
-  border-radius: 4px;
-  background: $surface;
-  font-family: var(--font-body);
-  font-size: 12px;
-  color: var(--color-warm-brown);
-  cursor: pointer;
-
-  &.is-active {
-    border-color: var(--color-forest-green);
-    background: var(--color-forest-green);
-    color: var(--color-white);
-  }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  &--gap {
-    border-color: transparent;
-    background: transparent;
-    cursor: default;
-  }
-}
-
 @media (max-width: 700px) {
   .search {
     width: 100%;

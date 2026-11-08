@@ -2,6 +2,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const FacebookStrategy = require('passport-facebook').Strategy;
 const { ObjectId } = require('mongodb');
+const { nextUserId } = require('../services/user-id.service');
 
 // Sinh community_name tự động từ tên hiển thị, đảm bảo không trùng
 async function generateCommunityName(userCollection, displayName) {
@@ -49,16 +50,8 @@ function setupPassport(userCollection) {
           });
 
           if (!user) {
-            // Sinh user_id tuần tự kiểu USRXXXXX
-            const lastUser = await userCollection.findOne({}, { sort: { user_id: -1 } });
-            let nextNum = 1;
-            if (lastUser && lastUser.user_id) {
-              const match = lastUser.user_id.match(/USR(\d+)/);
-              if (match) {
-                nextNum = parseInt(match[1], 10) + 1;
-              }
-            }
-            const user_id = `USR${String(nextNum).padStart(5, '0')}`;
+            // Sinh user_id tuần tự kiểu USRXXXXX từ bộ đếm dùng chung
+            const user_id = await nextUserId();
 
             const displayName = profile.displayName;
 
@@ -120,16 +113,8 @@ function setupPassport(userCollection) {
           });
 
           if (!user) {
-            // Sinh user_id tuần tự kiểu USRXXXXX
-            const lastUser = await userCollection.findOne({}, { sort: { user_id: -1 } });
-            let nextNum = 1;
-            if (lastUser && lastUser.user_id) {
-              const match = lastUser.user_id.match(/USR(\d+)/);
-              if (match) {
-                nextNum = parseInt(match[1], 10) + 1;
-              }
-            }
-            const user_id = `USR${String(nextNum).padStart(5, '0')}`;
+            // Sinh user_id tuần tự kiểu USRXXXXX từ bộ đếm dùng chung
+            const user_id = await nextUserId();
 
             const displayName = profile.displayName;
 

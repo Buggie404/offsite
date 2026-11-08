@@ -7,6 +7,7 @@ import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideSearch, LucideUsers } from '@lucide/angular';
 import { avatarInitials } from '../../../../shared/utils/avatar';
 import { AdminCustomersService, CustomerRow, CustomerStatus, CustomerTier } from '../../services/admin-customers.service';
+import { pageCount, pageList } from '../../pagination';
 
 const PAGE_SIZE = 20;
 
@@ -134,7 +135,7 @@ export class CustomersListingComponent implements OnInit {
   // ── Pagination ──
 
   get pageCount(): number {
-    return Math.max(1, Math.ceil(this.total / PAGE_SIZE));
+    return pageCount(this.total, PAGE_SIZE);
   }
 
   get rangeText(): string {
@@ -144,15 +145,7 @@ export class CustomersListingComponent implements OnInit {
   }
 
   get pages(): (number | null)[] {
-    const count = this.pageCount;
-    if (count <= 7) return Array.from({ length: count }, (_, i) => i + 1);
-    const around = [this.page - 1, this.page, this.page + 1].filter((p) => p > 1 && p < count);
-    const list: (number | null)[] = [1];
-    if (around[0] > 2) list.push(null);
-    list.push(...around);
-    if (around[around.length - 1] < count - 1) list.push(null);
-    list.push(count);
-    return list;
+    return pageList(this.page, this.pageCount);
   }
 
   goTo(page: number): void {

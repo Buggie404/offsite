@@ -17,7 +17,9 @@
   </div>
 </div>
 
-<div class="comment-composer">
+<p *ngIf="writeBlockedMessage" class="comment-composer comment-composer--blocked" role="status">{{ writeBlockedMessage }}</p>
+
+<div *ngIf="!writeBlockedMessage" class="comment-composer">
   <div class="composer-avatar" [class.composer-avatar--pink]="avatarTone(currentUser?.username) === 'pink'">
     <img *ngIf="currentUser?.avatar_url" [src]="currentUser.avatar_url" [alt]="currentUser.username">
     <span *ngIf="!currentUser?.avatar_url">{{ initials(currentUser?.username) }}</span>
@@ -68,7 +70,7 @@
           <svg lucideHeart [size]="12"></svg>
           <span>{{ comment.like_count }}</span>
         </button>
-        <button type="button" class="comment-reply-btn" (click)="startReply(parentId, comment.comment_id, comment.author.username)">Reply</button>
+        <button type="button" class="comment-reply-btn" *ngIf="!writeBlockedMessage" (click)="startReply(parentId, comment.comment_id, comment.author.username)">Reply</button>
       </div>
 
       <div class="inline-reply-box" *ngIf="replyingTo?.anchorId === comment.comment_id">

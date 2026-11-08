@@ -279,11 +279,17 @@ export class AdminStaffComponent implements OnInit {
     return this.addSubmitted && !this.newStaff.role ? 'Please choose a role' : '';
   }
 
+  // Create account stays disabled until every field is valid and the email check has come back.
+  get canCreate(): boolean {
+    return !this.addSaving && !this.emailChecking
+      && !this.nameValidationError && !this.emailValidationError && !!this.newStaff.role;
+  }
+
   createStaff(): void {
-    if (this.addSaving || this.emailChecking) return;
+    if (!this.canCreate) return;
     this.addSubmitted = true;
     const role = this.newStaff.role;
-    if (this.nameValidationError || this.emailValidationError || !role) return;
+    if (!role) return;
     this.addSaving = true;
     this.addError = '';
     this.staffService.create({

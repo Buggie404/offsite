@@ -1,4 +1,5 @@
 <main class="profile-page">
+  <app-restriction-banner></app-restriction-banner>
   <a class="back-link" routerLink="/community">
     <svg lucideArrowLeft [size]="15"></svg>
     <span>Community</span>
@@ -22,8 +23,8 @@
         <div class="identity">
           <h1 class="username">&#64;{{ profile.username }}</h1>
           <span class="badge badge--tier">{{ profile.membership_tier }}</span>
-          @if (profile.ritual_dna_completed) {
-            <span class="badge badge--dna">Zen purist</span>
+          @if (profile.ritual_dna_archetype) {
+            <span class="badge badge--dna">{{ profile.ritual_dna_archetype.name }}</span>
           }
         </div>
 

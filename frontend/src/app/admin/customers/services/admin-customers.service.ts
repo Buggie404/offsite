@@ -45,7 +45,6 @@ export interface CustomerNote {
 export interface CustomerDetail extends CustomerRow {
   total_spent: number;
   ritual_boxes: number;
-  recent_orders: CustomerOrder[];
   notes: CustomerNote[];
 }
 
@@ -71,6 +70,12 @@ export class AdminCustomersService {
 
   get(userId: string): Observable<{ data: CustomerDetail }> {
     return this.http.get<{ data: CustomerDetail }>(`${this.api}/${encodeURIComponent(userId)}`);
+  }
+
+  orders(userId: string, page: number): Observable<{ data: CustomerOrder[]; total: number; page: number; limit: number }> {
+    return this.http.get<{ data: CustomerOrder[]; total: number; page: number; limit: number }>(
+      `${this.api}/${encodeURIComponent(userId)}/orders`, { params: { page: String(page) } }
+    );
   }
 
   addNote(userId: string, content: string): Observable<{ data: CustomerNote }> {

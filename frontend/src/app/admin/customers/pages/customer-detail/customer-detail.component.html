@@ -76,10 +76,17 @@
 
     @if (tab === 'orders') {
       <article class="card">
-        @if (!customer.recent_orders.length) {
+        @if (ordersError) {
+          <div class="state" role="alert">
+            {{ ordersError }}
+            <button type="button" class="link-btn" (click)="loadOrders(ordersPage)">Try again</button>
+          </div>
+        } @else if (ordersLoading && !orders.length) {
+          <div class="state">Loading orders...</div>
+        } @else if (!orders.length) {
           <div class="state">This customer has not placed an order yet.</div>
         } @else {
-          <div class="table-scroll">
+          <div class="table-scroll" [class.is-loading]="ordersLoading">
             <table class="orders-table">
               <thead>
                 <tr>
@@ -91,7 +98,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (order of customer.recent_orders; track order.order_id) {
+                @for (order of orders; track order.order_id) {
                   <tr tabindex="0" (click)="openOrder(order.order_id)" (keydown.enter)="openOrder(order.order_id)">
                     <td class="order-id">#{{ order.order_id }}</td>
                     <td class="col-date">{{ shortDate(order.created_at) }}</td>
@@ -103,12 +110,25 @@
               </tbody>
             </table>
           </div>
-          <footer class="card__footer">
-            <span>Showing {{ customer.recent_orders.length }} of {{ customer.order_count }} orders · click a row to open the order</span>
-            <button type="button" class="link-btn" (click)="viewAllOrders()">
-              View all orders
-              <svg lucideArrowRight [size]="14"></svg>
-            </button>
+          <footer class="table-footer">
+            <span>{{ ordersRangeText }} · click a row to open the order</span>
+            @if (ordersPageCount > 1) {
+              <nav class="pagination" aria-label="Order pages">
+                <button type="button" class="page-btn" aria-label="Previous page" [disabled]="ordersPage === 1" (click)="goToOrdersPage(ordersPage - 1)">
+                  <svg lucideChevronLeft [size]="14"></svg>
+                </button>
+                @for (p of ordersPages; track $index) {
+                  @if (p === null) {
+                    <span class="page-btn page-btn--gap" aria-hidden="true"><svg lucideEllipsis [size]="14"></svg></span>
+                  } @else {
+                    <button type="button" class="page-btn" [class.is-active]="p === ordersPage" [attr.aria-current]="p === ordersPage ? 'page' : null" (click)="goToOrdersPage(p)">{{ p }}</button>
+                  }
+                }
+                <button type="button" class="page-btn" aria-label="Next page" [disabled]="ordersPage === ordersPageCount" (click)="goToOrdersPage(ordersPage + 1)">
+                  <svg lucideChevronRight [size]="14"></svg>
+                </button>
+              </nav>
+            }
           </footer>
         }
       </article>

@@ -51,7 +51,10 @@ export class RestrictionBannerComponent implements OnInit {
   message = '';
 
   ngOnInit(): void {
-    if (!this.auth.isAuthenticated()) return;
+    if (!this.auth.isAuthenticated()) {
+      this.community.clearRestriction();
+      return;
+    }
     this.community.getMyRestriction().subscribe({
       next: (restriction) => {
         this.message = this.describe(restriction);

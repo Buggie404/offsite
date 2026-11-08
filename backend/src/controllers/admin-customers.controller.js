@@ -10,7 +10,6 @@ const { activeRestriction } = require('../services/community-restriction.service
 
 const TIERS = ['Seed', 'Leaf', 'Bloom', 'Zen'];
 const PAGE_SIZE = 20;
-const RECENT_ORDERS = 5;
 const ACTIVE_SUBSCRIPTION_STATUSES = ['active', 'paused', 'payment_failed'];
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -94,17 +93,25 @@ async function listCustomers(req, res) {
   }
 }
 
-// GET /api/admin/customers/:userId -> profile, Ritual Box count, recent orders, notes
+function orderRow(order) {
+  return {
+    order_id: order.order_id,
+    created_at: order.created_at,
+    item_count: (order.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0),
+    total: order.pricing?.total || 0,
+    status: order.order_status
+  };
+}
+
+// GET /api/admin/customers/:userId -> profile, Ritual Box count, notes (orders come from /orders)
 async function getCustomer(req, res) {
   try {
     const customer = await User.findOne({ user_id: String(req.params.userId || ''), role: 'customer' }).lean();
     if (!customer) return res.status(404).json({ error: 'Customer not found.' });
 
     const userId = customer.user_id;
-    const [orderCount, recentOrders, totals, ritualBoxes, notes] = await Promise.all([
+    const [orderCount, totals, ritualBoxes, notes] = await Promise.all([
       Order.countDocuments({ user_id: userId }),
-      Order.find({ user_id: userId }, 'order_id created_at items.quantity pricing.total order_status')
-        .sort({ created_at: -1 }).limit(RECENT_ORDERS).lean(),
       Order.aggregate([
         { $match: { user_id: userId, order_status: { $nin: ['canceled', 'refund'] } } },
         { $group: { _id: null, spent: { $sum: '$pricing.total' }, last_order_at: { $max: '$created_at' } } }
@@ -118,13 +125,6 @@ async function getCustomer(req, res) {
         ...customerRow(customer, { order_count: orderCount, last_order_at: totals[0]?.last_order_at }),
         total_spent: totals[0]?.spent || 0,
         ritual_boxes: ritualBoxes,
-        recent_orders: recentOrders.map((order) => ({
-          order_id: order.order_id,
-          created_at: order.created_at,
-          item_count: (order.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0),
-          total: order.pricing?.total || 0,
-          status: order.order_status
-        })),
         notes: notes.map((note) => ({
           note_id: note.note_id,
           content: note.content,
@@ -137,6 +137,26 @@ async function getCustomer(req, res) {
   } catch (error) {
     console.error('Error loading customer:', error);
     res.status(500).json({ error: 'Failed to load customer.' });
+  }
+}
+
+// GET /api/admin/customers/:userId/orders?page= -> every order of the customer, newest first, 20 a page
+async function listCustomerOrders(req, res) {
+  try {
+    const customer = await User.findOne({ user_id: String(req.params.userId || ''), role: 'customer' }, 'user_id').lean();
+    if (!customer) return res.status(404).json({ error: 'Customer not found.' });
+
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+    const query = { user_id: customer.user_id };
+    const [total, orders] = await Promise.all([
+      Order.countDocuments(query),
+      Order.find(query, 'order_id created_at items.quantity pricing.total order_status')
+        .sort({ created_at: -1, _id: -1 }).skip((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).lean()
+    ]);
+    res.json({ data: orders.map(orderRow), total, page, limit: PAGE_SIZE });
+  } catch (error) {
+    console.error('Error loading customer orders:', error);
+    res.status(500).json({ error: 'Failed to load orders.' });
   }
 }
 
@@ -205,4 +225,4 @@ async function setCustomerStatus(req, res) {
   }
 }
 
-module.exports = { listCustomers, getCustomer, addCustomerNote, setCustomerStatus };
+module.exports = { listCustomers, getCustomer, listCustomerOrders, addCustomerNote, setCustomerStatus };

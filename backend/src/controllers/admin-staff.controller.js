@@ -4,6 +4,7 @@ const User = require('../models/User');
 const ChatConversation = require('../models/ChatConversation');
 const AiChatSession = require('../models/AiChatSession');
 const { emitChatEvent } = require('../services/socket.service');
+const { nextUserId } = require('../services/user-id.service');
 
 // Staff management (Admin CC only): create, change role, disable / enable, reset password.
 // Rules: one role per account, an Admin CC cannot change their own role or disable themselves,
@@ -56,12 +57,6 @@ function generateTempPassword() {
     [chars[i], chars[j]] = [chars[j], chars[i]];
   }
   return chars.join('');
-}
-
-async function nextUserId() {
-  const last = await User.findOne({ user_id: /^USR\d+$/ }, 'user_id').sort({ user_id: -1 }).lean();
-  const next = last ? parseInt(last.user_id.slice(3), 10) + 1 : 1;
-  return `USR${String(next).padStart(5, '0')}`;
 }
 
 function toStaffRow(user) {

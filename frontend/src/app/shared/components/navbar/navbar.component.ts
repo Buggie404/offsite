@@ -662,14 +662,16 @@ export class NavbarComponent implements OnInit, OnDestroy {
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return 'Vừa xong';
-    if (diffMins < 60) return `${diffMins} phút trước`;
+    const ago = (count: number, unit: string) => `${count} ${unit}${count === 1 ? '' : 's'} ago`;
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return ago(diffMins, 'minute');
 
     const diffHrs = Math.floor(diffMins / 60);
-    if (diffHrs < 24) return `${diffHrs} giờ trước`;
+    if (diffHrs < 24) return ago(diffHrs, 'hour');
 
     const diffDays = Math.floor(diffHrs / 24);
-    return `${diffDays} ngày trước`;
+    return ago(diffDays, 'day');
   }
 
   @HostListener('document:keydown.escape')

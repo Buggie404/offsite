@@ -52,6 +52,55 @@ function loadApi({ customer = customerDoc(), users = [] } = {}) {
   return { api, req, seen, logs, customer };
 }
 
+// A customer with `count` orders, newest first: ORD00{count} ... ORD001.
+function loadOrdersApi({ count, customer = customerDoc() }) {
+  const all = Array.from({ length: count }, (_, i) => ({
+    order_id: `ORD${String(count - i).padStart(3, '0')}`, created_at: new Date(2026, 6, count - i),
+    items: [{ quantity: 2 }, { quantity: 1 }], pricing: { total: 10 }, order_status: 'delivered'
+  }));
+  const seen = {};
+  const api = load('../src/controllers/admin-customers.controller.js', {
+    '../models/User': { findOne: () => ({ lean: async () => customer }) },
+    '../models/Order': {
+      countDocuments: async (query) => { seen.countQuery = query; return all.length; },
+      find: (query) => {
+        seen.findQuery = query;
+        return { sort: (order) => { seen.sort = order; return { skip: (n) => ({ limit: (size) => ({ lean: async () => all.slice(n, n + size) }) }) }; } };
+      }
+    },
+    '../models/Subscription': {}, '../models/CustomerNote': {}
+  });
+  const run = async (page) => {
+    const res = response();
+    await api.listCustomerOrders({ params: { userId: 'USR00042' }, query: page ? { page: String(page) } : {} }, res);
+    return res;
+  };
+  return { run, seen };
+}
+
+test('a customer\'s purchase history lists every order, 20 a page, newest first', async () => {
+  const { run, seen } = loadOrdersApi({ count: 34 });
+  const first = await run();
+  assert.equal(first.statusCode, 200);
+  assert.equal(first.body.total, 34);
+  assert.equal(first.body.limit, 20);
+  assert.equal(first.body.data.length, 20);
+  assert.equal(first.body.data[0].order_id, 'ORD034');
+  assert.equal(first.body.data[0].item_count, 3);
+  assert.deepEqual(seen.findQuery, { user_id: 'USR00042' });
+  assert.equal(seen.sort.created_at, -1);
+
+  const second = await run(2);
+  assert.equal(second.body.page, 2);
+  assert.equal(second.body.data.length, 14);
+  assert.equal(second.body.data.at(-1).order_id, 'ORD001');
+});
+
+test('purchase history of an unknown customer is 404', async () => {
+  const { run } = loadOrdersApi({ count: 0, customer: null });
+  assert.equal((await run()).statusCode, 404);
+});
+
 test('list filters by tier and status and searches name, @handle, email or phone', async () => {
   const { api, req, seen } = loadApi();
   const res = response();
