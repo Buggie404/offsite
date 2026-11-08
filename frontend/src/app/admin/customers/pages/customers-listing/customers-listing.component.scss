@@ -7,6 +7,24 @@
 .chip--restricted { background: #fcf3d5; color: #977300; }
 .report-open { color: #c0392b; }
 
+.service-customers {
+  min-width: 0;
+
+  .customers-table {
+    th, td { vertical-align: middle; }
+
+    .col-tier, .col-status, .col-orders { text-align: center; }
+    .col-orders { font-variant-numeric: tabular-nums; }
+    .col-last { width: 180px; white-space: nowrap; text-align: left; }
+    .col-go { text-align: center; }
+  }
+
+  .filter-group { min-width: 0; }
+  .segmented { flex: none; }
+  .person { min-width: 240px; }
+  .person__sub { overflow-wrap: anywhere; }
+}
+
 // Figma: "3.2(new) Customers" list, without the CSKH-only chat / report columns.
 
 .filters {

@@ -18,6 +18,7 @@
 .service-layout .card__header h2 { font: 500 12px/18px var(--font-mono); text-transform: uppercase; letter-spacing: 1px; }
 .service-layout .tabs { background: #fffdf9; margin-bottom: 0; padding: 0 18px; border: 1px solid rgba(84,74,64,.18); border-radius: 8px 8px 0 0; overflow-x: auto; }
 .service-layout .tabs button { padding: 18px 8px; font-size: 12px; white-space: nowrap; }
+.service-layout .tabs button.active { color: #304e2c; font-weight: 600; background: #edf3e6; border-bottom: 3px solid #375534; }
 .service-layout .tabs + .card { border-top: 0; border-radius: 0 0 8px 8px; }
 .conversations-card { display: grid; grid-template-columns: minmax(160px, 30%) minmax(0, 1fr); min-height: 420px; }
 .conversations-card > .state { grid-column: 1 / -1; }
@@ -53,6 +54,48 @@
 .personal-voucher p { font-size: 12px; color: var(--color-warm-brown); margin: 4px 0 0; }
 .chip--open { background: #e3f0ff; color: #2563eb; }
 .chip--restricted { background: #fcf3d5; color: #977300; }
+.service-layout .tabs { overflow-y: hidden; }
+.violations-header { justify-content: space-between; gap: 16px; background: #f3f5ee; }
+.service-layout .violations-header h2 { color: #304e2c; font-weight: 600; font-size: 13px; }
+.violations-header p { margin: 5px 0 0; color: #5c574e; font-size: 13px; line-height: 19px; }
+.violations-count { flex: none; padding: 5px 10px; border-radius: 999px; background: #f1ece6; color: var(--color-warm-brown); font: 11px/16px var(--font-mono); }
+.vouchers-header { justify-content: space-between; gap: 16px; }
+.vouchers-header p { margin: 5px 0 0; color: var(--color-warm-brown); font-size: 12px; line-height: 18px; }
+.voucher-list { display: grid; gap: 14px; padding: 22px 24px; }
+.voucher-ticket { display: flex; min-width: 0; overflow: hidden; border: 1px solid rgba(84,74,64,.18); border-radius: 10px; background: #fffdf9; }
+.voucher-value { display: flex; flex: 0 0 112px; flex-direction: column; justify-content: center; align-items: center; gap: 5px; background: #e9f0df; color: var(--color-forest-green); border-right: 1px dashed #b8c7a7; }
+.voucher-value strong { font: 600 29px/36px var(--font-body); letter-spacing: -1px; }
+.voucher-value span { font: 11px/16px var(--font-mono); letter-spacing: 1.5px; }
+.voucher-info { display: flex; flex-direction: column; justify-content: center; flex: 1; min-width: 0; padding: 17px 20px; text-align: center; }
+.voucher-heading { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px; }
+.voucher-heading h3 { margin: 0; font: 500 14px/20px var(--font-mono); overflow-wrap: anywhere; }
+.voucher-status { padding: 4px 9px; border-radius: 999px; background: #eeeae5; color: #766c62; font: 10px/14px var(--font-mono); text-transform: uppercase; letter-spacing: .5px; }
+.voucher-status--unused { background: #e3f0ff; color: #2563eb; }
+.voucher-description { margin: 5px 0 14px; color: var(--color-warm-brown); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+.voucher-facts { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px 28px; margin: 0; padding-top: 11px; border-top: 1px solid rgba(84,74,64,.1); }
+.voucher-facts div { display: flex; gap: 8px; font-size: 12px; line-height: 18px; }
+.voucher-facts dt { color: #8c8177; }
+.voucher-facts dd { margin: 0; color: var(--color-near-black); }
+.voucher-ticket--inactive .voucher-value { background: #f1ede7; color: #8d8277; border-right-color: #d8cfc5; }
+.service-sidebar .personal-voucher .chip:not(.chip--open) { background: #eeeae5; color: #766c62; }
+@media(max-width: 600px) { .voucher-list { padding: 16px; } .voucher-value { flex-basis: 78px; } .voucher-value strong { font-size: 23px; } .voucher-info { padding: 14px; } .vouchers-header { flex-wrap: wrap; } }
+.violation-history { display: grid; gap: 12px; list-style: none; margin: 0; padding: 20px 24px; }
+.violation-entry { --violation-ink: #946514; --violation-bg: #f7e8b8; display: flex; align-items: flex-start; gap: 14px; padding: 18px; border: 1px solid #e5dbc2; border-left: 4px solid var(--violation-ink); border-radius: 8px; background: #fffdf5; }
+.violation-entry--restricted { --violation-ink: #af4c1d; --violation-bg: #f8d7c2; border-color: #e8cbb8; border-left-color: var(--violation-ink); background: #fff6ef; }
+.violation-entry--severe { --violation-ink: #ac3434; --violation-bg: #f6ceca; border-color: #e8c3bf; border-left-color: var(--violation-ink); background: #fff2f0; }
+.violation-marker { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--violation-bg); color: var(--violation-ink); }
+.violation-content { flex: 1; min-width: 0; }
+.violation-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; min-height: 28px; }
+.violation-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.violation-heading h3 { margin: 0; font: 600 14px/21px var(--font-body); color: #29261f; }
+.violation-badge { padding: 4px 8px; border-radius: 5px; color: #fff; background: var(--violation-ink); font: 600 11px/16px var(--font-mono); }
+.violation-meta time { color: #695f53; font-size: 12px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.violation-content > p { margin: 9px 0 0; color: #484137; font-size: 14px; line-height: 23px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.violations-empty { padding: 40px 24px; text-align: center; }
+.violations-empty > span { display: grid; place-items: center; margin: 0 auto 12px; width: 42px; height: 42px; border-radius: 50%; background: #e8f0df; color: var(--color-forest-green); font-size: 22px; }
+.violations-empty h3 { margin: 0 0 6px; font-size: 15px; font-weight: 500; }
+.violations-empty p { margin: 0; color: var(--color-warm-brown); font-size: 13px; line-height: 20px; }
+@media(max-width: 600px) { .violation-history { padding: 16px; } .violation-entry { gap: 10px; padding: 14px 12px; } .violations-header { flex-wrap: wrap; } }
 @media(max-width: 1150px) { .service-layout { grid-template-columns: minmax(0, 1fr); } .service-sidebar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; } .service-sidebar .card:last-child { grid-column: 1 / -1; } }
 @media(max-width: 700px) { .service-header { flex-wrap: wrap; } .service-header .page-actions { width: 100%; } .service-layout .profile__facts, .service-sidebar { grid-template-columns: 1fr; } .conversations-card { grid-template-columns: 1fr; } .conversation-list { max-height: 200px; border-right: 0; border-bottom: 1px solid rgba(84,74,64,.18); } }
 
