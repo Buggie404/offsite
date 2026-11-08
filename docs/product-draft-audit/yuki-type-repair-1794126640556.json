@@ -1,0 +1,118 @@
+{
+  "before": {
+    "_id": "6a36060f27646119c14ae9d0",
+    "product_id": 10020,
+    "name": "Yuki",
+    "slug": "Yuki",
+    "description": "A tasty organic koucha (Japanese black tea) flavored with lychee and blended with rose petals. A delicious and fragrant afternoon drink.",
+    "seo_title": "Yuki | Related Tea | Offsite",
+    "category": "matcha",
+    "product_tag": [
+      "matcha",
+      "related-tea",
+      "saga"
+    ],
+    "variant_type": "yuki",
+    "images": [
+      {
+        "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859372/anl62pzgprrmjple0jea.png",
+        "public_id": "anl62pzgprrmjple0jea",
+        "sort_order": 0,
+        "alt_text": "Yuki - Primary"
+      },
+      {
+        "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859360/wbfuntqphur79rsb0oxk.png",
+        "public_id": "wbfuntqphur79rsb0oxk",
+        "sort_order": 1,
+        "alt_text": "Yuki - Primary"
+      }
+    ],
+    "variants": [
+      {
+        "sold_quantity": 402,
+        "sku": "MAT031",
+        "label": "",
+        "price": 23,
+        "stock": 22,
+        "is_default": true,
+        "images": []
+      }
+    ],
+    "rating_avg": null,
+    "review_count": 0,
+    "createdAt": "2026-06-19T07:04:35.878362",
+    "updatedAt": "2026-10-16T09:47:15.803Z",
+    "is_active": true,
+    "matcha": {
+      "product_grade": null,
+      "origin": "Saga, Japan",
+      "pricing_tier": "ritual_series"
+    },
+    "__v": 2,
+    "is_best_seller": false,
+    "is_new_arrival": false,
+    "total_sold_quantity": 402,
+    "is_subscribable": true,
+    "subscribe_discount_percent": 14
+  },
+  "after": {
+    "_id": "6a36060f27646119c14ae9d0",
+    "product_id": 10020,
+    "name": "Yuki",
+    "slug": "Yuki",
+    "description": "A tasty organic koucha (Japanese black tea) flavored with lychee and blended with rose petals. A delicious and fragrant afternoon drink.",
+    "seo_title": "Yuki | Related Tea | Offsite",
+    "category": "matcha",
+    "product_tag": [
+      "matcha",
+      "related-tea",
+      "saga"
+    ],
+    "variant_type": "none",
+    "images": [
+      {
+        "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859372/anl62pzgprrmjple0jea.png",
+        "public_id": "anl62pzgprrmjple0jea",
+        "sort_order": 0,
+        "alt_text": "Yuki - Primary"
+      },
+      {
+        "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859360/wbfuntqphur79rsb0oxk.png",
+        "public_id": "wbfuntqphur79rsb0oxk",
+        "sort_order": 1,
+        "alt_text": "Yuki - Primary"
+      }
+    ],
+    "variants": [
+      {
+        "sold_quantity": 402,
+        "sku": "MAT031",
+        "label": "",
+        "price": 23,
+        "stock": 22,
+        "is_default": true,
+        "images": []
+      }
+    ],
+    "rating_avg": null,
+    "review_count": 0,
+    "createdAt": "2026-06-19T07:04:35.878362",
+    "updatedAt": "2026-10-16T09:47:15.803Z",
+    "is_active": true,
+    "matcha": {
+      "product_grade": null,
+      "origin": "Saga, Japan",
+      "pricing_tier": "ritual_series"
+    },
+    "__v": 2,
+    "is_best_seller": false,
+    "is_new_arrival": false,
+    "total_sold_quantity": 402,
+    "is_subscribable": true,
+    "subscribe_discount_percent": 14
+  },
+  "beforeDraft": null,
+  "afterDraft": null,
+  "verified_only_variant_type_changed": true,
+  "completed_at": "2026-11-08T08:30:40.734Z"
+}

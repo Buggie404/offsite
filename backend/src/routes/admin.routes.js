@@ -90,6 +90,20 @@ router.post('/orders/:id/out-of-stock/resolve', authMiddleware, requireRole(...A
 router.post('/orders/:id/notes', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.addInternalNote);
 
 router.get('/products', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.listProducts);
+router.get('/products/drafts', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.listDrafts);
+router.delete('/products/:productId/draft', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.discardDraft);
+router.post('/products/:productId/publish-draft', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.publishDraft);
+router.post('/products/draft', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.saveDraft);
+router.put('/products/:productId/draft', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.saveDraft);
+router.patch('/products/statuses', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.updateStatuses);
+router.get('/products/:productId', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.getProduct);
+router.get('/products/:productId/batches', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.listBatches);
+router.post('/products/:productId/batches', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.addBatch);
+router.patch('/products/:productId/batches/:batchId/best-before', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.updateBatchBestBefore);
+router.get('/products/:productId/history', authMiddleware, requireRole('admin_cc'), adminProductsController.productHistory);
+router.post('/products', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.createProduct);
+router.put('/products/:productId', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.updateProduct);
+router.patch('/products/:productId/status', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.updateStatus);
 router.patch('/products/:productId/batch-expiry', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.updateBatchExpiry);
 
 // Subscriptions (QLSP, Admin CC): list, detail, pause / reactivate / frequency / cancel / internal note.

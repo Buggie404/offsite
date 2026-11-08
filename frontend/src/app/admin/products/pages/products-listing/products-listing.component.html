@@ -1,56 +1,101 @@
-<header class="page-header">
-  <h1 class="page-header__title">Products</h1>
-  <p class="page-header__meta">Batch expiry applies to orders delivered after the day you save it. Earlier deliveries stay as they are.</p>
-</header>
+<section class="products-page">
+  <header class="page-header">
+    <div>
+      <h1>{{ viewingDrafts ? 'Drafts' : 'Products' }}</h1>
+      <p *ngIf="!viewingDrafts">{{ rows.length }} products · {{ lowStockCount }} low stock · {{ outOfStockCount }} out of stock</p>
+      <p *ngIf="viewingDrafts">{{ draftRows.length }} saved drafts · Changes here are not live yet</p>
+    </div>
+    <div class="page-actions">
+      <button type="button" class="btn btn--secondary" (click)="exportCsv()"><svg lucideDownload [size]="14"></svg> Export CSV</button>
+      <a class="btn btn--primary" routerLink="/admin/products/new"><svg lucidePlus [size]="14"></svg> Add product</a>
+    </div>
+  </header>
 
-<label class="search-field">
-  <input
-    type="search"
-    placeholder="Search by name or product id"
-    aria-label="Search products"
-    [ngModel]="search"
-    (ngModelChange)="search = $event"
-  />
-</label>
+  <div class="filters">
+    <span class="select-wrap">
+      <select [(ngModel)]="category" (ngModelChange)="applyFilters()" aria-label="Filter by category">
+        <option *ngFor="let item of categories" [ngValue]="item.value">{{ item.label }}</option>
+      </select>
+      <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+    </span>
+    <span class="select-wrap" *ngIf="!viewingDrafts">
+      <select [(ngModel)]="status" (ngModelChange)="applyFilters()" aria-label="Filter by status">
+        <option *ngFor="let item of statuses" [ngValue]="item.value">{{ item.label }}</option>
+      </select>
+      <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+    </span>
+    <button type="button" class="low-stock-filter" [class.is-active]="stockFilter === 'low'" [attr.aria-pressed]="stockFilter === 'low'" (click)="toggleStockFilter('low')">
+      <svg lucideAlertTriangle [size]="14"></svg> Low stock ({{ lowStockCount }})
+    </button>
+    <button type="button" class="low-stock-filter out-stock-filter" [class.is-active]="stockFilter === 'out'" [attr.aria-pressed]="stockFilter === 'out'" (click)="toggleStockFilter('out')">
+      <svg lucideAlertTriangle [size]="14"></svg> Out of stock ({{ outOfStockCount }})
+    </button>
+    <button type="button" class="low-stock-filter drafts-filter" [class.is-active]="viewingDrafts" [attr.aria-pressed]="viewingDrafts" (click)="toggleDrafts()">Drafts ({{ draftsLoading ? '…' : draftRows.length }})</button>
+  </div>
 
-<p class="state-message state-message--error" *ngIf="rowError" role="alert">{{ rowError }}</p>
+  <p class="notice" *ngIf="notice" role="status">{{ notice }}</p>
+  <p class="state state--error" *ngIf="error" role="alert">{{ error }}</p>
+  <p class="state state--error" *ngIf="viewingDrafts && draftsError" role="alert">{{ draftsError }}</p>
+  <div class="pending-bar" *ngIf="pendingCount" role="status">
+    <span>{{ pendingCount }} unsaved status change{{ pendingCount === 1 ? '' : 's' }}</span>
+    <div>
+      <button type="button" class="btn btn--secondary" [disabled]="saving" (click)="discardChanges()">Discard</button>
+      <button type="button" class="btn btn--primary" [disabled]="saving" (click)="applyChanges()">{{ saving ? 'Applying…' : 'Apply changes' }}</button>
+    </div>
+  </div>
 
-<section class="card">
-  <p class="state-message" *ngIf="loading">Loading products…</p>
-  <p class="state-message state-message--error" *ngIf="!loading && error" role="alert">{{ error }}</p>
-  <p class="state-message" *ngIf="!loading && !error && !visibleRows.length">No products match this search.</p>
-
-  <table class="product-table" *ngIf="!loading && !error && visibleRows.length">
-    <thead>
-      <tr>
-        <th>Product</th>
-        <th>Group</th>
-        <th>Batch expiry</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let row of visibleRows">
-        <td>
-          <strong>{{ row.name }}</strong>
-          <span>{{ row.product_id }}</span>
-        </td>
-        <td>{{ row.category }}</td>
-        <td>
-          <input
-            type="date"
-            [name]="'expiry-' + row.product_id"
-            [ngModel]="drafts[row.product_id]"
-            (ngModelChange)="drafts[row.product_id] = $event"
-            [attr.aria-label]="'Batch expiry for ' + row.name"
-          />
-        </td>
-        <td>
-          <button type="button" [disabled]="!dirty(row) || savingId === row.product_id" (click)="save(row)">
-            {{ savingId === row.product_id ? 'Saving…' : 'Save' }}
-          </button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+  <section class="table-card">
+    <p class="state" *ngIf="currentLoading">Loading {{ viewingDrafts ? 'drafts' : 'products' }}…</p>
+    <p class="state" *ngIf="!currentLoading && !error && !(viewingDrafts && draftsError) && !filteredRows.length">No {{ viewingDrafts ? 'drafts' : 'products' }} match these filters.</p>
+    <div class="table-scroll" *ngIf="!currentLoading && filteredRows.length">
+      <table>
+        <thead><tr><th>Product</th><th>Category</th><th>From</th><th>Stock</th><th>{{ viewingDrafts ? 'Live status' : 'Status' }}</th><th>{{ viewingDrafts ? 'Draft saved' : 'Tags' }}</th><th></th></tr></thead>
+        <tbody>
+          <tr *ngFor="let row of visibleRows; trackBy: trackProduct" [class.is-warning]="isLowStock(row) || isOutOfStock(row)" (dblclick)="edit(row)">
+            <td>
+              <button class="product-cell" type="button" (click)="edit(row)">
+                <span class="product-thumb" [class.is-empty]="!primaryImage(row)">
+                  <img *ngIf="primaryImage(row)" [src]="primaryImage(row)" [alt]="row.images[0]?.alt_text || row.name" loading="lazy" />
+                </span>
+                <span><strong>{{ row.name }}</strong><small>{{ defaultVariant(row).sku || row.product_id }}</small></span>
+              </button>
+            </td>
+            <td>{{ categoryLabel(row.category) }}</td>
+            <td>{{ money(defaultVariant(row).price || 0) }}</td>
+            <td>
+              <span [class.stock-low]="isLowStock(row)" [class.stock-out]="isOutOfStock(row)">{{ totalStock(row) }}</span>
+              <span class="stock-chip stock-chip--low" *ngIf="isLowStock(row)">Low stock</span>
+              <span class="stock-chip stock-chip--out" *ngIf="isOutOfStock(row)">Out of stock</span>
+            </td>
+            <td>
+              <button *ngIf="!viewingDrafts" type="button" class="status-toggle" [class.is-on]="statusOf(row)" [class.is-pending]="statusOf(row) !== row.is_active" [disabled]="saving" (click)="toggleStatus(row)" [attr.aria-label]="(statusOf(row) ? 'Set ' + row.name + ' inactive' : 'Set ' + row.name + ' active')" [attr.aria-pressed]="statusOf(row)">
+                <span class="toggle-track"><span></span></span>{{ statusOf(row) ? 'Active' : 'Inactive' }}
+              </button>
+              <span *ngIf="viewingDrafts">{{ row.is_new_product ? 'Not published' : (row.is_active ? 'Active' : 'Inactive') }}</span>
+            </td>
+            <td><ng-container *ngIf="!viewingDrafts"><span class="tag" *ngIf="row.is_best_seller">Best seller</span><span class="tag tag--new" *ngIf="row.is_new_arrival">New arrival</span><span class="muted" *ngIf="!row.is_best_seller && !row.is_new_arrival">—</span></ng-container><span *ngIf="viewingDrafts">{{ row.draft_saved_at | date:'MMM d, y · HH:mm' }}</span></td>
+            <td class="menu-cell">
+              <button class="icon-btn" type="button" (click)="toggleMenu(row); $event.stopPropagation()" [attr.aria-label]="'Actions for ' + row.name"><svg lucideMoreHorizontal [size]="18"></svg></button>
+              <div class="row-menu" *ngIf="openMenuId === row.product_id"><button type="button" (click)="edit(row)">{{ viewingDrafts ? 'Edit draft' : 'Edit product' }}</button><button *ngIf="!viewingDrafts" type="button" (click)="toggleStatus(row)">Set {{ statusOf(row) ? 'inactive' : 'active' }}</button><ng-container *ngIf="viewingDrafts"><button type="button" [disabled]="draftActionSaving" (click)="publishSavedDraft(row)">Publish draft</button><button type="button" [disabled]="draftActionSaving" (click)="draftPendingDiscard = row; openMenuId = null">Discard draft</button></ng-container></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <footer class="table-footer" *ngIf="!currentLoading && filteredRows.length">
+      <span>Showing {{ shownStart }}–{{ shownEnd }} of {{ filteredRows.length }}</span>
+      <nav class="pagination" aria-label="Product pages">
+        <button type="button" [disabled]="page === 1" (click)="setPage(page - 1)" aria-label="Previous page"><svg lucideChevronLeft [size]="14"></svg></button>
+        <ng-container *ngFor="let item of pages; let index = index">
+          <span class="page-gap" *ngIf="index > 0 && item - pages[index - 1] > 1">…</span>
+          <button type="button" [class.is-active]="item === page" (click)="setPage(item)">{{ item }}</button>
+        </ng-container>
+        <button type="button" [disabled]="page === pageCount" (click)="setPage(page + 1)" aria-label="Next page"><svg lucideChevronRight [size]="14"></svg></button>
+      </nav>
+    </footer>
+  </section>
 </section>
+<app-confirmation-modal [isOpen]="draftPendingDiscard !== null" appearance="admin" type="danger" title="Discard this draft?"
+  [message]="'Discard the saved changes for ' + (draftPendingDiscard?.name || 'this product') + '?'"
+  warningMessage="The live product and its availability will not change." confirmText="Discard draft"
+  (confirm)="discardSavedDraft()" (cancel)="draftPendingDiscard = null"></app-confirmation-modal>

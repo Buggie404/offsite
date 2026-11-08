@@ -133,6 +133,20 @@ const routes: Routes = [
         data: { adminRoles: SALES_OPS_ROLES }
       },
       {
+        path: 'products/new',
+        loadComponent: () =>
+          import('./products/pages/product-form/product-form.component').then((m) => m.ProductFormComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SALES_OPS_ROLES }
+      },
+      {
+        path: 'products/:productId',
+        loadComponent: () =>
+          import('./products/pages/product-form/product-form.component').then((m) => m.ProductFormComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SALES_OPS_ROLES }
+      },
+      {
         path: 'vouchers',
         loadComponent: () =>
           import('./vouchers/pages/vouchers/vouchers.component').then((m) => m.VouchersComponent),

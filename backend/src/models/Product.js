@@ -13,6 +13,7 @@ const variantSchema = new mongoose.Schema({
   price: { type: Number, required: true },
   stock: { type: Number, required: true },
   sold_quantity: { type: Number, default: 0 },
+  low_stock_threshold: { type: Number, default: 10, min: 0 },
   is_default: { type: Boolean, default: false },
   images: { type: [imageSchema], default: [] }
 }, { _id: false });
@@ -79,7 +80,7 @@ const productSchema = new mongoose.Schema({
   // Current lot expiry. Applies only to orders delivered after the Vietnam day it was saved.
   batch_expiry_date: { type: Date, default: null },
   batch_expiry_set_at: { type: Date, default: null },
-  variant_type: { type: String, required: true, default: 'none' },
+  variant_type: { type: String, required: true, default: 'none', enum: ['none', 'size', 'color', 'type', 'package'] },
   images: { type: [imageSchema], default: [] },
   variants: { type: [variantSchema], default: [] },
   rating_avg: { type: Number, default: null },

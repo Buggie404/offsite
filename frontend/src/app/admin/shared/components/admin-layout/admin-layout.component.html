@@ -94,8 +94,8 @@
         </div>
       </a>
 
-      <!-- Search bar — always in middle, grows to fill space -->
-      <div class="header-search">
+      <!-- Search the current list through the shared search query parameter. -->
+      <div class="header-search" *ngIf="showHeaderSearch">
         <svg lucideSearch class="header-search__icon" aria-hidden="true" [size]="18"></svg>
         <input
           type="search"

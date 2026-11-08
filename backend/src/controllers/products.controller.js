@@ -85,7 +85,7 @@ async function getProductById(req, res) {
           ]
         };
 
-    let product = await Product.findOne(query);
+    let product = await Product.findOne({ ...query, is_active: true });
     if (!product && !isObjectId) {
       const products = await Product.find({ is_active: true });
       product = products.find(candidate => slugifyProductName(candidate.name) === id) ?? null;

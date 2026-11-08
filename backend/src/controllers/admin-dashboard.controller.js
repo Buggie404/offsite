@@ -333,8 +333,22 @@ async function getOpenWork() {
     Subscription.countDocuments({ status: 'payment_failed' }),
     Subscription.countDocuments({ status: 'suspended' }),
     Order.countDocuments({ subscription_start_failed: true }),
-    // Products has no low-stock threshold; a variant at <= 0 is out of stock.
-    Product.aggregate([{ $match: { is_active: true } }, { $unwind: '$variants' }, { $match: { 'variants.stock': { $lte: 0 } } }, { $count: 'count' }])
+    // Use the configured low-stock threshold, defaulting to 10.
+    Product.aggregate([
+      { $match: { is_active: true } },
+      { $unwind: '$variants' },
+      {
+        $match: {
+          $expr: {
+            $lte: [
+              { $ifNull: ['$variants.stock', 0] },
+              { $ifNull: ['$variants.low_stock_threshold', 10] }
+            ]
+          }
+        }
+      },
+      { $count: 'count' }
+    ])
   ]);
   return {
     refunds_waiting: refunds,

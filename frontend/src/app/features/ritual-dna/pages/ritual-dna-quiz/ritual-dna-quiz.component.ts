@@ -134,7 +134,6 @@ export class RitualDnaQuizComponent implements OnInit {
     this.currentIndex--;
     this.reviewingAnswers = true;
     this.errorMessage = '';
-    this.scrollToQuestion();
   }
 
   async continueQuiz(): Promise<void> {
@@ -146,7 +145,6 @@ export class RitualDnaQuizComponent implements OnInit {
     if (this.currentIndex < this.questions.length - 1) {
       this.currentIndex++;
       this.reviewingAnswers = this.currentIndex <= this.furthestAnsweredIndex;
-      this.scrollToQuestion();
       return;
     }
     await this.submit();

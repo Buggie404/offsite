@@ -1,0 +1,171 @@
+<section class="product-form-page">
+  <header class="form-header">
+    <div class="title-wrap">
+      <a routerLink="/admin/products" [queryParams]="backQueryParams" class="back-link" aria-label="Back to products"><svg lucideArrowLeft [size]="18"></svg></a>
+      <div><h1>{{ title }}</h1><p>{{ subtitle }}</p></div>
+    </div>
+    <div class="form-actions" *ngIf="!loading && !loadFailed">
+      <button *ngIf="product?.has_draft" type="button" class="btn btn--secondary" [disabled]="saving || uploadingImages" (click)="discardDraftOpen = true">Discard draft</button>
+      <button type="button" class="btn btn--secondary" [disabled]="saving" (click)="save(false)">Save draft</button>
+      <button type="button" class="btn btn--primary" [disabled]="saving" (click)="save(true)">{{ saving ? 'Saving…' : 'Publish' }}</button>
+    </div>
+  </header>
+
+  <p class="state" *ngIf="loading">Loading product…</p>
+  <p class="state state--error" *ngIf="error" role="alert">{{ error }}</p>
+  <p class="state state--success" *ngIf="notice" role="status">{{ notice }}</p>
+  <p class="state" *ngIf="product?.has_draft && !notice" role="status">You are editing a saved draft. {{ product?.is_new_product ? 'This product has not been published yet.' : (product?.is_active ? 'The current product remains live until you publish these changes.' : 'The live product is currently inactive.') }}</p>
+
+  <div class="form-layout" *ngIf="!loading && !loadFailed">
+    <main class="form-main">
+      <section class="card">
+        <h2>General</h2>
+        <div class="card-body fields-grid">
+          <label class="field field--full"><span>Name *</span><input [(ngModel)]="form.name" (ngModelChange)="onNameChange()" [class.invalid]="submitAttempted && !form.name.trim()" /></label>
+          <label class="field"><span>Slug *</span><input [(ngModel)]="form.slug" (ngModelChange)="slugEdited = true" /></label>
+          <label class="field"><span>Category *</span><span class="category-select-wrap"><select [(ngModel)]="form.category"><option *ngFor="let item of categories" [ngValue]="item.value">{{ item.label }}</option></select><svg lucideChevronDown [size]="16" aria-hidden="true"></svg></span></label>
+          <label class="field field--full"><span>Description</span><textarea rows="4" [(ngModel)]="form.description"></textarea></label>
+          <label class="field"><span>Tags</span><input [(ngModel)]="tagsText" placeholder="medium roast, chocolate" /><small>Separate tags with commas.</small></label>
+          <label class="field"><span>SEO title</span><input [(ngModel)]="form.seo_title" placeholder="Product name · Offsite" /></label>
+        </div>
+      </section>
+
+      <section class="card category-card">
+        <h2>{{ categoryLabel() }} attributes</h2>
+        <div class="card-body fields-grid" [ngSwitch]="form.category">
+          <ng-container *ngSwitchCase="'coffee'">
+            <label class="field"><span>Roast level</span><select [(ngModel)]="coffee.roast_level" aria-label="Roast level"><option value="">Select roast level</option><option *ngIf="coffee.roast_level && !hasRoastLevel(coffee.roast_level)" [value]="coffee.roast_level">{{ coffee.roast_level }}</option><option *ngFor="let level of roastLevels" [value]="level.value">{{ level.label }}</option></select></label>
+            <label class="field"><span>Origin</span><input [(ngModel)]="coffee.product_origin" placeholder="Brazil · Colombia" /></label>
+            <label class="field"><span>Process</span><select aria-label="Process" [ngModel]="coffee.process_type ?? ''" (ngModelChange)="coffee.process_type = $event"><option *ngFor="let option of attributeOptions('process', coffee.process_type)" [value]="option.value">{{ option.label }}</option></select></label>
+            <label class="field field--full"><span>Tasting notes</span><input [(ngModel)]="tastingNotesText" placeholder="Chocolate, caramel, almond" /></label>
+          </ng-container>
+          <ng-container *ngSwitchCase="'matcha'">
+            <label class="field"><span>Product grade</span><select aria-label="Product grade" [ngModel]="matcha.product_grade ?? ''" (ngModelChange)="matcha.product_grade = $event"><option *ngFor="let option of attributeOptions('grade', matcha.product_grade)" [value]="option.value">{{ option.label }}</option></select></label>
+            <label class="field"><span>Origin</span><input [(ngModel)]="matcha.origin" placeholder="Uji, Kyoto" /></label>
+            <label class="field"><span>Pricing tier</span><select aria-label="Pricing tier" [ngModel]="matcha.pricing_tier ?? ''" (ngModelChange)="matcha.pricing_tier = $event"><option *ngFor="let option of attributeOptions('pricingTier', matcha.pricing_tier)" [value]="option.value">{{ option.label }}</option></select></label>
+          </ng-container>
+          <ng-container *ngSwitchCase="'drinkware'">
+            <label class="field"><span>Ware type</span><select aria-label="Ware type" [ngModel]="drinkware.ware_type ?? ''" (ngModelChange)="drinkware.ware_type = $event"><option *ngFor="let option of attributeOptions('wareType', drinkware.ware_type)" [value]="option.value">{{ option.label }}</option></select></label>
+            <label class="field"><span>Material</span><select aria-label="Material" [ngModel]="drinkware.material ?? ''" (ngModelChange)="drinkware.material = $event"><option *ngFor="let option of attributeOptions('material', drinkware.material)" [value]="option.value">{{ option.label }}</option></select></label>
+            <label class="field"><span>Product size</span><input [(ngModel)]="drinkware.product_size" placeholder="350 ml" /></label>
+          </ng-container>
+          <ng-container *ngSwitchCase="'tools'">
+            <label class="field"><span>Tool category</span><select aria-label="Tool category" [ngModel]="tools.tool_category ?? ''" (ngModelChange)="tools.tool_category = $event"><option *ngFor="let option of attributeOptions('toolCategory', tools.tool_category)" [value]="option.value">{{ option.label }}</option></select></label>
+            <label class="field"><span>Tool type</span><select aria-label="Tool type" [ngModel]="tools.tool_type ?? ''" (ngModelChange)="tools.tool_type = $event"><option *ngFor="let option of attributeOptions('toolType', tools.tool_type)" [value]="option.value">{{ option.label }}</option></select></label>
+          </ng-container>
+          <ng-container *ngSwitchCase="'sets_bundles'">
+            <label class="field"><span>Set type</span><select aria-label="Set type" [ngModel]="setBundle.set_type ?? ''" (ngModelChange)="setBundle.set_type = $event"><option *ngFor="let option of attributeOptions('setType', setBundle.set_type)" [value]="option.value">{{ option.label }}</option></select></label>
+            <label class="check-field"><input type="checkbox" [(ngModel)]="setBundle.is_exclusive" /><span>Exclusive set</span></label>
+            <label class="field field--full"><span>Composition</span><textarea rows="3" [(ngModel)]="compositionText" placeholder="One item or JSON object per line"></textarea><small>Stored as the database composition array.</small></label>
+          </ng-container>
+        </div>
+        <p class="category-hint">Fields change with the category: matcha (grade, origin), drinkware (size, material), sets (included items).</p>
+      </section>
+
+      <section class="card variants-card">
+        <div class="card-heading"><h2>Variants</h2><label class="compact-field"><span>Variant type</span><select [(ngModel)]="form.variant_type" aria-label="Variant type"><option *ngFor="let item of variantTypes" [ngValue]="item.value">{{ item.label }}</option></select></label></div>
+        <div class="variant-table-wrap">
+          <table class="variant-table">
+            <thead><tr><th>SKU *</th><th>Label</th><th>Price *</th><th>Stock *</th><th>Default</th><th>Image</th><th>Low-stock at</th><th></th></tr></thead>
+            <tbody><tr *ngFor="let variant of form.variants; let index = index; trackBy: trackIndex">
+              <td><input [(ngModel)]="variant.sku" [class.invalid]="submitAttempted && !variant.sku.trim()" /></td>
+              <td><input [(ngModel)]="variant.label" [placeholder]="form.variant_type === 'none' ? 'Default' : 'Variant label'" /></td>
+              <td class="variant-price-cell"><input type="number" min="0.01" step="0.01" [(ngModel)]="variant.price" [class.invalid]="isInvalidPrice(variant.price)" [attr.aria-invalid]="isInvalidPrice(variant.price)" [attr.aria-label]="'Price for ' + (variant.sku || 'variant ' + (index + 1))" [attr.aria-describedby]="isInvalidPrice(variant.price) ? 'variant-price-error-' + index : null" /><small class="inline-field-error" *ngIf="isInvalidPrice(variant.price)" [id]="'variant-price-error-' + index">Must be greater than 0.</small></td>
+              <td><input type="number" min="0" step="1" [(ngModel)]="variant.stock" /></td>
+              <td><input class="radio" type="radio" name="default-variant" [checked]="variant.is_default" (change)="setDefault(index)" /></td>
+              <td><button type="button" class="variant-image-picker" (click)="chooseVariantImage(index)" [attr.aria-label]="'Choose image for ' + (variant.sku || 'variant ' + (index + 1))"><img *ngIf="variantImage(variant) as image; else missingVariantImage" [src]="image.url" [alt]="image.alt_text || variant.label || variant.sku" /><ng-template #missingVariantImage><svg lucideImagePlus [size]="18"></svg></ng-template></button></td>
+              <td><input type="number" min="0" step="1" [(ngModel)]="variant.low_stock_threshold" aria-label="Low-stock threshold" /></td>
+              <td><button type="button" class="icon-btn danger" [disabled]="form.variants.length === 1" (click)="removeVariant(index)" aria-label="Remove variant"><svg lucideTrash2 [size]="15"></svg></button></td>
+            </tr></tbody>
+          </table>
+        </div>
+        <footer><button type="button" class="btn btn--secondary btn--small" (click)="addVariant()"><svg lucidePlus [size]="14"></svg> Add variant</button></footer>
+      </section>
+
+      <section class="card">
+        <h2>Images</h2>
+        <div class="card-body image-list">
+          <div class="image-gallery">
+            <div class="image-tile" *ngFor="let image of form.images; let index = index; trackBy: trackIndex">
+              <div class="image-tile-preview"><img *ngIf="image.url" [src]="image.url" [alt]="image.alt_text || form.name" /><svg *ngIf="!image.url" lucideImagePlus [size]="22"></svg><button type="button" class="image-delete" (click)="confirmRemoveImage(index)" [attr.aria-label]="'Delete image ' + (index + 1)">×</button></div>
+              <div class="image-main-action"><span class="main-image-badge" *ngIf="isMainImage(index)">Main</span><button type="button" class="set-main-btn" *ngIf="!isMainImage(index)" (click)="setMainImage(index)">Set main</button></div>
+              <label class="field"><span>Alt text</span><input [(ngModel)]="image.alt_text" [attr.aria-label]="'Description for image ' + (index + 1)" /></label>
+            </div>
+            <label class="image-add"><svg lucideImagePlus [size]="18"></svg><span>Upload</span><input type="file" accept="image/*" multiple (change)="uploadImages($event)" /></label>
+          </div>
+          <div class="image-url-row" *ngFor="let image of form.images; let index = index"><label class="field image-url"><span>Image {{ index + 1 }} URL</span><input [(ngModel)]="image.url" placeholder="https://…" /></label><button type="button" class="remove-image-link" (click)="confirmRemoveImage(index)" [attr.aria-label]="'Remove image ' + (index + 1)">Remove</button></div>
+          <button type="button" class="set-main-btn add-url-link" (click)="addImage()">Add image by URL</button>
+          <p class="batch-error" *ngIf="imageError" role="alert">{{ imageError }}</p>
+          <small>Choose the main image above. Add a short description for each image · max 5MB each.</small>
+        </div>
+      </section>
+
+      <section class="card batches-card" *ngIf="product && !product.is_new_product">
+        <h2>Batches and best-before dates</h2>
+        <div class="variant-table-wrap"><table class="batch-table"><thead><tr><th>Batch</th><th>SKU</th><th>Received</th><th>Best before</th><th>Added by</th><th>Qty</th></tr></thead><tbody>
+          <tr *ngFor="let batch of batches"><td>{{ batch.batch_code }}</td><td>{{ batch.variant_sku }}</td><td>{{ batch.received_at | date:'MMM d, y' }}</td><td>
+            <ng-container *ngIf="editingBatchId === batch._id; else batchDate"><input type="date" [(ngModel)]="editingBestBefore" [attr.aria-label]="'Best before for ' + batch.batch_code" /><button type="button" class="confirm-date" (click)="saveBestBefore(batch)" aria-label="Confirm best-before date">✓</button><button type="button" class="confirm-date" (click)="editingBatchId = null" aria-label="Cancel date edit">×</button></ng-container>
+            <ng-template #batchDate><button type="button" class="date-button" (click)="editBestBefore(batch)">{{ batch.best_before ? (batch.best_before | date:'MMM d, y') : 'Not set' }}</button></ng-template>
+          </td><td>{{ batch.added_by_name }}</td><td>{{ batch.quantity }}</td></tr>
+          <tr *ngIf="!batches.length"><td colspan="6" class="empty-batches">No batches recorded yet.</td></tr>
+        </tbody></table></div>
+        <footer><button type="button" class="btn btn--secondary btn--small" (click)="openBatchModal()"><svg lucidePlus [size]="14"></svg> Add batch</button></footer>
+        <p class="batch-error" *ngIf="batchError" role="alert">{{ batchError }}</p>
+      </section>
+
+      <section class="card">
+        <h2>Inventory & availability</h2>
+        <div class="card-body fields-grid">
+          <label class="field"><span>Current batch expiry</span><input type="date" [(ngModel)]="form.batch_expiry_date" /><small>Used by Pantry for future delivered orders.</small></label>
+          <label class="field"><span>Subscription discount (%)</span><input type="number" min="5" max="15" step="1" [(ngModel)]="form.subscribe_discount_percent" [disabled]="!form.is_subscribable" /><small>Leave empty to use the shop default.</small></label>
+          <label class="check-field"><input type="checkbox" [(ngModel)]="form.is_subscribable" /><span>Can be subscribed to</span></label>
+          <label class="check-field"><input type="checkbox" [(ngModel)]="form.is_subscription" /><span>Subscription product</span></label>
+          <label class="check-field"><input type="checkbox" [(ngModel)]="form.quiz_eligible" /><span>Eligible for Starter Kit Quiz</span></label>
+          <label class="check-field"><input type="checkbox" [(ngModel)]="form.is_best_seller" /><span>Best seller</span></label>
+          <label class="check-field"><input type="checkbox" [(ngModel)]="form.is_new_arrival" /><span>New arrival</span></label>
+        </div>
+      </section>
+    </main>
+
+    <aside class="form-aside">
+      <section class="card history-card" *ngIf="product && canViewHistory"><h2>History</h2><div class="card-body"><p *ngFor="let entry of history">{{ historyLabel(entry) }} · {{ entry.actor_name }} · {{ entry.created_at | date:'MMM d, y' }}</p><p *ngIf="!history.length">No history yet.</p><a routerLink="/admin/activity-log" [queryParams]="{target_entity: 'Products', target_id: product.product_id}">View in activity log →</a></div></section>
+      <section class="card summary-card">
+        <h2>Product record</h2>
+        <div class="card-body">
+          <dl *ngIf="product; else newRecord">
+            <div><dt>Product ID</dt><dd>{{ product.product_id }}</dd></div>
+            <div><dt>Total sold</dt><dd>{{ product.total_sold_quantity || 0 }}</dd></div>
+            <div><dt>Rating</dt><dd>{{ product.rating_avg == null ? '—' : product.rating_avg }} · {{ product.review_count || 0 }} reviews</dd></div>
+            <div><dt>Created</dt><dd>{{ product.createdAt | date:'mediumDate' }}</dd></div>
+            <div><dt>Last updated</dt><dd>{{ product.updatedAt | date:'medium' }}</dd></div>
+            <div><dt>Batch set</dt><dd>{{ product.batch_expiry_set_at ? (product.batch_expiry_set_at | date:'medium') : 'Not set' }}</dd></div>
+          </dl>
+          <ng-template #newRecord><p class="aside-copy">The database will assign the next product ID when this product is saved.</p></ng-template>
+        </div>
+      </section>
+    </aside>
+  </div>
+</section>
+
+<app-confirmation-modal [isOpen]="discardDraftOpen" appearance="admin" type="danger"
+  title="Discard this draft?" message="The saved draft and your unsaved changes in this editor will be discarded."
+  warningMessage="The live product and its availability will not change." confirmText="Discard draft" cancelText="Cancel"
+  (confirm)="discardDraft()" (cancel)="discardDraftOpen = false"></app-confirmation-modal>
+
+<app-confirmation-modal [isOpen]="imagePendingDelete !== null" appearance="admin" type="danger"
+  title="Delete this image?" message="This image will be removed from the product gallery and any variants using it."
+  warningMessage="Save the product to apply this change." confirmText="Delete image" cancelText="Cancel"
+  (confirm)="deletePendingImage()" (cancel)="cancelImageDelete()">
+  <div class="delete-image-preview" *ngIf="imagePendingDelete as image"><img *ngIf="image.url" [src]="image.url" [alt]="image.alt_text || form.name" /><span>{{ image.alt_text || form.name || 'Product image' }}</span></div>
+</app-confirmation-modal>
+
+<div class="batch-modal-backdrop" *ngIf="selectingVariantIndex !== null" (click)="selectingVariantIndex = null"><section class="batch-modal card" role="dialog" aria-modal="true" aria-labelledby="variant-image-title" (click)="$event.stopPropagation()"><h2 id="variant-image-title">Image for {{ form.variants[selectingVariantIndex].sku || 'variant' }}</h2><div class="card-body"><p class="aside-copy">Choose an image from Images. To add a new image, close this dialog and add it in the Images section.</p><div class="variant-choice-grid"><button type="button" class="variant-choice" *ngFor="let image of form.images" [disabled]="!image.url.trim()" (click)="assignVariantImage(image)"><img *ngIf="image.url" [src]="image.url" [alt]="image.alt_text || form.name" /></button></div><p class="aside-copy" *ngIf="!form.images.length">No images available. Add an image in Images first.</p></div><footer><button type="button" class="btn btn--secondary" (click)="clearVariantImage()">Clear image</button><button type="button" class="btn btn--secondary" (click)="selectingVariantIndex = null">Cancel</button></footer></section></div>
+
+<div class="batch-modal-backdrop" *ngIf="batchModalOpen" (click)="closeBatchModal()"><section class="batch-modal card" role="dialog" aria-modal="true" aria-labelledby="batch-modal-title" (click)="$event.stopPropagation()"><h2 id="batch-modal-title">Add batch</h2><div class="card-body fields-grid">
+  <label class="field"><span>Batch code</span><input [(ngModel)]="batchDraft.batch_code" /></label>
+  <label class="field"><span>SKU</span><select [(ngModel)]="batchDraft.variant_sku"><option *ngFor="let variant of form.variants" [value]="variant.sku">{{ variant.sku }}</option></select></label>
+  <label class="field"><span>Received</span><input type="date" [(ngModel)]="batchDraft.received_at" /></label>
+  <label class="field"><span>Best before</span><input type="date" [(ngModel)]="batchDraft.best_before" /></label>
+  <label class="field"><span>Quantity</span><input type="number" min="1" step="1" [(ngModel)]="batchDraft.quantity" /></label>
+  <p class="batch-error field--full" *ngIf="batchError" role="alert">{{ batchError }}</p>
+</div><footer><button type="button" class="btn btn--secondary" (click)="closeBatchModal()">Cancel</button><button type="button" class="btn btn--primary" [disabled]="batchSaving" (click)="saveBatch()">{{ batchSaving ? 'Saving…' : 'Add batch' }}</button></footer></section></div>

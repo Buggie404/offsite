@@ -148,6 +148,10 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     return 'Search by order ID, customer name, or email...';
   }
 
+  get showHeaderSearch(): boolean {
+    return !this.router.url.split('?')[0].startsWith('/admin/products/');
+  }
+
   get searchAriaLabel(): string {
     return this.searchPlaceholder.replace(/\.\.\.$/, '');
   }
@@ -208,6 +212,7 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
 
     this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       this.searchQuery = params['search'] || '';
+      this.cdr.markForCheck();
     });
 
     this.warmRecipesPage();
@@ -295,7 +300,8 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     const currentPath = this.router.url.split('?')[0];
     this.router.navigate([currentPath], {
       queryParams: { search: value || null },
-      queryParamsHandling: 'merge'
+      queryParamsHandling: 'merge',
+      replaceUrl: currentPath === '/admin/products'
     });
   }
 

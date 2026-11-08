@@ -1,0 +1,182 @@
+{
+  "before": {
+    "_id": "6a36060f27646119c14ae9e0",
+    "product_id": 11010,
+    "name": "El Injerto Bourbon, Guatemala",
+    "slug": "el-injerto-bourbon-guatemala",
+    "description": "For decades, the Aguirre family of Finca El Injerto have pushed the boundaries of quality, innovation, and sustainable farming practices in the coffee world.",
+    "seo_title": "El Injerto Bourbon, Guatemala | Coffee | Offsite",
+    "category": "coffee",
+    "product_tag": [
+      "coffee",
+      "medium-roast",
+      "washed",
+      "guatemala"
+    ],
+    "variant_type": "size",
+    "images": [
+      {
+        "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859444/fxpmtz66tlzeykz1ijiw.png",
+        "public_id": "fxpmtz66tlzeykz1ijiw",
+        "sort_order": 0,
+        "alt_text": "El Injerto Bourbon, Guatemala - Variant 1"
+      },
+      {
+        "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859443/o3ufw6sgfpg0rrmhvuyx.png",
+        "public_id": "o3ufw6sgfpg0rrmhvuyx",
+        "sort_order": 1,
+        "alt_text": "El Injerto Bourbon, Guatemala - Variant 2"
+      }
+    ],
+    "variants": [
+      {
+        "sku": "COF023",
+        "label": "11 oz",
+        "price": 25,
+        "stock": 16,
+        "sold_quantity": 162,
+        "low_stock_threshold": 10,
+        "is_default": true,
+        "images": [
+          {
+            "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859444/fxpmtz66tlzeykz1ijiw.png",
+            "public_id": "fxpmtz66tlzeykz1ijiw",
+            "sort_order": 0,
+            "alt_text": "El Injerto Bourbon, Guatemala - Variant 1"
+          }
+        ]
+      },
+      {
+        "sku": "COF024",
+        "label": "5 lb",
+        "price": 160,
+        "stock": 46,
+        "sold_quantity": 336,
+        "low_stock_threshold": 10,
+        "is_default": false,
+        "images": [
+          {
+            "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859443/o3ufw6sgfpg0rrmhvuyx.png",
+            "public_id": "o3ufw6sgfpg0rrmhvuyx",
+            "sort_order": 0,
+            "alt_text": "El Injerto Bourbon, Guatemala - Variant 2"
+          }
+        ]
+      }
+    ],
+    "rating_avg": 5,
+    "review_count": 1,
+    "createdAt": "2026-06-19T07:04:35.881728",
+    "updatedAt": "2026-11-08T05:59:11.726Z",
+    "is_active": false,
+    "coffee": {
+      "roast_level": "Medium",
+      "process_type": "washed",
+      "product_origin": "Huehuetenango, Guatemala",
+      "tasting_notes": [
+        "milk chocolate",
+        "orange",
+        "caramel"
+      ]
+    },
+    "__v": 3,
+    "is_best_seller": true,
+    "is_new_arrival": false,
+    "total_sold_quantity": 498,
+    "is_subscribable": true,
+    "subscribe_discount_percent": 11,
+    "is_subscription": false,
+    "quiz_eligible": true
+  },
+  "after": {
+    "_id": "6a36060f27646119c14ae9e0",
+    "product_id": 11010,
+    "name": "El Injerto Bourbon, Guatemala",
+    "slug": "el-injerto-bourbon-guatemala",
+    "description": "For decades, the Aguirre family of Finca El Injerto have pushed the boundaries of quality, innovation, and sustainable farming practices in the coffee world.",
+    "seo_title": "El Injerto Bourbon, Guatemala | Coffee | Offsite",
+    "category": "coffee",
+    "product_tag": [
+      "coffee",
+      "medium-roast",
+      "washed",
+      "guatemala"
+    ],
+    "variant_type": "size",
+    "images": [
+      {
+        "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859444/fxpmtz66tlzeykz1ijiw.png",
+        "public_id": "fxpmtz66tlzeykz1ijiw",
+        "sort_order": 0,
+        "alt_text": "El Injerto Bourbon, Guatemala - Variant 1"
+      },
+      {
+        "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859443/o3ufw6sgfpg0rrmhvuyx.png",
+        "public_id": "o3ufw6sgfpg0rrmhvuyx",
+        "sort_order": 1,
+        "alt_text": "El Injerto Bourbon, Guatemala - Variant 2"
+      }
+    ],
+    "variants": [
+      {
+        "sku": "COF023",
+        "label": "11 oz",
+        "price": 25,
+        "stock": 16,
+        "sold_quantity": 162,
+        "low_stock_threshold": 10,
+        "is_default": true,
+        "images": [
+          {
+            "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859444/fxpmtz66tlzeykz1ijiw.png",
+            "public_id": "fxpmtz66tlzeykz1ijiw",
+            "sort_order": 0,
+            "alt_text": "El Injerto Bourbon, Guatemala - Variant 1"
+          }
+        ]
+      },
+      {
+        "sku": "COF024",
+        "label": "5 lb",
+        "price": 160,
+        "stock": 46,
+        "sold_quantity": 336,
+        "low_stock_threshold": 10,
+        "is_default": false,
+        "images": [
+          {
+            "url": "https://res.cloudinary.com/dgsgmnnyr/image/upload/q_auto/f_auto/v1781859443/o3ufw6sgfpg0rrmhvuyx.png",
+            "public_id": "o3ufw6sgfpg0rrmhvuyx",
+            "sort_order": 0,
+            "alt_text": "El Injerto Bourbon, Guatemala - Variant 2"
+          }
+        ]
+      }
+    ],
+    "rating_avg": 5,
+    "review_count": 1,
+    "createdAt": "2026-06-19T07:04:35.881728",
+    "updatedAt": "2026-11-08T05:59:11.726Z",
+    "is_active": false,
+    "coffee": {
+      "roast_level": "medium roast",
+      "process_type": "washed",
+      "product_origin": "Huehuetenango, Guatemala",
+      "tasting_notes": [
+        "milk chocolate",
+        "orange",
+        "caramel"
+      ]
+    },
+    "__v": 3,
+    "is_best_seller": true,
+    "is_new_arrival": false,
+    "total_sold_quantity": 498,
+    "is_subscribable": true,
+    "subscribe_discount_percent": 11,
+    "is_subscription": false,
+    "quiz_eligible": true
+  },
+  "verified_only_roast_changed": true,
+  "completed_at": "2026-11-08T08:14:51.898Z"
+}
