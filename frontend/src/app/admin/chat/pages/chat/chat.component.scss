@@ -85,7 +85,7 @@ $cream: #fffdf9;
 .chat-system-event { flex: none; text-align: center; margin: 0; }
 .bubble {
   flex-shrink: 0;
-  width: 300px; max-width: 85%; padding: 10px 14px; border-radius: 10px; background: white; border: 1px solid $border;
+  width: fit-content; max-width: 85%; padding: 10px 14px; border-radius: 10px; background: white; border: 1px solid $border;
   p { margin: 0; white-space: pre-wrap; word-break: break-word; }
   time, small { display: block; font-size: 10px; color: #8b8378; margin-top: 2px; }
   &--agent { background: var(--color-blush-pink); color: var(--color-near-black); border-color: transparent; }

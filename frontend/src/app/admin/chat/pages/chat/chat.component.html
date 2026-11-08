@@ -121,7 +121,7 @@
           [placeholder]="canReply ? 'Type a reply — Enter to send' : (active.status === 'closed' ? 'Conversation closed' : 'Take over this chat to reply')"></textarea>
           <div class="compose-order-tools">
             @if (customerDetails?.recent_orders?.length) { <button type="button" class="btn" [disabled]="actionPending" (click)="orderShareOpen = !orderShareOpen"><img src="/assets/icons/chat/share-order.svg" alt="">Share order</button> }
-            @if (customerDetails) { <a class="btn" [href]="voucherUrl"><img src="/assets/icons/chat/add-voucher.svg" alt="">Add voucher</a> }
+            @if (customerDetails) { <button type="button" class="btn" (click)="openVoucher()"><img src="/assets/icons/chat/add-voucher.svg" alt="">Add voucher</button> }
             <button type="button" class="btn btn-primary compose-send" (click)="send()" [disabled]="!canReply || !draft.trim()"><img src="/assets/icons/chat/send.svg" alt="">Send</button>
           </div>
             @if (orderShareOpen) {
@@ -171,7 +171,7 @@
           <a class="customer-profile-link" [href]="customerProfileUrl">Open customer profile <img src="/assets/icons/chat/arrow-right.svg" alt="" width="24" height="24"></a>
           @if (canReply) { <div class="customer-quick-actions"><h3>Quick actions</h3>
             @if (lastOrder; as order) { <a class="customer-action" [href]="'/admin/orders/' + order.order_id"><img src="/assets/icons/chat/package.svg" alt=""><span>Open order / refund details</span><img src="/assets/icons/chat/chevron-right.svg" alt=""></a> }
-            <a class="customer-action" [href]="voucherUrl"><img src="/assets/icons/chat/ticket.svg" alt=""><span>Give personal voucher</span><img src="/assets/icons/chat/chevron-right.svg" alt=""></a>
+            <button type="button" class="customer-action" (click)="openVoucher()"><img src="/assets/icons/chat/ticket.svg" alt=""><span>Give personal voucher</span><img src="/assets/icons/chat/chevron-right.svg" alt=""></button>
             <button type="button" class="customer-action customer-action--danger" (click)="reportOpen = true"><img src="/assets/icons/chat/flag.svg" alt=""><span>Report customer</span><img src="/assets/icons/chat/chevron-right.svg" alt=""></button>
             <p class="customer-actions-hint">Refunds are handled by the Orders team in order detail. Order access follows your assigned-customer permissions.</p>
           </div> }
@@ -226,3 +226,7 @@
     <footer><button type="button" class="btn" (click)="dismissDialogs()" [disabled]="actionPending">Cancel</button><button type="submit" class="btn dialog-close" [disabled]="actionPending">{{ actionPending ? 'Closing...' : 'Close conversation' }}</button></footer>
   </form>
 </dialog>
+
+@if (voucherCustomer) {
+  <app-admin-vouchers [chatCustomer]="voucherCustomer" (dismissed)="voucherCustomer = null" (created)="sendVoucher($event)" />
+}

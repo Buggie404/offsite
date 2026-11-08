@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+import { afterNextRender, ChangeDetectorRef, Component, ElementRef, Injector, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription, forkJoin } from 'rxjs';
@@ -8,13 +8,15 @@ import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { AdminCustomersService, CustomerDetail, CustomerOrder } from '../../../customers/services/admin-customers.service';
 import { avatarInitials } from '../../../../shared/utils/avatar';
 import { ReportPayload, ReportPostModalComponent } from '../../../../features/community/components/report-post-modal/report-post-modal.component';
+import { VouchersComponent } from '../../../vouchers/pages/vouchers/vouchers.component';
+import { AdminVoucher } from '../../../vouchers/services/admin-vouchers.service';
 
 type StatusFilter = 'waiting' | 'mine' | 'closed' | 'all';
 
 @Component({
   selector: 'app-admin-chat',
   standalone: true,
-  imports: [CommonModule, DatePipe, ReportPostModalComponent],
+  imports: [CommonModule, DatePipe, ReportPostModalComponent, VouchersComponent],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
 })
@@ -23,6 +25,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   private auth = inject(AdminAuthService);
   private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
+  private injector = inject(Injector);
   private customers = inject(AdminCustomersService);
   customerDetails: (CustomerDetail & { recent_orders: CustomerOrder[] }) | null = null;
   customerDetailsLoading = false;
@@ -36,8 +39,14 @@ export class AdminChatComponent implements OnInit, OnDestroy {
     { label: 'Shipping times', text: 'Let me check the shipping status and estimated delivery for your order.' },
     { label: 'Brewing help', text: 'What are you brewing, and which equipment are you using?' }
   ];
-  get voucherUrl(): string {
-    return `/admin/vouchers?create=complaint&customer_id=${encodeURIComponent(this.active?.customer_id || '')}&customer_name=${encodeURIComponent(this.customerName(this.active!))}`;
+  voucherCustomer: { user_id: string; profile_name: string; conversation_id: string } | null = null;
+  openVoucher(): void {
+    if (!this.active || !this.canReply || this.active.customer_id.startsWith('guest:')) return;
+    this.voucherCustomer = { user_id: this.active.customer_id, profile_name: this.customerName(this.active), conversation_id: this.active.conversation_id };
+  }
+  sendVoucher(event: { voucher: AdminVoucher; message: string; conversation_id: string }): void {
+    this.chat.send(event.conversation_id, [event.message, `Your personal voucher code: ${event.voucher.code}`].filter(Boolean).join('\n'));
+    this.voucherCustomer = null;
   }
   useQuickReply(text: string): void { if (this.canReply) this.draft = text; }
   reportCustomer(payload: ReportPayload): void {
@@ -204,10 +213,9 @@ export class AdminChatComponent implements OnInit, OnDestroy {
 
     this.subs.add(this.chat.message$.subscribe(m => {
       if (this.active && this.conversations.some(c => c.conversation_id === m.conversation_id && customerKey(c) === customerKey(this.active!))) {
-        this.messages = [...this.messages.filter(existing => existing._id !== m._id || !m._id), m]
-          .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+        this.messages = this.uniqueMessages([...this.messages, m]);
         this.customerTyping = false;
-        this.scrollSoon();
+        this.scrollSoon(true);
         if (document.visibilityState === 'visible') this.chat.receipt(m.conversation_id, 'seen', m.created_at).subscribe({ error: () => {} });
       }
       this.loadList(); // refresh previews + unread counters
@@ -309,7 +317,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
     forkJoin(threads.map(c => this.chat.messages(c.conversation_id))).subscribe({
       next: results => {
         if (!this.active || this.active.conversation_id !== conversationId || customerKey(this.active) !== key) return;
-        this.messages = results.flatMap(res => res.data).sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+        this.messages = this.uniqueMessages(results.flatMap(res => res.data));
         results.forEach((res, index) => {
           const last = res.data.at(-1);
           if (last && document.visibilityState === 'visible') this.chat.receipt(threads[index].conversation_id, 'seen', last.created_at).subscribe({ error: () => {} });
@@ -439,19 +447,46 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   }
 
   onKey(e: KeyboardEvent): void {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); }
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!e.repeat) this.send();
+    }
+  }
+
+  private uniqueMessages(messages: ChatMessage[]): ChatMessage[] {
+    const ids = new Set<string>();
+    const sources = new Set<string>();
+    return messages.filter(message => {
+      const source = message.source_session_id && message.source_message_id
+        ? JSON.stringify([message.source_session_id, message.source_message_id]) : null;
+      const duplicate = !!((message._id && ids.has(message._id)) || (source && sources.has(source)));
+      if (message._id) ids.add(message._id);
+      if (source) sources.add(source);
+      return !duplicate;
+    }).sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
   }
 
   customerName(c: ChatConversation): string { return c.customer?.profile_name || c.customer_id; }
 
   private scrollSoon(force = false): void {
+    // Socket events must schedule a render before measuring the new thread height.
+    this.cdr.markForCheck();
     const current = this.thread?.nativeElement;
     if (!force && current && current.scrollHeight - current.scrollTop - current.clientHeight > 80) return;
     const activeId = this.active?.conversation_id;
     const scrollTop = current?.scrollTop;
-    setTimeout(() => {
+    afterNextRender(() => {
       const el = this.thread?.nativeElement;
-      if (el && this.active?.conversation_id === activeId && (force || el.scrollTop === scrollTop)) el.scrollTop = el.scrollHeight;
-    }, 0);
+      if (el && this.active?.conversation_id === activeId && (force || el.scrollTop === scrollTop)) {
+        el.scrollTop = el.scrollHeight;
+        // Let the browser finish sizing the composer and message cards as well.
+        requestAnimationFrame(() => {
+          if (this.thread?.nativeElement === el && this.active?.conversation_id === activeId) {
+            el.scrollTop = el.scrollHeight;
+          }
+        });
+      }
+    }, { injector: this.injector });
   }
 }

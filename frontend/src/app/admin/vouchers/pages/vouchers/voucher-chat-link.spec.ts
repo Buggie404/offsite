@@ -18,5 +18,6 @@ it('opens the complaint voucher form from chat with its customer selected', () =
   expect(fixture.componentInstance.form.purpose).toBe('complaint');
   expect(fixture.componentInstance.form.assigned_user).toBe('USR1');
   expect(fixture.componentInstance.customerName).toBe('Mai Anh');
+  expect(fixture.componentInstance.previewCode).toMatch(/^PERS-MAIA-[A-Z2-9]{3}$/);
   expect(fixture.componentInstance.canManage).toBe(false);
 });

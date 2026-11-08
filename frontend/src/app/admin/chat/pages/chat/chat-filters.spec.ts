@@ -4,7 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AdminChatComponent } from './chat.component';
-import { ChatConversation, ChatService } from '../../../../core/services/chat.service';
+import { ChatConversation, ChatMessage, ChatService } from '../../../../core/services/chat.service';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { AdminCustomersService, CustomerDetail } from '../../../customers/services/admin-customers.service';
 
@@ -21,7 +21,7 @@ function setup(status: string | null = null, conversation: string | null = null)
     row('LEGACY', 'open', 'mongo-staff'), row('OTHER', 'open', 'STAFF2'),
     row('CLOSED', 'closed', 'STAFF1', 'OWN')];
   const chat = {
-    list: vi.fn(() => of({ data: rows })), messages: vi.fn(() => of({ data: [] })),
+    list: vi.fn(() => of({ data: rows })), messages: vi.fn((_id: string) => of<{ data: ChatMessage[] }>({ data: [] })),
     receipt: vi.fn(() => of({})), joinAgents: vi.fn(), joinConversation: vi.fn(), disconnect: vi.fn(),
     send: vi.fn(), typing: vi.fn(), claim: vi.fn((id: string) => of({ data: { ...rows.find(c => c.conversation_id === id)!, status: 'open', agent_id: 'STAFF1' } })),
     agents: vi.fn(() => of({ data: [{ user_id: 'STAFF2', name: 'Minh' }] })),
@@ -41,6 +41,48 @@ function setup(status: string | null = null, conversation: string | null = null)
   fixture.detectChanges();
   return { component, fixture, rows, chat };
 }
+
+it('scrolls the thread to the rendered newest message after a socket update', () => {
+  const { component, fixture, rows, chat } = setup();
+  component.select(rows[1]);
+  fixture.detectChanges();
+  vi.spyOn(component, 'loadList').mockImplementation(() => {});
+  const thread = fixture.nativeElement.querySelector('.chat-thread') as HTMLElement;
+  Object.defineProperty(thread, 'scrollHeight', { configurable: true, get: () => 500 + thread.querySelectorAll('.message-row').length * 100 });
+  thread.scrollTop = 0;
+  chat.message$.next({ _id: 'NEW', conversation_id: 'OWN', sender_type: 'customer', sender_id: 'OWN', content: 'Newest message', created_at: '2026-11-08T10:00:00Z' });
+  fixture.detectChanges();
+  vi.advanceTimersByTime(20);
+  expect(thread.textContent).toContain('Newest message');
+  expect(thread.scrollTop).toBe(thread.scrollHeight);
+});
+
+it('deduplicates socket replays and copied history by message identity, preserving intentional repeats', () => {
+  const { component, fixture, rows, chat } = setup();
+  const original = { _id: 'FIRST', conversation_id: 'OWN', sender_type: 'agent' as const, sender_id: 'STAFF1', content: 'Same text', created_at: '2026-11-08T10:00:00Z', source_session_id: 'AI1', source_message_id: 'SOURCE1' };
+  chat.messages.mockImplementation(id => of({ data: id === 'OWN' ? [original, { ...original }] : [{ ...original, _id: 'COPY', conversation_id: 'CLOSED' }] }));
+  component.select(rows[1]);
+  expect(component.messages).toHaveLength(1);
+  vi.spyOn(component, 'loadList').mockImplementation(() => {});
+  chat.message$.next(original);
+  expect(component.messages).toHaveLength(1);
+  chat.message$.next({ ...original, _id: 'SECOND', source_message_id: 'SOURCE2' });
+  fixture.detectChanges();
+  expect(component.messages).toHaveLength(2);
+});
+
+it('does not send during IME composition or repeated Enter key events', () => {
+  const { component, rows, chat } = setup();
+  component.select(rows[1]);
+  component.draft = 'Reply';
+  component.onKey(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true }));
+  component.onKey(new KeyboardEvent('keydown', { key: 'Enter', repeat: true }));
+  expect(chat.send).not.toHaveBeenCalled();
+  expect(component.draft).toBe('Reply');
+  component.onKey(new KeyboardEvent('keydown', { key: 'Enter' }));
+  expect(chat.send).toHaveBeenCalledTimes(1);
+  expect(component.draft).toBe('');
+});
 
 it('defaults to Waiting, isolates Mine including legacy IDs, and keeps closed history visible', () => {
   const { component } = setup();
@@ -202,7 +244,10 @@ it('uses real quick actions and a formatted order card in an owned chat', () => 
   const actions = fixture.nativeElement.querySelectorAll('.customer-action');
   expect(actions).toHaveLength(3);
   expect(actions[0].getAttribute('href')).toBe('/admin/orders/OF1029');
-  expect(actions[1].getAttribute('href')).toContain('create=complaint&customer_id=OWN');
+  expect(actions[1].tagName).toBe('BUTTON');
+  actions[1].click();
+  expect(component.voucherCustomer).toMatchObject({ user_id: 'OWN', conversation_id: 'OWN' });
+  component.voucherCustomer = null;
   actions[2].click(); fixture.detectChanges();
   expect(fixture.nativeElement.querySelector('app-report-post-modal')).not.toBeNull();
   expect(component.draft).toBe(''); component.useQuickReply('Let me check.'); expect(component.draft).toBe('Let me check.');

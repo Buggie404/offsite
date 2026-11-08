@@ -32,6 +32,8 @@ export interface ChatConversation {
 
 export interface ChatMessage {
   _id?: string;
+  source_session_id?: string | null;
+  source_message_id?: string | null;
   conversation_id: string;
   sender_type: 'customer' | 'agent' | 'bot' | 'system';
   sender_id: string | null;

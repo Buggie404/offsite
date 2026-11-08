@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, EventEmitter, HostListener, Input, OnInit, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -69,6 +69,9 @@ const EMPTY_FORM: VoucherForm = {
   styleUrl: './vouchers.component.scss'
 })
 export class VouchersComponent implements OnInit {
+  @Input() chatCustomer: { user_id: string; profile_name: string; conversation_id: string } | null = null;
+  @Output() dismissed = new EventEmitter<void>();
+  @Output() created = new EventEmitter<{ voucher: AdminVoucher; message: string; conversation_id: string }>();
   private route = inject(ActivatedRoute);
   private vouchersService = inject(AdminVouchersService);
   private adminAuth = inject(AdminAuthService);
@@ -142,6 +145,12 @@ export class VouchersComponent implements OnInit {
   notice = '';
 
   ngOnInit(): void {
+    if (this.chatCustomer) {
+      this.openCreate();
+      this.setPurpose('complaint');
+      this.pickCustomer(this.chatCustomer);
+      return;
+    }
     this.search$
       .pipe(debounceTime(200), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe((value) => {
@@ -157,8 +166,10 @@ export class VouchersComponent implements OnInit {
     const params = this.route.snapshot.queryParamMap;
     if (params.get('create') === 'complaint' && params.get('customer_id')) {
       this.openCreate(); this.setPurpose('complaint');
-      this.form.assigned_user = params.get('customer_id')!;
-      this.customerName = params.get('customer_name') || this.form.assigned_user;
+      this.pickCustomer({
+        user_id: params.get('customer_id')!,
+        profile_name: params.get('customer_name') || params.get('customer_id')!
+      });
       this.customerQuery = this.customerName;
     }
   }
@@ -320,6 +331,7 @@ export class VouchersComponent implements OnInit {
   closeModal(): void {
     if (this.saving) return;
     this.modalOpen = false;
+    this.dismissed.emit();
   }
 
   get locked(): boolean {
@@ -372,7 +384,7 @@ export class VouchersComponent implements OnInit {
     this.customer$.next(value.trim());
   }
 
-  pickCustomer(hit: CustomerSuggestion): void {
+  pickCustomer(hit: Pick<CustomerSuggestion, 'user_id' | 'profile_name'>): void {
     this.form.assigned_user = hit.user_id;
     this.customerName = hit.profile_name;
     this.customerQuery = `${hit.profile_name} · ${hit.user_id}`;
@@ -458,7 +470,15 @@ export class VouchersComponent implements OnInit {
     }
 
     request!.subscribe({
-      next: (res) => this.applyRow(res.data, 'Voucher created.'),
+      next: (res) => {
+        if (this.chatCustomer) {
+          this.saving = false;
+          this.modalOpen = false;
+          this.created.emit({ voucher: res.data, message: this.form.message.trim(), conversation_id: this.chatCustomer.conversation_id });
+          return;
+        }
+        this.applyRow(res.data, 'Voucher created.');
+      },
       error: (err) => {
         this.saving = false;
         this.saveError = err?.error?.error || 'The voucher could not be saved.';

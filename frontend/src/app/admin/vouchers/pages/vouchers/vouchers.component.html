@@ -1,3 +1,4 @@
+@if (!chatCustomer) {
 <section class="vouchers-page" aria-label="Vouchers">
   <header class="page-header">
     <div>
@@ -173,6 +174,7 @@
     }
   </div>
 </section>
+}
 
 @if (modalOpen) {
   <div class="overlay" (click)="closeModal()">
@@ -209,6 +211,9 @@
           </div>
         }
         @if (complaintMode) {
+          @if (chatCustomer) {
+            <div class="limit-note"><p>For <strong>{{ chatCustomer.profile_name }}</strong> only · linked to this conversation</p></div>
+          } @else {
           <label class="field">
             <span>Customer</span>
             <span class="search suggest-search" [class.invalid]="fieldError('assigned_user')">
@@ -235,6 +240,7 @@
             </span>
             @if (fieldError('assigned_user')) { <small>{{ fieldError('assigned_user') }}</small> }
           </label>
+          }
 
           <div class="discount-row">
             <div class="segmented discount-kind" role="group" aria-label="Discount">
@@ -391,7 +397,7 @@
           <button type="button" class="btn-stop" [disabled]="saving" (click)="stop()">Stop voucher</button>
         }
         <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
-        <button type="button" class="btn-save" [disabled]="!canSubmit" (click)="save()">{{ saveLabel }}</button>
+        <button type="button" class="btn-save" [disabled]="!canSubmit" (click)="save()">{{ chatCustomer && !saving ? 'Create & send in chat' : saveLabel }}</button>
       </footer>
     </div>
   </div>
