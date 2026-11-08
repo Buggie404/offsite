@@ -72,6 +72,18 @@
           <span class="section-divider"></span>
         </div>
 
+        <div class="field-block">
+          <span class="field-label" id="recipe-base-label">BASE *</span>
+          <div class="serve-style-row" role="group" aria-labelledby="recipe-base-label">
+            <button type="button" class="serve-pill" *ngFor="let option of baseOptions"
+              [class.selected]="base === option.value" (click)="selectBase(option.value)">
+              <svg lucideCircleCheck [size]="18"></svg>
+              <span>{{ option.label }}</span>
+            </button>
+          </div>
+          <span class="field-error" *ngIf="showBaseError">Please select a base.</span>
+        </div>
+
         <div class="details-grid">
           <div class="field-block">
             <label class="field-label" for="recipe-servings-input">SERVINGS</label>
@@ -88,13 +100,6 @@
             <span id="recipe-preptime-error" class="field-error"></span>
           </div>
           <div class="field-block">
-            <label class="field-label" for="recipe-cooktime-input">COOK TIME (MIN)</label>
-            <input id="recipe-cooktime-input" class="text-input" type="text" inputmode="numeric"
-              placeholder="1" [ngModel]="cookTime" (input)="sanitizeNumberInput($event, 'cookTime')" name="cookTime" (keydown)="blockNonNumericKey($event)"
-              (paste)="sanitizeNumericPaste($event)" (blur)="onFieldBlur('recipe-cooktime-input')" />
-            <span id="recipe-cooktime-error" class="field-error"></span>
-          </div>
-          <div class="field-block">
             <label class="field-label" for="recipe-difficulty-select">DIFFICULTY *</label>
             <select id="recipe-difficulty-select" class="select-input" [(ngModel)]="difficulty" name="difficulty"
               (blur)="onFieldBlur('recipe-difficulty-select')">
@@ -107,81 +112,107 @@
       </section>
 
       <!-- INGREDIENTS -->
-      <section class="form-section">
+      <section class="form-section" #ingredientsSection>
         <div class="section-label-row">
           <span class="section-label">INGREDIENTS *</span>
           <span class="section-divider"></span>
-          <button class="btn-add" type="button" (click)="addIngredient()">+ ADD</button>
         </div>
 
-        <div class="ingredient-row" *ngFor="let ing of ingredients; let i = index">
-          <input class="text-input flex-name" type="text" placeholder="Ingredient name" [(ngModel)]="ing.name"
-            [name]="'ing-name-' + i" (input)="ingredientsTouched = true" (blur)="ingredientsTouched = true" />
-          <input class="text-input flex-qty" type="text" inputmode="numeric" placeholder="Qty" [ngModel]="ing.quantity"
-            [name]="'ing-qty-' + i" (keydown)="blockNonNumericKey($event)" (paste)="sanitizeNumericPaste($event)"
-            (input)="sanitizeNumberInput($event, 'ingredient', i)" />
-          <input class="text-input flex-unit" type="text" list="units" placeholder="Unit (g, ml...)" [(ngModel)]="ing.unit"
-            [name]="'ing-unit-' + i" />
-          <button class="row-remove" type="button" (click)="removeIngredient(i)" [disabled]="ingredients.length === 1"
-            aria-label="Remove ingredient">
-            <svg lucideX [size]="12"></svg>
-          </button>
+        <div class="list-stack">
+          <div class="ingredient-row" *ngFor="let ing of ingredients; let i = index">
+            <input class="text-input flex-name" type="text" placeholder="Ingredient name" [(ngModel)]="ing.name"
+              [name]="'ing-name-' + i" (input)="ingredientsTouched = true" (blur)="ingredientsTouched = true" />
+            <input class="text-input flex-qty" type="text" inputmode="text" placeholder="Qty" [ngModel]="ing.quantity"
+              [name]="'ing-qty-' + i" (keydown)="blockQuantityKey($event)" (paste)="sanitizeQuantityPaste($event)"
+              (input)="onQuantityInput($event, i)" />
+            <select class="select-input flex-unit" [ngModel]="ing.unit" (ngModelChange)="ing.unit = $event"
+              [name]="'ing-unit-' + i" aria-label="Unit">
+              <option value="">—</option>
+              <option *ngFor="let unit of units" [value]="unit">{{ unit }}</option>
+            </select>
+            <button class="row-remove" type="button" (click)="removeIngredient(i)" [disabled]="ingredients.length === 1"
+              aria-label="Remove ingredient">
+              <svg lucideX [size]="12"></svg>
+            </button>
+          </div>
+          <button class="btn-add-row" type="button" (click)="addIngredient()">+ Add ingredient</button>
         </div>
-        <datalist id="units">
-          <option value="g">
-          <option value="kg">
-          <option value="ml">
-          <option value="l">
-          <option value="tsp">
-          <option value="tbsp">
-          <option value="cup">
-          <option value="oz">
-          <option value="pcs">
-          <option value="pinch">
-        </datalist>
         <span class="field-error" *ngIf="showIngredientsError">At least one ingredient is required.</span>
       </section>
 
       <!-- TOOLS -->
-      <section class="form-section">
+      <section class="form-section" #toolsSection>
         <div class="section-label-row">
           <span class="section-label">TOOLS</span>
           <span class="section-divider"></span>
-          <button class="btn-add" type="button" (click)="addTool()">+ ADD</button>
         </div>
 
-        <div class="ingredient-row" *ngFor="let tool of tools; let i = index">
-          <input class="text-input flex-name" type="text" placeholder="e.g., Bamboo whisk" [(ngModel)]="tool.name"
-            [name]="'tool-name-' + i" />
-          <button class="row-remove" type="button" (click)="removeTool(i)" aria-label="Remove tool">
-            <svg lucideX [size]="12"></svg>
-          </button>
+        <div class="list-stack">
+          <div class="ingredient-row" *ngFor="let tool of tools; let i = index">
+            <input class="text-input flex-name" type="text" placeholder="e.g., Bamboo whisk" [(ngModel)]="tool.name"
+              [name]="'tool-name-' + i" />
+            <button class="row-remove" type="button" (click)="removeTool(i)" aria-label="Remove tool">
+              <svg lucideX [size]="12"></svg>
+            </button>
+          </div>
+          <button class="btn-add-row" type="button" (click)="addTool()">+ Add tool</button>
         </div>
       </section>
 
       <!-- STEPS -->
-      <section class="form-section">
+      <section class="form-section" #stepsSection>
         <div class="section-label-row">
           <span class="section-label">STEPS *</span>
           <span class="section-divider"></span>
-          <button class="btn-add" type="button" (click)="addStep()">+ ADD</button>
         </div>
 
-        <div class="steps-vertical">
-          <div class="step-item" *ngFor="let step of steps; let i = index">
-            <div class="step-item-header">
-              <span class="step-label">STEP {{ i + 1 }}</span>
-              <button class="row-remove" type="button" (click)="removeStep(i)" [disabled]="steps.length === 1"
-                aria-label="Remove step">
-                <svg lucideX [size]="12"></svg>
-              </button>
+        <div class="list-stack">
+          <div class="steps-vertical">
+            <div class="step-item" *ngFor="let step of steps; let i = index">
+              <div class="step-item-header">
+                <span class="step-label">STEP {{ i + 1 }}</span>
+                <button class="row-remove" type="button" (click)="removeStep(i)" [disabled]="steps.length === 1"
+                  aria-label="Remove step">
+                  <svg lucideX [size]="12"></svg>
+                </button>
+              </div>
+              <div class="step-head">
+                <input class="text-input" type="text" maxlength="140" placeholder="Step name"
+                  [(ngModel)]="step.title" [name]="'step-title-' + i"
+                  (input)="stepsTouched = true" (blur)="stepsTouched = true" />
+                <button *ngIf="!step.timerOpen" type="button" class="timer-idle" (click)="openTimer(step)">
+                  <svg lucideClock [size]="14"></svg>
+                  Timer
+                </button>
+                <div class="timer-set" *ngIf="step.timerOpen">
+                  <label>
+                    <input type="text" inputmode="numeric" maxlength="3" [attr.aria-label]="'Step ' + (i + 1) + ' minutes'"
+                      placeholder="0" [ngModel]="step.minutes" (ngModelChange)="step.minutes = $event"
+                      (keydown)="blockNonNumericKey($event)" (paste)="sanitizeNumericPaste($event)" />
+                    <span>min</span>
+                  </label>
+                  <span class="timer-colon" aria-hidden="true">:</span>
+                  <label>
+                    <input type="text" inputmode="numeric" maxlength="2" [attr.aria-label]="'Step ' + (i + 1) + ' seconds'"
+                      placeholder="00" [ngModel]="step.seconds" (ngModelChange)="step.seconds = $event"
+                      (keydown)="blockNonNumericKey($event)" (paste)="sanitizeNumericPaste($event)" />
+                    <span>sec</span>
+                  </label>
+                  <button type="button" class="timer-clear" [attr.aria-label]="'Remove timer from step ' + (i + 1)"
+                    (click)="clearTimer(step)">
+                    <svg lucideX [size]="14"></svg>
+                  </button>
+                </div>
+              </div>
+              <textarea class="content-textarea" rows="2" maxlength="2000" placeholder="Details"
+                [(ngModel)]="step.description" [name]="'step-desc-' + i"
+                (input)="stepsTouched = true" (blur)="stepsTouched = true"></textarea>
             </div>
-            <textarea class="content-textarea" rows="3" placeholder="Describe this step..."
-              [(ngModel)]="step.description" [name]="'step-desc-' + i" (input)="stepsTouched = true"
-              (blur)="stepsTouched = true"></textarea>
           </div>
+          <button class="btn-add-row" type="button" (click)="addStep()">+ Add step</button>
         </div>
         <span class="field-error" *ngIf="showStepsError">At least one step is required.</span>
+        <span class="field-error" *ngIf="showTimerError">Step timers use minutes and seconds, with seconds under 60.</span>
       </section>
 
       <!-- SERVE STYLE -->
@@ -191,9 +222,11 @@
           <span class="section-divider"></span>
         </div>
 
-        <div class="serve-style-row">
+        <div class="serve-style-row" role="group" aria-label="Serve style">
           <button type="button" class="serve-pill" *ngFor="let style of serveStyles"
-            [class.selected]="selectedServeStyle === style" (click)="selectServeStyle(style)">
+            [class.selected]="serveStyleOn(style)"
+            [attr.aria-pressed]="serveStyleOn(style)"
+            (click)="toggleServeStyle(style)">
             <svg lucideCircleCheck [size]="18"></svg>
             <span>{{ style | titlecase }}</span>
           </button>

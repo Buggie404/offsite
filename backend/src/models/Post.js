@@ -19,7 +19,10 @@ const postSchema = new mongoose.Schema({
   content: { type: String, default: "" },
   media: { type: [mediaSchema], default: [] },
   recipe_id: { type: String, default: null },
-  base: { type: String, enum: ['MATCHA', 'COFFEE', 'RECIPE'], required: true },
+  // Recipes-page fork created when the community recipe reaches 30 likes.
+  catalog_recipe_id: { type: String, default: null },
+  // RECIPE = legacy / uncategorised recipe posts. New recipe posts store MATCHA/COFFEE/OTHERS.
+  base: { type: String, enum: ['MATCHA', 'COFFEE', 'OTHERS', 'RECIPE'], required: true },
   like_count: { type: Number, default: 0 },
   comment_count: { type: Number, default: 0 },
   share_count: { type: Number, default: 0 },

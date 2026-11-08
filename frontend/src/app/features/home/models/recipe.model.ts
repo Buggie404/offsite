@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
-export type RecipeTag  = 'HOT' | 'COLD' | 'DESSERT' | 'COCKTAIL';
+export type RecipeTag  = 'HOT' | 'COLD' | 'DESSERT';
 
 export interface RecipeHeroImage {
   url:       string;
@@ -16,12 +16,13 @@ export interface RecipeMetadata {
   prepTime:   number;             // minutes
   cookTime:   number | null;
   difficulty: Difficulty;
+  base?:      'MATCHA' | 'COFFEE' | 'OTHERS';
   tags:       RecipeTag[];
 }
 
 export interface RecipeIngredient {
   name:     string;
-  quantity: number;
+  quantity: number | string;
   unit:     string;
   optional: boolean;
 }
@@ -61,6 +62,7 @@ export interface Recipe {
   source:          RecipeSource;
   saves:           number;
   published:       boolean;
+  featured?:       boolean;
   createdAt:       string;
   updatedAt:       string;
 }

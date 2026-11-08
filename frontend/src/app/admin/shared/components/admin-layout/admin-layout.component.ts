@@ -47,6 +47,7 @@ import {
 } from '../../services/admin-notification.service';
 import { ADMIN_NAV_GROUPS, AdminNavGroup, AdminNavItem } from '../../../admin-navigation.config';
 import { ADMIN_ROLE_LABELS } from '../../../../shared/models/admin-role.model';
+import { AdminRecipeService } from '../../../recipes/services/admin-recipe.service';
 
 @Component({
   selector: 'app-admin-layout',
@@ -88,6 +89,7 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   private adminAuth = inject(AdminAuthService);
   private adminRefresh = inject(AdminRefreshService);
   private adminNotifications = inject(AdminNotificationService);
+  private recipesApi = inject(AdminRecipeService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private destroyRef = inject(DestroyRef);
@@ -142,6 +144,7 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     if (path.startsWith('/admin/customers')) return 'Search customers...';
     if (path.startsWith('/admin/subscriptions')) return 'Search subscriptions...';
     if (path.startsWith('/admin/products')) return 'Search name or SKU...';
+    if (path.startsWith('/admin/recipes')) return 'Search recipes…';
     return 'Search by order ID, customer name, or email...';
   }
 
@@ -207,6 +210,8 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
       this.searchQuery = params['search'] || '';
     });
 
+    this.warmRecipesPage();
+
     if (this.canViewOrderNotifications) {
       interval(this.pollIntervalMs)
         .pipe(
@@ -234,6 +239,15 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit(): void {
     this.ensureChildRoute();
+  }
+
+  private warmRecipesPage(): void {
+    const canOpenRecipes = this.visibleNavigationGroups.some((group) =>
+      group.items.some((item) => item.path === '/admin/recipes')
+    );
+    if (!canOpenRecipes) return;
+    this.recipesApi.prefetch();
+    void import('../../../recipes/pages/recipes/recipes.component');
   }
 
   private ensureChildRoute(): void {

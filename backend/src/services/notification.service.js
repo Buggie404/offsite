@@ -20,6 +20,7 @@ async function createNotification(data) {
       post_id: data.post_id || null,
       subscription_id: data.subscription_id || null,
       order_id: data.order_id || null,
+      recipe_slug: data.recipe_slug || null,
       message: data.message || null,
       comment_id: data.comment_id || null,
       comment_content: data.comment_content || null,

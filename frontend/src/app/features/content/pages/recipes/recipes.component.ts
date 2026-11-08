@@ -184,17 +184,7 @@ export class RecipesComponent implements OnInit, OnDestroy, AfterViewInit {
 
     // 2. Base Category filter
     if (this.selectedBase !== 'ALL') {
-      const baseLower = this.selectedBase.toLowerCase();
-      result = result.filter(r => {
-        const titleLower = r.title.toLowerCase();
-        const hasMatcha = titleLower.includes('matcha') || r.metadata.tags.some((t: string) => t.toLowerCase() === 'matcha');
-        const hasCoffee = titleLower.includes('coffee') || r.metadata.tags.some((t: string) => t.toLowerCase() === 'coffee');
-
-        if (baseLower === 'matcha') return hasMatcha;
-        if (baseLower === 'coffee') return hasCoffee;
-        if (baseLower === 'others') return !hasMatcha && !hasCoffee;
-        return true;
-      });
+      result = result.filter(r => this.getRecipeBaseLabel(r).toUpperCase() === this.selectedBase);
     }
 
     // 3. Style filter
@@ -262,7 +252,7 @@ export class RecipesComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // Helper Methods for Recipe Cards
   getBadgeLabel(recipe: Recipe): string {
-    return recipe.metadata.tags.find((t: string) => ['HOT', 'COLD', 'DESSERT', 'COCKTAIL'].includes(t)) || '';
+    return recipe.metadata.tags.find((t: string) => ['HOT', 'COLD', 'DESSERT'].includes(t)) || '';
   }
 
   getBadgeColor(recipe: Recipe): string {
@@ -286,11 +276,13 @@ export class RecipesComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   getRecipeBaseLabel(recipe: Recipe): string {
+    const stored = String(recipe.metadata?.base || '').toUpperCase();
+    if (stored === 'MATCHA') return 'Matcha';
+    if (stored === 'COFFEE') return 'Coffee';
+    if (stored === 'OTHERS') return 'Others';
     const titleLower = recipe.title.toLowerCase();
-    const hasMatcha = titleLower.includes('matcha') || recipe.metadata.tags.some((t: string) => t.toLowerCase() === 'matcha');
-    if (hasMatcha) return 'Matcha';
-    const hasCoffee = titleLower.includes('coffee') || recipe.metadata.tags.some((t: string) => t.toLowerCase() === 'coffee');
-    if (hasCoffee) return 'Coffee';
+    if (titleLower.includes('matcha')) return 'Matcha';
+    if (titleLower.includes('coffee')) return 'Coffee';
     return 'Others';
   }
 

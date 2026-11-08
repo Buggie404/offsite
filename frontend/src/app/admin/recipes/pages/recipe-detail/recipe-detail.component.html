@@ -1,0 +1,555 @@
+<section class="detail" [class.detail--dirty]="dirty" aria-label="Recipe detail">
+  <p class="state" *ngIf="loading">Loading recipe…</p>
+
+  <div class="state state--error" *ngIf="!loading && loadError">
+    <p>{{ loadError }}</p>
+    <a routerLink="/admin/recipes">Back to Recipes</a>
+  </div>
+
+  <ng-container *ngIf="!loading && !loadError">
+    <header class="page-header">
+      <a class="crumb" routerLink="/admin/recipes">
+        <svg lucideArrowLeft [size]="14" aria-hidden="true"></svg>
+        Recipes / {{ heading }}
+      </a>
+      <div class="page-header__bar">
+        <h1>{{ heading }}</h1>
+        <div class="page-header__meta">
+          <p class="page-header__note" *ngIf="metaNote">{{ metaNote }}</p>
+          <span class="chip" [class.chip--community]="source === 'community'">{{ source === 'community' ? 'Community' : 'Offsite' }}</span>
+        </div>
+      </div>
+    </header>
+
+    <p class="banner" *ngIf="error" role="alert">{{ error }}</p>
+
+    <p class="owner-note" *ngIf="!canEditContent && !creating" role="note">
+      Community recipe content is edited by its owner. You can hide, restore, delete or feature it.
+    </p>
+
+    <div class="columns">
+      <fieldset class="main" [disabled]="!canEditContent">
+        <section class="card" aria-label="General">
+          <header class="card__header">
+            <h2>General</h2>
+          </header>
+          <div class="card__body media">
+            <label class="media__frame" [class.media__frame--empty]="!coverSrc">
+              <img *ngIf="coverSrc" [src]="coverSrc" alt="" />
+              <span class="media__empty" *ngIf="!coverSrc">
+                <svg lucideImage [size]="22" aria-hidden="true"></svg>
+                <span>No cover</span>
+              </span>
+              <span class="media__hover">
+                <span class="media__action">
+                  <svg lucideImage [size]="15" aria-hidden="true"></svg>
+                  {{ coverSrc ? 'Replace image' : 'Add image' }}
+                </span>
+              </span>
+              <input type="file" accept="image/*" [attr.aria-label]="coverSrc ? 'Replace image' : 'Add image'" (change)="onCover($event)" />
+            </label>
+
+            <div class="media__fields fields">
+              <label class="field">
+                <span>Title</span>
+                <input class="control" type="text" maxlength="140" [ngModel]="title" (ngModelChange)="title = $event" />
+              </label>
+
+              <label class="field">
+                <span>Short description</span>
+                <textarea class="control control--area" maxlength="500" rows="2" [ngModel]="description" (ngModelChange)="description = $event"></textarea>
+              </label>
+
+              <div class="meta">
+                <label class="field">
+                  <span>Base</span>
+                  <span class="select" [class.is-empty]="!base">
+                    <select aria-label="Base" [ngModel]="base" (ngModelChange)="base = $event">
+                      <option value="">Select</option>
+                      <option *ngFor="let item of baseOptions" [value]="item.value">{{ item.label }}</option>
+                    </select>
+                    <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+                  </span>
+                </label>
+                <div class="field">
+                  <span>Serve</span>
+                  <div class="multi" [class.is-empty]="!serves.length" [class.open]="serveOpen" (click)="$event.stopPropagation()">
+                    <button type="button" class="multi__button" [attr.aria-expanded]="serveOpen" aria-haspopup="listbox" (click)="serveOpen = !serveOpen">
+                      <span>{{ serveSummary }}</span>
+                      <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+                    </button>
+                    <div class="multi__menu" *ngIf="serveOpen" role="listbox" aria-label="Serve" aria-multiselectable="true">
+                      <button
+                        type="button"
+                        class="multi__option"
+                        role="option"
+                        *ngFor="let item of serveOptions"
+                        [class.on]="serveOn(item.value)"
+                        [attr.aria-selected]="serveOn(item.value)"
+                        (click)="toggleServe(item.value)"
+                      >
+                        <svg *ngIf="serveOn(item.value)" lucideCheck [size]="14" aria-hidden="true"></svg>
+                        <span *ngIf="!serveOn(item.value)" class="multi__box" aria-hidden="true"></span>
+                        {{ item.label }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <label class="field">
+                  <span>Difficulty</span>
+                  <span class="select" [class.is-empty]="!difficulty">
+                    <select aria-label="Difficulty" [ngModel]="difficulty" (ngModelChange)="difficulty = $event">
+                      <option value="">Select</option>
+                      <option *ngFor="let item of difficulties" [value]="item.value">{{ item.label }}</option>
+                    </select>
+                    <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+                  </span>
+                </label>
+              </div>
+
+              <div class="meta meta--timing">
+                <label class="field">
+                  <span>Servings</span>
+                  <input class="control" type="text" inputmode="numeric" maxlength="2" aria-label="Servings" [ngModel]="servings" (ngModelChange)="servings = $event" />
+                </label>
+                <label class="field">
+                  <span>Prep time (mins)</span>
+                  <input class="control" type="text" inputmode="numeric" maxlength="3" aria-label="Prep time in minutes" [ngModel]="prepTime" (ngModelChange)="prepTime = $event" />
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" aria-label="Content">
+          <header class="card__header">
+            <h2>Content</h2>
+          </header>
+          <div class="card__body fields">
+            <div class="editor">
+              <div class="editor__label">
+                <span>Ingredients</span>
+                <span>{{ countLabel(ingredientCount, 'item') }}</span>
+              </div>
+              <div
+                class="line"
+                *ngFor="let item of ingredients; let i = index"
+                (dragover)="onDragOver($event)"
+                (drop)="onDrop('ingredients', i, $event)"
+              >
+                <button type="button" class="grip" draggable="true" aria-label="Reorder ingredient" (dragstart)="onDragStart('ingredients', i, $event)">
+                  <svg lucideGripVertical [size]="16" aria-hidden="true"></svg>
+                </button>
+                <input class="control" type="text" aria-label="Ingredient name" [ngModel]="item.name" (ngModelChange)="item.name = $event; onNameInput()" />
+                <input class="control control--qty" type="text" inputmode="text" aria-label="Quantity" placeholder="Qty" [ngModel]="item.quantity" (ngModelChange)="item.quantity = $event" />
+                <span class="select select--unit">
+                  <select [ngModel]="item.unit" (ngModelChange)="item.unit = $event" aria-label="Unit">
+                    <option value="">—</option>
+                    <option *ngFor="let unit of units" [value]="unit">{{ unit }}</option>
+                  </select>
+                  <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+                </span>
+                <button type="button" class="remove" aria-label="Remove ingredient" (click)="removeIngredient(i)">
+                  <svg lucideTrash2 [size]="16" aria-hidden="true"></svg>
+                </button>
+              </div>
+              <button type="button" class="btn-outline" (click)="addIngredient()">
+                <svg lucidePlus [size]="14" aria-hidden="true"></svg>
+                Add ingredient
+              </button>
+            </div>
+
+            <div class="editor">
+              <div class="editor__label">
+                <span>Tools</span>
+                <span>{{ countLabel(toolCount, 'item') }}</span>
+              </div>
+              <div
+                class="line"
+                *ngFor="let item of tools; let i = index"
+                (dragover)="onDragOver($event)"
+                (drop)="onDrop('tools', i, $event)"
+              >
+                <button type="button" class="grip" draggable="true" aria-label="Reorder tool" (dragstart)="onDragStart('tools', i, $event)">
+                  <svg lucideGripVertical [size]="16" aria-hidden="true"></svg>
+                </button>
+                <input class="control" type="text" aria-label="Tool name" [ngModel]="item.name" (ngModelChange)="item.name = $event; onNameInput()" />
+                <button type="button" class="remove" aria-label="Remove tool" (click)="removeTool(i)">
+                  <svg lucideTrash2 [size]="16" aria-hidden="true"></svg>
+                </button>
+              </div>
+              <button type="button" class="btn-outline" (click)="addTool()">
+                <svg lucidePlus [size]="14" aria-hidden="true"></svg>
+                Add tool
+              </button>
+            </div>
+
+            <div class="editor">
+              <div class="editor__label">
+                <span>Steps</span>
+                <span>{{ countLabel(stepCount, 'step') }}</span>
+              </div>
+              <div
+                class="line line--step"
+                *ngFor="let item of steps; let i = index"
+                (dragover)="onDragOver($event)"
+                (drop)="onDrop('steps', i, $event)"
+              >
+                <button type="button" class="grip" draggable="true" aria-label="Reorder step" (dragstart)="onDragStart('steps', i, $event)">
+                  <svg lucideGripVertical [size]="16" aria-hidden="true"></svg>
+                </button>
+                <span class="step-no">{{ i + 1 }}</span>
+                <div class="step-fields">
+                  <div class="step-head">
+                    <input class="control" type="text" maxlength="140" [attr.aria-label]="'Step ' + (i + 1)" placeholder="Step name" [ngModel]="item.title" (ngModelChange)="item.title = $event" />
+                    <div class="timer" [class.timer--set]="item.timerOpen">
+                      <button *ngIf="!item.timerOpen" type="button" class="timer__idle" (click)="openTimer(item)">
+                        <svg lucideClock [size]="14" aria-hidden="true"></svg>
+                        Timer
+                      </button>
+                      <div class="timer__set" *ngIf="item.timerOpen">
+                        <label>
+                          <input type="text" inputmode="numeric" maxlength="3" [attr.aria-label]="'Step ' + (i + 1) + ' minutes'" placeholder="0" [ngModel]="item.minutes" (ngModelChange)="item.minutes = $event" />
+                          <span>min</span>
+                        </label>
+                        <span class="timer__colon" aria-hidden="true">:</span>
+                        <label>
+                          <input type="text" inputmode="numeric" maxlength="2" [attr.aria-label]="'Step ' + (i + 1) + ' seconds'" placeholder="00" [ngModel]="item.seconds" (ngModelChange)="item.seconds = $event" />
+                          <span>sec</span>
+                        </label>
+                        <button type="button" class="timer__clear" [attr.aria-label]="'Remove timer from step ' + (i + 1)" (click)="clearTimer(item)">
+                          <svg lucideX [size]="14" aria-hidden="true"></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <textarea class="control control--step" rows="2" maxlength="2000" [attr.aria-label]="'Step ' + (i + 1) + ' details'" placeholder="Details" [ngModel]="item.description" (ngModelChange)="item.description = $event"></textarea>
+                </div>
+                <button type="button" class="remove" aria-label="Remove step" (click)="removeStep(i)">
+                  <svg lucideTrash2 [size]="16" aria-hidden="true"></svg>
+                </button>
+              </div>
+              <button type="button" class="btn-outline" (click)="addStep()">
+                <svg lucidePlus [size]="14" aria-hidden="true"></svg>
+                Add step
+              </button>
+            </div>
+          </div>
+        </section>
+      </fieldset>
+
+      <aside class="side">
+        <section class="card" aria-label="Status">
+          <header class="card__header">
+            <h2>Status</h2>
+          </header>
+          <div class="card__body status">
+            <div class="status__row">
+              <div>
+                <strong>Visibility</strong>
+                <p>{{ visibilityNote }}</p>
+              </div>
+              <button
+                type="button"
+                class="btn-outline"
+                [disabled]="savingAction"
+                (click)="onVisibility()"
+              >
+                <svg *ngIf="published" lucideEyeOff [size]="14" aria-hidden="true"></svg>
+                <svg *ngIf="!published" lucideEye [size]="14" aria-hidden="true"></svg>
+                {{ visibilityLabel }}
+              </button>
+            </div>
+            <div class="status__row status__row--line">
+              <div>
+                <strong>Feature on homepage</strong>
+                <p>{{ featureNote }}</p>
+              </div>
+              <button
+                type="button"
+                class="toggle"
+                role="switch"
+                [class.on]="featured"
+                [disabled]="!published || saving"
+                [attr.aria-checked]="featured"
+                aria-label="Feature on homepage"
+                (click)="toggleFeatured()"
+              ></button>
+            </div>
+            <div class="replace" *ngIf="needsReplacement">
+              <label class="field">
+                <span>Replace on the homepage</span>
+                <span class="select" [class.is-empty]="!replaceId">
+                  <select aria-label="Recipe to replace" [ngModel]="replaceId" (ngModelChange)="replaceId = $event">
+                    <option value="">Choose a recipe</option>
+                    <option *ngFor="let item of featuredSlots" [value]="item.recipe_id">{{ item.title }}</option>
+                  </select>
+                  <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+                </span>
+              </label>
+            </div>
+            <div class="status__actions">
+              <button
+                *ngIf="canRequestChanges"
+                type="button"
+                class="btn-outline"
+                [disabled]="savingAction"
+                (click)="openAction('changes')"
+              >
+                Request more changes
+              </button>
+              <button
+                *ngIf="canFinalReject"
+                type="button"
+                class="btn-outline btn-outline--danger"
+                [disabled]="savingAction"
+                (click)="openAction('reject')"
+              >
+                Final reject
+              </button>
+              <button
+                type="button"
+                class="btn-outline btn-outline--danger"
+                [disabled]="creating"
+                (click)="openAction('delete')"
+              >
+                <svg lucideTrash2 [size]="14" aria-hidden="true"></svg>
+                Delete
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" aria-label="Linked products">
+          <header class="card__header">
+            <h2>Linked products</h2>
+            <span class="chip">Offsite only</span>
+          </header>
+          <div class="card__body links">
+            <p class="links__note">“Complete the ritual” · max 3 products</p>
+
+            <ng-container *ngIf="canLink; else communityLinks">
+              <div class="link-row" *ngFor="let line of ritualLines">
+                <p>
+                  <strong>{{ line.name }}</strong>
+                  <ng-container *ngIf="line.amount"> · {{ line.amount }}</ng-container>
+                </p>
+                <span class="chip" *ngIf="line.status === 'linked' && line.product">{{ line.product.name }} ✓ linked</span>
+                <p class="quiet" *ngIf="line.status === 'none'">No match in catalog</p>
+                <div class="suggest" *ngIf="line.status === 'suggested' && line.product">
+                  <p>Suggested:</p>
+                  <div>
+                    <span class="chip chip--neutral">{{ line.product.name }}</span>
+                    <button type="button" (click)="linkProduct(line.product)">+ Link</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pills" *ngIf="linkedProducts.length">
+                <span class="pill" *ngFor="let product of linkedProducts">
+                  <img [src]="product.image_url || 'assets/images/placeholder.svg'" alt="" width="22" height="22" />
+                  {{ product.name }}
+                  <button type="button" [attr.aria-label]="'Unlink ' + product.name" (click)="unlink(product.product_id)">
+                    <svg lucideX [size]="12" aria-hidden="true"></svg>
+                  </button>
+                </span>
+              </div>
+
+              <button type="button" class="btn-outline" (click)="openProducts()">
+                <svg lucidePlus [size]="14" aria-hidden="true"></svg>
+                Add product
+              </button>
+            </ng-container>
+            <ng-template #communityLinks>
+              <p class="quiet">Community recipes can’t be linked to shop products. The original post stays in Community.</p>
+            </ng-template>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="unsaved" *ngIf="dirty" role="status">
+      <p>Unsaved changes: {{ changeSummary }}</p>
+      <button type="button" (click)="discard()" [disabled]="saving">Discard</button>
+      <button type="button" class="save" (click)="save()" [disabled]="saving">{{ saving ? 'Saving…' : (canEditContent ? 'Save changes' : 'Save featured') }}</button>
+    </div>
+  </ng-container>
+</section>
+
+<div class="modal-overlay" *ngIf="productModal" (click)="closeProducts()">
+  <div
+    class="picker"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="add-products-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="picker__header">
+      <h2 id="add-products-title">Add linked products</h2>
+      <button type="button" class="picker__close" (click)="closeProducts()" aria-label="Close">
+        <svg lucideX [size]="18" aria-hidden="true"></svg>
+      </button>
+    </header>
+    <div class="picker__body">
+      <label class="picker__search">
+        <svg lucideSearch [size]="16" aria-hidden="true"></svg>
+        <input
+          type="search"
+          placeholder="Search product or SKU"
+          aria-label="Search product or SKU"
+          [ngModel]="productQuery"
+          (ngModelChange)="onProductSearch($event)"
+        />
+      </label>
+      <p class="picker__kicker" *ngIf="!productQuery.trim()">Suggested from ingredients</p>
+      <p class="picker__empty" *ngIf="productSearching">Searching…</p>
+      <p class="picker__empty" *ngIf="!productSearching && productQuery.trim() && !modalRows.length">No products match.</p>
+      <p class="picker__empty" *ngIf="!productSearching && !productQuery.trim() && !modalRows.length">Suggestions appear when an ingredient or tool matches a product.</p>
+      <button
+        type="button"
+        class="product"
+        *ngFor="let product of modalRows"
+        [class.is-selected]="isPending(product)"
+        [attr.aria-pressed]="isPending(product)"
+        (click)="togglePending(product)"
+      >
+        <img [src]="product.image_url || 'assets/images/placeholder.svg'" alt="" width="40" height="40" />
+        <span>
+          <strong>{{ product.name }}</strong>
+          <em [class.is-out]="!product.in_stock">{{ productMeta(product) }}</em>
+        </span>
+        <span class="check" [class.on]="isPending(product)" aria-hidden="true">
+          <svg *ngIf="isPending(product)" lucideCheck [size]="12"></svg>
+        </span>
+      </button>
+      <p class="picker__note">{{ selectionNote }}</p>
+    </div>
+    <footer class="picker__footer">
+      <button type="button" class="btn-outline" (click)="closeProducts()">Cancel</button>
+      <button type="button" class="btn-solid" [disabled]="!pendingIds.length" (click)="confirmProducts()">{{ addLabel }}</button>
+    </footer>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="action as dialog" (click)="closeAction()">
+  <div
+    class="modal"
+    [class.modal--wide]="dialog !== 'show'"
+    [class.modal--danger]="dangerAction"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="recipe-action-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="modal__header">
+      <h2 id="recipe-action-title">{{ actionTitle }}</h2>
+      <button type="button" class="modal__close" (click)="closeAction()" aria-label="Close">
+        <svg lucideX [size]="18" aria-hidden="true"></svg>
+      </button>
+    </header>
+    <div class="modal__body">
+      <p class="modal__copy" *ngIf="dialog === 'hide'">
+        It leaves the Recipes page, homepage and search. You can restore it anytime.
+        <ng-container *ngIf="source === 'offsite'"> Linked products stay saved.</ng-container>
+      </p>
+      <p class="modal__copy" *ngIf="dialog === 'show'">
+        It appears on the Recipes page and product pages again. It stays off the homepage until you feature it.
+        <ng-container *ngIf="awaitingReview"> The owner is told it was restored.</ng-container>
+      </p>
+      <p class="modal__copy" *ngIf="dialog === 'changes'">
+        The recipe goes back to hidden and the owner is notified with your note.
+        Review {{ reviewRound }} of {{ maxReviewRounds }} used.
+      </p>
+      <p class="modal__copy" *ngIf="dialog === 'reject'">
+        The recipe stays hidden and the owner can no longer edit or resubmit it. They can still delete it.
+      </p>
+      <p class="modal__copy" *ngIf="dialog === 'delete' && source === 'offsite'">
+        Check featured and product links first — those references leave with it.
+      </p>
+
+      <div class="callout" *ngIf="(dialog === 'hide' || dialog === 'delete') && source === 'community'">
+        <svg lucideTriangleAlert [size]="16" aria-hidden="true"></svg>
+        <p *ngIf="dialog === 'hide'">
+          Community recipe<span *ngIf="ownerHandle"> by <strong>{{ ownerHandle }}</strong></span>.
+          The owner is notified. The original post stays in Community.
+        </p>
+        <p *ngIf="dialog === 'delete'">
+          Community recipe<span *ngIf="ownerHandle"> by <strong>{{ ownerHandle }}</strong></span>.
+          The recipe is deleted and the owner is notified. The original post stays in Community.
+        </p>
+      </div>
+
+      <ng-container *ngIf="dialog === 'hide' || dialog === 'delete'">
+        <label class="field">
+          <span>Reason</span>
+          <span class="select">
+            <select [ngModel]="reason" (ngModelChange)="onReasonChange($event)" aria-label="Reason">
+              <option *ngFor="let item of reasonOptions" [value]="item.value">{{ item.label }}</option>
+            </select>
+            <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+          </span>
+        </label>
+
+        <label class="field">
+          <span>
+            Note
+            <ng-container *ngIf="noteNeedsValue"> (required)</ng-container>
+            <ng-container *ngIf="!noteNeedsValue && source === 'offsite'"> (optional)</ng-container>
+          </span>
+          <textarea
+            rows="3"
+            [attr.maxlength]="noteMax"
+            [placeholder]="noteFieldPlaceholder"
+            [ngModel]="note"
+            (ngModelChange)="note = $event"
+          ></textarea>
+        </label>
+      </ng-container>
+      <label class="field" *ngIf="dialog === 'changes' || dialog === 'reject'">
+        <span>
+          Note
+          <ng-container *ngIf="dialog === 'changes'"> (required)</ng-container>
+          <ng-container *ngIf="dialog === 'reject'"> (optional)</ng-container>
+        </span>
+        <textarea
+          rows="3"
+          [attr.maxlength]="noteMax"
+          [placeholder]="dialog === 'changes' ? 'Say what still needs fixing — this is sent to the owner' : 'Optional note — sent to the owner'"
+          [ngModel]="note"
+          (ngModelChange)="note = $event"
+        ></textarea>
+      </label>
+      <p class="modal__error" *ngIf="actionError" role="alert">{{ actionError }}</p>
+    </div>
+    <footer class="modal__footer">
+      <button type="button" class="modal__cancel" (click)="closeAction()" [disabled]="savingAction">Cancel</button>
+      <button type="button" class="modal__confirm" [class.danger]="dangerAction" [disabled]="!canConfirm" (click)="confirmAction()">
+        {{ confirmLabel }}
+      </button>
+    </footer>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="leavePrompt" (click)="stayOnPage()">
+  <div
+    class="modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="leave-recipe-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="modal__header">
+      <h2 id="leave-recipe-title">Leave without saving?</h2>
+      <button type="button" class="modal__close" (click)="stayOnPage()" aria-label="Close">
+        <svg lucideX [size]="18" aria-hidden="true"></svg>
+      </button>
+    </header>
+    <div class="modal__body">
+      <p class="modal__copy">Unsaved changes will be lost.</p>
+    </div>
+    <footer class="modal__footer">
+      <button type="button" class="modal__cancel" (click)="stayOnPage()">Stay</button>
+      <button type="button" class="modal__confirm" (click)="leavePage()">Leave</button>
+    </footer>
+  </div>
+</div>

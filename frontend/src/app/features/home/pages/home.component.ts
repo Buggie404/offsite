@@ -90,7 +90,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       const [catalogResult, recipeResult, recipeFallbackResult] = await Promise.allSettled([
         firstValueFrom(this.productsApi.getProducts()),
         Promise.allSettled(data.recipes.map(pick => firstValueFrom(this.recipesApi.getRecipeBySlug(pick.slug)))),
-        firstValueFrom(this.recipesApi.getMostSavedRecipes(10))
+        firstValueFrom(this.recipesApi.getFeaturedRecipes())
       ]);
       if (revision !== this.personalizationRevision) return;
       if (catalogResult.status === 'fulfilled') {

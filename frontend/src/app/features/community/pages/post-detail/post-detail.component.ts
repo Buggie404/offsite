@@ -85,13 +85,25 @@ export class PostDetailComponent implements OnInit, OnDestroy {
     return this.mediaList[this.activeMediaIndex] ?? null;
   }
 
-  // "Matcha · Iced" line under the RECIPE chip.
+  /** Serve styles only — base is shown as its own chip. */
   get recipeKicker(): string {
-    // The RECIPE chip already says "Recipe", so only matcha/coffee bases are repeated here.
-    const rawBase = this.post?.base && this.post.base !== 'RECIPE' ? this.post.base : '';
-    const base = rawBase ? rawBase.charAt(0) + rawBase.slice(1).toLowerCase() : '';
-    const tags = (this.post?.recipe?.metadata?.tags || []).map(t => PostDetailComponent.TAG_LABELS[t] || t);
-    return [base, ...tags].filter(Boolean).join(' · ');
+    return (this.post?.recipe?.metadata?.tags || [])
+      .map(t => PostDetailComponent.TAG_LABELS[t] || t)
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  get baseLabel(): string {
+    const fromRecipe = String(this.post?.recipe?.metadata?.base || '').toUpperCase();
+    const fromPost = String(this.post?.base || '').toUpperCase();
+    const raw = ['MATCHA', 'COFFEE', 'OTHERS'].includes(fromRecipe)
+      ? fromRecipe
+      : (fromPost !== 'RECIPE' ? fromPost : '');
+    if (raw === 'MATCHA') return 'Matcha';
+    if (raw === 'COFFEE') return 'Coffee';
+    if (raw === 'OTHERS') return 'Others';
+    if (!raw) return '';
+    return raw.charAt(0) + raw.slice(1).toLowerCase();
   }
 
   get totalMinutes(): number {

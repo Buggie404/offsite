@@ -1,0 +1,206 @@
+<div class="edit-overlay" (click)="close()">
+  <div
+    class="edit-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="edit-recipe-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="edit-header">
+      <h2 id="edit-recipe-title" class="edit-title">Edit recipe</h2>
+      <button class="edit-close" type="button" (click)="close()" [disabled]="saving" aria-label="Close">
+        <svg lucideX [size]="18" [strokeWidth]="1.75" aria-hidden="true"></svg>
+      </button>
+    </header>
+
+    <div class="edit-body">
+      <aside class="edit-notice" *ngIf="recipe.owner_banner as banner" role="status">
+        <svg lucideTriangleAlert [size]="15" aria-hidden="true"></svg>
+        <div>
+          <strong>Hidden from Recipes</strong>
+          <span class="edit-notice__detail" *ngIf="banner.note"><b>Note</b> {{ banner.note }}</span>
+          <span class="edit-notice__hint" *ngIf="!banner.note">Update what’s flagged, then save and submit for review.</span>
+        </div>
+      </aside>
+
+      <section class="edit-section">
+        <div class="cover-row">
+          <label class="cover" [class.cover--empty]="!coverSrc">
+            <img *ngIf="coverSrc" [src]="coverSrc" alt="" />
+            <span class="cover__empty" *ngIf="!coverSrc">
+              <svg lucideImage [size]="22" aria-hidden="true"></svg>
+              <span>No cover</span>
+            </span>
+            <span class="cover__hover">
+              <span class="cover__action">
+                <svg lucideImage [size]="14" aria-hidden="true"></svg>
+                {{ coverSrc ? 'Replace image' : 'Add image' }}
+              </span>
+            </span>
+            <input type="file" accept="image/*" [attr.aria-label]="coverSrc ? 'Replace image' : 'Add image'" (change)="onCover($event)" />
+          </label>
+
+          <div class="fields">
+            <label class="field">
+              <span>Title</span>
+              <input class="control" type="text" maxlength="140" [ngModel]="title" (ngModelChange)="title = $event" />
+            </label>
+            <label class="field">
+              <span>Short description</span>
+              <textarea class="control control--area" maxlength="500" rows="3" [ngModel]="description" (ngModelChange)="description = $event"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span>Base</span>
+            <span class="select" [class.is-empty]="!base">
+              <select aria-label="Base" [ngModel]="base" (ngModelChange)="base = $event">
+                <option value="">Select</option>
+                <option *ngFor="let item of baseOptions" [value]="item.value">{{ item.label }}</option>
+              </select>
+              <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+            </span>
+          </label>
+          <label class="field">
+            <span>Difficulty</span>
+            <span class="select" [class.is-empty]="!difficulty">
+              <select aria-label="Difficulty" [ngModel]="difficulty" (ngModelChange)="difficulty = $event">
+                <option value="">Select</option>
+                <option *ngFor="let item of difficulties" [value]="item.value">{{ item.label }}</option>
+              </select>
+              <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+            </span>
+          </label>
+          <label class="field">
+            <span>Servings</span>
+            <input class="control" type="number" min="1" max="99" inputmode="numeric" [ngModel]="servings" (ngModelChange)="servings = $event" />
+          </label>
+          <label class="field">
+            <span>Prep time (mins)</span>
+            <input class="control" type="number" min="0" max="999" inputmode="numeric" [ngModel]="prepTime" (ngModelChange)="prepTime = $event" />
+          </label>
+        </div>
+
+        <div class="field">
+          <span>Serve style</span>
+          <div class="serve-tags" role="group" aria-label="Serve style">
+            <button
+              type="button"
+              class="serve-tag"
+              *ngFor="let item of serveOptions"
+              [class.is-on]="serveOn(item.value)"
+              [attr.aria-pressed]="serveOn(item.value)"
+              (click)="toggleServe(item.value)"
+            >{{ item.label }}</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="edit-section">
+        <div class="editor__label">
+          <span>Ingredients</span>
+          <span>{{ ingredients.length }}</span>
+        </div>
+        <div class="line" *ngFor="let item of ingredients; let i = index; trackBy: trackByKey">
+          <input class="control" type="text" aria-label="Ingredient name" placeholder="Ingredient" [ngModel]="item.name" (ngModelChange)="item.name = $event" />
+          <input class="control control--qty" type="text" inputmode="text" aria-label="Quantity" placeholder="Qty" [ngModel]="item.quantity" (ngModelChange)="item.quantity = $event" />
+          <span class="select select--unit">
+            <select aria-label="Unit" [ngModel]="item.unit" (ngModelChange)="item.unit = $event">
+              <option value="">—</option>
+              <option *ngIf="hasCustomUnit(item.unit)" [value]="item.unit">{{ item.unit }}</option>
+              <option *ngFor="let unit of units" [value]="unit">{{ unit }}</option>
+            </select>
+            <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+          </span>
+          <button type="button" class="remove" aria-label="Remove ingredient" (click)="removeIngredient(i)">
+            <svg lucideTrash2 [size]="16" aria-hidden="true"></svg>
+          </button>
+        </div>
+        <button type="button" class="btn-outline" (click)="addIngredient()">
+          <svg lucidePlus [size]="14" aria-hidden="true"></svg>
+          Add ingredient
+        </button>
+      </section>
+
+      <section class="edit-section">
+        <div class="editor__label">
+          <span>Tools</span>
+          <span>{{ tools.length }}</span>
+        </div>
+        <div class="line" *ngFor="let item of tools; let i = index; trackBy: trackByKey">
+          <input class="control" type="text" aria-label="Tool name" placeholder="Tool" [ngModel]="item.name" (ngModelChange)="item.name = $event" />
+          <button type="button" class="remove" aria-label="Remove tool" (click)="removeTool(i)">
+            <svg lucideTrash2 [size]="16" aria-hidden="true"></svg>
+          </button>
+        </div>
+        <button type="button" class="btn-outline" (click)="addTool()">
+          <svg lucidePlus [size]="14" aria-hidden="true"></svg>
+          Add tool
+        </button>
+      </section>
+
+      <section class="edit-section">
+        <div class="editor__label">
+          <span>Steps</span>
+          <span>{{ steps.length }}</span>
+        </div>
+        <div class="line line--step" *ngFor="let item of steps; let i = index; trackBy: trackByKey">
+          <span class="step-no">{{ i + 1 }}</span>
+          <div class="step-fields">
+            <div class="step-head">
+              <input class="control" type="text" maxlength="140" [attr.aria-label]="'Step ' + (i + 1)" placeholder="Step name" [ngModel]="item.title" (ngModelChange)="item.title = $event" />
+              <button *ngIf="!item.timerOpen" type="button" class="timer__idle" (click)="openTimer(item)">
+                <svg lucideClock [size]="14" aria-hidden="true"></svg>
+                Timer
+              </button>
+              <div class="timer__set" *ngIf="item.timerOpen">
+                <label>
+                  <input type="text" inputmode="numeric" maxlength="3" [attr.aria-label]="'Step ' + (i + 1) + ' minutes'" placeholder="0" [ngModel]="item.minutes" (ngModelChange)="item.minutes = $event" />
+                  <span>min</span>
+                </label>
+                <span class="timer__colon" aria-hidden="true">:</span>
+                <label>
+                  <input type="text" inputmode="numeric" maxlength="2" [attr.aria-label]="'Step ' + (i + 1) + ' seconds'" placeholder="00" [ngModel]="item.seconds" (ngModelChange)="item.seconds = $event" />
+                  <span>sec</span>
+                </label>
+                <button type="button" class="timer__clear" [attr.aria-label]="'Remove timer from step ' + (i + 1)" (click)="clearTimer(item)">
+                  <svg lucideX [size]="14" aria-hidden="true"></svg>
+                </button>
+              </div>
+            </div>
+            <textarea class="control control--area" rows="2" maxlength="2000" [attr.aria-label]="'Step ' + (i + 1) + ' details'" placeholder="Details" [ngModel]="item.description" (ngModelChange)="item.description = $event"></textarea>
+          </div>
+          <button type="button" class="remove" aria-label="Remove step" (click)="removeStep(i)">
+            <svg lucideTrash2 [size]="16" aria-hidden="true"></svg>
+          </button>
+        </div>
+        <button type="button" class="btn-outline" (click)="addStep()">
+          <svg lucidePlus [size]="14" aria-hidden="true"></svg>
+          Add step
+        </button>
+      </section>
+
+      <section class="edit-section">
+        <div class="editor__label">
+          <span>Products in this recipe</span>
+          <span>{{ linkedProducts.length }}/3</span>
+        </div>
+        <p class="products-note">Shown under “Complete the ritual” on the recipe page.</p>
+        <app-product-picker
+          [(selected)]="linkedProducts"
+          [suggestContent]="suggestContent"
+          [suggestBase]="suggestBase"
+        ></app-product-picker>
+      </section>
+
+      <p class="edit-error" *ngIf="error" role="alert">{{ error }}</p>
+    </div>
+
+    <footer class="edit-footer">
+      <button class="btn-outline" type="button" (click)="close()" [disabled]="saving">Cancel</button>
+      <button class="btn-solid" type="button" (click)="save()" [disabled]="saving">{{ saving ? 'Saving…' : 'Save changes' }}</button>
+    </footer>
+  </div>
+</div>

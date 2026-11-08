@@ -8,12 +8,13 @@ export interface RecipeMetadata {
   prepTime: number;
   cookTime: number | null;
   difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  base?: 'MATCHA' | 'COFFEE' | 'OTHERS';
   tags: string[];
 }
 
 export interface RecipeIngredient {
   name: string;
-  quantity?: number;
+  quantity?: number | string;
   unit?: string;
   optional: boolean;
 }
@@ -39,6 +40,31 @@ export interface RecipeSource {
   creatorAvatar?: string | null;
 }
 
+export type RecipeAvailability = 'visible' | 'hidden_owner';
+
+export interface RecipeOwnerBanner {
+  reason: string | null;
+  note: string;
+  status: string;
+  review_round: number;
+  max_review_rounds: number;
+}
+
+/** What a guest gets for a hidden recipe: no recipe body, only enough to show a resting page. */
+export interface RecipeHiddenStub {
+  availability: 'hidden';
+  recipe_id: string;
+  slug: string;
+  title: string;
+  message: string;
+}
+
+export type RecipeDetailResponse = Recipe | RecipeHiddenStub;
+
+export function isRecipeHidden(recipe: RecipeDetailResponse): recipe is RecipeHiddenStub {
+  return recipe.availability === 'hidden';
+}
+
 export interface Recipe {
   _id: string;
   recipe_id: string;
@@ -54,6 +80,12 @@ export interface Recipe {
   source: RecipeSource;
   saves: number;
   published: boolean;
+  featured?: boolean;
+  availability?: RecipeAvailability;
+  can_edit?: boolean;
+  can_delete?: boolean;
+  can_submit_review?: boolean;
+  owner_banner?: RecipeOwnerBanner;
   createdAt: string;
   updatedAt: string;
 }

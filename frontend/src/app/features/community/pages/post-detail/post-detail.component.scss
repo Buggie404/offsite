@@ -45,6 +45,11 @@ $step-num: #7a5a1e;
     background: var(--color-sage);
     color: var(--color-forest-green);
   }
+
+  &--wheat {
+    background: var(--color-wheat);
+    color: #7a5a1e;
+  }
 }
 
 .row-spacer {

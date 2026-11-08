@@ -14,11 +14,17 @@ import {
   LucideUser,
   LucideLink,
   LucideShare2,
-  LucideArrowRight
+  LucideArrowRight,
+  LucidePencil,
+  LucideSend,
+  LucideTrash2,
+  LucideTriangleAlert,
+  LucideX
 } from '@lucide/angular';
 import { ContentService } from '../../services/content.service';
 import { ProductService } from '../../../home/services/product.service';
-import { Recipe } from '../../../../shared/models/recipe.model';
+import { Recipe, RecipeDetailResponse, RecipeHiddenStub, isRecipeHidden } from '../../../../shared/models/recipe.model';
+import { HIDE_REASONS } from '../../../../admin/recipes/constants/recipe-moderation-reasons';
 import { Product, getDefaultPrice, isProductOutOfStock } from '../../../home/models/product.model';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { AuthModalService } from '../../../../core/auth-modal.service';
@@ -34,6 +40,7 @@ import { BrewCoachComponent } from '../../components/brew-coach/brew-coach.compo
 import { clearBrewProgress, readBrewProgress, resumeSecondsLeft } from '../../components/brew-coach/brew-progress';
 import { BrewPrepItem, BrewPrepModalComponent } from '../../components/brew-prep-modal/brew-prep-modal.component';
 import { BrewResumeModalComponent } from '../../components/brew-resume-modal/brew-resume-modal.component';
+import { EditRecipeModalComponent } from '../../components/edit-recipe-modal/edit-recipe-modal.component';
 import { PantryCoverage, PantryCoverageRow } from '../../../account/components/my-pantry/pantry.model';
 import { PantryService } from '../../../account/components/my-pantry/pantry.service';
 
@@ -55,6 +62,11 @@ import { PantryService } from '../../../account/components/my-pantry/pantry.serv
     LucideUser,
     LucideLink,
     LucideShare2,
+    LucidePencil,
+    LucideSend,
+    LucideTrash2,
+    LucideTriangleAlert,
+    LucideX,
     BackToTopComponent,
     ProductCardComponent,
     RitualFitComponent,
@@ -62,7 +74,8 @@ import { PantryService } from '../../../account/components/my-pantry/pantry.serv
     ShareModalComponent,
     BrewCoachComponent,
     BrewPrepModalComponent,
-    BrewResumeModalComponent
+    BrewResumeModalComponent,
+    EditRecipeModalComponent
   ],
   templateUrl: './recipe-detail.component.html',
   styleUrl: './recipe-detail.component.scss'
@@ -106,8 +119,14 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
       const loggedIn = !this.wasAuthed && authed;
       this.wasAuthed = authed;
 
-      if (loggedOut) this.clearUserState();
-      if (loggedIn) this.needsSaveSync = true;
+      if (loggedOut) {
+        this.clearUserState();
+        this.syncOwnerState();
+      }
+      if (loggedIn) {
+        this.needsSaveSync = true;
+        this.syncOwnerState();
+      }
 
       if (loggedIn && this.recipe?.recipe_id) this.loadPantryCoverage(this.recipe.recipe_id);
 
@@ -145,6 +164,12 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   }
 
   recipe: Recipe | null = null;
+  hiddenStub: RecipeHiddenStub | null = null;
+  editOpen = false;
+  deleteOpen = false;
+  ownerBusy = false;
+  ownerError = '';
+  private ownerSyncRequest = 0;
   relatedRecipes: Recipe[] = [];
   savedRecipeIds = new Set<string>();
   savedProductIds = new Set<number>();
@@ -210,10 +235,16 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     const requestedBrew = isPlatformBrowser(this.platformId)
       ? new URL(window.location.href).searchParams.get('brew')
       : null;
-    const stateKey = makeStateKey<Recipe>(`recipe-detail:${slug}`);
-    const transferred = this.transferState.get<Recipe | null>(stateKey, null);
+    const stateKey = makeStateKey<RecipeDetailResponse>(`recipe-detail:${slug}`);
+    const transferred = this.transferState.get<RecipeDetailResponse | null>(stateKey, null);
 
     this.errorMessage = '';
+    this.hiddenStub = null;
+    this.editOpen = false;
+    this.deleteOpen = false;
+    this.ownerBusy = false;
+    this.ownerError = '';
+    this.ownerSyncRequest += 1;
     this.markedDone = false;
     this.moreMenuOpen = false;
     this.linkCopied = false;
@@ -234,8 +265,17 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
 
     if (transferred) {
       this.transferState.remove(stateKey);
-      this.finishRecipeLoad(transferred, requestedBrew);
-      return;
+      // The server render is anonymous: a signed-in visitor may own this recipe, so ask again.
+      const signedIn = isPlatformBrowser(this.platformId) && this.hasAccessToken();
+      if (!isRecipeHidden(transferred)) {
+        this.finishRecipeLoad(transferred, requestedBrew);
+        if (signedIn) this.syncOwnerState();
+        return;
+      }
+      if (!signedIn) {
+        this.showHiddenStub(transferred);
+        return;
+      }
     }
 
     this.recipe = null;
@@ -246,6 +286,10 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
       next: (recipe) => {
         if (!isPlatformBrowser(this.platformId)) {
           this.transferState.set(stateKey, recipe);
+        }
+        if (isRecipeHidden(recipe)) {
+          this.showHiddenStub(recipe);
+          return;
         }
         this.finishRecipeLoad(recipe, requestedBrew);
       },
@@ -262,6 +306,56 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     });
   }
 
+  private showHiddenStub(stub: RecipeHiddenStub): void {
+    this.recipe = null;
+    this.hiddenStub = stub;
+    this.isLoading = false;
+    this.reveal();
+  }
+
+  /** Re-ask the API with the current sign-in so owner flags (edit, delete, banner) match who is viewing. */
+  private syncOwnerState(): void {
+    const slug = this.loadedSlug;
+    if (!slug || !isPlatformBrowser(this.platformId)) return;
+    const request = ++this.ownerSyncRequest;
+    this.contentService.getRecipe(slug).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (latest) => {
+        if (request !== this.ownerSyncRequest || slug !== this.loadedSlug) return;
+        if (isRecipeHidden(latest)) {
+          this.recipe = null;
+          this.editOpen = false;
+          this.deleteOpen = false;
+          this.showHiddenStub(latest);
+          return;
+        }
+        if (this.recipe && this.recipe.recipe_id === latest.recipe_id) {
+          const prevLinked = (this.recipe.relatedProducts || []).join(',');
+          this.mergeOwnerFields(latest);
+          const nextLinked = (latest.relatedProducts || []).join(',');
+          if (prevLinked !== nextLinked) this.loadProducts(latest.relatedProducts || []);
+          this.reveal();
+          return;
+        }
+        this.hiddenStub = null;
+        this.finishRecipeLoad(latest, null);
+      },
+      error: () => undefined
+    });
+  }
+
+  private mergeOwnerFields(latest: Recipe): void {
+    const recipe = this.recipe;
+    if (!recipe) return;
+    recipe.availability = latest.availability;
+    recipe.can_edit = latest.can_edit;
+    recipe.can_delete = latest.can_delete;
+    recipe.can_submit_review = latest.can_submit_review;
+    recipe.owner_banner = latest.owner_banner;
+    recipe.published = latest.published;
+    recipe.relatedProducts = latest.relatedProducts || recipe.relatedProducts;
+    if (latest.source) recipe.source = { ...recipe.source, ...latest.source };
+  }
+
   private finishRecipeLoad(recipe: Recipe, requestedBrew: string | null): void {
     this.recipe = recipe;
     const favoriteId = this.pullFavoriteResume(recipe);
@@ -269,6 +363,7 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     this.applyAuthResume(recipe);
     this.isLoading = false;
     this.openRequestedBrew(requestedBrew);
+    this.openRequestedEdit();
     this.reveal();
 
     if (!isPlatformBrowser(this.platformId)) return;
@@ -515,7 +610,7 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     return !!this.pantryRow(name);
   }
 
-  displayAmount(ingredient: { name: string; quantity?: number; unit?: string }): string {
+  displayAmount(ingredient: { name: string; quantity?: number | string; unit?: string }): string {
     const row = this.pantryRow(ingredient.name);
     if (row && row.quantity != null && !row.staple) {
       return this.formatItemAmount(row.quantity, row.unit || ingredient.unit);
@@ -523,9 +618,9 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     return this.formatItemAmount(ingredient.quantity, ingredient.unit);
   }
 
-  formatItemAmount(quantity?: number, unit?: string): string {
+  formatItemAmount(quantity?: number | string, unit?: string): string {
     const normalized = (unit || '').trim();
-    if (quantity == null) return normalized;
+    if (quantity == null || quantity === '') return normalized;
     const compactUnits = ['g', 'kg', 'ml', 'l', 'oz', 'lb'];
     if (!normalized) return `${quantity}`;
     if (compactUnits.includes(normalized.toLowerCase())) return `${quantity}${normalized}`;
@@ -843,7 +938,26 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
   }
 
   getAuthorName(recipe: Recipe): string {
-    return recipe.source.author || recipe.source.creatorName || 'Offsite';
+    const source = recipe.source;
+    const type = (source?.type || '').toLowerCase();
+    const name = (source?.creatorName || source?.author || '').replace(/^@/, '').trim();
+    const placeholder = /placeholder/i.test(source?.communityPostId || '');
+    if (type === 'community' && name && !placeholder) return name;
+    return 'Offsite';
+  }
+
+  isOffsiteAuthor(recipe: Recipe): boolean {
+    return this.getAuthorName(recipe) === 'Offsite';
+  }
+
+  getAuthorAvatar(recipe: Recipe): string | null {
+    const source = recipe.source;
+    const type = (source?.type || '').toLowerCase();
+    const placeholder = /placeholder/i.test(source?.communityPostId || '');
+    const avatar = (source?.creatorAvatar || '').trim();
+    if (type === 'community' && avatar && !placeholder) return avatar;
+    if (this.isOffsiteAuthor(recipe)) return 'assets/images/logo-mark-dark.svg';
+    return avatar || null;
   }
 
   getAuthorInitials(recipe: Recipe): string {
@@ -961,6 +1075,16 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     window.history.replaceState(window.history.state, '', next);
   }
 
+  /** Hide/moderation notifications deep-link here with ?edit=1 — only open when the owner can still edit. */
+  private openRequestedEdit(): void {
+    if (!isPlatformBrowser(this.platformId) || !this.recipe) return;
+    if (this.route.snapshot.queryParamMap.get('edit') !== '1') return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('edit');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    if (this.recipe.can_edit && this.isHiddenOwner) this.openEdit();
+  }
+
   confirmStartBrewing(): void {
     this.prepModalOpen = false;
     this.brewCoachOpen = true;
@@ -1012,7 +1136,7 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
 
   // --- Recipe Helpers ---
   getBadgeLabel(recipe: Recipe): string {
-    return recipe.metadata.tags.find((t: string) => ['HOT', 'COLD', 'DESSERT', 'COCKTAIL'].includes(t)) || '';
+    return recipe.metadata.tags.find((t: string) => ['HOT', 'COLD', 'DESSERT'].includes(t)) || '';
   }
 
   getBadgeColor(recipe: Recipe): string {
@@ -1035,7 +1159,19 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     return map[recipe.metadata.difficulty] ?? recipe.metadata.difficulty;
   }
 
+  formatStepTimer(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins && secs) return `${mins} min ${secs} sec`;
+    if (mins) return mins === 1 ? '1 min' : `${mins} min`;
+    return secs === 1 ? '1 sec' : `${secs} sec`;
+  }
+
   getRecipeBaseLabel(recipe: Recipe): string {
+    const stored = String(recipe.metadata?.base || '').toUpperCase();
+    if (stored === 'MATCHA') return 'Matcha';
+    if (stored === 'COFFEE') return 'Coffee';
+    if (stored === 'OTHERS') return 'Others';
     const titleLower = recipe.title.toLowerCase();
     const teaKeywords = ['matcha', 'hojicha', 'sencha', 'genmaicha', 'tea', 'green tea'];
     const hasMatcha = teaKeywords.some(kw => titleLower.includes(kw)) || 
@@ -1220,6 +1356,140 @@ export class RecipeDetailComponent implements OnInit, OnDestroy {
     } catch (err) {
       console.error('Failed to save product after login:', err);
     }
+  }
+
+  // --- Owner tools (hidden preview, edit, delete, submit for review) ---
+  get isHiddenOwner(): boolean {
+    return this.recipe?.availability === 'hidden_owner';
+  }
+
+  get showOwnerActions(): boolean {
+    const recipe = this.recipe;
+    return !!recipe && (!!recipe.can_edit || !!recipe.can_delete || !!recipe.can_submit_review);
+  }
+
+  get showMoreMenu(): boolean {
+    if (!this.isHiddenOwner) return true;
+    return !!this.recipe?.can_edit || !!this.recipe?.can_delete;
+  }
+
+  get bannerTitle(): string {
+    const status = this.recipe?.owner_banner?.status;
+    if (status === 'resubmitted') return 'Back with our team for review';
+    if (status === 'hidden_final') return 'Hidden after review';
+    return 'Hidden from the Recipes page';
+  }
+
+  get bannerReasonLabel(): string {
+    const reason = this.recipe?.owner_banner?.reason;
+    if (!reason) return '';
+    return HIDE_REASONS.find(item => item.value === reason)?.label || '';
+  }
+
+  get bannerHint(): string {
+    const banner = this.recipe?.owner_banner;
+    if (!banner) return '';
+    if (banner.status === 'resubmitted') return 'You’ll get a notification when the review is done.';
+    if (banner.status === 'hidden_final') return 'This recipe can’t be edited or resubmitted.';
+    if (this.recipe?.can_submit_review) return 'Update the recipe, then submit it for review.';
+    return '';
+  }
+
+  get bannerRounds(): string {
+    const banner = this.recipe?.owner_banner;
+    if (!banner || (!banner.review_round && !this.recipe?.can_submit_review)) return '';
+    return `${Math.min(banner.review_round, banner.max_review_rounds)} of ${banner.max_review_rounds} used`;
+  }
+
+  baseHint(): string {
+    return this.recipe ? this.getRecipeBaseLabel(this.recipe).toLowerCase() : '';
+  }
+
+  openEdit(): void {
+    if (!this.recipe?.can_edit) return;
+    this.ownerError = '';
+    this.moreMenuOpen = false;
+    this.linkCopied = false;
+    this.editOpen = true;
+  }
+
+  onRecipeEdited(updated: Recipe): void {
+    this.editOpen = false;
+    this.ownerError = '';
+    (updated as any).isFavorited = this.savedRecipeIds.has(updated.recipe_id);
+    this.recipe = updated;
+    this.checkedItemKeys = new Set<string>();
+    this.dismissedChecks = new Set<string>();
+    this.pantryCoverage = null;
+    this.coverageRevision += 1;
+    if (this.hasAccessToken()) this.loadPantryCoverage(updated.recipe_id);
+    this.loadProducts(updated.relatedProducts || []);
+    if (updated.slug && updated.slug !== this.loadedSlug) {
+      // The slug follows the title; keep the URL in step without reloading the page.
+      this.loadedSlug = updated.slug;
+      void this.router.navigate(['/recipes', updated.slug], { replaceUrl: true });
+    }
+    this.reveal();
+  }
+
+  submitForReview(): void {
+    const recipe = this.recipe;
+    if (!recipe?.can_submit_review || this.ownerBusy) return;
+    this.ownerBusy = true;
+    this.ownerError = '';
+    this.contentService.submitOwnRecipeForReview(recipe.recipe_id).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (updated) => {
+        this.ownerBusy = false;
+        if (this.recipe?.recipe_id === updated.recipe_id) this.mergeOwnerFields(updated);
+        this.reveal();
+      },
+      error: (err) => {
+        this.ownerBusy = false;
+        this.ownerError = err?.error?.error || 'Could not submit this recipe for review.';
+        this.reveal();
+      }
+    });
+  }
+
+  openDelete(): void {
+    if (!this.recipe?.can_delete) return;
+    this.ownerError = '';
+    this.deleteOpen = true;
+  }
+
+  openDeleteFromMenu(): void {
+    this.moreMenuOpen = false;
+    this.openDelete();
+  }
+
+  closeDelete(): void {
+    if (this.ownerBusy) return;
+    this.deleteOpen = false;
+    this.ownerError = '';
+  }
+
+  confirmDelete(): void {
+    const recipe = this.recipe;
+    if (!recipe?.can_delete || this.ownerBusy) return;
+    this.ownerBusy = true;
+    this.ownerError = '';
+    this.contentService.deleteOwnRecipe(recipe.recipe_id).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.ownerBusy = false;
+        this.deleteOpen = false;
+        void this.router.navigate(['/recipes']);
+      },
+      error: (err) => {
+        this.ownerBusy = false;
+        this.ownerError = err?.error?.error || 'Could not delete this recipe.';
+        this.reveal();
+      }
+    });
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.deleteOpen) this.closeDelete();
   }
 
   private location = inject(Location);

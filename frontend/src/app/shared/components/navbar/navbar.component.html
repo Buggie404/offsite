@@ -215,6 +215,9 @@
                   <svg *ngSwitchCase="'PANTRY_EXPIRY_SOON'" lucideHourglass [size]="15"></svg>
                   <svg *ngSwitchCase="'COMMUNITY_MODERATION'" lucideInfo [size]="15"></svg>
                   <svg *ngSwitchCase="'COMMUNITY_REPORT_RESOLVED'" lucideCheckCheck [size]="15"></svg>
+                  <svg *ngSwitchCase="'RECIPE_PUBLISHED'" lucideArrowRight [size]="15"></svg>
+                  <svg *ngSwitchCase="'RECIPE_MODERATION'" lucideInfo [size]="15"></svg>
+                  <svg *ngSwitchCase="'RECIPE_SAVED'" lucideHeart [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_CREATED'"    lucideArrowRight    [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_LIKED'"      lucideHeart         [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_COMMENTED'"  lucideMessageSquare [size]="15"></svg>
@@ -259,6 +262,9 @@
                       <span *ngSwitchCase="'PANTRY_EXPIRY_SOON'">{{ item.comment_content }}</span>
                       <span *ngSwitchCase="'COMMUNITY_MODERATION'">Message from the Offsite team: {{ item.message }}</span>
                       <span *ngSwitchCase="'COMMUNITY_REPORT_RESOLVED'">{{ item.message }}</span>
+                      <span *ngSwitchCase="'RECIPE_PUBLISHED'">{{ item.message || 'Your recipe is now on the Recipes page.' }}</span>
+                      <span *ngSwitchCase="'RECIPE_MODERATION'">{{ item.message || 'Update on your recipe on the Recipes page.' }}</span>
+                      <span *ngSwitchCase="'RECIPE_SAVED'">saved your recipe.</span>
                     </ng-container>
                   </span>
                 </p>

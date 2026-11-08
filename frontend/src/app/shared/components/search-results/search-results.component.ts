@@ -290,6 +290,10 @@ export class SearchResultsComponent implements OnInit, OnDestroy {
 
   // Helper methods for recipes & blogs
   getRecipeBaseLabel(recipe: Recipe): string {
+    const stored = String(recipe.metadata?.base || '').toUpperCase();
+    if (stored === 'MATCHA') return 'Matcha';
+    if (stored === 'COFFEE') return 'Coffee';
+    if (stored === 'OTHERS') return 'Others';
     const titleLower = recipe.title.toLowerCase();
     const hasMatcha = titleLower.includes('matcha') || recipe.metadata.tags.some((t: string) => t.toLowerCase() === 'matcha');
     if (hasMatcha) return 'Matcha';
@@ -315,7 +319,7 @@ export class SearchResultsComponent implements OnInit, OnDestroy {
   }
 
   getBadgeLabel(recipe: Recipe): string {
-    return recipe.metadata.tags.find((t: string) => ['HOT', 'COLD', 'DESSERT', 'COCKTAIL'].includes(t)) || '';
+    return recipe.metadata.tags.find((t: string) => ['HOT', 'COLD', 'DESSERT'].includes(t)) || '';
   }
 
   getBadgeColor(recipe: Recipe): string {

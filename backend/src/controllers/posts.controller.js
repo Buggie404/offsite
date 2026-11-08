@@ -6,9 +6,30 @@ const { rereportBlock, duplicateReportMessage, restoredAfterFrom } = require('..
 const ModerationAction = require('../models/ModerationAction');
 const Product = require('../models/Product');
 const { getFollowingIds } = require('../services/follow.service');
+const { syncCommunityRecipePublication } = require('../services/recipe-source');
 const mongoose = require('mongoose');
 
 const MAX_LINKED_PRODUCTS = 5;
+const RECIPE_BASES = new Set(['MATCHA', 'COFFEE', 'OTHERS']);
+
+// Recipe posts may still store base as RECIPE; always prefer the recipe's Matcha/Coffee/Others.
+async function loadRecipeBases(posts) {
+  const ids = [...new Set(
+    posts
+      .filter((post) => post.post_type === 'recipe' && post.recipe_id)
+      .map((post) => post.recipe_id)
+  )];
+  if (!ids.length) return new Map();
+  const recipes = await Recipe.find({ recipe_id: { $in: ids } }, 'recipe_id metadata.base').lean();
+  return new Map(
+    recipes
+      .map((recipe) => {
+        const base = String(recipe.metadata?.base || '').toUpperCase();
+        return RECIPE_BASES.has(base) ? [recipe.recipe_id, base] : null;
+      })
+      .filter(Boolean)
+  );
+}
 
 // Resolve Post.linked_products (product_id numbers) into small cards for the UI.
 async function loadProductCards(posts) {
@@ -100,15 +121,24 @@ async function getAllPosts(req, res) {
     }
 
     const productCards = await loadProductCards(posts);
+    const recipeBaseById = await loadRecipeBases(posts);
 
     const authors = await require('../services/community-author.service').hydrateAuthors(posts);
-    const data = posts.map((p, index) => ({
-      ...p.toObject(),
-      author: authors[index].author,
-      liked: likedPostIds.has(p.post_id),
-      saved: savedPostIds.has(p.post_id),
-      products: cardsForPost(p, productCards)
-    }));
+    const data = posts.map((p, index) => {
+      const row = p.toObject();
+      const recipeBase = recipeBaseById.get(p.recipe_id);
+      // Community card shows Recipe + Matcha/Coffee/Others; recipe metadata wins.
+      if (p.post_type === 'recipe' && recipeBase) {
+        row.base = recipeBase;
+      }
+      return {
+        ...row,
+        author: authors[index].author,
+        liked: likedPostIds.has(p.post_id),
+        saved: savedPostIds.has(p.post_id),
+        products: cardsForPost(p, productCards)
+      };
+    });
 
     res.json({
       data,
@@ -150,7 +180,31 @@ async function getPostById(req, res) {
 
     let recipeDetails = null;
     if (post.post_type === 'recipe' && post.recipe_id) {
-      recipeDetails = await Recipe.findOne({ recipe_id: post.recipe_id });
+      const origin = await Recipe.findOne({ recipe_id: post.recipe_id });
+      if (origin) {
+        const catalogId = post.catalog_recipe_id || null;
+        const catalog = catalogId
+          ? await Recipe.findOne({ recipe_id: catalogId, deletedAt: null })
+          : await Recipe.findOne({
+            'origin.communityRecipeId': post.recipe_id,
+            lifecycle: 'catalog',
+            deletedAt: null
+          });
+        recipeDetails = origin.toObject ? origin.toObject() : { ...origin };
+        // CTA "View in recipes" points at the catalog fork when it is live.
+        if (catalog && catalog.published !== false && !catalog.hiddenByAdmin && !catalog.deletedAt) {
+          recipeDetails.published = true;
+          recipeDetails.slug = catalog.slug;
+          recipeDetails.catalog_recipe_id = catalog.recipe_id;
+        } else {
+          recipeDetails.published = false;
+          if (catalog) {
+            recipeDetails.catalog_recipe_id = catalog.recipe_id;
+            recipeDetails.catalog_slug = catalog.slug;
+            recipeDetails.catalog_hidden = Boolean(catalog.hiddenByAdmin);
+          }
+        }
+      }
     }
 
     const isOwner = (await require('./profiles.controller').currentCommunityUserId(req)) === post.user_id;
@@ -160,9 +214,14 @@ async function getPostById(req, res) {
     }
 
     const productCards = await loadProductCards([post]);
+    const payload = post.toObject();
+    const recipeBase = String(recipeDetails?.metadata?.base || '').toUpperCase();
+    if (post.post_type === 'recipe' && RECIPE_BASES.has(recipeBase)) {
+      payload.base = recipeBase;
+    }
 
     res.json({
-      ...post.toObject(),
+      ...payload,
       author: (await require('../services/community-author.service').hydrateAuthors([post]))[0].author,
       liked,
       saved,
@@ -388,18 +447,11 @@ async function likePost(req, res) {
       });
       post.like_count++;
       message = 'Post liked successfully';
-
-      // 🛑 NẾU LƯỢT LIKE ĐẠT 30, BẬT PUBLISHED LÊN TRUE
-      if (post.recipe_id && post.like_count >= 30) {
-        await Recipe.findOneAndUpdate(
-          { recipe_id: post.recipe_id, published: false },
-          { $set: { published: true } }
-        );
-      }
     }
 
     await user.save();
     await post.save();
+    if (post.recipe_id) await syncCommunityRecipePublication(post.recipe_id);
 
     if (!alreadyLiked && post.user_id !== user.user_id) {
       try {
@@ -471,14 +523,6 @@ async function savePost(req, res) {
       });
       post.save_count++;
       message = 'Post saved successfully';
-
-      // 🛑 NẾU LƯỢT SAVE ĐẠT 30, BẬT PUBLISHED LÊN TRUE
-      if (post.recipe_id && post.save_count >= 30) {
-        await Recipe.findOneAndUpdate(
-          { recipe_id: post.recipe_id, published: false },
-          { $set: { published: true } }
-        );
-      }
     }
 
     await user.save();
