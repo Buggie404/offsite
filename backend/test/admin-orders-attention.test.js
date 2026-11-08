@@ -65,22 +65,26 @@ test('default listing pages urgent orders first in the database', async () => {
   assert.equal(project.$project._urgent, undefined);
 });
 
-test('a status filter keeps the plain newest-first order', async () => {
+test('a status filter still pages urgent orders first', async () => {
   const { api, seen } = fixture([]);
-  await call(api, { order_status: 'shipping' });
-  assert.equal(seen.aggregate, null);
-  assert.equal(seen.find.order_status, 'shipping');
-  assert.deepEqual(seen.sort, { created_at: -1, _id: -1 });
+  await call(api, { order_status: 'processing' });
+  assert.equal(seen.find, null);
+  const [match, addFields, sort] = seen.aggregate;
+  assert.deepEqual(match.$match.order_status, { $in: ['pending', 'processing'] });
+  assert.ok(addFields.$addFields._urgent);
+  assert.deepEqual(sort, { $sort: { _urgent: -1, created_at: -1, _id: -1 } });
 });
 
 test('each order carries needs_attention and its reasons', async () => {
   const { api } = fixture([
     row('A', 'pending_refund'),
     row('B', 'delivery_failed'),
-    row('C', 'processing', { subscription_start_failed: true }),
+    row('C', 'processing', { subscription_start_failed: true, created_at: new Date() }),
     row('D', 'refund'),
     row('E', 'refund_rejected'),
-    row('F', 'shipping')
+    row('F', 'shipping'),
+    row('G', 'processing', { created_at: new Date(Date.now() - 4 * 86_400_000) }),
+    row('H', 'processing', { created_at: new Date(Date.now() - 2 * 86_400_000) })
   ]);
   const body = await call(api, {});
   const flags = Object.fromEntries(body.data.map(o => [o.order_id, [o.needs_attention, o.attention_reasons]]));
@@ -90,18 +94,25 @@ test('each order carries needs_attention and its reasons', async () => {
     C: [true, ['ritual_box_not_started']],
     D: [false, []],
     E: [false, []],
-    F: [false, []]
+    F: [false, []],
+    G: [true, ['urgent_preparation']], // still preparing 3+ days after it was placed
+    H: [false, []]
   });
 });
 
 test('Needs attention filter, stat card and sort share one definition', async () => {
   const { api, seen } = fixture([]);
   await call(api, { attention: 'needs_attention' });
-  const expected = [{ order_status: { $in: ['pending_refund', 'delivery_failed'] } }, { subscription_start_failed: true }];
-  assert.deepEqual(seen.aggregate[0].$match.$or, expected);
+  const check = (or) => {
+    assert.deepEqual(or.slice(0, 2), [{ order_status: { $in: ['pending_refund', 'delivery_failed'] } }, { subscription_start_failed: true }]);
+    const [, , urgentPrep] = or;
+    assert.equal(urgentPrep.order_status, 'processing');
+    const ageDays = (Date.now() - urgentPrep.created_at.$lte.getTime()) / 86_400_000;
+    assert.ok(Math.abs(ageDays - 3) < 0.01, `processing cutoff is 3 days, got ${ageDays}`);
+  };
+  check(seen.aggregate[0].$match.$or);
   assert.deepEqual(seen.aggregate[0].$match.order_status, { $ne: 'canceled' });
-  const statCount = seen.counts.find(f => f.$or);
-  assert.deepEqual(statCount.$or, expected);
+  check(seen.counts.find(f => f.$or).$or);
 });
 
 test('the Ritual Box-only filter used by dashboard links still works', async () => {

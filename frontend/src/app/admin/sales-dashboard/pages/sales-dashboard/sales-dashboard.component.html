@@ -1,34 +1,132 @@
 <section class="sales-dashboard" aria-label="Sales-Ops dashboard">
   <header class="page-header">
-    <div class="page-header__left"><h1>Dashboard</h1><p>{{ greeting }}, {{ accountName }} · Sales Ops</p></div>
-    <div class="range-tabs" aria-label="Time range">
-      <button [class.active]="range === 'today'" (click)="selectRange('today')">Today</button>
-      <button [class.active]="range === '7'" (click)="selectRange('7')">7 days</button>
-      <button [class.active]="range === '30'" (click)="selectRange('30')">30 days</button>
-      <button [class.active]="range === '90'" (click)="selectRange('90')">90 days</button>
-      <button [class.active]="range === 'custom'" (click)="selectRange('custom')">Custom</button>
+    <div class="page-header__titles">
+      <h1>Dashboard</h1>
+      <p>
+        {{ greeting }}, {{ accountName }}
+        @if (data) { · {{ totalTasks }} task{{ totalTasks === 1 ? '' : 's' }} waiting, {{ overdueTasks }} overdue }
+      </p>
     </div>
+    @if (data) { <span class="live-status">Live · updated {{ updatedAt }}</span> }
   </header>
-  @if (range === 'custom') {
-    <form class="custom-range" (ngSubmit)="applyCustom()"><label>From <input type="date" name="start" [(ngModel)]="customStart"></label><label>To <input type="date" name="end" [(ngModel)]="customEnd" [min]="customStart"></label><button type="submit">Apply</button></form>
-  }
-  @if (loading) { <div class="skeleton"><span></span><span></span><span></span><span></span></div> }
-  @else if (!data) { <div class="state">{{ error || 'Dashboard data could not be loaded.' }} <button (click)="load()">Try again</button></div> }
-  @else {
-    @if (error) { <div class="inline-error">{{ error }} <button (click)="load()">Try again</button></div> }
-    <div class="kpis">
-      <article class="kpi"><div class="kpi__top"><span>Orders to ship</span><i class="kpi__icon kpi__icon--green" aria-hidden="true"><svg lucidePackage [size]="18"></svg></i></div><strong>{{ data.kpis.orders_to_ship | number }}</strong></article>
-      <article class="kpi"><div class="kpi__top"><span>Refund requests</span><i class="kpi__icon kpi__icon--amber" aria-hidden="true"><svg lucideRotateCcw [size]="18"></svg></i></div><strong>{{ data.kpis.refund_requests | number }}</strong></article>
-      <article class="kpi"><div class="kpi__top"><span>Low stock variants</span><i class="kpi__icon kpi__icon--red" aria-hidden="true"><svg lucideTriangleAlert [size]="18"></svg></i></div><strong>{{ data.kpis.low_stock_variants | number }}</strong></article>
-      <article class="kpi"><div class="kpi__top"><span>Active vouchers</span><i class="kpi__icon kpi__icon--brown" aria-hidden="true"><svg lucideTicket [size]="18"></svg></i></div><strong>{{ data.kpis.active_vouchers | number }}</strong></article>
-    </div>
-    <article class="todo-panel"><div class="todo-title">To do today</div>
-      <button type="button" class="todo-row" [class.is-empty]="!data.todos.orders_to_ship" (click)="navigate('/admin/orders', orderQueryParams('processing'))"><span class="todo-row__icon todo-row__icon--green" aria-hidden="true"><svg lucidePackage [size]="16"></svg></span><span class="todo-row__label">Orders waiting to ship</span><b class="todo-row__count">{{ data.todos.orders_to_ship }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
-      <button type="button" class="todo-row" [class.is-empty]="!data.todos.refund_requests" (click)="navigate('/admin/orders', orderQueryParams('pending_refund'))"><span class="todo-row__icon todo-row__icon--amber" aria-hidden="true"><svg lucideRotateCcw [size]="16"></svg></span><span class="todo-row__label">Refund requests</span><b class="todo-row__count">{{ data.todos.refund_requests }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
-      <button type="button" class="todo-row" [class.is-empty]="!data.todos.reports_to_review" (click)="navigate('/admin/community-reports')"><span class="todo-row__icon todo-row__icon--pink" aria-hidden="true"><svg lucideFlag [size]="16"></svg></span><span class="todo-row__label">Reports to review</span><b class="todo-row__count">{{ data.todos.reports_to_review }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
-      <button type="button" class="todo-row" [class.is-empty]="!data.todos.chats_waiting" (click)="navigate('/admin/chat', { status: 'waiting' })"><span class="todo-row__icon todo-row__icon--blue" aria-hidden="true"><svg lucideMessagesSquare [size]="16"></svg></span><span class="todo-row__label">Chats waiting</span><b class="todo-row__count">{{ data.todos.chats_waiting }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
-      <button type="button" class="todo-row" [class.is-empty]="!data.todos.low_stock_variants" (click)="navigate('/admin/products')"><span class="todo-row__icon todo-row__icon--amber" aria-hidden="true"><svg lucideTriangleAlert [size]="16"></svg></span><span class="todo-row__label">Low stock variants</span><b class="todo-row__count">{{ data.todos.low_stock_variants }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
-      <button type="button" class="todo-row" [class.is-empty]="!data.todos.ritual_box_payment_failed" [class.is-urgent]="data.todos.ritual_box_payment_failed > 0" (click)="ritualBoxFailedClick()"><span class="todo-row__icon todo-row__icon--red" aria-hidden="true"><svg lucideCreditCard [size]="16"></svg></span><span class="todo-row__label">Ritual Box payment failed</span><b class="todo-row__count">{{ data.todos.ritual_box_payment_failed }}</b><svg lucideChevronRight [size]="14" class="todo-row__chevron"></svg></button>
+
+  @if (loading) {
+    <div class="skeleton" aria-label="Dashboard loading"><span></span><span></span><span></span></div>
+  } @else if (!data) {
+    <div class="state">{{ error || 'Dashboard data could not be loaded.' }} <button type="button" (click)="load()">Try again</button></div>
+  } @else {
+    @if (error) { <div class="inline-error" role="alert">{{ error }} <button type="button" (click)="load()">Try again</button></div> }
+
+    <!-- 3.1 Order status strip -->
+    <nav class="card status-strip" aria-label="Orders by status">
+      @for (tile of statusTiles; track tile.key) {
+        <button type="button" class="tile" [class.tile--warning]="tile.warning && tile.count > 0" (click)="openStatus(tile)">
+          <span class="overline">{{ tile.label }}</span>
+          <strong class="tile__value">{{ tile.count | number }}</strong>
+          <span class="tile__caption" [ngClass]="tile.captionTone ? 'is-' + tile.captionTone : ''">{{ tile.caption }}</span>
+        </button>
+      }
+    </nav>
+
+    <!-- 3.2 To do today -->
+    <article class="card todo">
+      <header class="todo__header">
+        <div class="todo__title-row">
+          <h2 class="card-title">To do today</h2>
+          @if (filteredTasks.length > 5) {
+            <button type="button" class="text-link" (click)="showAllTasks = !showAllTasks">
+              {{ showAllTasks ? 'Show less' : 'Show all ' + filteredTasks.length }}
+            </button>
+          }
+        </div>
+        <p class="card-sub">Overdue first, then by deadline</p>
+        <div class="filters" role="tablist" aria-label="Filter tasks">
+          @for (f of filters; track f.key) {
+            <button type="button" role="tab" class="pill" [class.pill--active]="filter === f.key" [attr.aria-selected]="filter === f.key"
+              (click)="selectFilter(f.key)">{{ f.label }} {{ f.count }}</button>
+          }
+        </div>
+      </header>
+
+      @for (task of visibleTasks; track task.key) {
+        <div class="task" [class.task--urgent]="task.urgent || task.overdue">
+          <span class="task__icon" [ngClass]="'task__icon--' + task.tone" aria-hidden="true">
+            @switch (task.icon) {
+              @case ('package') { <svg lucidePackage [size]="14" [strokeWidth]="3"></svg> }
+              @case ('refund') { <svg lucideRotateCcw [size]="14" [strokeWidth]="3"></svg> }
+              @case ('box') { <svg lucideRepeat [size]="14" [strokeWidth]="3"></svg> }
+              @case ('card') { <svg lucideCreditCard [size]="14" [strokeWidth]="3"></svg> }
+              @case ('truck') { <svg lucideTruck [size]="14" [strokeWidth]="3"></svg> }
+              @case ('calendar') { <svg lucideCalendar [size]="14" [strokeWidth]="3"></svg> }
+            }
+          </span>
+          <div class="task__text">
+            <p class="task__title">{{ task.title }}</p>
+            <p class="task__detail">{{ task.detail }}</p>
+          </div>
+          <div class="task__right">
+            @if (timeChip(task); as chip) { <span class="chip" [ngClass]="'chip--' + chip.tone">{{ chip.text }}</span> }
+            <a class="action" [routerLink]="task.link" [queryParams]="task.query">
+              Open details <svg lucideArrowRight aria-hidden="true" [size]="14"></svg>
+            </a>
+          </div>
+        </div>
+      } @empty {
+        <p class="empty">Nothing waiting{{ filter === 'all' ? '' : ' in this group' }} — all caught up.</p>
+      }
+    </article>
+
+    <!-- 3.3 Stock vs demand over the next 7 days -->
+    <article class="card stock">
+      <header class="stock__header">
+        <div class="stock__tags">
+          <span class="chip chip--ok chip--upper">Ritual box</span>
+          <span class="chip chip--ok chip--upper">My pantry</span>
+          <a class="text-link" routerLink="/admin/products">All products</a>
+        </div>
+        <h2 class="section-title">Stock check</h2>
+        <p class="card-sub">Only variants that may run short · days of cover = stock ÷ (avg. daily sales + Ritual Box charges due ÷ 7)</p>
+      </header>
+      @if (data.stock.length) {
+        <div class="stock__scroll">
+          <table class="stock-table">
+            <thead>
+              <tr>
+                <th scope="col">Variant</th>
+                <th scope="col" class="num">In stock</th>
+                <th scope="col" class="num">Ritual Box due (7d)</th>
+                <th scope="col" class="num">Avg. sold / day</th>
+                <th scope="col" class="cover">Days of cover</th>
+                <th scope="col">Batch expiry</th>
+                <th scope="col"><span class="sr-only">Action</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of data.stock; track row.sku) {
+                <tr>
+                  <td class="stock-table__name" [title]="row.name">{{ row.name }}</td>
+                  <td class="num">{{ row.in_stock | number }}</td>
+                  <td class="num">{{ row.ritual_box_due | number }}</td>
+                  <td class="num">{{ row.avg_sold_per_day | number:'1.1-1' }}</td>
+                  <td class="cover">@if (coverChip(row); as chip) { <span class="chip" [ngClass]="'chip--' + chip.tone">{{ chip.text }}</span> }</td>
+                  <td class="expiry">
+                    @if (expiryLabel(row); as expiry) { {{ expiry }} }
+                    @else if (row.needs_expiry) { <span class="chip chip--warning">missing</span> }
+                    @else { — }
+                  </td>
+                  <td class="act">
+                    <a class="action" routerLink="/admin/products" [queryParams]="{ search: row.product_name }">
+                      {{ stockAction(row) }} <svg lucideArrowRight aria-hidden="true" [size]="14"></svg>
+                    </a>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="empty">No variant is expected to run short in the next 14 days.</p>
+      }
     </article>
   }
 </section>

@@ -43,6 +43,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ATTENTION_REASON_LABEL: Record<AdminOrderAttentionReason, string> = {
   pending_refund: 'Refund requested',
   delivery_failed: 'Delivery failed',
+  urgent_preparation: 'Urgent preparation',
   ritual_box_not_started: 'Ritual Box not started'
 };
 

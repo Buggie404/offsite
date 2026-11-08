@@ -144,4 +144,7 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Admin dashboard groups customers by Ritual DNA archetype.
+userSchema.index({ 'ritual_dna.archetype_id': 1 }, { sparse: true });
+
 module.exports = mongoose.model('User', userSchema);

@@ -1,25 +1,79 @@
 <section class="dashboard" aria-label="Senior Admin dashboard">
   <header class="page-header">
-    <div class="page-header__left">
+    <div class="page-header__titles">
       <h1>Dashboard</h1>
-      <p>{{ greeting }}, {{ accountName }} · {{ roleLabel }}</p>
+      <p>{{ greeting }}, {{ accountName }} · {{ periodLabel }}</p>
     </div>
-    <div class="range-tabs" role="tablist" aria-label="Time range">
-      <button type="button" role="tab" [class.active]="range === 'today'" (click)="selectRange('today')">Today</button>
-      <button type="button" role="tab" [class.active]="range === '7'" (click)="selectRange('7')">7 days</button>
-      <button type="button" role="tab" [class.active]="range === '30'" (click)="selectRange('30')">30 days</button>
-      <button type="button" role="tab" [class.active]="range === '90'" (click)="selectRange('90')">90 days</button>
-      <button type="button" role="tab" [class.active]="range === 'custom'" (click)="selectRange('custom')">Custom</button>
+    <div class="page-header__controls">
+      <div class="date-filter">
+        <div class="range-tabs" role="tablist" aria-label="Time range">
+          @for (option of ranges; track option.key) {
+            <button type="button" role="tab"
+              [class.active]="option.key === 'custom' ? range === 'custom' || showCustomRange : range === option.key && !showCustomRange"
+              [attr.aria-selected]="range === option.key" (click)="selectRange(option.key)">{{ option.label }}</button>
+          }
+        </div>
+
+        @if (showCustomRange) {
+          <div class="custom-range-panel" role="region" aria-label="Custom date range">
+            <div class="custom-range-panel__header">
+              <p class="custom-range-panel__title">Custom range</p>
+              <p class="custom-range-panel__hint">Choose a start and end date to filter the dashboard.</p>
+            </div>
+
+            <div class="custom-range-panel__fields">
+              <div class="custom-range-field">
+                <label class="custom-range-field__label" for="dashboard-date-from">From</label>
+                <div class="custom-range-field__input-wrap">
+                  <button type="button" class="custom-range-field__icon" aria-label="Open calendar" (click)="openPicker(fromPicker)">
+                    <svg lucideCalendar aria-hidden="true" [size]="16"></svg>
+                  </button>
+                  <input id="dashboard-date-from" type="text" class="custom-range-field__input" placeholder="dd/mm/yyyy"
+                    inputmode="numeric" maxlength="10" autocomplete="off" [value]="displayDate(customDateFrom)"
+                    (input)="maskDateInput($event)" (change)="onTypedDate('from', $any($event.target).value)" />
+                  <!-- Hidden native input: only provides the calendar popup -->
+                  <input #fromPicker type="date" class="custom-range-field__picker" tabindex="-1" aria-hidden="true"
+                    [value]="customDateFrom" [max]="customDateTo || maxDate"
+                    (change)="onCustomDateFromChange($any($event.target).value)" />
+                </div>
+              </div>
+
+              <span class="custom-range-panel__separator" aria-hidden="true">to</span>
+
+              <div class="custom-range-field">
+                <label class="custom-range-field__label" for="dashboard-date-to">To</label>
+                <div class="custom-range-field__input-wrap">
+                  <button type="button" class="custom-range-field__icon" aria-label="Open calendar" (click)="openPicker(toPicker)">
+                    <svg lucideCalendar aria-hidden="true" [size]="16"></svg>
+                  </button>
+                  <input id="dashboard-date-to" type="text" class="custom-range-field__input" placeholder="dd/mm/yyyy"
+                    inputmode="numeric" maxlength="10" autocomplete="off" [value]="displayDate(customDateTo)"
+                    (input)="maskDateInput($event)" (change)="onTypedDate('to', $any($event.target).value)" />
+                  <!-- Hidden native input: only provides the calendar popup -->
+                  <input #toPicker type="date" class="custom-range-field__picker" tabindex="-1" aria-hidden="true"
+                    [value]="customDateTo" [min]="customDateFrom" [max]="maxDate"
+                    (change)="onCustomDateToChange($any($event.target).value)" />
+                </div>
+              </div>
+            </div>
+
+            @if (customRangeError) {
+              <p class="custom-range-panel__error" role="alert">{{ customRangeError }}</p>
+            }
+
+            <div class="custom-range-panel__actions">
+              <button type="button" class="btn btn-outline" (click)="cancelCustomRange()">Cancel</button>
+              <button type="button" class="btn btn-primary" (click)="applyCustomRange()">Apply range</button>
+            </div>
+          </div>
+        }
+      </div>
+      <button type="button" class="btn-export" (click)="exportRevenue()" [disabled]="!data?.revenue_series?.length">
+        <svg lucideDownload [size]="14" [strokeWidth]="3"></svg>
+        Export
+      </button>
     </div>
   </header>
-
-  @if (range === 'custom') {
-    <form class="custom-range" (ngSubmit)="applyCustom()">
-      <label>From <input type="date" name="start" [(ngModel)]="customStart"></label>
-      <label>To <input type="date" name="end" [(ngModel)]="customEnd" [min]="customStart"></label>
-      <button type="submit" class="btn-outline">Apply</button>
-    </form>
-  }
 
   @if (initialLoading) {
     <div class="dashboard-skeleton" aria-label="Dashboard loading"><span></span><span></span><span></span><span></span></div>
@@ -28,118 +82,216 @@
   } @else {
     @if (error) { <div class="inline-error" role="alert">{{ error }} <button type="button" (click)="load()">Try again</button></div> }
 
+    <!-- 2.1 KPIs vs previous period -->
     <div class="kpis" [class.is-refreshing]="refreshing">
-      @for (card of cards; track card.label) {
-        <article class="kpi-card" [ngClass]="'kpi-card--' + card.icon">
+      @for (card of cards; track card.key) {
+        <article class="kpi-card">
           <div class="kpi-card__top">
-            <span class="kpi-card__label">{{ card.label }}</span>
-            <span class="kpi-card__icon" aria-hidden="true">
-              @switch (card.icon) {
-                @case ('revenue') { <svg lucideWallet [size]="18"></svg> }
-                @case ('orders') { <svg lucideShoppingBag [size]="18"></svg> }
-                @case ('aov') { <svg lucideReceipt [size]="18"></svg> }
-                @case ('customers') { <svg lucideUserPlus [size]="18"></svg> }
-              }
-            </span>
+            <span class="overline">{{ card.label }}</span>
+            <span class="chip" [ngClass]="'chip--' + card.delta.tone">{{ card.delta.text }}</span>
           </div>
-          <strong class="kpi-card__value">{{ card.currency ? (card.value | currency:'USD':'symbol':'1.2-2') : (card.value | number) }}</strong>
+          <strong class="kpi-card__value">{{ card.value }}</strong>
+          <span class="kpi-card__caption">{{ card.caption }}</span>
+          @if (card.spark.line) {
+            <svg class="sparkline" [ngClass]="'sparkline--' + card.spark.tone" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+              <polygon [attr.points]="card.spark.area"></polygon>
+              <polyline [attr.points]="card.spark.line"></polyline>
+            </svg>
+          }
         </article>
       }
     </div>
 
-    <div class="dashboard-grid">
-      <article class="panel" [class.is-refreshing]="refreshing">
-        <header class="panel__header">
-          <div>
-            <h2 class="panel__title panel__title--mono">REVENUE</h2>
-            <p class="panel__sub">{{ periodRevenue | currency:'USD':'symbol':'1.2-2' }} recognised in this period</p>
-          </div>
-          <button type="button" class="btn-outline" (click)="exportRevenue()" [disabled]="!data.revenue_series.length">
-            <svg lucideDownload [size]="14"></svg>
-            Export
+    <!-- 2.5 Backlog across the team -->
+    <article class="card open-work">
+      <header class="open-work__header">
+        <h2 class="card-title">Open work across the team</h2>
+        <p class="card-sub">Click a tile to open the page with the filter applied</p>
+      </header>
+      <div class="open-work__tiles">
+        @for (tile of openWork; track tile.key) {
+          <button type="button" class="tile" [class.tile--warning]="tile.urgent && tile.count > 0" (click)="openTile(tile)">
+            <span class="overline">{{ tile.label }}</span>
+            <strong class="tile__value">{{ tile.count | number }}</strong>
+            <span class="tile__caption">{{ tile.caption }}</span>
           </button>
+        }
+      </div>
+    </article>
+
+    <!-- 2.2 Revenue over time + top products -->
+    <div class="revenue-row" [class.is-refreshing]="refreshing">
+      <article class="card revenue">
+        <header class="revenue__header">
+          <div>
+            <h2 class="section-title">Revenue</h2>
+            <p class="card-sub">{{ money(periodRevenue) }} this period · {{ signedMoney(periodRevenue - previousRevenue) }} vs previous</p>
+          </div>
+          <ul class="legend" aria-label="Legend">
+            <li><i class="swatch swatch--one-time"></i>One-time</li>
+            <li><i class="swatch swatch--box"></i>Ritual Box</li>
+            <li><i class="swatch swatch--previous"></i>Previous period</li>
+          </ul>
         </header>
-        <div class="panel__body">
-          @if (data.revenue_series.length) {
-            <div class="chart">
-              <div class="chart__y" aria-hidden="true">
-                @for (tick of yTicks; track tick.top) {
-                  <span [style.top.%]="tick.top">{{ tick.value | currency:'USD':'symbol':'1.0-0' }}</span>
-                }
-              </div>
-              <div class="chart__plot" (mousemove)="onChartMove($event)" (mouseleave)="hoverIndex = null">
-                @for (tick of yTicks; track tick.top) {
-                  <span class="chart__grid" [class.is-base]="$last" [style.top.%]="tick.top"></span>
-                }
-                <svg viewBox="0 0 760 200" preserveAspectRatio="none" role="img" aria-label="Revenue over selected period">
-                  <defs>
-                    <linearGradient id="revenue-fill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stop-color="#375534" stop-opacity="0.22" />
-                      <stop offset="100%" stop-color="#375534" stop-opacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <polygon [attr.points]="chartArea" fill="url(#revenue-fill)"></polygon>
-                  <polyline [attr.points]="chartPoints" class="chart__line"></polyline>
-                </svg>
-                @if (hoverPoint; as point) {
-                  <span class="chart__cursor" [style.left.%]="point.left"></span>
-                  <span class="chart__dot" [style.left.%]="point.left" [style.top.%]="point.top"></span>
-                  <div class="chart__tooltip" [style.left.%]="point.left" [style.top.%]="point.top" [class.is-right]="point.left > 70">
-                    <span>{{ point.date }}</span>
-                    <strong>{{ point.revenue | currency:'USD':'symbol':'1.2-2' }}</strong>
-                  </div>
-                }
-              </div>
-              <div class="chart__x">
-                @for (label of chartLabels; track $index) { <span>{{ label }}</span> }
-              </div>
+        @if (periodRevenue || previousRevenue) {
+          <div class="chart">
+            <div class="chart__y" aria-hidden="true">
+              @for (tick of yTicks; track tick.top) { <span [style.top.%]="tick.top">{{ tick.label }}</span> }
             </div>
-          } @else {
-            <div class="chart-empty">
-              <svg lucideWallet [size]="28"></svg>
-              <p>No recognised revenue in this period.</p>
+            <div class="chart__plot" (mousemove)="onChartMove($event)" (mouseleave)="hoverIndex = null"
+              role="img" aria-label="Daily net revenue, one-time and Ritual Box, against the previous period">
+              @for (tick of yTicks; track tick.top) { <span class="chart__grid" [style.top.%]="tick.top"></span> }
+              @for (bar of bars; track bar.point.date; let i = $index) {
+                <div class="chart__bar" [class.is-dim]="hoverIndex !== null && hoverIndex !== i" [style.left.%]="bar.left" [style.width.%]="bar.width">
+                  <span class="chart__seg chart__seg--box" [style.height.%]="bar.ritualBox" [class.is-top]="bar.ritualBox > 0"></span>
+                  <span class="chart__seg chart__seg--one-time" [style.height.%]="bar.oneTime" [class.is-top]="!bar.ritualBox"></span>
+                </div>
+              }
+              <svg class="chart__previous" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                <polyline [attr.points]="previousLine"></polyline>
+              </svg>
+              @if (hoverBar; as bar) {
+                <div class="chart__tooltip" [style.left.%]="bar.left + bar.width / 2" [class.is-right]="bar.left > 60">
+                  <span>{{ longDate(bar.point.date) }}</span>
+                  <strong>{{ money(bar.point.one_time + bar.point.ritual_box, 2) }}</strong>
+                  <em>One-time {{ money(bar.point.one_time, 2) }} · Ritual Box {{ money(bar.point.ritual_box, 2) }}</em>
+                  <em>Previous {{ money(bar.point.previous, 2) }}</em>
+                </div>
+              }
             </div>
-          }
-        </div>
+            <div class="chart__x" aria-hidden="true">
+              @for (tick of xLabels; track tick.left) { <span [style.left.%]="tick.left">{{ tick.label }}</span> }
+            </div>
+          </div>
+        } @else {
+          <p class="empty">No recognised revenue in this period or the previous one.</p>
+        }
       </article>
 
-      <article class="panel panel--todo">
-        <header class="panel__header">
-          <div>
-            <h2 class="panel__title">To do today</h2>
-            <p class="panel__sub">{{ openTodoCount ? openTodoCount + ' item' + (openTodoCount === 1 ? '' : 's') + ' need attention' : 'Nothing waiting right now' }}</p>
-          </div>
+      <article class="card top-products">
+        <header class="top-products__header">
+          <h2 class="card-title">Top 5 products</h2>
+          <a class="text-link" routerLink="/admin/products">All products</a>
         </header>
-        <div class="todo-list">
-          @for (todo of todos; track todo.key) {
-            <button
-              type="button"
-              class="todo"
-              [ngClass]="'todo--' + todo.tone"
-              [class.todo--empty]="!todo.count"
-              [class.todo--urgent]="todo.urgent && todo.count > 0"
-              (click)="todo.open()"
-            >
-              <span class="todo__icon" aria-hidden="true">
-                @switch (todo.icon) {
-                  @case ('package') { <svg lucidePackage [size]="16"></svg> }
-                  @case ('refund') { <svg lucideRotateCcw [size]="16"></svg> }
-                  @case ('flag') { <svg lucideFlag [size]="16"></svg> }
-                  @case ('chat') { <svg lucideMessagesSquare [size]="16"></svg> }
-                  @case ('stock') { <svg lucideTriangleAlert [size]="16"></svg> }
-                  @case ('card') { <svg lucideCreditCard [size]="16"></svg> }
-                }
-              </span>
-              <span class="todo__label">{{ todo.label }}</span>
-              <b class="todo__count">{{ todo.count }}</b>
-              <svg lucideChevronRight [size]="14" class="todo__chevron"></svg>
-            </button>
-          }
-          @if (!openTodoCount) {
-            <p class="todo-done"><svg lucideCircleCheck [size]="16"></svg> All caught up for today</p>
-          }
-        </div>
+        <p class="card-sub">By revenue this period</p>
+        @if (data.top_products.length) {
+          <table class="mini-table">
+            <thead>
+              <tr><th scope="col">Product</th><th scope="col">Revenue</th><th scope="col">Refund</th><th scope="col">Rating</th></tr>
+            </thead>
+            <tbody>
+              @for (product of data.top_products; track product.product_id) {
+                <tr>
+                  <td class="mini-table__name" [title]="product.name">{{ product.name }}</td>
+                  <td>{{ money(product.revenue) }}</td>
+                  <td>
+                    @if (product.refund_rate >= 3) { <span class="chip chip--down">{{ product.refund_rate | number:'1.1-1' }}%</span> }
+                    @else { {{ product.refund_rate | number:'1.1-1' }}% }
+                  </td>
+                  <td>{{ product.rating === null ? '—' : (product.rating | number:'1.1-1') }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <p class="empty">No product sales in this period.</p>
+        }
       </article>
     </div>
+
+    <!-- 2.3 Value by Ritual DNA -->
+    <article class="card section" [class.is-refreshing]="refreshing">
+      <header class="section__header">
+        <div class="section__tags">
+          <span class="chip chip--up">Ritual DNA</span>
+          <a class="text-link" routerLink="/admin/ritual-dna">Ritual DNA config</a>
+        </div>
+        <h2 class="section-title">Customer analysis</h2>
+        <p class="card-sub">{{ ritualDnaCoverage }}</p>
+      </header>
+      <div class="personas">
+        @for (archetype of data.archetypes; track archetype.archetype_id; let i = $index) {
+          <div class="persona" [ngClass]="'persona--' + (i % 4)">
+            <h3 class="persona__name">{{ archetype.name }}</h3>
+            <p class="persona__tagline">{{ archetype.tagline }}</p>
+            <strong class="persona__share">{{ archetypeShares.groups.get(archetype.archetype_id) | number:'1.1-1' }}%</strong>
+            <span class="persona__caption">of customers</span>
+            <dl class="persona__stats">
+              <div><dt>Revenue / customer</dt><dd>{{ money(archetype.revenue_per_customer) }}</dd></div>
+              <div>
+                <dt>Repeat rate</dt>
+                <dd [class.is-danger]="isWeakestRepeat(archetype)">{{ archetype.repeat_rate === null ? '—' : (archetype.repeat_rate | number:'1.0-0') + '%' }}</dd>
+              </div>
+              <div><dt>Top pick</dt><dd [title]="archetype.top_pick || ''">{{ archetype.top_pick || '—' }}</dd></div>
+            </dl>
+          </div>
+        }
+      </div>
+      <div class="insight insight--wide">
+        <span class="insight__icon insight__icon--warning" aria-hidden="true">!</span>
+        <p><b>{{ archetypeInsight.lead }}</b>{{ archetypeInsight.rest }}</p>
+      </div>
+    </article>
+
+    <!-- 2.4 Ritual Box and retention features -->
+    <article class="card section" [class.is-refreshing]="refreshing">
+      <header class="section__header">
+        <div class="section__tags">
+          <span class="chip chip--up">Ritual box</span>
+          <span class="chip chip--up">Membership</span>
+          <span class="chip chip--up">Referral</span>
+          <span class="chip chip--up">Brew coach</span>
+        </div>
+        <h2 class="section-title">Features analysis</h2>
+        <p class="card-sub">Ritual Box movement, member tiers, referrals and Brew Coach users</p>
+      </header>
+      <div class="features">
+        <div class="features__col">
+          <span class="overline">Ritual Box this period</span>
+          <dl class="rows">
+            <div><dt>New boxes</dt><dd>+{{ data.retention.ritual_box.new }}</dd></div>
+            <div><dt>Cancelled</dt><dd [class.is-danger]="data.retention.ritual_box.cancelled > 0">−{{ data.retention.ritual_box.cancelled }}</dd></div>
+            <div><dt>Churn</dt><dd>{{ data.retention.ritual_box.churn_rate === null ? '—' : (data.retention.ritual_box.churn_rate | number:'1.1-1') + '%' }}</dd></div>
+            <div><dt>Payment failed</dt><dd [class.is-danger]="data.retention.ritual_box.payment_failed > 0">{{ data.retention.ritual_box.payment_failed }}</dd></div>
+            <div><dt>Suspended</dt><dd [class.is-danger]="data.retention.ritual_box.suspended > 0">{{ data.retention.ritual_box.suspended }}</dd></div>
+          </dl>
+        </div>
+
+        <div class="features__col">
+          <span class="overline">Members by tier</span>
+          <div class="tier-bar" role="img" aria-label="Members by tier">
+            @for (segment of tierSegments; track segment.tier) {
+              <span class="tier-bar__seg" [ngClass]="'tier-bar__seg--' + segment.tier.toLowerCase()" [style.flex-grow]="segment.share" [title]="segment.title">{{ segment.label }}</span>
+            } @empty {
+              <span class="tier-bar__empty">No members yet</span>
+            }
+          </div>
+          <dl class="rows">
+            <div><dt>Friends referred</dt><dd>{{ data.retention.referrals.referred | number }}</dd></div>
+            <div><dt>…who placed a first order</dt><dd>{{ data.retention.referrals.first_order | number }}</dd></div>
+          </dl>
+        </div>
+
+        <div class="features__col">
+          <span class="overline">Repeat rate · Brew Coach</span>
+          <div class="bars">
+            <div class="bar-row">
+              <span class="bar-row__label">Used Brew Coach</span>
+              <span class="bar-row__track"><i class="bar-row__fill" [style.width.%]="data.retention.brew_coach.with_rate || 0"></i></span>
+              <span class="bar-row__value">{{ data.retention.brew_coach.with_rate === null ? '—' : (data.retention.brew_coach.with_rate | number:'1.0-0') + '%' }}</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-row__label">Never used it</span>
+              <span class="bar-row__track"><i class="bar-row__fill bar-row__fill--muted" [style.width.%]="data.retention.brew_coach.without_rate || 0"></i></span>
+              <span class="bar-row__value">{{ data.retention.brew_coach.without_rate === null ? '—' : (data.retention.brew_coach.without_rate | number:'1.0-0') + '%' }}</span>
+            </div>
+          </div>
+          <div class="insight">
+            <span class="insight__icon" aria-hidden="true"><svg lucideArrowRight [size]="14" [strokeWidth]="3"></svg></span>
+            <p>{{ brewCoachInsight.before }}<b>{{ brewCoachInsight.strong }}</b>{{ brewCoachInsight.after }}</p>
+          </div>
+        </div>
+      </div>
+    </article>
   }
 </section>

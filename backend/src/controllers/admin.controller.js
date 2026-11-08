@@ -79,6 +79,7 @@ function getOrderType(order) {
 function enrichOrders(orders) {
   return orders.map((order) => {
     const customer = resolveCustomer(order);
+    const reasons = attentionReasons(order);
     return {
       _id: order._id,
       order_id: order.order_id,
@@ -92,8 +93,8 @@ function enrichOrders(orders) {
       currency: order.pricing?.currency ?? 'USD',
       is_guest: order.is_guest,
       subscription_start_failed: !!order.subscription_start_failed,
-      attention_reasons: attentionReasons(order),
-      needs_attention: attentionReasons(order).length > 0
+      attention_reasons: reasons,
+      needs_attention: reasons.length > 0
     };
   });
 }
@@ -122,34 +123,60 @@ function orderTypeCondition(orderType) {
   return ORDER_TYPE_FILTERS[orderType] || null;
 }
 
-// Urgent orders ("Needs attention"): a refund request waiting on staff, a failed delivery, or a
-// paid Ritual Box that couldn't start. One definition for the stat card, the filter, the
-// urgent-first sort and the row flag. Cancelled orders never reach the listing at all.
+// Urgent orders ("Needs attention"): a refund request waiting on staff, a failed delivery, a
+// paid Ritual Box that couldn't start, or an order still being prepared URGENT_PROCESSING_DAYS
+// after it was placed (the bell's "Urgent preparation needed"). One definition for the stat card,
+// the filter, the urgent-first sort and the row flag. Cancelled orders never reach the listing.
 const URGENT_STATUSES = ['pending_refund', 'delivery_failed'];
-const NEEDS_ATTENTION_FILTER = {
-  $or: [{ order_status: { $in: URGENT_STATUSES } }, { subscription_start_failed: true }]
-};
+const URGENT_PROCESSING_DAYS = 3; // same threshold as admin-notification.service.ts
+const DAY_MS = 86_400_000;
+
+function urgentProcessingCutoff(now = Date.now()) {
+  return new Date(now - URGENT_PROCESSING_DAYS * DAY_MS);
+}
+
+function needsAttentionFilter(now = Date.now()) {
+  return {
+    $or: [
+      { order_status: { $in: URGENT_STATUSES } },
+      { subscription_start_failed: true },
+      { order_status: 'processing', created_at: { $lte: urgentProcessingCutoff(now) } }
+    ]
+  };
+}
+
 // Same rule as an aggregation expression (1 = urgent), for sorting in the database.
-const URGENT_SORT_KEY = {
-  $cond: [
-    { $or: [{ $in: ['$order_status', URGENT_STATUSES] }, { $eq: ['$subscription_start_failed', true] }] },
-    1,
-    0
-  ]
-};
+function urgentSortKey(now = Date.now()) {
+  return {
+    $cond: [
+      {
+        $or: [
+          { $in: ['$order_status', URGENT_STATUSES] },
+          { $eq: ['$subscription_start_failed', true] },
+          { $and: [{ $eq: ['$order_status', 'processing'] }, { $lte: ['$created_at', urgentProcessingCutoff(now)] }] }
+        ]
+      },
+      1,
+      0
+    ]
+  };
+}
 
 // Why an order is urgent, in the order the badges are shown.
-function attentionReasons(order) {
+function attentionReasons(order, now = Date.now()) {
   const reasons = [];
   if (URGENT_STATUSES.includes(order.order_status)) reasons.push(order.order_status);
+  if (order.order_status === 'processing' && new Date(order.created_at) <= urgentProcessingCutoff(now)) {
+    reasons.push('urgent_preparation');
+  }
   if (order.subscription_start_failed) reasons.push('ritual_box_not_started');
   return reasons;
 }
 
 // "Needs attention" filters (?attention=…): every urgent order, or one flag the system sets.
 const ATTENTION_FILTERS = {
-  needs_attention: NEEDS_ATTENTION_FILTER,
-  ritual_box_not_started: { subscription_start_failed: true }
+  needs_attention: needsAttentionFilter,
+  ritual_box_not_started: () => ({ subscription_start_failed: true })
 };
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -353,7 +380,7 @@ async function computeStats(createdAtFilter, orderScope = {}, typeFilter = null)
     Order.countDocuments(baseFilter),
     Order.countDocuments({ ...baseFilter, order_status: { $in: ['pending', 'processing'] } }),
     Order.countDocuments({ ...baseFilter, order_status: 'shipping' }),
-    Order.countDocuments({ ...baseFilter, ...NEEDS_ATTENTION_FILTER })
+    Order.countDocuments({ ...baseFilter, ...needsAttentionFilter() })
   ]);
 
   return { total, processing, shipped, needsAttention };
@@ -400,7 +427,7 @@ async function getAllOrders(req, res) {
     }
 
     if (ATTENTION_FILTERS[attention]) {
-      Object.assign(filter, ATTENTION_FILTERS[attention]);
+      Object.assign(filter, ATTENTION_FILTERS[attention]());
     }
 
     // Type and search both use $or, so each goes in its own $and clause.
@@ -413,23 +440,16 @@ async function getAllOrders(req, res) {
     const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
     const skip = (parsedPage - 1) * parsedLimit;
 
-    // Default listing (no status filter): urgent orders first, then newest first, paged in the
-    // database. A status filter keeps the plain newest-first order.
-    const listQuery = statusFilter
-      ? Order.find(filter)
-        .sort({ created_at: -1, _id: -1 })
-        .skip(skip)
-        .limit(parsedLimit)
-        .select(LIST_FIELDS.join(' '))
-        .lean()
-      : Order.aggregate([
-        { $match: filter },
-        { $addFields: { _urgent: URGENT_SORT_KEY } },
-        { $sort: { _urgent: -1, created_at: -1, _id: -1 } },
-        { $skip: skip },
-        { $limit: parsedLimit },
-        { $project: Object.fromEntries(LIST_FIELDS.map((field) => [field, 1])) }
-      ]);
+    // Urgent orders first (also within a status filter, e.g. Processing), then newest first,
+    // paged in the database.
+    const listQuery = Order.aggregate([
+      { $match: filter },
+      { $addFields: { _urgent: urgentSortKey() } },
+      { $sort: { _urgent: -1, created_at: -1, _id: -1 } },
+      { $skip: skip },
+      { $limit: parsedLimit },
+      { $project: Object.fromEntries(LIST_FIELDS.map((field) => [field, 1])) }
+    ]);
 
     const [orders, total, stats] = await Promise.all([
       listQuery,

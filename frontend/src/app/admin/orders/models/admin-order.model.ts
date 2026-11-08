@@ -27,8 +27,11 @@ export type AdminOrderStatusFilter =
  */
 export type AdminOrderAttentionFilter = 'all' | 'needs_attention' | 'ritual_box_not_started';
 
-/** Why an order is urgent: refund request waiting, failed delivery, Ritual Box not started. */
-export type AdminOrderAttentionReason = 'pending_refund' | 'delivery_failed' | 'ritual_box_not_started';
+/**
+ * Why an order is urgent: refund request waiting, failed delivery, still being prepared 3+ days
+ * after it was placed (the bell's "Urgent preparation needed"), Ritual Box not started.
+ */
+export type AdminOrderAttentionReason = 'pending_refund' | 'delivery_failed' | 'urgent_preparation' | 'ritual_box_not_started';
 
 /** 'all' or one of the order types (same rule as the badge). */
 export type AdminOrderTypeFilter = 'all' | OrderType;
