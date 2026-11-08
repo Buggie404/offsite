@@ -148,10 +148,26 @@ test('CSKH can list all registered customers without assignment or conversation 
   assert.equal(res.body.total, 1);
   assert.equal(res.body.page, 2);
   assert.equal(seen.listQuery.role, 'customer');
-  assert.equal(seen.listQuery.membership_tier, 'Seed');
+  assert.deepEqual(seen.listQuery.$and, [{ $or: [{ membership_tier: 'Seed' }, { membership_tier: null }, { membership_tier: '' }] }]);
   assert.equal(seen.listQuery.user_id, undefined);
   assert.equal(seen.findOne, undefined);
   assert.ok(seen.listQuery.$or);
+});
+
+test('CSKH Seed filtering includes default tiers without overwriting the name search or status filter', async () => {
+  const { api, req, seen } = loadApi();
+  const request = req({}, { tier: 'Seed', q: '@mai', status: 'active' });
+  request.user.role = 'cskh';
+  const res = response();
+  await api.listCustomers(request, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(seen.listQuery.$and[0].$or, [{ membership_tier: 'Seed' }, { membership_tier: null }, { membership_tier: '' }]);
+  assert.equal(seen.listQuery.$or[1].community_name.source, 'mai');
+  assert.deepEqual(seen.listQuery.status, { $ne: 'suspended' });
+  const otherRole = loadApi();
+  await otherRole.api.listCustomers(otherRole.req({}, { tier: 'Seed' }), response());
+  assert.equal(otherRole.seen.listQuery.membership_tier, 'Seed');
+  assert.equal(otherRole.seen.listQuery.$and, undefined);
 });
 
 test('restricted filter selects active community penalties separately from suspended accounts', async () => {

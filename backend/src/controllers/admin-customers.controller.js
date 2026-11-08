@@ -73,7 +73,11 @@ async function listCustomers(req, res) {
     const query = { role: 'customer' };
     // The customer directory includes all registered customers for CSKH as well.
     // Assignment checks belong to the individual customer resources below.
-    if (TIERS.includes(req.query.tier)) query.membership_tier = req.query.tier;
+    if (req.user.role === 'cskh' && req.query.tier === 'Seed') {
+      // Legacy accounts without a stored tier display as Seed, so include them
+      // in the same filter and total while leaving other admin roles unchanged.
+      query.$and = [{ $or: [{ membership_tier: 'Seed' }, { membership_tier: null }, { membership_tier: '' }] }];
+    } else if (TIERS.includes(req.query.tier)) query.membership_tier = req.query.tier;
     // Suspended: restricted in Community right now, or locked before locking was removed.
     const now = new Date();
     if (req.query.status === 'suspended') {
