@@ -37,6 +37,7 @@ $text-subtle: rgba(84, 74, 64, 0.6);
 
 .comment-avatar,
 .composer-avatar {
+  text-decoration: none;
   width: 30px;
   height: 30px;
   flex-shrink: 0;
@@ -79,6 +80,7 @@ $text-subtle: rgba(84, 74, 64, 0.6);
 }
 
 .comment-username {
+  cursor: pointer;
   font-size: 12px;
   font-weight: 500;
   line-height: 16px;
