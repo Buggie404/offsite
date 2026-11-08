@@ -38,14 +38,15 @@
 
 <ng-template #commentRow let-comment let-isReply="isReply" let-parentId="parentId">
   <div class="comment-item" [class.comment-item--reply]="isReply">
-    <div class="comment-avatar" [class.comment-avatar--pink]="avatarTone(comment.author.username) === 'pink'">
+    <a class="comment-avatar" [routerLink]="comment.user_id ? ['/community/profile', comment.user_id] : null"
+      [attr.aria-label]="'View profile of ' + comment.author.username" [class.comment-avatar--pink]="avatarTone(comment.author.username) === 'pink'">
       <img *ngIf="comment.author.avatar_url" [src]="comment.author.avatar_url" [alt]="comment.author.username">
       <span *ngIf="!comment.author.avatar_url">{{ initials(comment.author.username) }}</span>
-    </div>
+    </a>
 
     <div class="comment-body">
       <div class="comment-meta">
-        <span class="comment-username">&#64;{{ comment.author.username }}</span>
+        <a class="comment-username" [routerLink]="comment.user_id ? ['/community/profile', comment.user_id] : null">&#64;{{ comment.author.username }}</a>
         <span class="author-badge" *ngIf="comment.author.is_post_author">AUTHOR</span>
         <span class="comment-time">{{ timeAgo(comment.created_at) }}</span>
         

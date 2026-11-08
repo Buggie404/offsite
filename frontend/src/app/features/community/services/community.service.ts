@@ -32,7 +32,7 @@ export interface PublicProfile {
   bio: string;
   membership_tier: 'Seed' | 'Leaf' | 'Bloom' | 'Zen';
   ritual_dna_completed: boolean;
-  ritual_dna_archetype: { archetype_id: string; name: string } | null;
+  ritual_dna_badge?: { id: string; name: string } | null;
   joined_at: string;
   post_count: number;
   recipe_count: number;
@@ -107,11 +107,9 @@ export class CommunityService {
     limit: number = 9,
     activeCategory: 'MATCHA' | 'COFFEE' | 'RECIPE' | 'MY_POST' | 'FOLLOWING' | '' = '',
     sort: 'created_at' | 'like_count' = 'created_at',
-    userId?: string,
-    all = false
+    userId?: string
   ): Observable<FeedResponse> {
     let url = `${this.apiUrl}?page=${page}&limit=${limit}`;
-    if (all) url += '&all=true';
     if (activeCategory === 'COFFEE' || activeCategory === 'MATCHA') {
       url += `&base=${activeCategory}`;
     } else if (activeCategory === 'RECIPE') {
@@ -135,7 +133,7 @@ export class CommunityService {
   
   updatePost(
     id: string,
-    data: { content: string; base: string; linked_products: string }
+    data: { content: string; base: string; linked_products: string; ai_product_ids?: string }
   ): Observable<any> {
     return this.http.put(`${this.apiUrl}/${id}`, data);
   }
@@ -146,10 +144,9 @@ export class CommunityService {
       .pipe(map(r => r.data));
   }
 
-  suggestProducts(body: { content: string; base: string | null; exclude: number[] }): Observable<ProductTag[]> {
+  suggestProducts(body: { content: string; base: string | null; exclude: number[]; suggestion_session_id?: string }): Observable<{ data: ProductTag[]; suggestion_session_id: string; remaining: number }> {
     return this.http
-      .post<{ data: ProductTag[] }>(`${this.apiUrl}/product-suggestions`, body)
-      .pipe(map(r => r.data));
+      .post<{ data: ProductTag[]; suggestion_session_id: string; remaining: number }>(`${this.apiUrl}/product-suggestions`, body);
   }
 
   deletePost(id: string): Observable<{ message: string }> {

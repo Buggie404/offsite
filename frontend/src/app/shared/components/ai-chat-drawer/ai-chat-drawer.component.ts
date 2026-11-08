@@ -84,12 +84,28 @@ export class AiChatDrawerComponent {
   isSendingContact = false;
 
   constructor() {
+    let previousSession: string | null = null;
+    let wasOpen = false;
+    let wasHistoryOpen = false;
     effect(() => {
       this.chatService.messages();
       this.chatService.isTyping();
-      this.chatService.isOpen();
-      this.chatService.historyOpen();
-      setTimeout(() => this.scrollToBottom(), 50);
+      const open = this.chatService.isOpen();
+      const historyOpen = this.chatService.historyOpen();
+      const session = this.chatService.sessionId();
+      const force = session !== previousSession || !wasOpen || wasHistoryOpen;
+      previousSession = session;
+      wasOpen = open;
+      wasHistoryOpen = historyOpen;
+      if (!open || historyOpen) return;
+      const el = this.messagesContainer?.nativeElement;
+      if (!force && el && el.scrollHeight - el.scrollTop - el.clientHeight > 80) return;
+      const scrollTop = el?.scrollTop;
+      setTimeout(() => {
+        const current = this.messagesContainer?.nativeElement;
+        if (this.chatService.sessionId() !== session || !this.chatService.isOpen() || this.chatService.historyOpen()) return;
+        if (force || current?.scrollTop === scrollTop) this.scrollToBottom();
+      }, 50);
     });
 
     effect(() => {

@@ -11,7 +11,7 @@ import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { AdminCustomersService, CustomerDetail, CustomerOrder } from '../../services/admin-customers.service';
 import { pageCount, pageList } from '../../pagination';
 
-type Tab = 'orders' | 'notes';
+type Tab = 'orders' | 'notes' | 'vouchers' | 'violations';
 
 const ORDERS_PAGE_SIZE = 20;
 
@@ -57,6 +57,8 @@ export class CustomerDetailComponent implements OnInit {
   confirmOpen = false;
   statusSaving = false;
   confirmError = '';
+  get customersPath(): string { return this.route.snapshot.data['serviceCustomers'] ? '/admin/service-customers' : '/admin/customers'; }
+  get serviceCustomers(): boolean { return !!this.route.snapshot.data['serviceCustomers']; }
 
   ngOnInit(): void {
     this.load();

@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { AdminBatchProduct, AdminProductService } from '../../services/admin-product.service';
 
 @Component({
@@ -12,6 +13,7 @@ import { AdminBatchProduct, AdminProductService } from '../../services/admin-pro
 })
 export class ProductsListingComponent implements OnInit {
   private productsApi = inject(AdminProductService);
+  private route = inject(ActivatedRoute);
 
   loading = true;
   error = '';
@@ -22,6 +24,8 @@ export class ProductsListingComponent implements OnInit {
   rowError = '';
 
   ngOnInit(): void {
+    // ?search= comes from dashboard links (Stock check, missing batch expiry).
+    this.search = this.route.snapshot.queryParamMap.get('search') || '';
     this.productsApi.list().subscribe({
       next: (response) => {
         this.rows = response.data || [];

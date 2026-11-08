@@ -72,4 +72,23 @@ describe('AI Concierge human handover', () => {
     });
     expect(service.humanChatActive()).toBe(false);
   });
+
+  it('keeps Talk to chatbot usable during the support reopen window', () => {
+    handover(); service.isOpen.set(true);
+    vi.advanceTimersByTime(2500);
+    http.expectOne(request => request.url.endsWith('/ai-chat/sessions/' + service.sessionId())).flush({
+      status: 'ai_active', can_reopen_support: true, support_conversation_id: 'CHAT1', messages: [
+        { message_id: 'CLOSED1', sender: 'system', text: 'Support conversation closed.', created_at: new Date().toISOString() }
+      ]
+    });
+    expect(service.humanChatActive()).toBe(false);
+    expect(service.canReopenSupport()).toBe(true);
+    service.returnToBot();
+    http.expectOne(request => request.url.endsWith('/ai-chat/return-to-bot')).flush({
+      status: 'ai_active', messages: [
+        { message_id: 'BOT1', sender: 'system', text: 'You are now chatting with the chatbot.', created_at: new Date().toISOString() }
+      ]
+    });
+    expect(service.canReopenSupport()).toBe(false);
+  });
 });

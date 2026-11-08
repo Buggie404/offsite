@@ -108,7 +108,7 @@ export class SupportChatComponent implements OnDestroy {
     this.chat.joinConversation(c.conversation_id);
     this.chat.messages(c.conversation_id).subscribe(res => {
       this.messages = res.data;
-      this.scrollSoon();
+      this.scrollSoon(true);
       this.cdr.markForCheck();
     });
   }
@@ -156,10 +156,14 @@ export class SupportChatComponent implements OnDestroy {
     this.chat.disconnect();
   }
 
-  private scrollSoon(): void {
+  private scrollSoon(force = false): void {
+    const current = this.thread?.nativeElement;
+    if (!force && current && current.scrollHeight - current.scrollTop - current.clientHeight > 80) return;
+    const conversationId = this.conversation?.conversation_id;
+    const scrollTop = current?.scrollTop;
     setTimeout(() => {
       const el = this.thread?.nativeElement;
-      if (el) el.scrollTop = el.scrollHeight;
+      if (el && this.conversation?.conversation_id === conversationId && (force || el.scrollTop === scrollTop)) el.scrollTop = el.scrollHeight;
     }, 0);
   }
 }

@@ -8,7 +8,7 @@ const Product = require('../models/Product');
 const { getFollowingIds } = require('../services/follow.service');
 const mongoose = require('mongoose');
 
-const MAX_LINKED_PRODUCTS = 3;
+const MAX_LINKED_PRODUCTS = 5;
 
 // Resolve Post.linked_products (product_id numbers) into small cards for the UI.
 async function loadProductCards(posts) {
@@ -45,7 +45,7 @@ function parseLinkedProducts(raw) {
 
 async function getAllPosts(req, res) {
   try {
-    const { page = 1, limit = 10, all, post_type, recipe_id, user_id, sort, base, following } = req.query;
+    const { page = 1, limit = 10, post_type, recipe_id, user_id, sort, base, following } = req.query;
 
     const query = {};
     if (post_type) query.post_type = post_type;
@@ -74,23 +74,17 @@ async function getAllPosts(req, res) {
     if (following === 'true') {
       if (!req.user) return res.json({ data: [], total: 0, page: parseInt(page, 10), limit: parseInt(limit, 10) });
       const followedIds = await getFollowingIds(viewerId);
-      const blocked = query.user_id && query.user_id.$nin ? query.user_id.$nin : [];
-      query.user_id = { $in: followedIds.filter(id => !blocked.includes(id)) };
+      query.$and = [...(query.$and || []), { user_id: { $in: followedIds } }];
     }
 
-    const fetchAll = all === 'true';
     const pageNumber = Math.max(1, parseInt(page, 10) || 1);
-    const limitCount = Math.max(1, parseInt(limit, 10) || 10);
+    const limitCount = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
 
     const sortOption = sort === 'like_count'
-      ? { like_count: -1 }
-      : { created_at: -1 };
+      ? { like_count: -1, _id: -1 }
+      : { created_at: -1, _id: -1 };
 
-    let postsQuery = Post.find(query).sort(sortOption);
-    if (!fetchAll) {
-      const skipCount = (pageNumber - 1) * limitCount;
-      postsQuery = postsQuery.skip(skipCount).limit(limitCount);
-    }
+    const postsQuery = Post.find(query).sort(sortOption).skip((pageNumber - 1) * limitCount).limit(limitCount);
     const posts = await postsQuery;
 
     const total = await Post.countDocuments(query);
@@ -120,7 +114,7 @@ async function getAllPosts(req, res) {
       data,
       total,
       page: pageNumber,
-      limit: fetchAll ? data.length : limitCount
+      limit: limitCount
     });
   } catch (error) {
     console.error('Error fetching posts:', error);
@@ -199,6 +193,8 @@ async function createPost(req, res) {
     const { content, media: rawMedia, post_type = 'regular', recipe_id = null, base, linked_products } = req.body;
     const media = parseMediaField(rawMedia);
     const linkedProducts = parseLinkedProducts(linked_products);
+    const aiProducts = parseLinkedProducts(req.body.ai_product_ids);
+    if (aiProducts.length > 3 || aiProducts.some(id => !linkedProducts.includes(id))) return res.status(400).json({ error: 'At most 3 AI tags within 5 total products are allowed' });
 
     const user = await User.findById(req.user.user_id);
     if (!user) {
@@ -228,6 +224,7 @@ async function createPost(req, res) {
       recipe_id,
       base,
       linked_products: linkedProducts,
+      ai_product_ids: aiProducts,
       like_count: 0,
       comment_count: 0,
       share_count: 0,
@@ -298,6 +295,9 @@ async function updatePost(req, res) {
     if (recipe_id !== undefined) post.recipe_id = recipe_id;
     if (base !== undefined) post.base = base;
     if (linked_products !== undefined) post.linked_products = parseLinkedProducts(linked_products);
+    if (req.body.ai_product_ids !== undefined) post.ai_product_ids = parseLinkedProducts(req.body.ai_product_ids);
+    post.ai_product_ids = (post.ai_product_ids || []).filter(id => post.linked_products.includes(id));
+    if (post.ai_product_ids.length > 3) return res.status(400).json({ error: 'At most 3 AI product tags are allowed' });
 
     const updatedPost = await post.save();
     res.json({

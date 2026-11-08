@@ -72,7 +72,9 @@ function loadOrdersApi({ count, customer = customerDoc() }) {
   });
   const run = async (page) => {
     const res = response();
-    await api.listCustomerOrders({ params: { userId: 'USR00042' }, query: page ? { page: String(page) } : {} }, res);
+    await api.listCustomerOrders({
+      params: { userId: 'USR00042' }, query: page ? { page: String(page) } : {}, user: { user_id: '64b7f0c2a1b2c3d4e5f60718', role: 'qlsp' }
+    }, res);
     return res;
   };
   return { run, seen };

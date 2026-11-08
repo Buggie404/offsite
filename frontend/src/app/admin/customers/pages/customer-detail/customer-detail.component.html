@@ -4,10 +4,10 @@
   } @else if (!customer) {
     <div class="state state--error">
       {{ error }}
-      <a routerLink="/admin/customers" queryParamsHandling="preserve">Back to Customers</a>
+      <a [routerLink]="customersPath" queryParamsHandling="preserve">Back to Customers</a>
     </div>
   } @else {
-    <a routerLink="/admin/customers" queryParamsHandling="preserve" class="back-link"><svg lucideArrowLeft class="inline-icon" aria-hidden="true"></svg> Back to Customers</a>
+    <a [routerLink]="customersPath" queryParamsHandling="preserve" class="back-link"><svg lucideArrowLeft class="inline-icon" aria-hidden="true"></svg> Back to Customers</a>
 
     <header class="page-header">
       <div class="page-header__left">
@@ -66,6 +66,10 @@
     </article>
 
     <nav class="tabs" role="tablist" aria-label="Customer sections">
+      @if (serviceCustomers) {
+        <button type="button" role="tab" [class.active]="tab === 'vouchers'" [attr.aria-selected]="tab === 'vouchers'" (click)="tab = 'vouchers'">Vouchers ({{ customer.vouchers.length }})</button>
+        <button type="button" role="tab" [class.active]="tab === 'violations'" [attr.aria-selected]="tab === 'violations'" (click)="tab = 'violations'">Violations ({{ customer.violations.length }})</button>
+      }
       <button type="button" role="tab" [class.active]="tab === 'orders'" [attr.aria-selected]="tab === 'orders'" (click)="tab = 'orders'">
         Purchase history ({{ customer.order_count }})
       </button>
@@ -73,6 +77,20 @@
         Internal notes ({{ customer.notes.length }})
       </button>
     </nav>
+    @if (tab === 'vouchers') {
+      <article class="card">
+        <header class="card__header"><h2>Personal vouchers</h2><a routerLink="/admin/vouchers">Manage complaint vouchers</a></header>
+        @for (voucher of customer.vouchers; track voucher.code) {
+          <div class="state"><strong>{{ voucher.code }}</strong> · {{ voucher.title || 'Personal voucher' }} · {{ voucher.discount_value }}{{ voucher.discount_type === 'percentage' ? '%' : ' USD' }} · Valid until {{ voucher.valid_to }} · {{ voucher.is_active ? 'Enabled' : 'Stopped' }} · Used {{ voucher.used_count }}{{ voucher.usage_limit ? ' / ' + voucher.usage_limit : '' }}</div>
+        } @empty { <div class="state">No personal vouchers.</div> }
+      </article>
+    }
+    @if (tab === 'violations') {
+      <article class="card"><header class="card__header"><h2>Community violations</h2></header>
+        @for (violation of customer.violations; track $index) { <div class="state">Level {{ violation.level }} · {{ violation.reason }} · {{ shortDate(violation.created_at) }}</div> }
+        @empty { <div class="state">No recorded violations.</div> }
+      </article>
+    }
 
     @if (tab === 'orders') {
       <article class="card">
@@ -132,7 +150,7 @@
           </footer>
         }
       </article>
-    } @else {
+    } @else if (tab === 'notes') {
       <article class="card">
         <header class="card__header"><h2>Internal notes</h2></header>
         <div class="notes">

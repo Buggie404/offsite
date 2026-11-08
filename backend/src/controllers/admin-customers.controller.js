@@ -4,6 +4,15 @@ const Order = require('../models/Order');
 const Subscription = require('../models/Subscription');
 const CustomerNote = require('../models/CustomerNote');
 const { activeRestriction } = require('../services/community-restriction.service');
+const Voucher = require('../models/Voucher');
+
+async function scopedCustomerIds(req) {
+  if (req.user.role !== 'cskh') return null;
+  const id = String(req.user.user_id || '');
+  const staff = await User.findOne(/^[a-f0-9]{24}$/i.test(id) ? { _id: id } : { user_id: id }, 'user_id assigned_chat_customer_ids').lean();
+  if (!staff) return [];
+  return staff.assigned_chat_customer_ids || [];
+}
 
 // Admin Customers (1.4): list, profile, unlock, internal notes.
 // Points / tier (group 6) and orders (group 3) are read here only, never changed.
@@ -45,6 +54,8 @@ async function listCustomers(req, res) {
   try {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const query = { role: 'customer' };
+    const scoped = await scopedCustomerIds(req);
+    if (scoped) query.user_id = { $in: scoped };
     if (TIERS.includes(req.query.tier)) query.membership_tier = req.query.tier;
     // Suspended: restricted in Community right now, or locked before locking was removed.
     const now = new Date();
@@ -106,18 +117,21 @@ function orderRow(order) {
 // GET /api/admin/customers/:userId -> profile, Ritual Box count, notes (orders come from /orders)
 async function getCustomer(req, res) {
   try {
+    const scoped = await scopedCustomerIds(req);
+    if (scoped && !scoped.includes(req.params.userId)) return res.status(403).json({ error: 'This customer is not assigned to you.' });
     const customer = await User.findOne({ user_id: String(req.params.userId || ''), role: 'customer' }).lean();
     if (!customer) return res.status(404).json({ error: 'Customer not found.' });
 
     const userId = customer.user_id;
-    const [orderCount, totals, ritualBoxes, notes] = await Promise.all([
+    const [orderCount, totals, ritualBoxes, notes, vouchers] = await Promise.all([
       Order.countDocuments({ user_id: userId }),
       Order.aggregate([
         { $match: { user_id: userId, order_status: { $nin: ['canceled', 'refund'] } } },
         { $group: { _id: null, spent: { $sum: '$pricing.total' }, last_order_at: { $max: '$created_at' } } }
       ]),
       Subscription.countDocuments({ user_id: userId, status: { $in: ACTIVE_SUBSCRIPTION_STATUSES } }),
-      CustomerNote.find({ customer_id: userId }).sort({ created_at: -1 }).limit(100).lean()
+      CustomerNote.find({ customer_id: userId }).sort({ created_at: -1 }).limit(100).lean(),
+      Voucher.find({ assigned_user_id: userId }, 'code title discount_type discount_value is_active valid_from valid_to used_count usage_limit purpose').sort({ createdAt: -1 }).limit(50).lean()
     ]);
 
     res.json({
@@ -125,6 +139,8 @@ async function getCustomer(req, res) {
         ...customerRow(customer, { order_count: orderCount, last_order_at: totals[0]?.last_order_at }),
         total_spent: totals[0]?.spent || 0,
         ritual_boxes: ritualBoxes,
+        vouchers,
+        violations: (customer.community_warnings || []).map(warning => ({ reason: warning.reason, level: warning.level, created_at: warning.created_at })),
         notes: notes.map((note) => ({
           note_id: note.note_id,
           content: note.content,
@@ -143,6 +159,8 @@ async function getCustomer(req, res) {
 // GET /api/admin/customers/:userId/orders?page= -> every order of the customer, newest first, 20 a page
 async function listCustomerOrders(req, res) {
   try {
+    const scoped = await scopedCustomerIds(req);
+    if (scoped && !scoped.includes(req.params.userId)) return res.status(403).json({ error: 'This customer is not assigned to you.' });
     const customer = await User.findOne({ user_id: String(req.params.userId || ''), role: 'customer' }, 'user_id').lean();
     if (!customer) return res.status(404).json({ error: 'Customer not found.' });
 
@@ -170,6 +188,8 @@ async function adminName(req) {
 // POST /api/admin/customers/:userId/notes  { content }
 async function addCustomerNote(req, res) {
   try {
+    const scoped = await scopedCustomerIds(req);
+    if (scoped && !scoped.includes(req.params.userId)) return res.status(403).json({ error: 'This customer is not assigned to you.' });
     const content = String(req.body?.content || '').trim();
     if (!content) return res.status(400).json({ error: 'The note cannot be empty.' });
     if (content.length > 1000) return res.status(400).json({ error: 'Notes are limited to 1,000 characters.' });

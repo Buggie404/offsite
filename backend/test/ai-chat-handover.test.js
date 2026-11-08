@@ -140,18 +140,18 @@ test('CSKH list includes the waiting queue and their own chats without assigned 
   const res = { json(body) { this.body = body; }, status() { return this; } };
   await controller.listConversations({ user: { user_id: 'STAFF1', role: 'cskh' }, query: {} }, res);
   assert.deepEqual(filter.$or, [
-    { customer_id: { $in: [] } }, { agent_id: 'STAFF1' }, { status: 'waiting', agent_id: null }
+    { customer_id: { $in: [] } }, { agent_id: { $in: ['STAFF1'] } }, { status: 'waiting', agent_id: null }
   ]);
   assert.equal(res.body.data[0].conversation_id, 'CHAT1');
 });
 
-test('socket chat queue uses the stored admin role and canonical user ID', async () => {
+test('socket keeps Mongo identity for shared consumers and application identity for chat', async () => {
   let authenticate, connection;
   class Server {
     use(handler) { authenticate = handler; }
     on(event, handler) { if (event === 'connection') connection = handler; }
   }
-  let account = { user_id: 'ADMIN1', role: 'admin', status: 'active' };
+  let account = { _id: '507f1f77bcf86cd799439011', user_id: 'ADMIN1', role: 'admin', status: 'active' };
   const service = load('../src/services/socket.service.js', {
     'socket.io': { Server },
     'jsonwebtoken': { verify: () => ({ user_id: '507f1f77bcf86cd799439011', role: 'customer' }) },
@@ -165,7 +165,8 @@ test('socket chat queue uses the stored admin role and canonical user ID', async
     join: room => rooms.push(room), emit: (event, payload) => errors.push({ event, payload })
   };
   await authenticate(socket, error => { assert.ifError(error); });
-  assert.equal(socket.user.user_id, 'ADMIN1');
+  assert.equal(socket.user.user_id, account._id);
+  assert.equal(socket.user.chat_user_id, 'ADMIN1');
   assert.equal(socket.user.role, 'admin_cc');
   connection(socket);
   handlers.join_chat_agents();

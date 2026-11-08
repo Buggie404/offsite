@@ -24,15 +24,16 @@ const postSchema = new mongoose.Schema({
   comment_count: { type: Number, default: 0 },
   share_count: { type: Number, default: 0 },
   save_count: { type: Number, default: 0 },
-  // Product.product_id values tagged on this post (max 3).
+  // Five total tags, including at most three AI tags.
   linked_products: {
     type: [Number],
     default: [],
     validate: {
-      validator: arr => arr.length <= 3,
-      message: 'A post can link at most 3 products'
+      validator: arr => arr.length <= 5,
+      message: 'A post can link at most 5 products'
     }
   },
+  ai_product_ids: { type: [Number], default: [], validate: { validator: ids => ids.length <= 3, message: 'At most 3 AI product tags' } },
   // 'hidden' posts are removed from public feeds; the owner still sees them with a banner.
   status: { type: String, enum: ['visible', 'hidden'], default: 'visible' },
   // Why/when/who hid it: 'manual' (admin) or 'auto_reports' (older posts, reports no longer hide a post).

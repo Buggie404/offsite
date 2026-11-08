@@ -21,7 +21,15 @@ async function handoverAiSession(session) {
     const transaction = await ChatConversation.db.startSession();
     try {
       await transaction.withTransaction(async () => {
+        let resumeAfter = null;
         conversation = await ChatConversation.findOne({ ai_session_id: session.session_id }).session(transaction);
+        if (conversation?.status === 'closed') {
+          resumeAfter = conversation.closed_at || conversation.last_message_at;
+          conversation.archived_ai_session_id = session.session_id;
+          conversation.ai_session_id = null;
+          await conversation.save({ session: transaction });
+          conversation = null;
+        }
         if (!conversation) {
           [conversation] = await ChatConversation.create([{
             conversation_id: newConversationId(), customer_id: customerId,
@@ -44,7 +52,7 @@ async function handoverAiSession(session) {
           sender_id: message.sender === 'user' ? customerId : message.agent_id || null,
           content: message.text || '', metadata: message.metadata || null,
           created_at: message.created_at || session.created_at || new Date()
-        })).filter(message => message.sender_type && (message.content || message.metadata));
+        })).filter(message => message.sender_type && (message.content || message.metadata) && (!resumeAfter || new Date(message.created_at) > new Date(resumeAfter)));
         if (transcript.length) {
           const copied = await ChatMessage.bulkWrite(transcript.map(message => ({ updateOne: {
             filter: { source_session_id: message.source_session_id, source_message_id: message.source_message_id },
@@ -72,4 +80,4 @@ async function handoverAiSession(session) {
   return conversation;
 }
 
-module.exports = { handoverAiSession };
+module.exports = { handoverAiSession, customerIdFor };

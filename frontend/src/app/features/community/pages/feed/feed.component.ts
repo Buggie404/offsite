@@ -1,7 +1,9 @@
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, computed, effect, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Subject, switchMap, startWith } from 'rxjs';
+import { Subject, switchMap, catchError, EMPTY } from 'rxjs';
+import { DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { Post } from '../../models/post.model';
 import { CommunityService } from '../../services/community.service';
@@ -85,7 +87,9 @@ export class FeedComponent implements OnInit, OnDestroy {
   }
   reportSubmitting = false;
 
-  private fetch$ = new Subject<void>();
+  private fetch$ = new Subject<number>();
+  private destroyRef = inject(DestroyRef);
+  feedError = '';
   private isFirstLoginEffect = true;
 
   isScrollTimelineSupported = true;
@@ -107,7 +111,7 @@ export class FeedComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.route.queryParamMap.subscribe(params => {
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       if (params.get('create') === 'post') {
         setTimeout(() => this.openCreatePost());
         void this.router.navigate([], { relativeTo: this.route, queryParams: { create: null }, queryParamsHandling: 'merge', replaceUrl: true });
@@ -125,15 +129,25 @@ export class FeedComponent implements OnInit, OnDestroy {
     this.updateFooterVisibility();
 
     this.fetch$.pipe(
-      switchMap(() => {
+      switchMap(page => {
         const userId = this.activeCategory === 'MY_POST' ? this.authService.getUser()?.user_id : undefined;
-        return this.communityService.getFeed(1, 9, this.activeCategory, this.sort, userId, true);
-      })
+        return this.communityService.getFeed(page, this.limit, this.activeCategory, this.sort, userId).pipe(
+          catchError(() => {
+            this.loading = false;
+            this.feedError = 'Could not load posts. Please try again.';
+            this.cdr.markForCheck();
+            this.updateFooterVisibility();
+            return EMPTY;
+          })
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (res) => {
-        this.posts = res.data;
-        this.page = 1;
-        this.hasMore = false;
+        const previous = res.page === 1 ? [] : this.posts;
+        this.posts = [...new Map([...previous, ...res.data].map(post => [post.post_id, post])).values()];
+        this.page = res.page;
+        this.hasMore = res.data.length > 0 && res.page * res.limit < res.total;
         this.loading = false;
         this.cdr.markForCheck();
         this.updateFooterVisibility();
@@ -177,16 +191,21 @@ export class FeedComponent implements OnInit, OnDestroy {
   }
 
   loadFeed(): void {
+    this.page = 1;
+    this.posts = [];
+    this.hasMore = true;
+    this.feedError = '';
     this.loading = true;
     this.cdr.markForCheck();
     this.updateFooterVisibility();
-    this.fetch$.next();
+    this.fetch$.next(1);
   }
 
   loadMore(): void {
     if (!this.hasMore || this.loading) return;
-    this.page++;
-    this.loadFeed();
+    this.loading = true;
+    this.feedError = '';
+    this.fetch$.next(this.page + 1);
   }
 
   trackByPost(_index: number, post: Post): string {
@@ -393,7 +412,7 @@ export class FeedComponent implements OnInit, OnDestroy {
   }
 
   checkScroll(): void {
-    if (!this.hasMore || this.loading || !this.isLoggedIn() || this.posts.length === 0) {
+    if (!this.hasMore || this.loading || this.feedError || !this.isLoggedIn() || this.posts.length === 0) {
       return;
     }
 

@@ -31,6 +31,7 @@ const aiChatSessionSchema = new mongoose.Schema({
     index: true
   },
   assigned_admin_id: { type: String, default: null },
+  support_reopen_until: { type: Date, default: null },
   handover_reason: {
     type: String,
     enum: ['user_request', 'refund', 'complaint', 'order_change', 'no_answer', 'llm_error', null],

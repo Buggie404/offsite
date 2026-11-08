@@ -125,6 +125,7 @@ const userSchema = new mongoose.Schema({
   referred_by: { type: String, default: null },
   welcome_voucher_code: { type: String, default: null },
   ritual_dna_quiz_completed: { type: Boolean, default: false },
+  chat_assignment_version: { type: Number, default: 0 },
   // Null until a registered customer submits the Ritual DNA quiz.
   ritual_dna: { type: ritualDnaSchema, default: null },
   addresses: { type: [addressSchema], default: [] },
@@ -142,5 +143,8 @@ const userSchema = new mongoose.Schema({
   collection: 'Users',
   timestamps: true
 });
+
+// Admin dashboard groups customers by Ritual DNA archetype.
+userSchema.index({ 'ritual_dna.archetype_id': 1 }, { sparse: true });
 
 module.exports = mongoose.model('User', userSchema);

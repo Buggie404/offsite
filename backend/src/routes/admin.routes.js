@@ -38,7 +38,7 @@ router.post('/staff/:userId/reset-password', authMiddleware, requireRole('admin_
 // Customers (Admin CC, QLSP): list, profile, internal notes. Unlock accounts locked earlier: Admin CC only.
 // Customer accounts cannot be locked by any admin.
 // Points / tier and orders are shown read-only.
-const CUSTOMER_ROLES = ['admin_cc', 'qlsp'];
+const CUSTOMER_ROLES = ['admin_cc', 'qlsp', 'cskh'];
 router.get('/customers', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.listCustomers);
 router.get('/customers/:userId', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.getCustomer);
 router.get('/customers/:userId/orders', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.listCustomerOrders);

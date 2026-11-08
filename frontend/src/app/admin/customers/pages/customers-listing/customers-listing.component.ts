@@ -109,7 +109,7 @@ export class CustomersListingComponent implements OnInit {
   }
 
   open(row: CustomerRow): void {
-    void this.router.navigate(['/admin/customers', row.user_id], { queryParamsHandling: 'preserve' });
+    void this.router.navigate([this.route.snapshot.data['serviceCustomers'] ? '/admin/service-customers' : '/admin/customers', row.user_id], { queryParamsHandling: 'preserve' });
   }
 
   // ── Display ──

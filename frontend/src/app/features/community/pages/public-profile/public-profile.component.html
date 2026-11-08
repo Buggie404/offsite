@@ -23,8 +23,8 @@
         <div class="identity">
           <h1 class="username">&#64;{{ profile.username }}</h1>
           <span class="badge badge--tier">{{ profile.membership_tier }}</span>
-          @if (profile.ritual_dna_archetype) {
-            <span class="badge badge--dna">{{ profile.ritual_dna_archetype.name }}</span>
+          @if (profile.ritual_dna_badge) {
+            <span class="badge badge--dna">{{ profile.ritual_dna_badge.name }}</span>
           }
         </div>
 

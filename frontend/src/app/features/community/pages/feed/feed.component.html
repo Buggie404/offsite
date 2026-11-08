@@ -210,3 +210,6 @@
 </app-confirmation-modal>
 
 <app-back-to-top></app-back-to-top>
+@if (feedError) {
+  <p role="alert">{{ feedError }} <button type="button" (click)="posts.length ? loadMore() : loadFeed()">Retry</button></p>
+}
