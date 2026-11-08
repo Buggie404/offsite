@@ -14,12 +14,17 @@ export interface Notification {
     | 'SUBSCRIPTION_SUSPENDED' | 'SUBSCRIPTION_OUT_OF_STOCK' | 'SUBSCRIPTION_SKIPPED' | 'SUBSCRIPTION_PROPOSAL' | 'SUBSCRIPTION_PROPOSAL_WITHDRAWN' | 'SUBSCRIPTION_NOT_STARTED'
     | 'SUBSCRIPTION_ADJUSTED'
     | 'PANTRY_EXPIRY_SOON'
-    | 'COMMUNITY_MODERATION' | 'COMMUNITY_REPORT_RESOLVED';
+    | 'COMMUNITY_MODERATION' | 'COMMUNITY_REPORT_RESOLVED'
+    | 'RECIPE_PUBLISHED'
+    | 'RECIPE_MODERATION'
+    | 'RECIPE_SAVED';
   /** Post / order id; null for Ritual Box notifications (older ones stored the subscription id here). */
   post_id: string | null;
   subscription_id?: string | null;
   /** Ritual Box notifications about an order (SUBSCRIPTION_NOT_STARTED). */
   order_id?: string | null;
+  /** RECIPE_PUBLISHED / RECIPE_MODERATION / RECIPE_SAVED → /recipes/:slug */
+  recipe_slug?: string | null;
   message?: string | null;
   comment_id?: string | null;
   comment_content?: string | null;

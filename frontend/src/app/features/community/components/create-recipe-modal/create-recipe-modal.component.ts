@@ -1,8 +1,8 @@
-import { AfterViewInit, Component, EventEmitter, OnDestroy, Output, ViewChild, inject } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, EventEmitter, OnDestroy, Output, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { LucideX, LucideCamera, LucideCircleCheck, LucideTrash2 } from '@lucide/angular';
+import { LucideX, LucideCamera, LucideCircleCheck, LucideTrash2, LucideClock } from '@lucide/angular';
 
 import { CloudinaryService } from '../../services/cloudinary.service';
 import { RecipeService } from '../../../home/services/recipe.service';
@@ -12,11 +12,29 @@ import { ProductTag } from '../../models/post.model';
 import { ProductPickerComponent } from '../product-picker/product-picker.component';
 
 type ServeStyle = 'HOT' | 'COLD' | 'DESSERT';
+type RecipeBase = 'MATCHA' | 'COFFEE' | 'OTHERS';
 
 interface IngredientForm {
   name: string;
-  quantity: number | null;
+  quantity: string;
   unit: string;
+}
+
+const QUANTITY_PART = String.raw`(?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?|\.\d+)`;
+const QUANTITY_PATTERN = new RegExp(`^${QUANTITY_PART}(?:\\s*-\\s*${QUANTITY_PART})?$`);
+
+function isValidQuantity(value: string): boolean {
+  const text = value.trim().replace(/,/g, '.').replace(/[–—]/g, '-');
+  if (!text) return true;
+  return QUANTITY_PATTERN.test(text);
+}
+
+function normalizeQuantity(value: string): string | number | null {
+  const text = value.trim().replace(/,/g, '.').replace(/[–—]/g, '-');
+  if (!text) return null;
+  const normalized = text.replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ').trim();
+  if (/^\d+(\.\d+)?$/.test(normalized)) return Number(normalized);
+  return normalized;
 }
 
 interface ToolForm {
@@ -24,16 +42,26 @@ interface ToolForm {
 }
 
 interface StepForm {
+  title: string;
   description: string;
+  minutes: string;
+  seconds: string;
+  timerOpen: boolean;
 }
 
 const SERVE_STYLES: ServeStyle[] = ['HOT', 'COLD', 'DESSERT'];
+const BASE_OPTIONS: { value: RecipeBase; label: string }[] = [
+  { value: 'MATCHA', label: 'Matcha' },
+  { value: 'COFFEE', label: 'Coffee' },
+  { value: 'OTHERS', label: 'Others' },
+];
 const ALL_DIFFICULTIES: Difficulty[] = ['EASY', 'MEDIUM', 'HARD'];
+const UNITS = ['g', 'ml', 'cup', 'tsp', 'tbsp', 'oz', 'piece', 'pinch'];
 
 @Component({
   selector: 'app-create-recipe-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, ProductPickerComponent, LucideX, LucideCamera, LucideCircleCheck, LucideTrash2],
+  imports: [CommonModule, FormsModule, ProductPickerComponent, LucideX, LucideCamera, LucideCircleCheck, LucideTrash2, LucideClock],
   templateUrl: './create-recipe-modal.component.html',
   styleUrls: ['./create-recipe-modal.component.scss'],
 })
@@ -84,19 +112,6 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
         },
       ],
     },
-    {
-      field_id: 'recipe-cooktime-input',
-      error_element_id: 'recipe-cooktime-error',
-      rules: [
-        { sequence: 1, type: 'EMPTY_CHECK', condition: "value === ''", action: 'CLEAR_ERROR_AND_STOP' },
-        {
-          sequence: 2,
-          type: 'FORMAT_CHECK',
-          condition: 'isNaN(Number(value)) || Number(value) <= 0',
-          error_message: 'Cook time must be a number greater than 0.',
-        },
-      ],
-    },
   ];
 
   private validator = new InlineValidator(this.fieldConfigs);
@@ -126,6 +141,13 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  blockQuantityKey(event: KeyboardEvent): void {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (CreateRecipeModalComponent.NUMERIC_ALLOWED_KEYS.has(event.key)) return;
+    if (/^[0-9./\-\s]$/.test(event.key) || event.key === ',') return;
+    event.preventDefault();
+  }
+
   sanitizeNumericPaste(event: ClipboardEvent): void {
     event.preventDefault();
     const text = event.clipboardData?.getData('text') ?? '';
@@ -135,30 +157,46 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
     target.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  sanitizeNumberInput(event: Event, field: 'servings' | 'prepTime' | 'cookTime' | 'ingredient', idx?: number): void {
+  sanitizeQuantityPaste(event: ClipboardEvent): void {
+    event.preventDefault();
+    const text = event.clipboardData?.getData('text') ?? '';
+    const cleaned = text.replace(/[^0-9./\-\s,]/g, '').replace(/,/g, '.').replace(/[–—]/g, '-');
+    const target = event.target as HTMLInputElement;
+    target.value = cleaned;
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  sanitizeNumberInput(event: Event, field: 'servings' | 'prepTime'): void {
     const input = event.target as HTMLInputElement;
     const sanitized = input.value.replace(/[^0-9]/g, '');
-    
+
     if (input.value !== sanitized) {
       input.value = sanitized;
     }
-    
-    const numValue = sanitized ? Number(sanitized) : null;
+
     if (field === 'servings') {
-      this.servings = numValue;
-    } else if (field === 'prepTime') {
-      this.prepTime = numValue;
-    } else if (field === 'cookTime') {
-      this.cookTime = numValue;
-    } else if (field === 'ingredient' && idx !== undefined) {
-      this.ingredients[idx].quantity = numValue;
+      this.servings = sanitized ? Number(sanitized) : null;
+    } else {
+      this.prepTime = sanitized ? Number(sanitized) : null;
     }
+  }
+
+  onQuantityInput(event: Event, idx: number): void {
+    const input = event.target as HTMLInputElement;
+    const sanitized = input.value
+      .replace(/,/g, '.')
+      .replace(/[–—]/g, '-')
+      .replace(/[^0-9./\-\s]/g, '');
+    if (input.value !== sanitized) input.value = sanitized;
+    this.ingredients[idx].quantity = sanitized;
   }
 
   @Output() close = new EventEmitter<void>();
 
   readonly serveStyles = SERVE_STYLES;
+  readonly baseOptions = BASE_OPTIONS;
   readonly allDifficulties = ALL_DIFFICULTIES;
+  readonly units = UNITS;
 
   // ----- Hero image -----
   heroFile: File | null = null;
@@ -169,9 +207,9 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
   description = '';
 
   // ----- Recipe details -----
+  base: RecipeBase | '' = '';
   servings: number | null = null;
   prepTime: number | null = null;
-  cookTime: number | null = null;
   difficulty: Difficulty | '' = '';
 
   // ----- Ingredients / Tools / Steps -----
@@ -182,6 +220,9 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
   // ----- Sản phẩm gắn vào bài community (tối đa 3) -----
   linkedProducts: ProductTag[] = [];
   @ViewChild(ProductPickerComponent) private productPicker?: ProductPickerComponent;
+  @ViewChild('ingredientsSection') private ingredientsSection?: ElementRef<HTMLElement>;
+  @ViewChild('toolsSection') private toolsSection?: ElementRef<HTMLElement>;
+  @ViewChild('stepsSection') private stepsSection?: ElementRef<HTMLElement>;
 
   // Nội dung dùng để gợi ý sản phẩm: tiêu đề + mô tả + nguyên liệu + dụng cụ
   get suggestContent(): string {
@@ -191,8 +232,8 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
     ].filter(s => s && s.trim()).join(' ');
   }
 
-  // ----- Serve style (single select) -----
-  selectedServeStyle: ServeStyle | null = 'HOT';
+  // ----- Serve style (multi select) -----
+  selectedServeStyles: ServeStyle[] = ['HOT'];
 
   isSubmitting = false;
   errorMessage = '';
@@ -200,8 +241,10 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
 
   // ----- Touched flags (gate inline errors for non-InlineValidator fields) -----
   photoTouched = false;
+  baseTouched = false;
   ingredientsTouched = false;
   stepsTouched = false;
+  timerTouched = false;
 
   private isPositiveOrEmpty(value: number | null): boolean {
     return value === null || (typeof value === 'number' && !isNaN(value) && value > 0);
@@ -212,11 +255,19 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
   }
 
   get hasValidStep(): boolean {
-    return this.steps.some(s => s.description.trim().length > 0);
+    return this.steps.some(s => s.title.trim().length > 0 || s.description.trim().length > 0);
+  }
+
+  get hasValidTimers(): boolean {
+    return this.steps.every(s => this.timerSeconds(s) !== 'invalid');
   }
 
   get showPhotoError(): boolean {
     return this.photoTouched && !this.heroFile;
+  }
+
+  get showBaseError(): boolean {
+    return this.baseTouched && !this.base;
   }
 
   get showIngredientsError(): boolean {
@@ -227,26 +278,36 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
     return this.stepsTouched && !this.hasValidStep;
   }
 
+  get showTimerError(): boolean {
+    return this.timerTouched && !this.hasValidTimers;
+  }
+
   get isFormValid(): boolean {
     return (
       this.title.trim().length > 0 &&
       this.description.trim().length > 0 &&
       !!this.heroFile &&
+      !!this.base &&
       !!this.difficulty &&
       this.hasValidIngredient &&
+      this.hasValidQuantities &&
       this.hasValidStep &&
+      this.hasValidTimers &&
       this.isPositiveOrEmpty(this.servings) &&
-      this.isPositiveOrEmpty(this.prepTime) &&
-      this.isPositiveOrEmpty(this.cookTime)
+      this.isPositiveOrEmpty(this.prepTime)
     );
   }
 
   private emptyIngredient(): IngredientForm {
-    return { name: '', quantity: null, unit: '' };
+    return { name: '', quantity: '', unit: '' };
+  }
+
+  get hasValidQuantities(): boolean {
+    return this.ingredients.every(item => !item.name.trim() || isValidQuantity(item.quantity));
   }
 
   private emptyStep(): StepForm {
-    return { description: '' };
+    return { title: '', description: '', minutes: '', seconds: '', timerOpen: false };
   }
 
   onHeroFileSelected(event: Event): void {
@@ -268,12 +329,25 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
     this.photoTouched = true;
   }
 
-  selectServeStyle(style: ServeStyle): void {
-    this.selectedServeStyle = style;
+  serveStyleOn(style: ServeStyle): boolean {
+    return this.selectedServeStyles.includes(style);
+  }
+
+  toggleServeStyle(style: ServeStyle): void {
+    this.selectedServeStyles = this.serveStyleOn(style)
+      ? this.selectedServeStyles.filter(item => item !== style)
+      : [...this.selectedServeStyles, style];
+    this.selectedServeStyles = this.serveStyles.filter(item => this.selectedServeStyles.includes(item));
+  }
+
+  selectBase(value: RecipeBase): void {
+    this.base = value;
+    this.baseTouched = true;
   }
 
   addIngredient(): void {
     this.ingredients.push(this.emptyIngredient());
+    this.scrollSectionBottom(this.ingredientsSection);
   }
 
   removeIngredient(index: number): void {
@@ -283,6 +357,7 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
 
   addTool(): void {
     this.tools.push({ name: '' });
+    this.scrollSectionBottom(this.toolsSection);
   }
 
   removeTool(index: number): void {
@@ -291,11 +366,31 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
 
   addStep(): void {
     this.steps.push(this.emptyStep());
+    this.scrollSectionBottom(this.stepsSection);
   }
 
   removeStep(index: number): void {
     if (this.steps.length === 1) return;
     this.steps.splice(index, 1);
+  }
+
+  private scrollSectionBottom(section?: ElementRef<HTMLElement>): void {
+    const host = section?.nativeElement;
+    if (!host) return;
+    queueMicrotask(() => {
+      const button = host.querySelector('.btn-add-row') as HTMLElement | null;
+      button?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }
+
+  openTimer(step: StepForm): void {
+    step.timerOpen = true;
+  }
+
+  clearTimer(step: StepForm): void {
+    step.minutes = '';
+    step.seconds = '';
+    step.timerOpen = false;
   }
 
   get hasUnsavedContent(): boolean {
@@ -306,7 +401,7 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
       this.linkedProducts.length > 0 ||
       this.ingredients.some(i => i.name.trim().length > 0) ||
       this.tools.some(t => t.name.trim().length > 0) ||
-      this.steps.some(s => s.description.trim().length > 0)
+      this.steps.some(s => s.title.trim().length > 0 || s.description.trim().length > 0 || s.minutes || s.seconds)
     );
   }
 
@@ -340,25 +435,41 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
     this.productPicker?.reset();
     this.servings = null;
     this.prepTime = null;
-    this.cookTime = null;
+    this.base = '';
     this.difficulty = '';
     this.ingredients = [this.emptyIngredient()];
     this.tools = [];
     this.steps = [this.emptyStep()];
-    this.selectedServeStyle = 'HOT';
+    this.selectedServeStyles = ['HOT'];
     this.errorMessage = '';
     this.photoTouched = false;
+    this.baseTouched = false;
     this.ingredientsTouched = false;
     this.stepsTouched = false;
+    this.timerTouched = false;
     this.validator.clearAll();
+  }
+
+  private timerSeconds(step: StepForm): number | null | 'invalid' {
+    const minutes = step.minutes.trim();
+    const seconds = step.seconds.trim();
+    if (!minutes && !seconds) return null;
+    if ((minutes && !/^\d+$/.test(minutes)) || (seconds && !/^\d+$/.test(seconds))) return 'invalid';
+    const min = minutes ? Number(minutes) : 0;
+    const sec = seconds ? Number(seconds) : 0;
+    if (min > 180 || sec > 59) return 'invalid';
+    const total = min * 60 + sec;
+    return total > 0 ? total : null;
   }
 
   submitRecipe(): void {
     if (this.isSubmitting) return;
 
     this.photoTouched = true;
+    this.baseTouched = true;
     this.ingredientsTouched = true;
     this.stepsTouched = true;
+    this.timerTouched = true;
     this.validator.validateAll();
 
     if (!this.isFormValid || !this.heroFile) {
@@ -367,7 +478,7 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
     }
 
     const validIngredients = this.ingredients.filter(i => i.name.trim().length > 0);
-    const validSteps = this.steps.filter(s => s.description.trim().length > 0);
+    const validSteps = this.steps.filter(s => s.title.trim().length > 0 || s.description.trim().length > 0);
 
     this.errorMessage = '';
     this.isSubmitting = true;
@@ -386,9 +497,10 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
           JSON.stringify({
             servings: this.servings ?? 1,
             prepTime: this.prepTime ?? 0,
-            cookTime: this.cookTime,
+            cookTime: null,
             difficulty: this.difficulty || 'EASY',
-            tags: this.selectedServeStyle ? [this.selectedServeStyle] : [],
+            base: this.base,
+            tags: [...this.selectedServeStyles],
           }),
         );
         formData.append(
@@ -396,7 +508,7 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
           JSON.stringify(
             validIngredients.map(i => ({
               name: i.name.trim(),
-              quantity: i.quantity ?? 0,
+              quantity: normalizeQuantity(i.quantity),
               unit: i.unit.trim(),
               optional: false,
             })),
@@ -413,11 +525,15 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
         formData.append(
           'steps',
           JSON.stringify(
-            validSteps.map((s, idx) => ({
-              order: idx + 1,
-              title: `Step ${idx + 1}`,
-              description: s.description.trim(),
-            })),
+            validSteps.map((s, idx) => {
+              const timer = this.timerSeconds(s);
+              return {
+                order: idx + 1,
+                title: s.title.trim() || `Step ${idx + 1}`,
+                description: s.description.trim(),
+                timerSeconds: timer === 'invalid' ? null : timer,
+              };
+            }),
           ),
         );
 
@@ -427,13 +543,13 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
         this.recipeService.createRecipe(formData).subscribe({
           next: (res: any) => {
             this.isSubmitting = false;
-            
+
             // 🚀 Lấy post_id từ Backend
             const postId = res.post_id;
-            
+
             this.resetForm();
             this.close.emit();
-            
+
             // 🚀 Tự động chuyển hướng tới bài viết Community chi tiết
             if (postId) {
               this.router.navigate(['/community/post', postId]);
@@ -454,4 +570,3 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
     });
   }
 }
-

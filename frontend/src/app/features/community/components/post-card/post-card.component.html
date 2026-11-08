@@ -10,7 +10,7 @@
       <span class="author-name">&#64;{{ post.author.username }}</span>
     </a>
     <span class="chip chip--wheat" *ngIf="post.post_type === 'recipe'">Recipe</span>
-    <span class="chip chip--sage" *ngIf="!(post.post_type === 'recipe' && post.base === 'RECIPE')">{{ post.base }}</span>
+    <span class="chip chip--sage" *ngIf="baseLabel">{{ baseLabel }}</span>
     <span class="header-spacer"></span>
 
     <div class="card-menu-wrap">

@@ -21,6 +21,7 @@ const {
 } = require('../middleware/auth.middleware');
 const { adminActivityLog } = require('../middleware/adminActivityLog.middleware');
 const adminStarterQuizController = require('../controllers/admin-starter-quiz.controller');
+const adminRecipesController = require('../controllers/admin-recipes.controller');
 
 router.post('/login', authController.adminLogin);
 // Staff set their own password here (first sign-in with a temporary password, or any time later).
@@ -97,6 +98,18 @@ router.patch('/products/:productId/batch-expiry', authMiddleware, requireRole(..
 router.get('/subscriptions', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminSubscriptionsController.getSubscriptions);
 router.get('/subscriptions/:id', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminSubscriptionsController.getSubscription);
 router.post('/subscriptions/:id/:action', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES), adminActivityLog({ requireReasonForActions: ['pause', 'skip', 'cancel'] }), adminSubscriptionsController.runAction);
+
+// Recipes (Admin CC, CSKH — same roles as the Recipes nav item). QLSP has no access.
+router.get('/recipes', authMiddleware, requireRole('admin_cc', 'cskh'), adminRecipesController.listRecipes);
+router.get('/recipes/linkable-products', authMiddleware, requireRole('admin_cc', 'cskh'), adminRecipesController.searchLinkableProducts);
+router.post('/recipes', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminRecipesController.createOffsiteRecipe);
+router.get('/recipes/:recipeId', authMiddleware, requireRole('admin_cc', 'cskh'), adminRecipesController.getRecipe);
+router.put('/recipes/:recipeId', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminRecipesController.updateRecipe);
+router.patch('/recipes/:recipeId/visibility', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminRecipesController.setVisibility);
+router.post('/recipes/:recipeId/request-changes', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminRecipesController.requestMoreChanges);
+router.post('/recipes/:recipeId/final-reject', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminRecipesController.finalReject);
+router.delete('/recipes/:recipeId', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminRecipesController.deleteRecipe);
+router.patch('/recipes/:recipeId', authMiddleware, requireRole('admin_cc', 'cskh'), adminActivityLog(), adminRecipesController.updateFeatured);
 
 // Community reports queue (Admin CC, CSKH; QLSP has no access): posts, comments and accounts with
 // pending reports; hide / restore / warn / suspend 3 or 7 days / dismiss with a message to the author.

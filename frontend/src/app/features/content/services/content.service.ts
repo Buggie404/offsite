@@ -1,7 +1,23 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Recipe } from '../../../shared/models/recipe.model';
+import { Recipe, RecipeDetailResponse } from '../../../shared/models/recipe.model';
+
+export interface OwnRecipeDraft {
+  title: string;
+  description: string;
+  base: string;
+  serves: string[];
+  difficulty: string;
+  servings: number;
+  prepTime: number;
+  ingredients: { name: string; quantity: number | string | null; unit: string }[];
+  tools: { name: string }[];
+  steps: { title: string; description: string; timer_seconds: number | null }[];
+  /** Product ids shown in “Complete the ritual” (max 3). */
+  related_products?: number[];
+  hero_image?: { url: string; public_id: string } | null;
+}
 
 export interface JournalState {
   articles: any[];
@@ -44,8 +60,26 @@ export class ContentService {
   /**
    * Fetch a single recipe by its custom recipe_id, slug, or MongoDB ObjectId.
    */
-  getRecipe(slugOrId: string): Observable<Recipe> {
-    return this.http.get<Recipe>(`${this.apiUrl}/${slugOrId}`);
+  getRecipe(slugOrId: string): Observable<RecipeDetailResponse> {
+    // The auth interceptor adds the bearer token when signed in, so owners get their flags back.
+    return this.http.get<RecipeDetailResponse>(`${this.apiUrl}/${slugOrId}`);
+  }
+
+  /** Owner edit of a Recipes-page recipe. Returns the recipe as the owner sees it. */
+  updateOwnRecipe(recipeId: string, body: OwnRecipeDraft): Observable<Recipe> {
+    return this.http.put<Recipe>(`${this.apiUrl}/${encodeURIComponent(recipeId)}`, body);
+  }
+
+  /** Owner soft-delete. The recipe 404s afterwards. */
+  deleteOwnRecipe(recipeId: string): Observable<{ data: { recipe_id: string; deleted?: boolean } }> {
+    return this.http.delete<{ data: { recipe_id: string; deleted?: boolean } }>(
+      `${this.apiUrl}/${encodeURIComponent(recipeId)}`
+    );
+  }
+
+  /** Ask admins to review a recipe hidden as low quality. */
+  submitOwnRecipeForReview(recipeId: string): Observable<Recipe> {
+    return this.http.post<Recipe>(`${this.apiUrl}/${encodeURIComponent(recipeId)}/submit-for-review`, {});
   }
 
   /**

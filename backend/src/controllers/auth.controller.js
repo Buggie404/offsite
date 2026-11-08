@@ -1052,13 +1052,33 @@ async function toggleSavedRecipe(req, res) {
     await user.save();
 
     const Recipe = require('../models/Recipe');
-    await Recipe.updateOne(
+    const recipe = await Recipe.findOneAndUpdate(
       { recipe_id: recipeIdStr },
-      { $inc: { saves: saved ? 1 : -1 } }
-    );
+      { $inc: { saves: saved ? 1 : -1 } },
+      { new: true }
+    ).select('recipe_id slug owner_user_id saves');
+
     try {
       await require('../services/ritual-dna.behavior').savedRecipe(user.user_id, recipeIdStr, saved);
     } catch (dnaError) { console.error('Ritual DNA saved recipe sync failed:', dnaError); }
+
+    if (saved && recipe?.owner_user_id && recipe.owner_user_id !== user.user_id) {
+      try {
+        const notificationService = require('../services/notification.service');
+        await notificationService.createNotification({
+          recipient_id: recipe.owner_user_id,
+          sender: {
+            user_id: user.user_id,
+            username: user.community_name || user.profile_name || 'Anonymous',
+            avatar_url: user.avatar_url || null
+          },
+          type: 'RECIPE_SAVED',
+          recipe_slug: recipe.slug || null
+        });
+      } catch (notifError) {
+        console.error('Error creating recipe-saved notification:', notifError);
+      }
+    }
 
     res.json({ message: saved ? 'Recipe saved' : 'Recipe unsaved', saved });
   } catch (error) {

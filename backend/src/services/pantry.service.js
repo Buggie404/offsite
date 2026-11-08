@@ -606,7 +606,10 @@ async function startedRecipeCards(user) {
     .sort((a, b) => Math.max(b[1].startedAt, b[1].completedAt) - Math.max(a[1].startedAt, a[1].completedAt));
   if (!ordered.length) return [];
 
-  const recipes = await Recipe.find({ recipe_id: { $in: ordered.map(([id]) => id) } })
+  const recipes = await Recipe.find({
+    recipe_id: { $in: ordered.map(([id]) => id) },
+    deletedAt: null
+  })
     .select('recipe_id title slug heroImage steps')
     .lean();
   const byId = new Map(recipes.map(recipe => [recipe.recipe_id, recipe]));
@@ -878,7 +881,7 @@ async function pantryIdeas(userId, historyIds) {
     covers.push(...coversForItem(item, product));
   }
 
-  const recipes = await Recipe.find({ published: true })
+  const recipes = await Recipe.find({ published: true, deletedAt: null })
     .select('recipe_id title slug heroImage ingredients')
     .limit(500)
     .lean();

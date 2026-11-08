@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, Routes, UrlMatchResult, UrlSegment } from '@angular/router';
+import { CanDeactivateFn, RouterModule, Routes, UrlMatchResult, UrlSegment } from '@angular/router';
 import { adminGuard } from '../core/guards/admin.guard';
 import { adminGuestGuard } from '../core/guards/admin-guest.guard';
 import {
@@ -12,6 +12,9 @@ import { OrdersListingComponent } from './orders/pages/orders-listing/orders-lis
 import { OrderDetailComponent } from './orders/pages/order-detail/order-detail.component';
 
 // Chỉ dùng 3 role thực tế trong DB
+const adminRecipeLeaveGuard: CanDeactivateFn<{ confirmLeave: () => boolean | Promise<boolean> }> = (component) =>
+  component.confirmLeave();
+
 const SALES_OPS_ROLES    = ['admin_cc', 'qlsp'] as const;
 // Vouchers: CSKH may open the page (view + complaint vouchers only). Edit and stop stay with Admin CC and QLSP.
 const VOUCHER_ROLES      = ['admin_cc', 'qlsp', 'cskh'] as const;
@@ -152,6 +155,29 @@ const routes: Routes = [
         data: { adminRoles: SERVICES_OPS_ROLES }
       },
 
+      {
+        path: 'recipes',
+        loadComponent: () =>
+          import('./recipes/pages/recipes/recipes.component').then((m) => m.AdminRecipesComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SERVICES_OPS_ROLES }
+      },
+      {
+        path: 'recipes/new',
+        loadComponent: () =>
+          import('./recipes/pages/recipe-detail/recipe-detail.component').then((m) => m.AdminRecipeDetailComponent),
+        canActivate: [adminRoleGuard],
+        canDeactivate: [adminRecipeLeaveGuard],
+        data: { adminRoles: SERVICES_OPS_ROLES }
+      },
+      {
+        path: 'recipes/:recipeId',
+        loadComponent: () =>
+          import('./recipes/pages/recipe-detail/recipe-detail.component').then((m) => m.AdminRecipeDetailComponent),
+        canActivate: [adminRoleGuard],
+        canDeactivate: [adminRecipeLeaveGuard],
+        data: { adminRoles: SERVICES_OPS_ROLES }
+      },
       {
         path: 'community-reports',
         loadComponent: () =>

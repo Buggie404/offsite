@@ -39,7 +39,12 @@ function toCoachStep(step: RecipeStep, index: number, recipe: Recipe): CoachStep
   const text = `${step.title}. ${step.description}`;
   const description = step.description.trim() || step.title;
   const needs = matchNeeds(text, recipe.ingredients, recipe.tools, index);
-  const timerSeconds = resolveTimer(text);
+  // Only a timer saved on the step. Guessing from words like "whisk" or "2 minutes"
+  // showed a countdown the recipe detail and admin editor do not have.
+  const explicitTimer = Number(step.timerSeconds);
+  const timerSeconds = Number.isFinite(explicitTimer) && explicitTimer > 0
+    ? Math.round(explicitTimer)
+    : null;
   const adjustment = buildAdjustment(step);
 
   return {
@@ -50,22 +55,6 @@ function toCoachStep(step: RecipeStep, index: number, recipe: Recipe): CoachStep
     whileItRuns: description,
     adjustment,
   };
-}
-
-function resolveTimer(text: string): number | null {
-  const minutes = text.match(/(\d+(?:\.\d+)?)\s*(?:min|mins|minutes)\b/i);
-  if (minutes) return Math.max(1, Math.round(parseFloat(minutes[1]) * 60));
-
-  const seconds = text.match(/(\d+)\s*(?:sec|secs|seconds)\b/i);
-  if (seconds) return Math.max(1, parseInt(seconds[1], 10));
-
-  const clock = text.match(/\b(\d{1,2}):(\d{2})\b/);
-  if (clock) return parseInt(clock[1], 10) * 60 + parseInt(clock[2], 10);
-
-  if (/whisk|froth|foam/i.test(text)) return 45;
-  if (/bloom|steep|rest|wait/i.test(text)) return 30;
-  if (/\bpour\b/i.test(text)) return 20;
-  return null;
 }
 
 function matchNeeds(

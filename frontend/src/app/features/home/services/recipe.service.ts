@@ -5,8 +5,9 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { Recipe } from '../models/recipe.model';
+import { RecipeDetailResponse } from '../../../shared/models/recipe.model';
 import { environment } from '../../../../environments/environment';
 
 const BASE_URL = environment.apiUrl;
@@ -32,7 +33,13 @@ export class RecipeService {
     return this.http.get<Recipe[]>(this.endpoint, { params });
   }
 
-  /** Fetch the most-saved published recipes for the homepage. */
+  /** Published recipes marked featured. The homepage rail reads this list. */
+  getFeaturedRecipes(): Observable<Recipe[]> {
+    const params = new HttpParams().set('featured', 'true');
+    return this.http.get<Recipe[]>(this.endpoint, { params });
+  }
+
+  /** Most-saved published recipes. The homepage rail uses getFeaturedRecipes instead. */
   getMostSavedRecipes(limit = 3): Observable<Recipe[]> {
     const params = new HttpParams()
       .set('sort', 'saves')
@@ -42,10 +49,18 @@ export class RecipeService {
   }
 
   /**
-   * Fetch a single recipe by its slug.
+   * Fetch a single recipe by its slug. The auth interceptor sends the bearer token when signed in.
+   * Hidden recipes (guest stub or owner preview) are rejected so card rails never show them.
    */
   getRecipeBySlug(slug: string): Observable<Recipe> {
-    return this.http.get<Recipe>(`${this.endpoint}/${slug}`);
+    return this.http.get<Recipe & Pick<RecipeDetailResponse, 'availability'>>(`${this.endpoint}/${slug}`).pipe(
+      map(recipe => {
+        if (recipe.availability === 'hidden' || recipe.availability === 'hidden_owner') {
+          throw new Error('Recipe is hidden');
+        }
+        return recipe;
+      })
+    );
   }
 
   /**

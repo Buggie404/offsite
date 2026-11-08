@@ -893,7 +893,7 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
   }
 
   private originalAmount(index: number): number {
-    return this.recipe.ingredients[index]?.quantity ?? 0;
+    return this.toAmount(this.recipe.ingredients[index]?.quantity);
   }
 
   private startingAmount(index: number): number {
@@ -973,8 +973,9 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     return /matcha|hojicha|houjicha/.test(label);
   }
 
-  private derivedPowder(quantity: number, unit: string): number | null {
-    if (!Number.isFinite(quantity) || quantity < 0) return null;
+  private derivedPowder(quantity: number | string, unit: string): number | null {
+    const amount = this.toAmount(quantity);
+    if (!Number.isFinite(amount) || amount < 0) return null;
     const aliases: Record<string, string> = {
       teaspoon: 'tsp',
       teaspoons: 'tsp',
@@ -988,7 +989,7 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     const mlPer: Record<string, number> = { tsp: 5, tbsp: 15, cup: 240, oz: 30, ml: 1, l: 1000 };
     const per = mlPer[key];
     if (per == null) return null;
-    return this.roundAmount((quantity * per) / 30);
+    return this.roundAmount((amount * per) / 30);
   }
 
   private readPowder(value: unknown): number | null {
@@ -1032,7 +1033,7 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     );
     return this.recipe.ingredients.map(item => ({
       name: item.name,
-      quantity: amounts.get(item.name.trim().toLowerCase()) ?? item.quantity ?? 0,
+      quantity: amounts.get(item.name.trim().toLowerCase()) ?? this.toAmount(item.quantity),
       unit: item.unit ?? '',
       product_id: null,
     }));
@@ -1184,7 +1185,7 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
         name: ingredient.name,
         unit,
         amount: row.quantity,
-        original: ingredient.quantity,
+        original: this.toAmount(ingredient.quantity),
         powderGrams: this.isPreparedPowder(ingredient.name) ? (drawn ?? derived) : null,
       }];
     });
@@ -1536,16 +1537,22 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     writeScopedItem(this.reviewStorageKey(), this.reviewLegacyKey(), JSON.stringify(review));
   }
 
-  private formatMeasure(amount: number, unit: string): string {
-    const value = this.formatAmount(amount);
+  private formatMeasure(amount: number | string, unit: string): string {
+    const value = this.formatAmount(this.toAmount(amount));
     const normalized = (unit || '').trim();
     if (!normalized) return value;
     if (this.compactUnits.includes(normalized.toLowerCase())) return `${value}${normalized}`;
     return `${value} ${normalized}`;
   }
 
-  private roundAmount(value: number): number {
-    return Math.round(value * 100) / 100;
+  private toAmount(value: number | string | null | undefined): number {
+    if (value == null || value === '') return 0;
+    const n = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  private roundAmount(value: number | string): number {
+    return Math.round(this.toAmount(value) * 100) / 100;
   }
 
   private persistTimer(): void {

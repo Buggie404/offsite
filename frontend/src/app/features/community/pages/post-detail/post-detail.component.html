@@ -64,7 +64,10 @@
         </a>
         <div class="author-meta">
           <a class="author-name" [routerLink]="['/community/profile', post.user_id]">&#64;{{ post.author.username }}</a>
-          <span class="post-meta">{{ post.created_at | date:'MMM d' }} · {{ post.base | titlecase }}</span>
+          <span class="post-meta">
+            {{ post.created_at | date:'MMM d' }}
+            <ng-container *ngIf="baseLabel"> · {{ baseLabel }}</ng-container>
+          </span>
         </div>
         <span class="row-spacer"></span>
 
@@ -98,8 +101,9 @@
       <!-- Recipe post header -->
       <ng-container *ngIf="isRecipe && post.recipe as recipe">
         <div class="recipe-kicker">
-          <span class="chip chip--sage">Recipe</span>
-          <span class="overline">{{ recipeKicker }}</span>
+          <span class="chip chip--wheat">Recipe</span>
+          <span class="chip chip--sage" *ngIf="baseLabel">{{ baseLabel }}</span>
+          <span class="overline" *ngIf="recipeKicker">{{ recipeKicker }}</span>
         </div>
 
         <h1 class="recipe-title">{{ recipe.title }}</h1>

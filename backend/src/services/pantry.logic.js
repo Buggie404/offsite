@@ -424,10 +424,34 @@ function isPreparedDrink(need) {
   return /\b(prepared|brewed|whisked)\b/.test(label);
 }
 
+// Recipe amounts may be numbers or strings like "1/2" / "6-8". Ranges use the midpoint.
+function quantityToNumber(value) {
+  if (value == null || value === '') return NaN;
+  if (typeof value === 'number') return value;
+  const text = String(value).trim().replace(/,/g, '.').replace(/[–—]/g, '-');
+  if (!text) return NaN;
+  const parsePart = (part) => {
+    const trimmed = String(part || '').trim();
+    const mixed = trimmed.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+    if (mixed) return Number(mixed[1]) + (Number(mixed[2]) / Number(mixed[3]));
+    const frac = trimmed.match(/^(\d+)\/(\d+)$/);
+    if (frac) return Number(frac[1]) / Number(frac[2]);
+    return Number(trimmed);
+  };
+  if (text.includes('-')) {
+    const [leftRaw, rightRaw] = text.split('-');
+    const left = parsePart(leftRaw);
+    const right = parsePart(rightRaw);
+    if (!Number.isFinite(left) || !Number.isFinite(right)) return NaN;
+    return (left + right) / 2;
+  }
+  return parsePart(text);
+}
+
 // Grams for matcha and hojicha. Millilitres for milk and other liquids.
 // Null means this unit cannot be drawn down.
 function measureToBase(quantity, unit, need) {
-  const qty = Number(quantity);
+  const qty = quantityToNumber(quantity);
   if (!Number.isFinite(qty) || qty < 0) return null;
   const key = unitKey(unit);
   const perTsp = POWDER_GRAMS_PER_TSP[need?.kind];
@@ -583,7 +607,7 @@ function matchingAdjustment(ingredient, adjustments) {
 }
 
 function adjustedIngredientAmount(ingredient, adjustments) {
-  const qty = Number(ingredient?.quantity);
+  const qty = quantityToNumber(ingredient?.quantity);
   const unit = String(ingredient?.unit || '');
   if (!Number.isFinite(qty)) return { quantity: null, unit };
   const name = normalizePantryText(ingredient.name);

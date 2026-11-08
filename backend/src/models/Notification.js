@@ -43,14 +43,31 @@ const notificationSchema = new mongoose.Schema({
       'PANTRY_EXPIRY_SOON',
       // Community reports (admin moderation): message written by staff; post_id only when there is a post to open
       'COMMUNITY_MODERATION',
-      'COMMUNITY_REPORT_RESOLVED'
+      'COMMUNITY_REPORT_RESOLVED',
+      // Community recipe crossed 30 likes and is now on the public Recipes page
+      'RECIPE_PUBLISHED',
+      // Catalog hide / restore / delete / review notices → Recipes (not Community)
+      'RECIPE_MODERATION',
+      // Someone else saved the owner's recipe on the Recipes page
+      'RECIPE_SAVED'
     ],
     required: true
   },
   // Target post_id / order_id for redirecting; Ritual Box notifications use subscription_id instead.
-  post_id: { type: String, required() { return !this.type?.startsWith('SUBSCRIPTION_') && !this.type?.startsWith('COMMUNITY_'); }, default: null },
+  post_id: {
+    type: String,
+    required() {
+      return !this.type?.startsWith('SUBSCRIPTION_')
+        && !this.type?.startsWith('COMMUNITY_')
+        && this.type !== 'RECIPE_PUBLISHED'
+        && this.type !== 'RECIPE_MODERATION'
+        && this.type !== 'RECIPE_SAVED';
+    },
+    default: null
+  },
   subscription_id: { type: String, default: null },
   order_id: { type: String, default: null }, // Ritual Box notifications about an order (e.g. SUBSCRIPTION_NOT_STARTED)
+  recipe_slug: { type: String, default: null }, // RECIPE_PUBLISHED / RECIPE_MODERATION / RECIPE_SAVED → /recipes/:slug
   message: { type: String, default: null }, // Ritual Box: text shown to the customer
   comment_id: { type: String, default: null }, // Optional comment_id
   comment_content: { type: String, default: null }, // Optional snippet of comment/reply

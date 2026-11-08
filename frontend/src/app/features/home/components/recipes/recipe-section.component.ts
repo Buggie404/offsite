@@ -104,11 +104,13 @@ export class RecipeSectionComponent implements OnInit, OnChanges {
   }
 
   getRecipeBaseLabel(recipe: Recipe): string {
+    const stored = String(recipe.metadata?.base || '').toUpperCase();
+    if (stored === 'MATCHA') return 'Matcha';
+    if (stored === 'COFFEE') return 'Coffee';
+    if (stored === 'OTHERS') return 'Others';
     const title = recipe.title.toLowerCase();
-    const tags = recipe.metadata.tags.map(tag => tag.toLowerCase());
-
-    if (title.includes('matcha') || tags.includes('matcha')) return 'Matcha';
-    if (title.includes('coffee') || tags.includes('coffee')) return 'Coffee';
+    if (title.includes('matcha')) return 'Matcha';
+    if (title.includes('coffee')) return 'Coffee';
     return 'Others';
   }
 
@@ -144,7 +146,7 @@ export class RecipeSectionComponent implements OnInit, OnChanges {
 
     const request$ = this.baseFilter
       ? this.recipeService.getRecipes(24)
-      : this.recipeService.getMostSavedRecipes(10);
+      : this.recipeService.getFeaturedRecipes();
 
     request$.subscribe({
       next: (data) => {
@@ -168,6 +170,10 @@ export class RecipeSectionComponent implements OnInit, OnChanges {
 
   private matchesBaseFilter(recipe: Recipe): boolean {
     if (!this.baseFilter) return true;
+    const stored = String(recipe.metadata?.base || '').toLowerCase();
+    if (stored === 'matcha' || stored === 'coffee' || stored === 'others') {
+      return stored === this.baseFilter;
+    }
 
     const haystack = [
       recipe.slug,

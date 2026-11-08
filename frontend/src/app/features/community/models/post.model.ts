@@ -43,7 +43,7 @@ export interface Post {
   media: PostMedia[];
 
   recipe_id: string | null;
-  base: 'MATCHA' | 'COFFEE' | 'RECIPE';
+  base: 'MATCHA' | 'COFFEE' | 'OTHERS' | 'RECIPE';
   like_count: number;
   comment_count: number;
   share_count: number;

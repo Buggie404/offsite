@@ -32,6 +32,20 @@ export class PostCardComponent {
     return this.post?.media && this.post.media.length > 0;
   }
 
+  /** Matcha / Coffee / Others — shown beside the Recipe chip (and on regular posts). */
+  get baseLabel(): string {
+    const fromRecipe = String(this.post?.recipe?.metadata?.base || '').toUpperCase();
+    const fromPost = String(this.post?.base || '').toUpperCase();
+    const raw = ['MATCHA', 'COFFEE', 'OTHERS'].includes(fromRecipe)
+      ? fromRecipe
+      : (fromPost !== 'RECIPE' ? fromPost : '');
+    if (raw === 'MATCHA') return 'Matcha';
+    if (raw === 'COFFEE') return 'Coffee';
+    if (raw === 'OTHERS') return 'Others';
+    if (!raw) return '';
+    return raw.charAt(0) + raw.slice(1).toLowerCase();
+  }
+
   get heroMedia(): any {
     if (!this.hasMedia) return null;
     return this.post.media[0];

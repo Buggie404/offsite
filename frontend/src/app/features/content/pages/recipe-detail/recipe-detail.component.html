@@ -1,5 +1,77 @@
+<section class="recipe-resting" *ngIf="hiddenStub as stub" aria-labelledby="resting-title">
+  <div class="recipe-resting__decor" aria-hidden="true">
+    <div class="geo geo--dots-tr"></div>
+    <div class="geo geo--dots-bl"></div>
+    <div class="geo geo--ring"></div>
+    <div class="geo geo--ring-dashed"></div>
+    <div class="geo geo--blob"></div>
+    <div class="geo geo--diamond"></div>
+    <div class="geo geo--diamond-sm"></div>
+    <div class="geo geo--dot"></div>
+  </div>
+
+  <p class="recipe-resting__bg-mark font-display" aria-hidden="true">···</p>
+
+  <div class="recipe-resting__inner">
+    <div class="recipe-resting__icon" aria-hidden="true">
+      <svg class="recipe-resting__cup" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 28h30c0 10-7 18-15 18s-15-8-15-18Z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/>
+        <path d="M44 30h5.5a6.5 6.5 0 0 1 0 13H44" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+        <path d="M18 50h22" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+        <path d="M24 18c0 3 2 4 2 7M32 16c0 4 2.5 5 2.5 9M40 18c0 3 2 4 2 7" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <p class="recipe-resting__eyebrow font-mono">Recipe resting</p>
+    <h1 id="resting-title" class="recipe-resting__title font-display">{{ stub.title }}</h1>
+    <p class="recipe-resting__copy font-body">
+      {{ stub.message || 'This brew is resting between pours — check back soon.' }}
+    </p>
+
+    <div class="recipe-resting__actions">
+      <a routerLink="/recipes" class="recipe-resting__btn recipe-resting__btn--primary font-body">
+        <svg lucideArrowLeft [size]="16" aria-hidden="true"></svg>
+        <span>Back to Recipes</span>
+      </a>
+      <a routerLink="/" class="recipe-resting__btn recipe-resting__btn--outlined font-body">
+        <span>Home</span>
+        <svg lucideArrowRight [size]="16" aria-hidden="true"></svg>
+      </a>
+    </div>
+
+    <div class="recipe-resting__links">
+      <span class="recipe-resting__links-label font-mono">Or try one of these</span>
+      <div class="recipe-resting__links-row">
+        <a routerLink="/shop/best-seller" class="font-body">Shop</a>
+        <span class="recipe-resting__links-dot" aria-hidden="true">&middot;</span>
+        <a routerLink="/journal" class="font-body">Journal</a>
+        <span class="recipe-resting__links-dot" aria-hidden="true">&middot;</span>
+        <a routerLink="/community" class="font-body">Community</a>
+      </div>
+    </div>
+  </div>
+</section>
+
 <div class="recipe-detail-page" *ngIf="recipe">
   <div class="recipe-body">
+    <aside
+      class="owner-banner"
+      *ngIf="isHiddenOwner && recipe.owner_banner as banner"
+      [class.owner-banner--review]="banner.status === 'resubmitted'"
+      [class.owner-banner--final]="banner.status === 'hidden_final'"
+      role="status"
+    >
+      <svg lucideTriangleAlert [size]="15" aria-hidden="true"></svg>
+      <div>
+        <strong>{{ bannerTitle }}</strong>
+        <span class="owner-banner__detail" *ngIf="bannerReasonLabel"><b>Reason</b> {{ bannerReasonLabel }}</span>
+        <span class="owner-banner__detail" *ngIf="banner.note"><b>Note</b> {{ banner.note }}</span>
+        <span class="owner-banner__detail" *ngIf="bannerRounds"><b>Review</b> {{ bannerRounds }}</span>
+        <span class="owner-banner__hint" *ngIf="bannerHint">{{ bannerHint }}</span>
+        <span class="owner-banner__error" *ngIf="ownerError && !deleteOpen" role="alert">{{ ownerError }}</span>
+      </div>
+    </aside>
+
     <section class="hero-block">
       <button class="back-link" type="button" (click)="goBack()">
         <svg lucideArrowLeft [size]="14"></svg>
@@ -24,7 +96,7 @@
               >
                 <svg lucideHeart [size]="16" [class.filled]="isFavorited(recipe)"></svg>
               </button>
-              <div class="more-wrap">
+              <div class="more-wrap" *ngIf="showMoreMenu">
                 <button
                   class="icon-btn"
                   type="button"
@@ -35,11 +107,19 @@
                   <svg lucideEllipsis [size]="16"></svg>
                 </button>
                 <div class="more-menu" *ngIf="moreMenuOpen" (click)="$event.stopPropagation()">
-                  <button type="button" (click)="copyRecipeLink()">
+                  <button type="button" *ngIf="recipe.can_edit" (click)="openEdit()">
+                    <svg lucidePencil [size]="14"></svg>
+                    <span>Edit</span>
+                  </button>
+                  <button type="button" *ngIf="recipe.can_delete" class="more-menu__danger" (click)="openDeleteFromMenu()">
+                    <svg lucideTrash2 [size]="14"></svg>
+                    <span>Delete</span>
+                  </button>
+                  <button type="button" *ngIf="!isHiddenOwner" (click)="copyRecipeLink()">
                     <svg lucideLink [size]="14"></svg>
                     <span>{{ linkCopied ? 'Link copied' : 'Copy link' }}</span>
                   </button>
-                  <button type="button" (click)="openShare()">
+                  <button type="button" *ngIf="!isHiddenOwner" (click)="openShare()">
                     <svg lucideShare2 [size]="14"></svg>
                     <span>Share</span>
                   </button>
@@ -80,7 +160,14 @@
             <div class="spec">
               <span class="spec-label">Author</span>
               <div class="author">
-                <span class="author-avatar">{{ getAuthorInitials(recipe) }}</span>
+                <img
+                  *ngIf="getAuthorAvatar(recipe) as avatar"
+                  class="author-avatar author-avatar--img"
+                  [class.author-avatar--brand]="isOffsiteAuthor(recipe)"
+                  [src]="avatar"
+                  [alt]="getAuthorName(recipe)"
+                />
+                <span *ngIf="!getAuthorAvatar(recipe)" class="author-avatar">{{ getAuthorInitials(recipe) }}</span>
                 <span class="author-name">{{ getAuthorName(recipe) }}</span>
               </div>
             </div>
@@ -106,6 +193,21 @@
           </div>
 
           <p class="hands-free-note">Hands-free guide with voice and timers. No account needed.</p>
+
+          <div class="owner-actions" *ngIf="showOwnerActions" aria-label="Manage your recipe">
+            <button class="owner-btn" type="button" *ngIf="recipe.can_edit" (click)="openEdit()">
+              <svg lucidePencil [size]="14" aria-hidden="true"></svg>
+              <span>Edit</span>
+            </button>
+            <button class="owner-btn owner-btn--primary" type="button" *ngIf="recipe.can_submit_review" [disabled]="ownerBusy" (click)="submitForReview()">
+              <svg lucideSend [size]="14" aria-hidden="true"></svg>
+              <span>{{ ownerBusy ? 'Submitting…' : 'Submit for review' }}</span>
+            </button>
+            <button class="owner-btn owner-btn--danger" type="button" *ngIf="recipe.can_delete" (click)="openDelete()">
+              <svg lucideTrash2 [size]="14" aria-hidden="true"></svg>
+              <span>Delete</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -156,7 +258,8 @@
             <span class="step-num">{{ idx + 1 }}</span>
             <div class="step-copy">
               <p class="step-title">{{ step.title }}</p>
-              <p class="step-desc">{{ step.description }}</p>
+              <p class="step-desc" *ngIf="step.description">{{ step.description }}</p>
+              <p class="step-timer" *ngIf="step.timerSeconds">Timer · {{ formatStepTimer(step.timerSeconds) }}</p>
             </div>
           </li>
         </ol>
@@ -277,6 +380,42 @@
     (closed)="brewCoachOpen = false"
     (brewSaved)="onBrewSaved($event)"
   ></app-brew-coach>
+
+  <app-edit-recipe-modal
+    *ngIf="editOpen"
+    [recipe]="recipe"
+    [baseHint]="baseHint()"
+    (closed)="editOpen = false"
+    (saved)="onRecipeEdited($event)"
+  ></app-edit-recipe-modal>
+
+  <div class="confirm-overlay" *ngIf="deleteOpen" (click)="closeDelete()">
+    <div
+      class="confirm-card"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="delete-recipe-title"
+      aria-describedby="delete-recipe-copy"
+      (click)="$event.stopPropagation()"
+    >
+      <button class="confirm-close" type="button" (click)="closeDelete()" [disabled]="ownerBusy" aria-label="Close">
+        <svg lucideX [size]="18" [strokeWidth]="1.75" aria-hidden="true"></svg>
+      </button>
+      <div class="confirm-body">
+        <h2 id="delete-recipe-title" class="confirm-title">Delete “{{ recipe.title }}”?</h2>
+        <p id="delete-recipe-copy" class="confirm-copy">This removes the recipe from Offsite for good. People who saved it will lose it too.</p>
+        <p class="confirm-error" *ngIf="ownerError" role="alert">{{ ownerError }}</p>
+      </div>
+      <div class="confirm-footer">
+        <button class="confirm-delete" type="button" [disabled]="ownerBusy" (click)="confirmDelete()">
+          <span>{{ ownerBusy ? 'Deleting…' : 'Delete recipe' }}</span>
+        </button>
+        <button class="confirm-cancel" type="button" [disabled]="ownerBusy" (click)="closeDelete()">
+          <span>Keep it</span>
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="loading-state" *ngIf="isLoading">

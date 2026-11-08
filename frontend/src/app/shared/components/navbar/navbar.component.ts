@@ -638,6 +638,16 @@ export class NavbarComponent implements OnInit, OnDestroy {
       this.router.navigate(['/account'], { queryParams: { tab: 'pantry' } });
     } else if (isOrderOrRefund) {
       this.router.navigate(['/order-tracking'], { queryParams: { orderId: notification.post_id } });
+    } else if (notification.type === 'RECIPE_PUBLISHED' || notification.type === 'RECIPE_SAVED') {
+      if (notification.recipe_slug) this.router.navigate(['/recipes', notification.recipe_slug]);
+      else if (notification.post_id) this.router.navigate(['/community/post', notification.post_id]);
+    } else if (notification.type === 'RECIPE_MODERATION') {
+      // Catalog hide/delete/review — Recipes only (edit opens when the owner can still fix it)
+      if (notification.recipe_slug) {
+        this.router.navigate(['/recipes', notification.recipe_slug], { queryParams: { edit: '1' } });
+      } else {
+        this.router.navigate(['/recipes']);
+      }
     } else if (notification.type.startsWith('COMMUNITY_')) {
       // Moderation notices: open the post when there is one (a hidden post shows its own notice)
       if (notification.post_id) this.router.navigate(['/community/post', notification.post_id]);
@@ -1219,6 +1229,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       case 'POST_COMMENTED':   return 'notif-icon--sage';
       case 'COMMENT_REPLIED':  return 'notif-icon--sage';
       case 'COMMENT_LIKED':    return 'notif-icon--pink';
+      case 'RECIPE_SAVED':     return 'notif-icon--pink';
       default:                 return 'notif-icon--gray';
     }
   }

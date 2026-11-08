@@ -1,0 +1,247 @@
+<section class="recipes-page" aria-label="Recipes">
+  <header class="page-header">
+    <div>
+      <h1>Recipes</h1>
+      <p>{{ summary }}</p>
+    </div>
+    <button type="button" class="create" (click)="createRecipe()">
+      <svg lucidePlus [size]="14" aria-hidden="true"></svg>
+      New Offsite recipe
+    </button>
+  </header>
+
+  <div class="filters">
+    <label class="search">
+      <svg lucideSearch [size]="16" aria-hidden="true"></svg>
+      <input
+        type="search"
+        placeholder="Recipe or author"
+        aria-label="Recipe or author"
+        [ngModel]="query"
+        (ngModelChange)="onSearch($event)"
+      />
+    </label>
+
+    <div class="filter-group">
+      <span class="filter-label">Source</span>
+      <div class="segmented" role="group" aria-label="Source">
+        @for (item of sources; track item.value) {
+          <button type="button" [class.active]="source === item.value" (click)="source = item.value">{{ item.label }}</button>
+        }
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-label">Linked</span>
+      <div class="segmented" role="group" aria-label="Linked products">
+        @for (item of links; track item.value) {
+          <button type="button" [class.active]="linked === item.value" (click)="linked = item.value">{{ item.label }}</button>
+        }
+      </div>
+    </div>
+
+    <label class="select">
+      <span class="sr-only">Visibility</span>
+      <select [ngModel]="visibility" (ngModelChange)="visibility = $event" aria-label="Visibility">
+        <option value="all">Visibility: All</option>
+        <option value="published">Visibility: Published</option>
+        <option value="hidden">Visibility: Hidden</option>
+        <option value="resubmitted">Visibility: Resubmitted</option>
+        <option value="deleted">Visibility: Deleted</option>
+      </select>
+      <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+    </label>
+  </div>
+
+  <p class="state-message state-message--error" *ngIf="error" role="alert">{{ error }}</p>
+
+  <section class="card" aria-label="Recipes table">
+    <p class="state-message" *ngIf="loading">Loading recipes…</p>
+    <p class="state-message" *ngIf="!loading && !error && !visibleRows.length">No recipes match these filters.</p>
+
+    <table class="recipe-table" *ngIf="!loading && !error && visibleRows.length">
+      <thead>
+        <tr>
+          <th>Recipe</th>
+          <th>Source</th>
+          <th>Linked products</th>
+          <th>Featured</th>
+          <th>Visibility</th>
+          <th>Updated</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          *ngFor="let row of visibleRows"
+          [class.is-hidden]="!isPublished(row) && !isDeleted(row)"
+          [class.is-deleted]="isDeleted(row)"
+          class="recipe-row"
+          (click)="openRecipe(row, $event)"
+        >
+          <td>
+            <div class="recipe">
+              <img
+                class="recipe__image"
+                [src]="row.image_url || 'assets/images/placeholder.svg'"
+                [alt]=""
+                width="44"
+                height="44"
+                loading="lazy"
+                decoding="async"
+                (error)="$any($event.target).src = 'assets/images/placeholder.svg'"
+              />
+              <div>
+                <strong>{{ row.title }}</strong>
+                <span *ngIf="row.author_line">{{ row.author_line }}</span>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="chip" [class.chip--community]="row.source === 'community'">
+              {{ row.source === 'community' ? 'Community' : 'Offsite' }}
+            </span>
+          </td>
+          <td>
+            <span class="chip" *ngIf="row.linked === 'linked'">{{ linkedLabel(row) }}</span>
+            <span class="chip chip--warning" *ngIf="row.linked === 'not_linked'">Not linked</span>
+            <span class="locked" *ngIf="row.linked === 'not_allowed'">
+              <svg lucideLock [size]="13" aria-hidden="true"></svg>
+              Not allowed
+            </span>
+          </td>
+          <td>
+            <button
+              type="button"
+              class="toggle"
+              role="switch"
+              [class.on]="row.featured"
+              [disabled]="!isPublished(row) || savingId === row.recipe_id"
+              [attr.aria-checked]="row.featured"
+              [attr.aria-label]="'Feature ' + row.title + ' on the homepage'"
+              (click)="setFeatured(row, !row.featured)"
+            ></button>
+          </td>
+          <td>
+            <span class="chip" [ngClass]="statusClass(row)">
+              {{ statusLabel(row) }}
+            </span>
+          </td>
+          <td class="updated">{{ updatedLabel(row.updated_at) }}</td>
+          <td class="actions">
+            <button
+              type="button"
+              class="icon-btn"
+              [disabled]="savingModal || isDeleted(row)"
+              [attr.aria-label]="(isPublished(row) ? 'Hide ' : 'Show ') + row.title + ' on the Recipes page'"
+              [attr.title]="isPublished(row) ? 'Hide on the Recipes page' : 'Show on the Recipes page'"
+              (click)="onEye(row)"
+            >
+              <svg *ngIf="isPublished(row)" lucideEye [size]="16" aria-hidden="true"></svg>
+              <svg *ngIf="!isPublished(row)" lucideEyeOff [size]="16" aria-hidden="true"></svg>
+            </button>
+            <button
+              type="button"
+              class="icon-btn icon-btn--danger"
+              [disabled]="savingModal || isDeleted(row)"
+              [attr.aria-label]="'Delete ' + row.title"
+              [attr.title]="'Delete recipe'"
+              (click)="onTrash(row)"
+            >
+              <svg lucideTrash2 [size]="16" aria-hidden="true"></svg>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="toast" *ngIf="toast" role="status">
+    <svg lucideCheck [size]="16" aria-hidden="true"></svg>
+    <p>{{ toast.message }}</p>
+    <button type="button" (click)="undoFeatured()">Undo</button>
+  </div>
+
+  <div class="modal-overlay" *ngIf="modal as dialog" (click)="closeModal()">
+    <div
+      class="modal"
+      [class.modal--wide]="dialog.kind === 'hide' || dialog.kind === 'delete'"
+      [class.modal--danger]="dangerModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="recipe-modal-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="modal__header">
+        <h2 id="recipe-modal-title">{{ modalTitle }}</h2>
+        <button type="button" class="modal__close" (click)="closeModal()" aria-label="Close">
+          <svg lucideX [size]="18" aria-hidden="true"></svg>
+        </button>
+      </header>
+
+      <div class="modal__body">
+        <p class="modal__copy" *ngIf="dialog.kind === 'hide'">
+          It leaves the Recipes page, homepage and search. You can restore it anytime.
+          <ng-container *ngIf="dialog.row.source === 'offsite'"> Linked products stay saved.</ng-container>
+        </p>
+        <p class="modal__copy" *ngIf="dialog.kind === 'show'">
+          It appears on the Recipes page and product pages again. It stays off the homepage until you feature it.
+        </p>
+        <p class="modal__copy" *ngIf="dialog.kind === 'delete'">
+          People who saved it are notified and it leaves Saved / Pantry.
+          <ng-container *ngIf="dialog.row.source === 'offsite'">
+            Check featured and product links first — those references leave with it.
+          </ng-container>
+        </p>
+
+        <div class="callout" *ngIf="dialog.kind !== 'show' && dialog.row.source === 'community'">
+          <svg lucideTriangleAlert [size]="16" aria-hidden="true"></svg>
+          <p *ngIf="dialog.kind === 'hide'">
+            Community recipe<span *ngIf="ownerHandle(dialog.row)"> by <strong>{{ ownerHandle(dialog.row) }}</strong></span>.
+            The owner is notified. The original post stays in Community.
+          </p>
+          <p *ngIf="dialog.kind === 'delete'">
+            Community recipe<span *ngIf="ownerHandle(dialog.row)"> by <strong>{{ ownerHandle(dialog.row) }}</strong></span>.
+            The recipe is deleted and the owner is notified. The original post stays in Community.
+          </p>
+        </div>
+
+        <ng-container *ngIf="dialog.kind === 'hide' || dialog.kind === 'delete'">
+          <label class="field">
+            <span>Reason</span>
+            <span class="reason-select">
+              <select [ngModel]="reason" (ngModelChange)="onReasonChange($event)" aria-label="Reason">
+                <option *ngFor="let item of reasonOptions" [value]="item.value">{{ item.label }}</option>
+              </select>
+              <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+            </span>
+          </label>
+
+          <label class="field">
+            <span>
+              Note
+              <ng-container *ngIf="noteNeedsValue"> (required)</ng-container>
+              <ng-container *ngIf="!noteNeedsValue && dialog.row.source === 'offsite'"> (optional)</ng-container>
+            </span>
+            <textarea
+              rows="3"
+              [attr.maxlength]="noteMax"
+              [placeholder]="noteFieldPlaceholder"
+              [ngModel]="note"
+              (ngModelChange)="note = $event"
+            ></textarea>
+          </label>
+        </ng-container>
+
+        <p class="modal__error" *ngIf="modalError" role="alert">{{ modalError }}</p>
+      </div>
+
+      <footer class="modal__footer">
+        <button type="button" class="modal__cancel" (click)="closeModal()" [disabled]="savingModal">Cancel</button>
+        <button type="button" class="modal__confirm" [class.danger]="dangerModal" [disabled]="!canConfirm" (click)="confirmModal()">
+          {{ confirmLabel }}
+        </button>
+      </footer>
+    </div>
+  </div>
+</section>
