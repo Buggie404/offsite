@@ -43,6 +43,7 @@ export interface CustomerNote {
 }
 
 export interface CustomerDetail extends CustomerRow {
+  past_chats?: number;
   vouchers: { code: string; title: string | null; discount_type: string; discount_value: number; is_active: boolean; valid_to: string; used_count: number; usage_limit: number | null }[];
   violations: { reason: string; level: number; created_at: string }[];
   total_spent: number;

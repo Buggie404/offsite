@@ -17,6 +17,8 @@ export interface ChatOrderItem {
 }
 
 export interface ChatMessageOrder {
+  imageUrl?: string;
+  itemCount?: number;
   code: string;
   orderId?: string;
   contact?: string;

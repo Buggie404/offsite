@@ -3,15 +3,18 @@ import { CommonModule, DatePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription, forkJoin } from 'rxjs';
 import { customerKey, groupChats } from './chat-grouping';
-import { ChatConversation, ChatMessage, ChatService } from '../../../../core/services/chat.service';
+import { ChatAgent, ChatConversation, ChatMessage, ChatService } from '../../../../core/services/chat.service';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
+import { AdminCustomersService, CustomerDetail, CustomerOrder } from '../../../customers/services/admin-customers.service';
+import { avatarInitials } from '../../../../shared/utils/avatar';
+import { ReportPayload, ReportPostModalComponent } from '../../../../features/community/components/report-post-modal/report-post-modal.component';
 
 type StatusFilter = 'waiting' | 'mine' | 'closed' | 'all';
 
 @Component({
   selector: 'app-admin-chat',
   standalone: true,
-  imports: [CommonModule, DatePipe],
+  imports: [CommonModule, DatePipe, ReportPostModalComponent],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
 })
@@ -20,9 +23,69 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   private auth = inject(AdminAuthService);
   private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
+  private customers = inject(AdminCustomersService);
+  customerDetails: (CustomerDetail & { recent_orders: CustomerOrder[] }) | null = null;
+  customerDetailsLoading = false;
+  private customerRequest?: Subscription;
+  readonly initials = avatarInitials;
+  reportOpen = false;
+  reportPending = false;
+  readonly quickReplies = [
+    { label: 'Order issue', text: 'Could you describe the issue with the item you received?' },
+    { label: 'Refund timeline', text: 'I can check the refund status with our Orders team for you.' },
+    { label: 'Shipping times', text: 'Let me check the shipping status and estimated delivery for your order.' },
+    { label: 'Brewing help', text: 'What are you brewing, and which equipment are you using?' }
+  ];
+  get voucherUrl(): string {
+    return `/admin/vouchers?create=complaint&customer_id=${encodeURIComponent(this.active?.customer_id || '')}&customer_name=${encodeURIComponent(this.customerName(this.active!))}`;
+  }
+  useQuickReply(text: string): void { if (this.canReply) this.draft = text; }
+  reportCustomer(payload: ReportPayload): void {
+    if (!this.active || !this.canReply || this.reportPending || this.active.customer_id.startsWith('guest:')) return;
+    this.reportPending = true;
+    this.chat.reportCustomer(this.active.customer_id, payload.reason, payload.note).subscribe({
+      next: () => { this.reportPending = false; this.reportOpen = false; this.actionError = ''; this.cdr.markForCheck(); },
+      error: error => { this.reportPending = false; this.reportOpen = false; this.actionError = error?.error?.error || 'Could not report this customer.'; this.cdr.markForCheck(); }
+    });
+  }
+  orderCards(message: ChatMessage) {
+    const cards = [...(message.metadata?.orderCard ? [message.metadata.orderCard] : []), ...(Array.isArray(message.metadata?.orders) ? message.metadata.orders : [])];
+    return [...new Map(cards.filter(card => card && (card.code || card.order_id)).map(card => [card.code || card.order_id, { ...card, code: (card.code || card.order_id || '').replace(/^#/, ''), status: (card.status || card.order_status || 'Order').replaceAll('_', ' '), total: card.total ?? card.total_amount, image: card.image_url || card.imageUrl, itemCount: card.item_count ?? card.items?.reduce((total, item) => total + (item.quantity || 0), 0) }])).values()];
+  }
+
+  get pastChats(): number {
+    if (this.customerDetails?.past_chats != null) return Math.max(0, this.customerDetails.past_chats - (this.active?.status === 'closed' ? 1 : 0));
+    return this.active ? this.conversations.filter(c => customerKey(c) === customerKey(this.active!) && c.status === 'closed' && c.conversation_id !== this.active!.conversation_id).length : 0;
+  }
+  get lastOrder() { return this.customerDetails?.recent_orders[0] || null; }
+  get customerProfileUrl(): string | null {
+    return this.customerDetails ? `/admin/service-customers/${encodeURIComponent(this.customerDetails.user_id)}` : null;
+  }
+  get closedLabel(): string {
+    return this.active ? this.outcomeLabel(this.active) : 'Closed';
+  }
+  outcomeLabel(conversation: ChatConversation): string {
+    if (conversation.close_outcome) return ({ resolved: 'Resolved', forwarded: 'Forwarded to Orders', no_response: 'No response', spam: 'Spam or abusive' })[conversation.close_outcome];
+    return conversation.close_reason === 'resolved' ? 'Resolved' : conversation.close_reason === 'idle' ? 'No response' : conversation.close_reason === 'return_to_bot' ? 'Returned to chatbot' : 'Closed';
+  }
   private subs = new Subscription();
 
   @ViewChild('thread') private thread?: ElementRef<HTMLElement>;
+  @ViewChild('transferDialog') private transferDialog?: ElementRef<HTMLDialogElement>;
+  @ViewChild('closeDialog') private closeDialog?: ElementRef<HTMLDialogElement>;
+  closeOpen = false;
+  orderShareOpen = false;
+  orderShareId = '';
+  closeOutcome = 'resolved';
+  closeSummary = '';
+  sendClosingMessage = true;
+  readonly closeOutcomes = [
+    { value: 'resolved', label: 'Resolved' },
+    { value: 'forwarded', label: 'Forwarded to Orders team (refund / order change)' },
+    { value: 'no_response', label: 'Customer stopped replying' },
+    { value: 'spam', label: 'Spam or abusive' }
+  ];
+  get selectedAgent() { return this.agents.find(agent => agent.user_id === this.transferTarget); }
 
   filters: { value: StatusFilter; label: string }[] = [
     { value: 'waiting', label: 'Waiting' },
@@ -41,7 +104,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   transferOpen = false;
   transferTarget = '';
   transferNote = '';
-  agents: { user_id: string; name: string }[] = [];
+  agents: ChatAgent[] = [];
 
   conversations: ChatConversation[] = [];
   active: ChatConversation | null = null;
@@ -93,13 +156,16 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   get canClose(): boolean { return this.canReply || (this.auth.getUser()?.role === 'admin_cc' && this.active?.status === 'open'); }
   get activeState(): string {
     if (!this.active) return '';
-    if (this.active.status === 'closed') return 'Closed · read only';
+    if (this.active.status === 'closed') return `Closed${this.active.closed_by_name ? ' by ' + this.active.closed_by_name : ''} · read only`;
     if (this.canClaim) return 'Unclaimed · view only';
     if (this.canReply) return 'Claimed by you';
     return 'Assigned to another agent · view only';
   }
 
   setFilter(filter: StatusFilter): void {
+    this.customerRequest?.unsubscribe();
+    this.customerDetails = null;
+    this.customerDetailsLoading = false;
     this.filter = filter;
     this.active = null;
     this.messages = [];
@@ -159,6 +225,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.customerRequest?.unsubscribe();
     this.subs.unsubscribe();
     clearTimeout(this.typingTimer);
     clearTimeout(this.stopTypingTimer);
@@ -207,6 +274,11 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   }
 
   select(c: ChatConversation): void {
+    this.reportOpen = false;
+    this.orderShareOpen = false; this.orderShareId = '';
+    this.customerRequest?.unsubscribe();
+    this.customerDetails = null;
+    this.customerDetailsLoading = false;
     this.transferOpen = false;
     this.draft = '';
     this.actionError = '';
@@ -214,6 +286,19 @@ export class AdminChatComponent implements OnInit, OnDestroy {
     this.messages = [];
     this.customerTyping = false;
     this.refreshMessages(c.conversation_id, true);
+    this.loadCustomerDetails(c);
+  }
+
+  private loadCustomerDetails(c: ChatConversation): void {
+    this.customerRequest?.unsubscribe();
+    if (!c.customer_id.startsWith('guest:')) {
+      this.customerDetailsLoading = true;
+      const customerId = c.customer?.user_id || c.customer_id;
+      this.customerRequest = forkJoin({ profile: this.customers.get(customerId), orders: this.customers.orders(customerId, 1) }).subscribe({
+        next: response => { this.customerDetails = response.profile.data ? { ...response.profile.data, recent_orders: response.orders.data } : null; this.customerDetailsLoading = false; this.cdr.markForCheck(); },
+        error: () => { this.customerDetailsLoading = false; this.cdr.markForCheck(); }
+      });
+    }
   }
 
   private refreshMessages(conversationId: string, forceScroll = false): void {
@@ -249,6 +334,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
         if (this.active?.conversation_id === id) {
           this.active = { ...this.active, ...res.data };
           this.filter = 'mine';
+          this.loadCustomerDetails(this.active);
         }
         this.loadList();
         this.cdr.markForCheck();
@@ -258,18 +344,33 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   }
 
   closeChat(): void {
-    if (!this.active || !this.canClose || this.actionPending || !confirm('Close this conversation?')) return;
+    if (!this.active || !this.canClose || this.actionPending) return;
+    this.closeOutcome = 'resolved'; this.closeSummary = ''; this.sendClosingMessage = true; this.actionError = '';
+    this.closeOpen = true;
+    this.closeDialog?.nativeElement.showModal?.();
+  }
+
+  dismissDialogs(): void {
+    if (this.actionPending) return;
+    this.transferOpen = false; this.closeOpen = false;
+    this.transferDialog?.nativeElement.close?.(); this.closeDialog?.nativeElement.close?.();
+  }
+
+  confirmClose(): void {
+    if (!this.active || !this.canClose || !this.closeOpen || !this.closeOutcomes.some(outcome => outcome.value === this.closeOutcome) || this.closeSummary.length > 1000 || this.actionPending) return;
     const id = this.active.conversation_id;
     this.actionPending = true;
     this.actionError = '';
-    this.chat.close(this.active.conversation_id).subscribe({
+    this.chat.close(this.active.conversation_id, { outcome: this.closeOutcome, summary: this.closeSummary.trim(), send_closing_message: this.sendClosingMessage }).subscribe({
       next: res => {
         this.actionPending = false;
+        this.dismissDialogs();
         this.upsert(res.data);
         if (this.active?.conversation_id === id) {
           this.active = { ...this.active, ...res.data };
           this.filter = 'closed';
           this.draft = '';
+          this.loadCustomerDetails(this.active);
         }
         this.loadList();
         this.cdr.markForCheck();
@@ -290,20 +391,22 @@ export class AdminChatComponent implements OnInit, OnDestroy {
     if (!this.canClose || !this.supportOpen) return;
     this.transferTarget = '';
     this.transferNote = '';
+    this.actionError = '';
     this.chat.agents().subscribe({
-      next: response => { this.agents = response.data.filter(agent => agent.user_id !== this.active?.agent_id); this.transferOpen = true; this.cdr.markForCheck(); },
+      next: response => { this.agents = response.data.filter(agent => agent.user_id !== this.active?.agent_id); this.transferOpen = true; this.transferDialog?.nativeElement.showModal?.(); this.cdr.markForCheck(); },
       error: () => { this.actionError = 'Could not load agents'; this.cdr.markForCheck(); }
     });
   }
 
   transfer(): void {
-    if (!this.active || !this.canClose || !this.transferTarget || !this.transferNote.trim() || this.actionPending) return;
+    if (!this.active || !this.canClose || !this.supportOpen || !this.transferTarget || this.selectedAgent?.available === false || !this.transferNote.trim() || this.transferNote.length > 1000 || this.actionPending) return;
     const id = this.active.conversation_id;
     this.actionPending = true;
     this.chat.transfer(id, this.transferTarget, this.transferNote.trim()).subscribe({
       next: response => {
         this.actionPending = false;
-        this.transferOpen = false;
+        this.dismissDialogs();
+        this.customerRequest?.unsubscribe(); this.customerDetails = null;
         this.upsert(response.data);
         if (this.active?.conversation_id === id) { this.active = { ...this.active, ...response.data }; this.filter = 'all'; this.draft = ''; }
         this.loadList(); this.cdr.markForCheck();
@@ -319,6 +422,20 @@ export class AdminChatComponent implements OnInit, OnDestroy {
     this.chat.typing(this.active!.conversation_id, false);
     this.draft = '';
     this.cdr.markForCheck();
+  }
+
+  shareOrder(): void {
+    if (!this.active || !this.canReply || !this.orderShareId || this.actionPending) return;
+    const id = this.active.conversation_id;
+    this.actionPending = true; this.actionError = '';
+    this.chat.shareOrder(id, this.orderShareId).subscribe({
+      next: response => {
+        this.actionPending = false; this.orderShareOpen = false;
+        if (this.active?.conversation_id === id && response.data && !this.messages.some(message => message._id === response.data?._id)) { this.messages = [...this.messages, response.data]; this.scrollSoon(true); }
+        this.cdr.markForCheck();
+      },
+      error: error => { this.actionPending = false; this.actionError = error?.error?.error || 'Could not share this order.'; this.cdr.markForCheck(); }
+    });
   }
 
   onKey(e: KeyboardEvent): void {

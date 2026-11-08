@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AdminChatComponent } from './chat.component';
 import { ChatService, ChatConversation } from '../../../../core/services/chat.service';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
+import { AdminCustomersService } from '../../../customers/services/admin-customers.service';
 
 describe('grouped customer thread', () => {
   afterEach(() => TestBed.resetTestingModule());
@@ -19,6 +20,7 @@ describe('grouped customer thread', () => {
     };
     TestBed.configureTestingModule({ providers: [
       { provide: ChatService, useValue: chat },
+      { provide: AdminCustomersService, useValue: { get: () => of({ data: null }), orders: () => of({ data: [], total: 0, page: 1, limit: 20 }) } },
       { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       { provide: AdminAuthService, useValue: { getUser: () => ({ user_id: 'STAFF1' }) } },
       { provide: ChangeDetectorRef, useValue: { markForCheck: vi.fn() } }

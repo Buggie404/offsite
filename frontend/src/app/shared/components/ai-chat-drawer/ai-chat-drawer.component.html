@@ -343,6 +343,7 @@
         <!-- User Message Bubble -->
         @if (msg.sender === 'user') {
           <div class="msg-row msg-row--user">
+            <div class="msg-content-wrapper">
             <div class="msg-bubble msg-bubble--user">
               <p>{{ msg.text }}</p>
               @if (msg.deliveryStatus) {
@@ -350,6 +351,8 @@
                   @switch (msg.deliveryStatus) { @case ('sending') { <svg lucideClock class="inline-icon" aria-hidden="true"></svg> Sending } @case ('sent') { <svg lucideCheck class="inline-icon" aria-hidden="true"></svg> Sent } @case ('delivered') { <svg lucideCheckCheck class="inline-icon" aria-hidden="true"></svg> Delivered } @case ('seen') { <svg lucideCheckCheck class="inline-icon" aria-hidden="true"></svg> Seen } @default { <svg lucideTriangleAlert class="inline-icon" aria-hidden="true"></svg> Not sent } }
                 </small>
               }
+            </div>
+            <ng-container *ngTemplateOutlet="sharedOrderCardsTpl; context: { message: msg }"></ng-container>
             </div>
           </div>
         }
@@ -377,6 +380,7 @@
                 <div class="agent-name-tag">Offsite</div>
                 <p>{{ msg.text }}</p>
               </div>
+              <ng-container *ngTemplateOutlet="sharedOrderCardsTpl; context: { message: msg }"></ng-container>
             </div>
           </div>
         }
@@ -414,6 +418,23 @@
 
     <!-- Footer Input Bar -->
     <footer class="concierge-footer" [class.concierge-footer--disabled]="chatService.composerBlocked() || chatService.historyOpen()">
+      @if (chatService.humanChatActive() && chatService.canUseHistory() && !chatService.historyOpen()) {
+        <div class="share-order-tools">
+          <button type="button" class="talk-to-human-link" (click)="chatService.openOrderPicker()" [disabled]="chatService.isTyping() || chatService.composerBlocked()">Share order</button>
+          @if (chatService.orderPickerOpen()) {
+            <section class="share-order-picker" aria-label="Choose an order to share">
+              <div><strong>Choose an order to share</strong><button type="button" class="talk-to-human-link" (click)="chatService.orderPickerOpen.set(false)">Cancel</button></div>
+              @if (chatService.orderPickerLoading()) { <p role="status">Loading your orders...</p> }
+              @else if (chatService.orderPickerError()) { <p role="alert">{{ chatService.orderPickerError() }}</p> }
+              @else {
+                @for (order of chatService.shareableOrders(); track order.code) {
+                  <button type="button" class="share-order-option" [disabled]="chatService.isTyping() || chatService.composerBlocked()" (click)="chatService.shareOrder(order)"><strong>{{ order.code }}</strong><span>{{ orderStatusLabel(order.status) }}</span><span>{{ order.total | currency:(order.currency || 'USD') }}</span></button>
+                } @empty { <p>No orders on this account yet.</p> }
+              }
+            </section>
+          }
+        </div>
+      }
       <div class="input-row">
         <input
           type="text"
@@ -435,7 +456,7 @@
         </button>
       </div>
       <div class="footer-meta">
-        @if (chatService.humanChatActive() || chatService.canReopenSupport()) {
+        @if (chatService.humanChatActive() || chatService.canReopenSupport() || chatService.humanHandoverPending()) {
         <button
           type="button"
           class="talk-to-human-link"
@@ -460,6 +481,16 @@
       </div>
     </footer>
 
+    <ng-template #sharedOrderCardsTpl let-message="message">
+      @if (message.orderCard) { <ng-container *ngTemplateOutlet="supportOrderCardTpl; context: { order: message.orderCard }"></ng-container> }
+      @for (order of message.orderCards || []; track order.orderId || order.code) { <ng-container *ngTemplateOutlet="supportOrderCardTpl; context: { order: order }"></ng-container> }
+    </ng-template>
+    <ng-template #supportOrderCardTpl let-order="order">
+      <div class="support-order-card">
+        @if (order.imageUrl) { <img class="support-order-card__image" [src]="order.imageUrl" alt="Ordered item" (error)="$any($event.target).src = '/assets/icons/chat/order-placeholder.svg'"> } @else { <img class="support-order-card__placeholder" src="/assets/icons/chat/order-placeholder.svg" alt=""> }
+        <div><p><strong>{{ order.code }}</strong>@if (order.itemCount !== undefined) { <span> · {{ order.itemCount }} {{ order.itemCount === 1 ? 'item' : 'items' }}</span> }@if (order.total !== undefined) { <span> · {{ order.total | currency:(order.currency || 'USD') }}</span> }</p><span class="order-badge" [ngClass]="orderBadgeClass(order.status)">{{ orderStatusLabel(order.status) }}</span></div>
+      </div>
+    </ng-template>
     <ng-template #orderCardTpl let-order="order">
       <div class="chat-card chat-card--order">
         <div class="order-top">

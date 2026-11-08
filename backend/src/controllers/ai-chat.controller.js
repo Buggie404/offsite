@@ -628,6 +628,8 @@ function publicOrderView(order) {
   return {
     order_id: order.order_id,
     order_status: order.order_status,
+    image_url: order.items?.[0]?.image?.url || null,
+    item_count: (order.items || []).reduce((total, item) => total + (item.quantity || 0), 0),
     estimated_delivery: expectedDelivery(order),
     city: order.delivery_info?.city || '',
     items: (order.items || []).map(item => ({
@@ -1019,13 +1021,22 @@ exports.handleChatMessage = async (req, res) => {
       const conversation = await require('../models/ChatConversation').findOne({ conversation_id: chatSession.support_conversation_id });
       if (conversation && conversation.status !== 'closed') {
         const { appendMessage } = require('../services/chat.service');
-        const saved = await appendMessage(conversation, { sender_type: 'customer', sender_id: conversation.customer_id, content: messageText });
+        let metadata = {};
+        if (req.body.order_id) {
+          if (!userId) return res.status(403).json({ error: 'Sign in to share an account order.' });
+          const accountId = await require('../services/chat.service').resolveChatUserId(userId);
+          const order = await Order.findOne({ order_id: String(req.body.order_id), user_id: accountId, is_guest: false }).lean();
+          if (!order) return res.status(404).json({ error: 'Order not found on your account.' });
+          metadata = { orderCard: publicOrderView(order) };
+        }
+        const saved = await appendMessage(conversation, { sender_type: 'customer', sender_id: conversation.customer_id, content: messageText, metadata });
         if (saved) require('../services/socket.service').emitChatEvent('chat_message', saved.toObject(), conversation);
         const current = await sessionAccess.readSession({ sessionId: chatSession.session_id, userId });
         return res.json({ ...current.body, human_chat: true, handover: false });
       }
       chatSession.status = 'ai_active';
     }
+    if (req.body.order_id) return res.status(409).json({ error: 'Share orders in an active support conversation.' });
 
     const requestedHandover = handoverIntent(messageText);
     if (requestedHandover) {
@@ -1629,6 +1640,8 @@ exports.requestHandover = async (req, res) => {
     const userId = callerId(req);
     const note = typeof req.body.message === 'string' ? req.body.message.trim() : '';
     const reason = normalizeHandoverReason(req.body.reason || handoverIntent(note) || 'user_request');
+    if (!note) return res.status(400).json({ success: false, message: 'Send a message before joining the support queue.' });
+    if (note.length > 500) return res.status(400).json({ success: false, message: 'Message exceeds the 500-character limit.' });
 
     const prepared = await sessionAccess.prepareSession({
       sessionId,
@@ -1664,19 +1677,8 @@ exports.requestHandover = async (req, res) => {
       if (reopened) chatSession.status = reopened.status === 'open' ? 'in_progress' : 'waiting';
     }
 
-    if (note) {
-      sessionAccess.appendMessage(chatSession, {
-        sender: 'user',
-        text: note
-      });
-    } else {
-      sessionAccess.appendMessage(chatSession, {
-        sender: 'system',
-        text: 'Customer asked to talk to a person.'
-      });
-    }
-
-    await markHandedOff(chatSession, reason, note || 'Customer asked to talk to a person.');
+    sessionAccess.appendMessage(chatSession, { sender: 'user', text: note });
+    await markHandedOff(chatSession, reason, note);
 
     return res.status(200).json({
       success: true,

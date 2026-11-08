@@ -24,6 +24,7 @@ router.get('/conversations/:id/messages', chat.getMessages);
 router.get('/conversations', requireRole('cskh', 'admin_cc'), chat.listConversations);
 router.get('/agents', requireRole('cskh', 'admin_cc'), chat.listAgents);
 router.post('/conversations/:id/receipt', requireRole('cskh', 'admin_cc'), chat.receipt);
+router.post('/conversations/:id/order-card', requireRole('cskh', 'admin_cc'), chat.shareOrder);
 router.patch('/conversations/:id/claim', requireRole('cskh', 'admin_cc'), chat.claimConversation);
 router.patch('/conversations/:id/transfer', requireRole('cskh', 'admin_cc'), chat.transferConversation);
 router.patch('/conversations/:id/close', chat.closeConversation);

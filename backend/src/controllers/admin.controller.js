@@ -6,6 +6,7 @@ const notificationService = require('../services/notification.service');
 const { parseInternalNotes, appendInternalNote } = require('../utils/internal-notes');
 const mongoose = require('mongoose');
 const socketService = require('../services/socket.service');
+const { supportOrderCustomerIds } = require('../services/support-order-scope.service');
 
 function getDateFromRange(dateRange) {
   const days = { today: 1, '7': 7, '30': 30, '90': 90 }[dateRange] || 30;
@@ -408,9 +409,8 @@ async function getAllOrders(req, res) {
     } = req.query;
 
     const createdAtFilter = buildCreatedAtFilter(date_range, date_from, date_to);
-    const orderScope = req.user.role === 'cskh'
-      ? { user_id: { $in: req.user.assigned_chat_customer_ids || [] } }
-      : {};
+    const customerIds = await supportOrderCustomerIds(req.user);
+    const orderScope = customerIds ? { user_id: { $in: customerIds } } : {};
     const filter = {
       ...orderScope,
       created_at: createdAtFilter,
@@ -480,10 +480,8 @@ async function getOrderById(req, res) {
       return res.status(404).json({ error: 'Order not found.' });
     }
 
-    if (
-      req.user.role === 'cskh' &&
-      !(req.user.assigned_chat_customer_ids || []).includes(order.user_id)
-    ) {
+    const customerIds = await supportOrderCustomerIds(req.user);
+    if (customerIds && !customerIds.includes(order.user_id)) {
       return res.status(403).json({ error: 'Access denied', code: 'ROLE_FORBIDDEN' });
     }
 

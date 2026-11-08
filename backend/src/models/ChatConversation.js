@@ -7,6 +7,8 @@ const chatConversationSchema = new mongoose.Schema({
   claimed_at: { type: Date, default: null },
   waiting_since: { type: Date, default: Date.now },
   closed_at: { type: Date, default: null },
+  closed_by_name: { type: String, default: null },
+  close_outcome: { type: String, enum: ['resolved', 'forwarded', 'no_response', 'spam', null], default: null },
   close_reason: { type: String, enum: ['resolved', 'idle', 'return_to_bot', null], default: null },
   last_customer_message_at: { type: Date, default: null },
   last_agent_message_at: { type: Date, default: null },

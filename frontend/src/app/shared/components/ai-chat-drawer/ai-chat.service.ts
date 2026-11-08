@@ -26,6 +26,8 @@ export class AiChatService {
   readonly conversationId = signal<string>('');
   readonly humanChatActive = signal(false);
   readonly canReopenSupport = signal(false);
+  readonly humanHandoverPending = signal(false);
+  private pendingHandoverReason = 'user_request';
   readonly sessionId = signal<string>('');
   readonly interaction = signal<ChatInteraction>('ready');
   readonly historyOpen = signal(false);
@@ -48,6 +50,26 @@ export class AiChatService {
   private currentDecision = signal<ChatDecision>('continue');
 
   readonly messages = signal<ChatMessage[]>([]);
+  readonly orderPickerOpen = signal(false);
+  readonly orderPickerLoading = signal(false);
+  readonly shareableOrders = signal<ChatMessageOrder[]>([]);
+  readonly orderPickerError = signal('');
+
+  openOrderPicker(): void {
+    if (!this.canUseHistory() || !this.humanChatActive() || this.composerBlocked() || this.historyOpen()) return;
+    this.orderPickerOpen.set(true); this.orderPickerLoading.set(true); this.orderPickerError.set(''); this.shareableOrders.set([]);
+    const epoch = this.requestEpoch, session = this.sessionId();
+    this.http.get<any>(`${environment.apiUrl}/ai-chat/my-orders`).subscribe({
+      next: res => { if (epoch !== this.requestEpoch || session !== this.sessionId()) return; this.shareableOrders.set((res.orders || []).map((order: any) => this.asOrderCard(order))); this.orderPickerLoading.set(false); },
+      error: () => { if (epoch !== this.requestEpoch || session !== this.sessionId()) return; this.orderPickerLoading.set(false); this.orderPickerError.set('Could not load orders. Try again.'); }
+    });
+  }
+
+  shareOrder(order: ChatMessageOrder): void {
+    if (!this.humanChatActive() || !this.canUseHistory()) return;
+    const id = (order.orderId || order.code).replace(/^#/, '');
+    if (this.sendMessage(`I need help with order #${id}.`, id)) this.orderPickerOpen.set(false);
+  }
 
   constructor() {
     this.initCache = this.readInitCache();
@@ -87,6 +109,8 @@ export class AiChatService {
 
   /** Fresh concierge thread. Login and logout both start over so order context matches the account. */
   resetSession(): void {
+    this.orderPickerOpen.set(false); this.shareableOrders.set([]);
+    this.humanHandoverPending.set(false);
     this.humanChatActive.set(false);
     this.canReopenSupport.set(false);
     this.requestEpoch += 1;
@@ -281,6 +305,7 @@ export class AiChatService {
   private applyLoaded(res: any, source: 'current' | 'history'): void {
     this.humanChatActive.set(res?.human_chat === true || ['waiting', 'in_progress'].includes(res?.status));
     this.canReopenSupport.set(res?.can_reopen_support === true);
+    if (this.humanChatActive() || source === 'history') this.humanHandoverPending.set(false);
     const decision: ChatDecision = res?.decision || 'continue';
     this.currentDecision.set(decision);
     if (decision === 'rotate' && source === 'current') {
@@ -342,6 +367,7 @@ export class AiChatService {
   }
 
   private adoptSession(id: string, serverMessages: any[], draft: string | null): void {
+    this.humanHandoverPending.set(false);
     this.humanChatActive.set(false);
     this.canReopenSupport.set(false);
     this.storage()?.setItem(this.storageKey, id);
@@ -418,6 +444,8 @@ export class AiChatService {
     return {
       code: order.code || (order.orderId ? `#${order.orderId}` : ''),
       orderId: order.orderId,
+      imageUrl: order.imageUrl,
+      itemCount: order.itemCount,
       contact: order.contact,
       status: order.status || 'processing',
       progressPercent: order.progressPercent,
@@ -533,8 +561,8 @@ export class AiChatService {
     this.isBannerDismissed.set(true);
   }
 
-  sendMessage(text: string): boolean {
-    if (this.composerBlocked()) return false;
+  sendMessage(text: string, orderId?: string): boolean {
+    if (this.composerBlocked() || this.isTyping()) return false;
     const trimmed = text.trim();
     if (!trimmed) return false;
 
@@ -543,6 +571,11 @@ export class AiChatService {
       return false;
     }
 
+    if (this.humanHandoverPending() && !this.humanChatActive()) {
+      const userMsg = this.pushUserMessage(trimmed);
+      this.requestHandover(this.pendingHandoverReason, trimmed, { userMessageId: userMsg.id });
+      return true;
+    }
     const handoverReason = this.handoverReason(trimmed);
     if (handoverReason && !this.humanChatActive()) {
       const userMsg = this.pushUserMessage(trimmed);
@@ -569,7 +602,8 @@ export class AiChatService {
     const payload = {
       message: trimmed,
       session_id: this.sessionId(),
-      conversation_id: this.conversationId()
+      conversation_id: this.conversationId(),
+      ...(orderId ? { order_id: orderId } : {})
     };
 
     this.http.post<any>(`${environment.apiUrl}/ai-chat/message`, payload).subscribe({
@@ -702,6 +736,14 @@ export class AiChatService {
     message = '',
     hooks?: { userMessageId?: string }
   ): void {
+    if (this.composerBlocked() || this.isTyping() || this.humanChatActive()) return;
+    if (!message.trim()) {
+      this.pendingHandoverReason = reason;
+      if (!this.humanHandoverPending()) this.pushAssistantText('Tell us what you need help with. Send a message to join the support queue.');
+      this.humanHandoverPending.set(true);
+      return;
+    }
+    this.isTyping.set(true);
     const epoch = this.requestEpoch;
     const view = this.viewToken;
     this.http.post<any>(`${environment.apiUrl}/ai-chat/handover`, {
@@ -712,6 +754,7 @@ export class AiChatService {
     }).subscribe({
       next: (res) => {
         if (epoch !== this.requestEpoch || view !== this.viewToken) return;
+        this.isTyping.set(false);
         if (res?.decision === 'idle') {
           if (hooks?.userMessageId) this.rollbackMessage(hooks.userMessageId);
           this.currentDecision.set('idle');
@@ -725,14 +768,19 @@ export class AiChatService {
           return;
         }
         if (res?.show_contact_form) {
+          if (hooks?.userMessageId) this.messages.update(msgs => msgs.map(msg => msg.id === hooks.userMessageId ? { ...msg, deliveryStatus: 'sent' } : msg));
+          this.humanHandoverPending.set(false);
           this.pushUnavailableForm(res);
           return;
         }
+        if (!res?.handover) return;
+        this.humanHandoverPending.set(false);
         if (hooks?.userMessageId) this.messages.update(msgs => msgs.map(msg => msg.id === hooks.userMessageId ? { ...msg, deliveryStatus: 'sent' } : msg));
         this.pushHandoffBanner();
       },
       error: (err) => {
         if (epoch !== this.requestEpoch || view !== this.viewToken) return;
+        this.isTyping.set(false);
         const body = err?.error && typeof err.error === 'object' ? err.error : {};
         if (hooks?.userMessageId) this.messages.update(msgs => msgs.map(msg => msg.id === hooks.userMessageId ? { ...msg, deliveryStatus: 'failed' } : msg));
         if (err?.status === 409 || body.status === 'closed') {
@@ -747,6 +795,10 @@ export class AiChatService {
   }
 
   returnToBot(): void {
+    if (this.humanHandoverPending() && !this.humanChatActive() && !this.isTyping()) {
+      this.humanHandoverPending.set(false);
+      return;
+    }
     if ((!this.humanChatActive() && !this.canReopenSupport()) || this.composerBlocked()) return;
     const epoch = this.requestEpoch, view = this.viewToken;
     this.interaction.set('loading');
@@ -997,6 +1049,8 @@ export class AiChatService {
         .filter((item: { name: string }) => !!item.name)
       : [];
     return {
+      imageUrl: order.image_url || order.imageUrl || undefined,
+      itemCount: order.item_count ?? items.reduce((total: number, item: { quantity: number }) => total + item.quantity, 0),
       code: orderId ? `#${orderId}` : '',
       orderId,
       contact: contact || undefined,

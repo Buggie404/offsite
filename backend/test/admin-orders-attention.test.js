@@ -40,7 +40,9 @@ function fixture(rows) {
     },
     countDocuments: async (filter) => { seen.counts.push(filter); return 0; }
   };
-  const api = load('../src/controllers/admin.controller.js', { '../models/Order': Order });
+  const api = load('../src/controllers/admin.controller.js', { '../models/Order': Order,
+    '../services/support-order-scope.service': { supportOrderCustomerIds: async user => user.role === 'cskh' ? user.assigned_chat_customer_ids || [] : null }
+  });
   return { api, seen };
 }
 

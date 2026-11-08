@@ -5,6 +5,7 @@ const { newConversationId, canAccessConversation, appendMessage, resolveChatUser
 const { emitChatEvent } = require('../services/socket.service');
 const { assignConversation } = require('../services/chat-assignment.service');
 const { supportOpen, warningFor } = require('../services/chat-policy');
+const { SUPPORT_JOINED, englishSystemText } = require('../services/chat-system-messages');
 
 // POST /api/chat/handoff  (called by the Dify chatbot / Bao Nguyen's service)
 // Header: x-chat-secret = CHAT_HANDOFF_SECRET. Body: { customer_id, dify_conversation_id?, summary?, transcript?: [{role, content}] }
@@ -113,7 +114,7 @@ async function getMessages(req, res) {
     const isCustomer = conversation.customer_id === req.user.user_id;
     await ChatConversation.updateOne({ conversation_id: conversation.conversation_id },
       { $set: isCustomer ? { unread_customer: 0 } : { unread_agent: 0 } });
-    res.json({ data: messages });
+    res.json({ data: messages.map(message => message.sender_type === 'system' ? { ...message, content: englishSystemText(message.content) } : message) });
   } catch (error) {
     res.status(500).json({ error: 'Failed to load messages' });
   }
@@ -132,7 +133,7 @@ async function claimConversation(req, res) {
     }
     const claimed = await assignConversation({ conversationId: conversation.conversation_id, targetId: agentId, actorIds: agentIds, actorRole: req.user.role });
     Object.assign(conversation, claimed.toObject());
-    const sys = await appendMessage(conversation, { sender_type: 'system', content: 'Một nhân viên CSKH đã tham gia cuộc trò chuyện.' });
+    const sys = await appendMessage(conversation, { sender_type: 'system', content: SUPPORT_JOINED });
     emitChatEvent('chat_updated', conversation.toObject());
     if (sys) emitChatEvent('chat_message', sys.toObject(), conversation);
     const data = conversation.toObject();
@@ -151,10 +152,13 @@ async function closeConversation(req, res) {
     if (!(await canAccessConversation(req.user, conversation))) return res.status(403).json({ error: 'Access denied' });
     const actorId = await resolveChatUserId(req.user.user_id);
     if (req.user.role === 'cskh' && ![actorId, req.user.user_id, req.user.mongo_user_id].includes(conversation.agent_id)) return res.status(403).json({ error: 'Only the assigned agent can close this chat' });
-    const closed = await require('../services/chat-lifecycle.service').closeResolvedChat(conversation);
+    const isAgent = ['cskh', 'admin_cc'].includes(req.user.role);
+    const actor = isAgent ? await User.findOne({ user_id: actorId }, 'profile_name').lean() : null;
+    const options = isAgent ? { outcome: req.body?.outcome || 'resolved', summary: req.body?.summary || '', actorId, actorName: actor?.profile_name || actorId, actorRole: req.user.role } : {};
+    const closed = await require('../services/chat-lifecycle.service').closeResolvedChat(conversation, options);
     Object.assign(conversation, closed.toObject());
-    if (conversation.ai_session_id) {
-      const message = await appendMessage(conversation, { sender_type: 'system', content: 'The support conversation has ended. Reply within 3 hours during support hours to continue with the team, or choose Back to chatbot.' });
+    if (req.body?.send_closing_message !== false) {
+      const message = await appendMessage(conversation, { sender_type: 'system', content: 'This chat is closed. Reply within 3 hours during support hours to continue with the team, or choose Back to chatbot.' });
       if (message) emitChatEvent('chat_message', message.toObject(), conversation);
     }
     emitChatEvent('chat_updated', conversation.toObject());
@@ -202,8 +206,16 @@ async function receipt(req, res) {
 
 async function listAgents(req, res) {
   try {
-    const staff = await User.find({ role: { $in: ['cskh', 'admin_cc'] }, status: 'active' }, 'user_id profile_name').lean();
-    res.json({ data: staff.map(user => ({ user_id: user.user_id, name: user.profile_name || user.user_id })) });
+    const staff = await User.find({ role: { $in: ['cskh', 'admin_cc'] }, status: 'active' }, 'user_id profile_name role').lean();
+    const sockets = await require('../services/socket.service').getIO()?.in('chat_agents').fetchSockets() || [];
+    const online = new Set(sockets.flatMap(socket => [socket.user?.chat_user_id, socket.user?.user_id].filter(Boolean).map(String)));
+    const counts = await ChatConversation.aggregate([{ $match: { status: 'open' } }, { $group: { _id: '$agent_id', total: { $sum: 1 } } }]);
+    const totals = new Map(counts.map(row => [row._id, row.total]));
+    res.json({ data: staff.map(user => {
+      const active_chats = (totals.get(user.user_id) || 0) + (totals.get(String(user._id)) || 0);
+      const isOnline = online.has(user.user_id) || online.has(String(user._id));
+      return { user_id: user.user_id, name: user.profile_name || user.user_id, online: isOnline, active_chats, available: isOnline && (user.role === 'admin_cc' || active_chats < 5) };
+    }) });
   } catch (error) { res.status(500).json({ error: 'Could not load agents' }); }
 }
 
@@ -212,8 +224,14 @@ async function transferConversation(req, res) {
     const note = String(req.body?.note || '').trim();
     if (!note || note.length > 1000) return res.status(400).json({ error: 'A transfer note of 1–1000 characters is required' });
     const actorId = await resolveChatUserId(req.user.user_id);
-    const conversation = await assignConversation({ conversationId: req.params.id, targetId: String(req.body?.agent_id || ''), actorIds: [actorId, req.user.user_id, req.user.mongo_user_id].filter(Boolean), actorRole: req.user.role, note, transfer: true });
     const io = require('../services/socket.service').getIO();
+    const peers = await io?.in('chat_agents').fetchSockets() || [];
+    const targetId = String(req.body?.agent_id || '');
+    if (!peers.some(socket => [socket.user?.chat_user_id, socket.user?.user_id].includes(targetId))) return res.status(409).json({ error: 'This support agent is offline. Choose an online colleague.' });
+    const conversation = await assignConversation({ conversationId: req.params.id, targetId: String(req.body?.agent_id || ''), actorIds: [actorId, req.user.user_id, req.user.mongo_user_id].filter(Boolean), actorRole: req.user.role, note, transfer: true });
+    const target = await User.findOne({ user_id: conversation.agent_id }, 'profile_name').lean();
+    const notice = await appendMessage(conversation, { sender_type: 'system', content: `You are being connected to ${target?.profile_name || 'another support agent'} from Offsite. Your conversation history stays with the chat.` });
+    if (notice) emitChatEvent('chat_message', notice.toObject(), conversation);
     if (io) {
       const sockets = await io.in(`chat_${conversation.conversation_id}`).fetchSockets();
       for (const socket of sockets) if (!(await canAccessConversation(socket.user, conversation))) socket.leave(`chat_${conversation.conversation_id}`);
@@ -223,4 +241,19 @@ async function transferConversation(req, res) {
   } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not transfer this conversation' }); }
 }
 
-module.exports = { handoffFromBot, getMyConversation, startConversation, listConversations, getMessages, claimConversation, closeConversation, receipt, listAgents, transferConversation };
+async function shareOrder(req, res) {
+  try {
+    const conversation = await ChatConversation.findOne({ conversation_id: req.params.id });
+    const actorId = await resolveChatUserId(req.user.user_id);
+    if (!conversation || !(await canAccessConversation(req.user, conversation)) || (req.user.role !== 'admin_cc' && ![actorId, req.user.user_id, req.user.mongo_user_id].includes(conversation.agent_id))) return res.status(403).json({ error: 'Only the assigned agent can share orders in this chat.' });
+    if (conversation.status !== 'open') return res.status(409).json({ error: 'Claim an open conversation before sharing an order.' });
+    const order = await require('../models/Order').findOne({ order_id: String(req.body?.order_id || ''), user_id: conversation.customer_id }).lean();
+    if (!order) return res.status(404).json({ error: 'Order not found for this customer.' });
+    const orderCard = { order_id: order.order_id, order_status: order.order_status, total_amount: order.pricing?.total || 0, currency: order.pricing?.currency || 'USD', image_url: order.items?.[0]?.image?.url || null, item_count: (order.items || []).reduce((total, item) => total + (item.quantity || 0), 0), items: (order.items || []).map(item => ({ name: item.product_name, quantity: item.quantity })) };
+    const message = await appendMessage(conversation, { sender_type: 'agent', sender_id: actorId, content: `Order #${order.order_id}`, metadata: { orderCard } });
+    if (message) emitChatEvent('chat_message', message.toObject(), conversation);
+    res.status(201).json({ data: message?.toObject() || null });
+  } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not share this order.' }); }
+}
+
+module.exports = { handoffFromBot, getMyConversation, startConversation, listConversations, getMessages, claimConversation, closeConversation, receipt, listAgents, transferConversation, shareOrder };

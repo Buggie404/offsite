@@ -255,9 +255,76 @@ test('the human request endpoint invokes the shared handover service', async () 
     '../services/socket.service': { emitChatHandover: () => {} }
   }, SupportHours);
   const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
-  await api.requestHandover({ body: { session_id: 'AI1', reason: 'user_request' }, user: { user_id: 'USR1' }, headers: {} }, res);
+  await api.requestHandover({ body: { session_id: 'AI1', reason: 'user_request', message: 'My bowl arrived broken' }, user: { user_id: 'USR1' }, headers: {} }, res);
   assert.equal(res.code, 200);
   assert.equal(res.body.handover, true);
   assert.equal(session.status, 'waiting');
   assert.ok(forwarded);
+});
+
+test('an empty handover request cannot create Waiting or change an AI session', async () => {
+  const api = load('../src/controllers/ai-chat.controller.js', {
+    '../services/ai-chat-session': { prepareSession: async () => assert.fail('empty handover must not touch sessions') }
+  });
+  const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
+  await api.requestHandover({ body: { session_id: 'AI1', message: '  ' }, user: { user_id: 'USR1' } }, res);
+  assert.equal(res.code, 400);
+  assert.equal(res.body.success, false);
+});
+
+test('shared order cards are validated against the account and mirrored without delivery contact details', async () => {
+  for (const owned of [true, false]) {
+    const writes = [], emitted = [];
+    const api = load('../src/controllers/ai-chat.controller.js', {
+      '../services/ai-chat-session': {
+        prepareSession: async () => ({ session: { session_id: 'AI1', status: 'in_progress', support_conversation_id: 'CHAT1' } }),
+        readSession: async () => ({ body: { messages: [] } })
+      },
+      '../models/ChatConversation': { findOne: async () => ({ conversation_id: 'CHAT1', customer_id: 'USR1', status: 'open' }) },
+      '../models/Order': { findOne: filter => {
+        assert.deepEqual(filter, { order_id: 'OF1029', user_id: 'USR1', is_guest: false });
+        return { lean: async () => owned ? { order_id: 'OF1029', order_status: 'processing', pricing: { total: 74.8 }, delivery_info: { email: 'private@example.com', mobile: 'secret', city: 'HCM' }, items: [{ product_name: 'Bowl', quantity: 3, image: { url: 'https://example.com/bowl.jpg' } }] } : null };
+      } },
+      '../services/chat.service': { resolveChatUserId: async () => 'USR1', appendMessage: async (_, message) => { writes.push(message); return { toObject: () => message }; } },
+      '../services/socket.service': { emitChatEvent: (...args) => emitted.push(args) }
+    });
+    const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; } };
+    await api.handleChatMessage({ body: { session_id: 'AI1', message: 'Help with my order', order_id: 'OF1029' }, user: { user_id: 'mongo' }, headers: {}, ip: 'test' }, res);
+    assert.equal(res.statusCode, owned ? 200 : 404);
+    assert.equal(writes.length, owned ? 1 : 0);
+    if (owned) {
+      assert.equal(writes[0].metadata.orderCard.total_amount, 74.8);
+      assert.equal(writes[0].metadata.orderCard.item_count, 3);
+      assert.equal(writes[0].metadata.orderCard.image_url, 'https://example.com/bowl.jpg');
+      assert.equal(writes[0].metadata.orderCard.delivery_info, undefined);
+      assert.equal(emitted.length, 1);
+    }
+  }
+});
+
+test('order-card metadata is persisted to both live chat and customer session history', async () => {
+  let live, mirror;
+  const transaction = { withTransaction: async fn => fn(), endSession: async () => {} };
+  const api = load('../src/services/chat.service.js', {
+    '../models/ChatConversation': { db: { startSession: async () => transaction }, updateOne: async () => ({ matchedCount: 1 }) },
+    '../models/ChatMessage': { create: async ([data]) => { live = data; return [{ ...data, created_at: new Date() }]; } },
+    '../models/AiChatSession': { updateOne: async (_, update) => { mirror = update.$push.messages; } }
+  });
+  await api.appendMessage({ conversation_id: 'CHAT1', ai_session_id: 'AI1' }, { sender_type: 'customer', content: 'Order OF1029', metadata: { orderCard: { order_id: 'OF1029' } } });
+  assert.deepEqual(live.metadata, mirror.metadata);
+  assert.equal(live.metadata.delivery_status, 'sent');
+  assert.equal(live.metadata.orderCard.order_id, 'OF1029');
+});
+
+test('system join notices do not replace the customer issue in queue previews', async () => {
+  let update;
+  const transaction = { withTransaction: async fn => fn(), endSession: async () => {} };
+  const api = load('../src/services/chat.service.js', {
+    '../models/ChatConversation': { db: { startSession: async () => transaction }, updateOne: async (_, value) => { update = value; return { matchedCount: 1 }; } },
+    '../models/ChatMessage': { create: async ([data]) => [{ ...data, created_at: new Date() }] }
+  });
+  await api.appendMessage({ conversation_id: 'CHAT1' }, { sender_type: 'system', content: 'Agent joined' });
+  assert.equal(Object.hasOwn(update.$set, 'last_message_preview'), false);
+  await api.appendMessage({ conversation_id: 'CHAT1' }, { sender_type: 'agent', content: 'Checking your order' });
+  assert.equal(update.$set.last_message_preview, 'Checking your order');
 });
