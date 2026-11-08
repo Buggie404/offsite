@@ -19,6 +19,7 @@ export class ReportPostModalComponent {
   @Input() authorUsername = '';
   @Input() postExcerpt = '';
   @Input() submitting = false;
+  @Input() error = '';
   @Input() target: 'post' | 'comment' | 'account' = 'post';
 
   @Output() cancel = new EventEmitter<void>();

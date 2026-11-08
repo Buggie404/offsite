@@ -212,7 +212,7 @@
         }
         @if (complaintMode) {
           @if (chatCustomer) {
-            <div class="limit-note"><p>For <strong>{{ chatCustomer.profile_name }}</strong> only · linked to this conversation</p></div>
+            <div class="limit-note"><p>For <strong>{{ chatCustomer.profile_name }}</strong> only@if (chatCustomer.conversation_id) { · linked to this conversation }</p></div>
           } @else {
           <label class="field">
             <span>Customer</span>
@@ -397,7 +397,7 @@
           <button type="button" class="btn-stop" [disabled]="saving" (click)="stop()">Stop voucher</button>
         }
         <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
-        <button type="button" class="btn-save" [disabled]="!canSubmit" (click)="save()">{{ chatCustomer && !saving ? 'Create & send in chat' : saveLabel }}</button>
+        <button type="button" class="btn-save" [disabled]="!canSubmit" (click)="save()">{{ chatCustomer?.conversation_id && !saving ? 'Create & send in chat' : saveLabel }}</button>
       </footer>
     </div>
   </div>

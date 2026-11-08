@@ -9,11 +9,20 @@
   } @else {
     <a [routerLink]="customersPath" queryParamsHandling="preserve" class="back-link"><svg lucideArrowLeft class="inline-icon" aria-hidden="true"></svg> Back to Customers</a>
 
-    <header class="page-header">
+    <header class="page-header" [class.service-header]="serviceCustomers">
+      @if (serviceCustomers) {
+        <span class="avatar avatar--lg">@if (customer.avatar_url && !avatarBroken) { <img [src]="customer.avatar_url" alt="" (error)="avatarBroken = true" /> } @else { {{ initials }} }</span>
+      }
       <div class="page-header__left">
         <h1>{{ customer.profile_name }}</h1>
-        <p>{{ subtitle }}</p>
+        <p>{{ subtitle }} @if (serviceCustomers) { <span class="chip" [ngClass]="'chip--tier-' + customer.membership_tier.toLowerCase()">{{ customer.membership_tier }}</span> <span class="chip" [class.chip--active]="!isLocked && !customer.restricted_until" [class.chip--restricted]="customer.restricted_until" [class.chip--suspended]="isLocked">{{ isLocked ? 'Suspended' : customer.restricted_until ? 'Restricted' : 'Active' }}</span> }</p>
       </div>
+      @if (serviceCustomers) {
+        <div class="page-actions">
+          <button type="button" class="btn btn--primary" (click)="openVoucher()"><img src="/assets/icons/chat/ticket.svg" width="16" height="16" alt="">Create voucher</button>
+          <button type="button" class="btn btn--danger" (click)="reportOpen = true; reportError = ''"><img src="/assets/icons/chat/flag.svg" width="16" height="16" alt="">Report account</button>
+        </div>
+      }
       @if (canUnlock) {
         <div class="page-actions">
           <button type="button" class="btn btn--outline" (click)="openStatusConfirm()">
@@ -44,9 +53,12 @@
       </div>
     }
 
+    <div [class.service-layout]="serviceCustomers">
+    <main>
     <article class="card">
       <header class="card__header"><h2>Profile</h2></header>
       <div class="profile">
+        @if (!serviceCustomers) {
         <span class="avatar avatar--lg">
           @if (customer.avatar_url && !avatarBroken) {
             <img [src]="customer.avatar_url" alt="" (error)="avatarBroken = true" />
@@ -54,32 +66,79 @@
             {{ initials }}
           }
         </span>
+        }
         <dl class="profile__facts">
           <div><dt>Email</dt><dd>{{ customer.email || 'Not provided' }}</dd></div>
           <div><dt>Phone</dt><dd>{{ customer.phone || 'Not provided' }}</dd></div>
           <div><dt>Tier</dt><dd>{{ customer.membership_tier }} · {{ customer.points | number }} pts</dd></div>
           <div><dt>Ritual Box</dt><dd>{{ customer.ritual_boxes ? customer.ritual_boxes + ' active' : 'None' }}</dd></div>
-          <div><dt>Total spent</dt><dd>{{ customer.total_spent | currency:'USD':'symbol':'1.2-2' }}</dd></div>
-          <div><dt>Customer ID</dt><dd class="mono">{{ customer.user_id }}</dd></div>
+          @if (serviceCustomers) {
+            <div><dt>Orders</dt><dd>{{ customer.order_count }}</dd></div>
+            <div><dt>Ritual DNA</dt><dd>{{ customer.ritual_dna || 'Not completed' }}</dd></div>
+          } @else {
+            <div><dt>Total spent</dt><dd>{{ customer.total_spent | currency:'USD':'symbol':'1.2-2' }}</dd></div>
+            <div><dt>Customer ID</dt><dd class="mono">{{ customer.user_id }}</dd></div>
+          }
         </dl>
       </div>
     </article>
 
     <nav class="tabs" role="tablist" aria-label="Customer sections">
       @if (serviceCustomers) {
+        <button type="button" role="tab" [class.active]="tab === 'conversations'" [attr.aria-selected]="tab === 'conversations'" (click)="tab = 'conversations'">Conversations ({{ conversations.length }})</button>
+      }
+      <button type="button" role="tab" [class.active]="tab === 'orders'" [attr.aria-selected]="tab === 'orders'" (click)="tab = 'orders'">
+        {{ serviceCustomers ? 'Orders' : 'Purchase history' }} ({{ customer.order_count }})
+      </button>
+      @if (serviceCustomers) {
         <button type="button" role="tab" [class.active]="tab === 'vouchers'" [attr.aria-selected]="tab === 'vouchers'" (click)="tab = 'vouchers'">Vouchers ({{ customer.vouchers.length }})</button>
         <button type="button" role="tab" [class.active]="tab === 'violations'" [attr.aria-selected]="tab === 'violations'" (click)="tab = 'violations'">Violations ({{ customer.violations.length }})</button>
       }
-      <button type="button" role="tab" [class.active]="tab === 'orders'" [attr.aria-selected]="tab === 'orders'" (click)="tab = 'orders'">
-        Purchase history ({{ customer.order_count }})
-      </button>
+      @if (!serviceCustomers) {
       <button type="button" role="tab" [class.active]="tab === 'notes'" [attr.aria-selected]="tab === 'notes'" (click)="tab = 'notes'">
         Internal notes ({{ customer.notes.length }})
       </button>
+      }
     </nav>
+    @if (tab === 'conversations' && serviceCustomers) {
+      <article class="card conversations-card">
+        @if (conversationsLoading) { <div class="state">Loading conversations...</div> }
+        @else if (conversationsError) { <div class="state state--error" role="alert">{{ conversationsError }} <button type="button" class="link-btn" (click)="loadConversations()">Try again</button></div> }
+        @else if (!conversations.length) { <div class="state">No conversations yet.</div> }
+        @else {
+          <nav class="conversation-list" aria-label="Customer conversations">
+            @for (conversation of conversations; track conversation.conversation_id) {
+              <button type="button" [class.active]="selectedConversation?.conversation_id === conversation.conversation_id" [attr.aria-current]="selectedConversation?.conversation_id === conversation.conversation_id ? 'true' : null" (click)="selectConversation(conversation)">
+                <span><strong>{{ shortDate(conversation.last_message_at) }} <time>{{ conversation.last_message_at | date:'HH:mm' }}</time></strong><span class="chip" [class.chip--active]="conversation.status === 'closed'" [class.chip--open]="conversation.status === 'open'">{{ conversationLabel(conversation) }}</span></span>
+                <small>{{ conversation.last_message_preview || 'Conversation' }} · {{ conversation.agent_name || 'AI only' }}</small>
+              </button>
+            }
+          </nav>
+          <div class="conversation-preview">
+            @if (selectedConversation; as conversation) {
+              @if (conversation.summary) { <p class="conversation-summary"><strong>Summary@if (conversation.agent_name) { by {{ conversation.agent_name }} }:</strong> {{ conversation.summary }}</p> }
+              <div class="conversation-thread" aria-label="Conversation history" [attr.aria-busy]="messagesLoading">
+                @if (messagesLoading) { <div class="state">Loading messages...</div> }
+                @else if (messagesError) { <div class="state state--error" role="alert">{{ messagesError }} <button class="link-btn" type="button" (click)="selectConversation(conversation)">Try again</button></div> }
+                @else {
+                  @for (message of conversationMessages; track message._id || $index) {
+                    <div class="history-message" [class.history-message--agent]="message.sender_type === 'agent'" [class.history-message--system]="message.sender_type === 'system'">
+                      <small>{{ message.sender_type === 'customer' ? customer.profile_name : message.sender_type === 'agent' ? conversation.agent_name || 'Support' : message.sender_type === 'bot' ? 'Offsite AI' : 'System' }} · {{ message.created_at | date:'MMM d, HH:mm' }}</small>
+                      <p>{{ message.content }}</p>
+                      @if (message.metadata?.orderCard; as order) { <div class="history-order">Order #{{ order.code || order.order_id }} · {{ order.status || order.order_status }}</div> }
+                    </div>
+                  } @empty { <div class="state">No messages in this conversation.</div> }
+                }
+              </div>
+              <footer class="conversation-footer"><span>Read only here</span><a class="btn btn--outline" routerLink="/admin/chat" [queryParams]="{ conversation: conversation.conversation_id }">Continue in support chat ↗</a></footer>
+            }
+          </div>
+        }
+      </article>
+    }
     @if (tab === 'vouchers') {
       <article class="card">
-        <header class="card__header"><h2>Personal vouchers</h2><a routerLink="/admin/vouchers">Manage complaint vouchers</a></header>
+        <header class="card__header"><h2>Personal vouchers</h2></header>
         @for (voucher of customer.vouchers; track voucher.code) {
           <div class="state"><strong>{{ voucher.code }}</strong> · {{ voucher.title || 'Personal voucher' }} · {{ voucher.discount_value }}{{ voucher.discount_type === 'percentage' ? '%' : ' USD' }} · Valid until {{ voucher.valid_to }} · {{ voucher.is_active ? 'Enabled' : 'Stopped' }} · Used {{ voucher.used_count }}{{ voucher.usage_limit ? ' / ' + voucher.usage_limit : '' }}</div>
         } @empty { <div class="state">No personal vouchers.</div> }
@@ -184,6 +243,46 @@
           </div>
         </div>
       </article>
+    }
+
+    </main>
+    @if (serviceCustomers) {
+      <aside class="service-sidebar">
+        <article class="card">
+          <header class="card__header"><h2>Violation level</h2></header>
+          <div class="side-content">
+            <div class="violation-levels" aria-label="Violation level">
+              @for (level of levels; track level.value) { <div [class.active]="violationLevel === level.value" [attr.aria-current]="violationLevel === level.value ? 'true' : null"><strong>L{{ level.value }}</strong><span>{{ level.label }}</span></div> }
+            </div>
+            <p>{{ violationLevel ? customer.violations.length + ' recorded violation(s).' : 'No violations.' }} A report you file goes to Community reports and is handled by another CSKH or Senior Admin.</p>
+          </div>
+        </article>
+        <article class="card">
+          <header class="card__header"><h2>Personal vouchers</h2></header>
+          <div class="side-content">
+            @for (voucher of customer.vouchers; track voucher.code) {
+              <div class="personal-voucher"><div><strong class="mono">{{ voucher.code }}</strong><p>{{ voucher.discount_type === 'percentage' ? voucher.discount_value + '%' : '$' + voucher.discount_value }} · expires {{ shortDate(voucher.valid_to) }}</p></div><span class="chip" [class.chip--open]="voucherStatus(voucher) === 'Unused'">{{ voucherStatus(voucher) }}</span></div>
+            } @empty { <p>No personal vouchers yet.</p> }
+          </div>
+        </article>
+        <article class="card">
+          <header class="card__header"><h2>Internal notes</h2></header>
+          <div class="notes">
+            @for (note of customer.notes; track note.note_id) { <div class="note"><div class="note__meta"><strong>{{ shortName(note.author_name) }}</strong><span>{{ roleLabel(note.author_role) }} · {{ shortDate(note.created_at) }}</span></div><p>{{ note.content }}</p></div> }
+            @empty { <p class="notes__empty">No internal notes yet.</p> }
+            @if (customer.can_add_note === false) { <p class="notes__hint">Notes can only be added by staff assigned to this customer.</p> }
+            <textarea class="textarea" rows="2" maxlength="1000" placeholder="Add a note..." aria-label="New internal note" [disabled]="customer.can_add_note === false" [(ngModel)]="noteDraft" (ngModelChange)="noteError = ''"></textarea>
+            @if (noteError) { <p class="form-error" role="alert">{{ noteError }}</p> }
+            <button type="button" class="btn btn--primary" [disabled]="!noteDraft.trim() || noteSaving || customer.can_add_note === false" (click)="addNote()">{{ noteSaving ? 'Saving...' : 'Add note' }}</button>
+          </div>
+        </article>
+      </aside>
+    }
+    </div>
+
+    @if (voucherCustomer) { <app-admin-vouchers [chatCustomer]="voucherCustomer" (dismissed)="voucherCustomer = null" (created)="voucherCreated($event)" /> }
+    @if (reportOpen) {
+      <app-report-post-modal target="account" [authorUsername]="customer.community_name || customer.profile_name" [submitting]="reportPending" [error]="reportError" (cancel)="reportOpen = false" (submitReport)="reportCustomer($event)" />
     }
 
     <app-confirmation-modal

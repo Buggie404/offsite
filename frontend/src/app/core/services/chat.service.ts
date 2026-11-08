@@ -109,7 +109,10 @@ export class ChatService {
   messages(id: string) { return this.http.get<{ data: ChatMessage[] }>(`${this.api}/conversations/${id}/messages`, this.requestOptions()); }
   claim(id: string) { return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/claim`, {}, this.requestOptions()); }
   shareOrder(id: string, order_id: string) { return this.http.post<{ data: ChatMessage | null }>(`${this.api}/conversations/${id}/order-card`, { order_id }, this.requestOptions()); }
-  reportCustomer(userId: string, reason: string, note: string) { return this.http.post(`/api/profiles/${encodeURIComponent(userId)}/report`, { reason, note }, this.requestOptions()); }
+  reportCustomer(userId: string, reason: string, note: string) {
+    const token = this.adminAuth.getToken();
+    return this.http.post(`/api/profiles/${encodeURIComponent(userId)}/report`, { reason, note }, token ? { headers: { Authorization: `Bearer ${token}` } } : {});
+  }
   receipt(id: string, status: 'delivered' | 'seen', through: string) {
     return this.http.post(`${this.api}/conversations/${id}/receipt`, { status, through }, this.requestOptions());
   }

@@ -43,6 +43,8 @@ const CUSTOMER_ROLES = ['admin_cc', 'qlsp', 'cskh'];
 router.get('/customers', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.listCustomers);
 router.get('/customers/:userId', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.getCustomer);
 router.get('/customers/:userId/orders', authMiddleware, requireRole(...CUSTOMER_ROLES), adminCustomersController.listCustomerOrders);
+router.get('/customers/:userId/conversations', authMiddleware, requireRole('admin_cc', 'cskh'), adminCustomersController.listCustomerConversations);
+router.get('/customers/:userId/conversations/:conversationId/messages', authMiddleware, requireRole('admin_cc', 'cskh'), adminCustomersController.listCustomerConversationMessages);
 router.post('/customers/:userId/notes', authMiddleware, requireRole(...CUSTOMER_ROLES), adminActivityLog(), adminCustomersController.addCustomerNote);
 router.patch('/customers/:userId/status', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminCustomersController.setCustomerStatus);
 

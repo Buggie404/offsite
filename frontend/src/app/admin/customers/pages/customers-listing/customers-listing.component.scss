@@ -4,6 +4,9 @@
   display: block;
 }
 
+.chip--restricted { background: #fcf3d5; color: #977300; }
+.report-open { color: #c0392b; }
+
 // Figma: "3.2(new) Customers" list, without the CSKH-only chat / report columns.
 
 .filters {

@@ -141,7 +141,7 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   get searchPlaceholder(): string {
     const path = this.router.url.split('?')[0];
     if (path.startsWith('/admin/chat')) return 'Search conversations...';
-    if (path.startsWith('/admin/customers')) return 'Search customers...';
+    if (path.startsWith('/admin/customers') || path.startsWith('/admin/service-customers')) return 'Search customers...';
     if (path.startsWith('/admin/subscriptions')) return 'Search subscriptions...';
     if (path.startsWith('/admin/products')) return 'Search name or SKU...';
     if (path.startsWith('/admin/recipes')) return 'Search recipes…';
@@ -211,7 +211,7 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
       });
 
     this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
-      this.searchQuery = params['search'] || '';
+      this.searchQuery = params['q'] || params['search'] || '';
       this.cdr.markForCheck();
     });
 
@@ -298,6 +298,10 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   onSearchInput(value: string): void {
     this.searchQuery = value;
     const currentPath = this.router.url.split('?')[0];
+    if (currentPath.startsWith('/admin/service-customers')) {
+      void this.router.navigate(['/admin/service-customers'], { queryParams: { q: value || null, page: null, search: null }, queryParamsHandling: 'merge', replaceUrl: true });
+      return;
+    }
     this.router.navigate([currentPath], {
       queryParams: { search: value || null },
       queryParamsHandling: 'merge',

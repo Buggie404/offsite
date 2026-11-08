@@ -39,6 +39,8 @@ function loadApi({ customer = customerDoc(), users = [] } = {}) {
       find: () => ({ sort: () => ({ skip: () => ({ limit: () => ({ lean: async () => users }) }) }) })
     },
     '../models/Order': { aggregate: async () => [] },
+    '../models/ChatConversation': { aggregate: async () => [] },
+    '../models/AccountReport': { aggregate: async () => [] },
     '../models/Subscription': {},
     '../models/CustomerNote': {
       create: async (doc) => { seen.notes.push(doc); return { note_id: 'N1', created_at: new Date(), ...doc }; }
@@ -110,12 +112,11 @@ test('list filters by tier and status and searches name, @handle, email or phone
   assert.equal(res.statusCode, 200);
   assert.equal(seen.listQuery.role, 'customer');
   assert.equal(seen.listQuery.membership_tier, 'Bloom');
-  assert.equal(seen.listQuery.$and[0].$or[0].status, 'suspended');
-  assert.ok(seen.listQuery.$and[0].$or[1]['community_restriction.until'].$gt instanceof Date);
+  assert.equal(seen.listQuery.status, 'suspended');
   assert.equal(seen.listQuery.$or[1].community_name.source, 'mai\\.matcha');
 });
 
-test('a customer restricted in Community counts as suspended until it runs out', async () => {
+test('active filter excludes current community restrictions and expired restrictions are cleared in rows', async () => {
   const users = [
     customerDoc({ user_id: 'U1', community_restriction: { until: new Date(Date.now() + 86400000), reason: 'Spam' } }),
     customerDoc({ user_id: 'U2', community_restriction: { until: new Date(Date.now() - 1000), reason: 'Old' } })
@@ -134,6 +135,59 @@ test('an unknown tier is ignored instead of matching nothing', async () => {
   const { api, req, seen } = loadApi();
   await api.listCustomers(req({}, { tier: 'Gold' }), response());
   assert.equal('membership_tier' in seen.listQuery, false);
+});
+
+test('CSKH can list all registered customers without assignment or conversation filters', async () => {
+  const { api, req, seen } = loadApi({ users: [customerDoc({ user_id: 'UNASSIGNED' })] });
+  const request = req({}, { tier: 'Seed', q: 'Mai', page: '2' });
+  request.user.role = 'cskh';
+  const res = response();
+  await api.listCustomers(request, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.data[0].user_id, 'UNASSIGNED');
+  assert.equal(res.body.total, 1);
+  assert.equal(res.body.page, 2);
+  assert.equal(seen.listQuery.role, 'customer');
+  assert.equal(seen.listQuery.membership_tier, 'Seed');
+  assert.equal(seen.listQuery.user_id, undefined);
+  assert.equal(seen.findOne, undefined);
+  assert.ok(seen.listQuery.$or);
+});
+
+test('restricted filter selects active community penalties separately from suspended accounts', async () => {
+  const { api, req, seen } = loadApi();
+  const res = response();
+  await api.listCustomers(req({}, { status: 'restricted' }), res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(seen.listQuery.status, { $ne: 'suspended' });
+  assert.ok(seen.listQuery['community_restriction.until'].$gt instanceof Date);
+});
+
+test('conversation history and message endpoints deny customers outside the CSKH scope', async () => {
+  const { api, req } = profileApi();
+  for (const handler of [api.listCustomerConversations, api.listCustomerConversationMessages]) {
+    const res = response();
+    await handler(req, res);
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.body.data, undefined);
+  }
+});
+
+test('conversation messages are scoped to both customer and conversation and returned chronologically', async () => {
+  const seen = {};
+  const query = result => ({ lean: async () => result });
+  const api = load('../src/controllers/admin-customers.controller.js', {
+    '../models/ChatConversation': { findOne: filter => { seen.conversation = filter; return query({ conversation_id: 'CHAT1' }); } },
+    '../models/ChatMessage': { find: filter => { seen.messages = filter; return { sort: order => { seen.sort = order; return { limit: limit => { seen.limit = limit; return query([{ _id: 'NEW' }, { _id: 'OLD' }]); } }; } }; } }
+  });
+  const res = response();
+  await api.listCustomerConversationMessages({ user: { role: 'admin_cc' }, params: { userId: 'USR1', conversationId: 'CHAT1' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(seen.conversation, { customer_id: 'USR1', conversation_id: 'CHAT1' });
+  assert.deepEqual(seen.messages, { conversation_id: 'CHAT1' });
+  assert.equal(seen.sort.created_at, -1);
+  assert.equal(seen.limit, 500);
+  assert.deepEqual(res.body.data.map(row => row._id), ['OLD', 'NEW']);
 });
 
 test('no admin can lock a customer account', async () => {

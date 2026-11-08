@@ -2,7 +2,7 @@
   <header class="page-header">
     <div class="page-header__left">
       <h1>Customers</h1>
-      <p>{{ total | number }} account{{ total === 1 ? '' : 's' }} · guests are not listed</p>
+      <p>{{ total | number }} account{{ total === 1 ? '' : 's' }} · guests are not listed@if (serviceCustomers) { · view for CSKH }</p>
     </div>
   </header>
 
@@ -54,10 +54,11 @@
             <tr>
               <th>Customer</th>
               <th class="col-tier">Tier</th>
-              <th class="col-points">Points</th>
+              @if (!serviceCustomers) { <th class="col-points">Points</th> }
               <th class="col-status">Status</th>
               <th class="col-orders">Orders</th>
-              <th class="col-last">Last order</th>
+              <th class="col-last">{{ serviceCustomers ? 'Last chat' : 'Last order' }}</th>
+              @if (serviceCustomers) { <th>Reports</th> }
               <th class="col-go"><span class="sr-only">Open</span></th>
             </tr>
           </thead>
@@ -80,16 +81,19 @@
                   </div>
                 </td>
                 <td class="col-tier"><span class="chip" [ngClass]="'chip--tier-' + row.membership_tier.toLowerCase()">{{ row.membership_tier }}</span></td>
-                <td class="col-points">{{ row.points | number }}</td>
+                @if (!serviceCustomers) { <td class="col-points">{{ row.points | number }}</td> }
                 <td class="col-status">
-                  @if (row.status === 'suspended' || row.restricted_until) {
+                  @if (row.status === 'suspended') {
                     <span class="chip chip--suspended" [attr.title]="row.restricted_reason || row.suspended_reason || null">Suspended</span>
+                  } @else if (row.restricted_until) {
+                    <span class="chip chip--restricted" [attr.title]="row.restricted_reason">Restricted · {{ shortDate(row.restricted_until) }}</span>
                   } @else {
                     <span class="chip chip--active">Active</span>
                   }
                 </td>
                 <td class="col-orders">{{ row.order_count }}</td>
-                <td class="col-last">{{ shortDate(row.last_order_at) }}</td>
+                <td class="col-last">{{ shortDate(serviceCustomers ? row.last_chat_at || null : row.last_order_at) }}@if (serviceCustomers && row.last_chat_status) { · {{ row.last_chat_status }} }</td>
+                @if (serviceCustomers) { <td [class.report-open]="row.open_reports">{{ row.open_reports ? row.open_reports + ' open' : row.handled_reports ? row.handled_reports + ' handled' : '—' }}</td> }
                 <td class="col-go"><svg lucideChevronRight [size]="16"></svg></td>
               </tr>
             }

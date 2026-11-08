@@ -5,6 +5,7 @@ import { AdminRole } from '../../../shared/models/admin-role.model';
 
 export type CustomerTier = 'Seed' | 'Leaf' | 'Bloom' | 'Zen';
 export type CustomerStatus = 'active' | 'suspended';
+export type CustomerStatusFilter = CustomerStatus | 'restricted' | '';
 
 export interface CustomerRow {
   user_id: string;
@@ -24,6 +25,10 @@ export interface CustomerRow {
   created_at: string | null;
   order_count: number;
   last_order_at: string | null;
+  last_chat_at?: string | null;
+  last_chat_status?: string | null;
+  open_reports?: number;
+  handled_reports?: number;
 }
 
 export interface CustomerOrder {
@@ -43,6 +48,9 @@ export interface CustomerNote {
 }
 
 export interface CustomerDetail extends CustomerRow {
+  can_add_note?: boolean;
+  ritual_dna?: string | null;
+  violation_level?: number;
   past_chats?: number;
   vouchers: { code: string; title: string | null; discount_type: string; discount_value: number; is_active: boolean; valid_to: string; used_count: number; usage_limit: number | null }[];
   violations: { reason: string; level: number; created_at: string }[];
@@ -55,7 +63,17 @@ export interface CustomerListQuery {
   page: number;
   q?: string;
   tier?: CustomerTier | '';
-  status?: CustomerStatus | '';
+  status?: CustomerStatusFilter;
+}
+
+export interface CustomerConversation {
+  conversation_id: string;
+  status: 'bot' | 'waiting' | 'open' | 'closed';
+  last_message_at: string;
+  last_message_preview: string;
+  summary: string;
+  close_outcome: string | null;
+  agent_name: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -83,6 +101,14 @@ export class AdminCustomersService {
 
   addNote(userId: string, content: string): Observable<{ data: CustomerNote }> {
     return this.http.post<{ data: CustomerNote }>(`${this.api}/${encodeURIComponent(userId)}/notes`, { content });
+  }
+
+  conversations(userId: string): Observable<{ data: CustomerConversation[] }> {
+    return this.http.get<{ data: CustomerConversation[] }>(`${this.api}/${encodeURIComponent(userId)}/conversations`);
+  }
+
+  conversationMessages(userId: string, conversationId: string) {
+    return this.http.get<{ data: import('../../../core/services/chat.service').ChatMessage[] }>(`${this.api}/${encodeURIComponent(userId)}/conversations/${encodeURIComponent(conversationId)}/messages`);
   }
 
   setStatus(userId: string, status: CustomerStatus, reason = ''): Observable<{ data: CustomerRow }> {

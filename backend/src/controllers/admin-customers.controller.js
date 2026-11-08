@@ -6,6 +6,8 @@ const CustomerNote = require('../models/CustomerNote');
 const { activeRestriction } = require('../services/community-restriction.service');
 const Voucher = require('../models/Voucher');
 const ChatConversation = require('../models/ChatConversation');
+const ChatMessage = require('../models/ChatMessage');
+const AccountReport = require('../models/AccountReport');
 
 async function scopedCustomerIds(req) {
   if (req.user.role !== 'cskh') return null;
@@ -52,7 +54,11 @@ function customerRow(user, stats = {}) {
     restricted_reason: restriction?.reason || null,
     created_at: user.createdAt || null,
     order_count: stats.order_count || 0,
-    last_order_at: stats.last_order_at || null
+    last_order_at: stats.last_order_at || null,
+    last_chat_at: stats.last_chat_at || null,
+    last_chat_status: stats.last_chat_status || null,
+    open_reports: stats.open_reports || 0,
+    handled_reports: stats.handled_reports || 0
   };
 }
 
@@ -65,13 +71,17 @@ async function listCustomers(req, res) {
   try {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const query = { role: 'customer' };
-    const scoped = await scopedCustomerIds(req);
-    if (scoped) query.user_id = { $in: scoped };
+    // The customer directory includes all registered customers for CSKH as well.
+    // Assignment checks belong to the individual customer resources below.
     if (TIERS.includes(req.query.tier)) query.membership_tier = req.query.tier;
     // Suspended: restricted in Community right now, or locked before locking was removed.
     const now = new Date();
     if (req.query.status === 'suspended') {
-      query.$and = [{ $or: [{ status: 'suspended' }, { 'community_restriction.until': { $gt: now } }] }];
+      query.status = 'suspended';
+    }
+    if (req.query.status === 'restricted') {
+      query.status = { $ne: 'suspended' };
+      query['community_restriction.until'] = { $gt: now };
     }
     if (req.query.status === 'active') {
       query.status = { $ne: 'suspended' };
@@ -102,6 +112,17 @@ async function listCustomers(req, res) {
       ])
       : [];
     const statsById = new Map(stats.map((row) => [row._id, row]));
+    const [chatStats, reportStats] = ids.length ? await Promise.all([
+      ChatConversation.aggregate([
+        { $match: { customer_id: { $in: ids } } }, { $sort: { last_message_at: -1, _id: -1 } },
+        { $group: { _id: '$customer_id', last_chat_at: { $first: '$last_message_at' }, last_chat_status: { $first: '$status' } } }
+      ]),
+      AccountReport.aggregate([
+        { $match: { target_type: 'account', reported_user_id: { $in: ids } } },
+        { $group: { _id: '$reported_user_id', open_reports: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } }, handled_reports: { $sum: { $cond: [{ $ne: ['$status', 'pending'] }, 1, 0] } } } }
+      ])
+    ]) : [[], []];
+    for (const stat of [...chatStats, ...reportStats]) statsById.set(stat._id, { ...statsById.get(stat._id), ...stat });
 
     res.json({
       data: users.map((user) => customerRow(user, statsById.get(user.user_id))),
@@ -133,6 +154,9 @@ async function getCustomer(req, res) {
     if (!customer) return res.status(404).json({ error: 'Customer not found.' });
 
     const userId = customer.user_id;
+    const assigned = await scopedCustomerIds(req);
+    const archetype = customer.ritual_dna?.archetype_id
+      ? await require('../services/ritual-dna.archetype-release').archetypeForProfile(customer.ritual_dna.archetype_id, customer.ritual_dna.archetype_profile_version) : null;
     const [orderCount, totals, ritualBoxes, notes, vouchers, pastChats] = await Promise.all([
       Order.countDocuments({ user_id: userId }),
       Order.aggregate([
@@ -151,6 +175,9 @@ async function getCustomer(req, res) {
         total_spent: totals[0]?.spent || 0,
         ritual_boxes: ritualBoxes,
         past_chats: pastChats,
+        ritual_dna: archetype?.name || customer.ritual_dna?.archetype_id || null,
+        can_add_note: !assigned || assigned.includes(userId),
+        violation_level: Math.max(activeRestriction(customer)?.level || 0, ...(customer.community_warnings || []).map(warning => warning.level || 1), 0),
         vouchers,
         violations: (customer.community_warnings || []).map(warning => ({ reason: warning.reason, level: warning.level, created_at: warning.created_at })),
         notes: notes.map((note) => ({
@@ -256,4 +283,34 @@ async function setCustomerStatus(req, res) {
   }
 }
 
-module.exports = { listCustomers, getCustomer, listCustomerOrders, addCustomerNote, setCustomerStatus };
+async function listCustomerConversations(req, res) {
+  try {
+    if (!(await canReadCustomer(req, req.params.userId))) return res.status(403).json({ error: 'This customer is not assigned to you.' });
+    if (!(await findCustomer(req.params.userId))) return res.status(404).json({ error: 'Customer not found.' });
+    const conversations = await ChatConversation.find({ customer_id: req.params.userId }).sort({ last_message_at: -1, _id: -1 }).lean();
+    const agentIds = [...new Set(conversations.map(row => row.agent_id).filter(Boolean))];
+    const agents = await User.find({ $or: [{ user_id: { $in: agentIds } }, { _id: { $in: agentIds.filter(id => /^[a-f0-9]{24}$/i.test(id)) } }] }, 'user_id profile_name').lean();
+    const names = new Map(agents.flatMap(user => [[user.user_id, user.profile_name], [String(user._id), user.profile_name]]));
+    res.json({ data: conversations.map(row => ({
+      conversation_id: row.conversation_id, status: row.status, last_message_at: row.last_message_at,
+      last_message_preview: row.last_message_preview, summary: row.summary || row.handoff_summary || '',
+      close_outcome: row.close_outcome || null, agent_name: names.get(row.agent_id) || null
+    })) });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load conversations.' });
+  }
+}
+
+async function listCustomerConversationMessages(req, res) {
+  try {
+    if (!(await canReadCustomer(req, req.params.userId))) return res.status(403).json({ error: 'This customer is not assigned to you.' });
+    const conversation = await ChatConversation.findOne({ customer_id: req.params.userId, conversation_id: req.params.conversationId }).lean();
+    if (!conversation) return res.status(404).json({ error: 'Conversation not found.' });
+    const data = await ChatMessage.find({ conversation_id: conversation.conversation_id }).sort({ created_at: -1, _id: -1 }).limit(500).lean();
+    res.json({ data: data.reverse() });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load conversation messages.' });
+  }
+}
+
+module.exports = { listCustomers, getCustomer, listCustomerOrders, addCustomerNote, setCustomerStatus, listCustomerConversations, listCustomerConversationMessages };

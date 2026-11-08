@@ -6,7 +6,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideSearch, LucideUsers } from '@lucide/angular';
 import { avatarInitials } from '../../../../shared/utils/avatar';
-import { AdminCustomersService, CustomerRow, CustomerStatus, CustomerTier } from '../../services/admin-customers.service';
+import { AdminCustomersService, CustomerRow, CustomerStatusFilter, CustomerTier } from '../../services/admin-customers.service';
 import { pageCount, pageList } from '../../pagination';
 
 const PAGE_SIZE = 20;
@@ -28,15 +28,17 @@ export class CustomersListingComponent implements OnInit {
   private requestVersion = 0;
 
   readonly tiers: (CustomerTier | '')[] = ['', 'Seed', 'Leaf', 'Bloom', 'Zen'];
-  readonly statuses: { value: CustomerStatus | ''; label: string }[] = [
+  readonly statuses: { value: CustomerStatusFilter; label: string }[] = [
     { value: '', label: 'All' },
     { value: 'active', label: 'Active' },
+    { value: 'restricted', label: 'Restricted' },
     { value: 'suspended', label: 'Suspended' }
   ];
 
   q = '';
   tier: CustomerTier | '' = '';
-  status: CustomerStatus | '' = '';
+  status: CustomerStatusFilter = '';
+  get serviceCustomers(): boolean { return !!this.route.snapshot.data['serviceCustomers']; }
   page = 1;
   total = 0;
   rows: CustomerRow[] = [];
@@ -49,13 +51,20 @@ export class CustomersListingComponent implements OnInit {
     const params = this.route.snapshot.queryParamMap;
     this.q = params.get('q') || '';
     this.tier = (this.tiers.includes(params.get('tier') as CustomerTier) ? params.get('tier') : '') as CustomerTier | '';
-    this.status = (['active', 'suspended'].includes(params.get('status') || '') ? params.get('status') : '') as CustomerStatus | '';
+    this.status = (['active', 'restricted', 'suspended'].includes(params.get('status') || '') ? params.get('status') : '') as CustomerStatusFilter;
     this.page = Math.max(Number(params.get('page')) || 1, 1);
 
     this.search$
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.applyFilters());
     this.load();
+    if (this.serviceCustomers) this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      const query = params.get('q') || '';
+      if (query === this.q) return;
+      this.q = query;
+      this.page = Math.max(Number(params.get('page')) || 1, 1);
+      this.load();
+    });
   }
 
   load(): void {
@@ -67,6 +76,7 @@ export class CustomersListingComponent implements OnInit {
         if (version !== this.requestVersion) return;
         this.rows = res.data;
         this.total = res.total;
+        this.page = res.page;
         this.loading = false;
         this.cdr.markForCheck();
       },
@@ -89,7 +99,7 @@ export class CustomersListingComponent implements OnInit {
     this.applyFilters();
   }
 
-  setStatus(status: CustomerStatus | ''): void {
+  setStatus(status: CustomerStatusFilter): void {
     this.status = status;
     this.applyFilters();
   }
