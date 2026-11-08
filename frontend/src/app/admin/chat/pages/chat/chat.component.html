@@ -9,8 +9,10 @@
 <div class="chat-layout">
   <aside class="chat-list">
     <div class="chat-controls">
-      <input class="chat-search" type="search" aria-label="Search by name or customer ID" placeholder="Name or customer ID"
-        [value]="search" (input)="search = $any($event.target).value">
+      <div class="chat-search-field"><img src="/assets/icons/chat/search.svg" alt="" width="16" height="16">
+        <input class="chat-search" type="search" aria-label="Search by name or customer ID" placeholder="Name or customer ID"
+          [value]="search" (input)="search = $any($event.target).value">
+      </div>
       <div class="chat-filters" role="group" aria-label="Conversation status">
         @for (f of filters; track f.value) {
           <button type="button" class="chat-filter" [class.active]="filter === f.value" [attr.aria-pressed]="filter === f.value"
@@ -38,7 +40,7 @@
       <button type="button" class="chat-item" [class.active]="(active?.customer?.user_id || active?.customer_id) === (c.customer?.user_id || c.customer_id)" (click)="select(c)">
         <span class="chat-item__avatar">
           @if (c.customer?.avatar_url) { <img [src]="c.customer?.avatar_url" [alt]="customerName(c)"> }
-          @else { {{ customerName(c).slice(0, 2).toUpperCase() }} }
+          @else { {{ initials(customerName(c)) }} }
         </span>
         <span class="chat-item__body">
           <span class="chat-item__top">
@@ -47,10 +49,9 @@
           </span>
           <span class="chat-item__preview">{{ c.last_message_preview || 'No messages yet' }}</span>
           @if (c.response_warning) { <span class="chat-warning">{{ c.waiting_on === 'customer' ? 'Customer has not replied' : 'Needs agent reply' }} · {{ c.response_warning === 'overdue' ? '15+ min' : '5+ min' }}</span> }
-          <span class="chat-source" [class.chat-source--ai]="source(c) === 'ai'">{{ source(c) === 'ai' ? 'AI handover' : 'Direct' }}</span>
+          <span class="chat-source" [class.chat-source--ai]="c.status !== 'closed' && source(c) === 'ai'" [class.chat-source--closed]="c.status === 'closed'">{{ c.status === 'closed' ? outcomeLabel(c) : source(c) === 'ai' ? 'AI handover' : 'Direct' }}</span>
         </span>
         <span class="chat-item__meta">
-          <span class="status status--{{ c.status }}">{{ c.status }}</span>
           @if (c.unread_agent > 0) { <span class="unread">{{ c.unread_agent }}</span> }
         </span>
       </button>
@@ -62,12 +63,12 @@
   <section class="chat-pane">
     @if (active) {
       <header class="chat-pane__head">
-        <div>
+        <span class="chat-item__avatar chat-head-avatar">@if (active.customer?.avatar_url) { <img [src]="active.customer?.avatar_url" alt=""> } @else { {{ initials(customerName(active)) }} }</span>
+        <div class="chat-pane__identity">
           <strong>{{ customerName(active) }}</strong>
-          @if (active.customer?.membership_tier) { <span class="tier">{{ active.customer?.membership_tier }}</span> }
-          <small>{{ active.conversation_id }}</small>
-          <small class="chat-state" aria-live="polite">{{ activeState }}</small>
+          <small class="chat-state" aria-live="polite">{{ activeState }}@if (active.status === 'open' && active.claimed_at) { · {{ active.claimed_at | date:'HH:mm' }} }@if (active.status === 'closed' && active.closed_at) { · {{ active.closed_at | date:'HH:mm' }} }</small>
         </div>
+        @if (active.status === 'closed' || !canReply) { <span class="status" [class.status--waiting]="active.status === 'waiting'" [class.status--closed]="active.status === 'closed'">{{ active.status === 'closed' ? closedLabel : 'View only' }}</span> }
         <div class="chat-pane__actions">
           @if (canClose) {
             <button type="button" class="btn" (click)="openTransfer()" [disabled]="actionPending || !supportOpen">Transfer</button>
@@ -77,17 +78,6 @@
       </header>
 
       @if (actionError) { <p class="chat-action-error" role="alert">{{ actionError }}</p> }
-      @if (transferOpen) {
-        <form class="chat-transfer" (submit)="$event.preventDefault(); transfer()">
-          <label>Transfer to <select required [value]="transferTarget" (change)="transferTarget = $any($event.target).value">
-            <option value="">Choose an agent</option>
-            @for (agent of agents; track agent.user_id) { <option [value]="agent.user_id">{{ agent.name }}</option> }
-          </select></label>
-          <label>Internal handover note <textarea required maxlength="1000" [value]="transferNote" (input)="transferNote = $any($event.target).value"></textarea></label>
-          <button type="submit" class="btn btn-primary" [disabled]="actionPending || !transferTarget || !transferNote.trim()">Confirm transfer</button>
-          <button type="button" class="btn" (click)="transferOpen = false">Cancel</button>
-        </form>
-      }
       @if (active.transfers?.length) {
         <details class="chat-summary"><summary>Internal handover notes</summary>
           @for (entry of active.transfers; track $index) { <p>{{ entry.at | date:'short' }} · {{ entry.from_agent_id }} → {{ entry.to_agent_id }}: {{ entry.note }}</p> }
@@ -95,36 +85,144 @@
       }
 
       @if (active.summary || active.handoff_summary) {
-        <div class="chat-summary"><strong>AI summary{{ canClaim ? ' · read before claiming' : '' }}:</strong> {{ active.summary || active.handoff_summary }}@if (active.handover_reason) { <div><strong>Handover reason:</strong> {{ active.handover_reason }}</div> }</div>
+        <details class="chat-summary" [open]="canClaim"><summary>AI handover · {{ (active.handover_reason || 'Customer request').replaceAll('_', ' ') }} · Show summary</summary><p>{{ active.summary || active.handoff_summary }}</p></details>
       }
 
       <div class="chat-thread" #thread>
         @for (m of messages; track m._id || $index) {
-          <div class="bubble bubble--{{ m.sender_type }}">
-            @if (m.sender_type === 'bot') { <small>Chatbot</small> }
-            <p>{{ m.content }}</p>
-            <time>{{ m.created_at | date: 'HH:mm' }}</time>
-          </div>
+          @if (m.sender_type === 'system') {
+            <p class="chat-system-event">{{ m.content }} · {{ m.created_at | date:'HH:mm' }}</p>
+          } @else {
+            <div class="message-row" [class.message-row--agent]="m.sender_type === 'agent'">
+              <div class="message-meta">{{ m.sender_type === 'agent' ? (m.sender_id === myId ? 'You' : 'Support') : m.sender_type === 'bot' ? 'Offsite AI' : customerName(active) }} · <time>{{ m.created_at | date:'HH:mm' }}</time>@if (orderCards(m).length) { · Order card }</div>
+              @if (m.content) { <div class="bubble bubble--{{ m.sender_type }}"><p>{{ m.content }}</p></div> }
+              @for (order of orderCards(m); track order.code || order.order_id) {
+                <div class="chat-order-card">
+                  @if (order.image) { <img class="chat-order-card__image" [src]="order.image" alt="Ordered item" (error)="$any($event.target).src = '/assets/icons/chat/order-placeholder.svg'"> } @else { <img class="chat-order-card__placeholder" src="/assets/icons/chat/order-placeholder.svg" alt=""> }
+                  <div class="chat-order-card__details"><p><strong>#{{ order.code }}</strong>@if (order.itemCount !== undefined) { <span> · {{ order.itemCount }} {{ order.itemCount === 1 ? 'item' : 'items' }}</span> }@if (order.total !== undefined) { <span> · {{ order.total | currency:(order.currency || 'USD') }}</span> }</p>
+                    <span class="status status--info">{{ order.status }}</span>
+                  </div>
+                </div>
+              }
+            </div>
+          }
         }
+        @if (active.status === 'closed') { <p class="chat-system-event">{{ closedLabel }}@if (active.closed_at) { · {{ active.closed_at | date:'HH:mm' }} }</p> }
         @if (customerTyping) { <div class="typing">Customer is typing…</div> }
       </div>
 
-      <footer class="chat-compose">
+      <footer class="chat-compose" [class.chat-compose--reply]="canReply">
         @if (canReply) {
+        <div class="compose-fields">
+        <div class="chat-quick-replies">@for (reply of quickReplies; track reply.label) { <button type="button" (click)="useQuickReply(reply.text)">{{ reply.label }}</button> }</div>
         <textarea rows="2" [value]="draft" (input)="draft = $any($event.target).value; onDraftInput()" (keydown)="onKey($event)"
           aria-label="Reply to customer"
           [disabled]="!canReply"
           [placeholder]="canReply ? 'Type a reply — Enter to send' : (active.status === 'closed' ? 'Conversation closed' : 'Take over this chat to reply')"></textarea>
-        <button type="button" class="btn btn-primary" (click)="send()" [disabled]="!canReply || !draft.trim()">Send</button>
+          <div class="compose-order-tools">
+            @if (customerDetails?.recent_orders?.length) { <button type="button" class="btn" [disabled]="actionPending" (click)="orderShareOpen = !orderShareOpen"><img src="/assets/icons/chat/share-order.svg" alt="">Share order</button> }
+            @if (customerDetails) { <a class="btn" [href]="voucherUrl"><img src="/assets/icons/chat/add-voucher.svg" alt="">Add voucher</a> }
+            <button type="button" class="btn btn-primary compose-send" (click)="send()" [disabled]="!canReply || !draft.trim()"><img src="/assets/icons/chat/send.svg" alt="">Send</button>
+          </div>
+            @if (orderShareOpen) {
+              <div class="compose-order-picker">
+              <label>Order <select aria-label="Customer order to share" [value]="orderShareId" (change)="orderShareId = $any($event.target).value"><option value="">Choose an order</option>@for (order of customerDetails?.recent_orders; track order.order_id) { <option [value]="order.order_id">#{{ order.order_id }} · {{ order.status }}</option> }</select></label>
+              <button type="button" class="btn" [disabled]="!orderShareId || actionPending" (click)="shareOrder()">Send order</button>
+              </div>
+            }
+        </div>
         } @else if (canClaim) {
           <p>You are viewing only. Claim this conversation to reply.</p>
           <button type="button" class="btn btn-primary" (click)="claim()" [disabled]="actionPending">{{ actionPending ? 'Claiming...' : 'Claim & reply' }}</button>
         } @else {
-          <p>{{ active.status === 'closed' ? 'This conversation is closed and read only.' : (!supportOpen && active.status === 'waiting' ? 'Support is offline. Claim during support hours.' : 'Another agent is handling this conversation. You can view the history.') }}</p>
+          <p>{{ active.status === 'closed' ? 'This conversation is closed and read only.' : (!supportOpen && active.status === 'waiting' ? 'Support is offline. Claim during support hours.' : 'Another agent is handling this conversation. You can view the history.') }}
+            @if (active.status === 'closed' && active.close_reason === 'resolved') { <span>Replies within 3 hours during support hours can reopen the chat.</span> }
+          </p>
+          @if (active.status === 'closed' && customerProfileUrl) { <a class="btn profile-button" [href]="customerProfileUrl"><img src="/assets/icons/chat/open-profile.svg" alt="" width="14" height="14">Open profile</a> }
         }
       </footer>
     } @else {
       <p class="chat-empty chat-empty--center">Select a conversation to start.</p>
     }
   </section>
+
+  <aside class="customer-panel" aria-label="Customer details">
+    <div class="customer-panel__spacer"></div>
+    @if (active) {
+      <div class="customer-panel__body">
+        <div class="customer-panel__identity">
+          <span class="chat-item__avatar customer-panel__avatar">@if (active.customer?.avatar_url) { <img [src]="active.customer?.avatar_url" alt=""> } @else { {{ initials(customerName(active)) }} }</span>
+          <div><strong>{{ customerName(active) }}</strong><small>{{ customerDetails?.community_name ? '@' + customerDetails?.community_name : active.customer_id }}@if (customerDetails?.created_at) { · since {{ customerDetails?.created_at | date:'MMM yyyy' }} }</small>
+          </div>
+        </div>
+        <div class="customer-panel__badges">
+          @if (active.customer?.membership_tier || customerDetails?.membership_tier) { <span class="tier">{{ customerDetails?.membership_tier || active.customer?.membership_tier }}</span> }
+          @if (customerDetails) { <span class="status" [class.status--open]="customerDetails.status === 'active'">{{ customerDetails.status }}</span> }
+        </div>
+        @if (customerDetailsLoading) { <p class="customer-panel__notice" role="status">Loading customer details...</p> }
+        @else if (customerDetails) {
+          <dl class="customer-facts">
+            <div><dt>Email</dt><dd>{{ customerDetails.email || 'Not provided' }}</dd></div>
+            <div><dt>Last order</dt><dd>@if (lastOrder; as order) { <a [href]="'/admin/orders/' + order.order_id">#{{ order.order_id }}</a><span class="status status--info">{{ order.status.replaceAll('_', ' ') }}</span> } @else { None }</dd></div>
+            <div><dt>Ritual Box</dt><dd>{{ customerDetails.ritual_boxes }} active</dd></div>
+            <div><dt>Past chats</dt><dd>{{ pastChats }}</dd></div>
+            <div><dt>Violations</dt><dd>{{ customerDetails.violations.length || 'None' }}</dd></div>
+          </dl>
+          <a class="customer-profile-link" [href]="customerProfileUrl">Open customer profile <img src="/assets/icons/chat/arrow-right.svg" alt="" width="24" height="24"></a>
+          @if (canReply) { <div class="customer-quick-actions"><h3>Quick actions</h3>
+            @if (lastOrder; as order) { <a class="customer-action" [href]="'/admin/orders/' + order.order_id"><img src="/assets/icons/chat/package.svg" alt=""><span>Open order / refund details</span><img src="/assets/icons/chat/chevron-right.svg" alt=""></a> }
+            <a class="customer-action" [href]="voucherUrl"><img src="/assets/icons/chat/ticket.svg" alt=""><span>Give personal voucher</span><img src="/assets/icons/chat/chevron-right.svg" alt=""></a>
+            <button type="button" class="customer-action customer-action--danger" (click)="reportOpen = true"><img src="/assets/icons/chat/flag.svg" alt=""><span>Report customer</span><img src="/assets/icons/chat/chevron-right.svg" alt=""></button>
+            <p class="customer-actions-hint">Refunds are handled by the Orders team in order detail. Order access follows your assigned-customer permissions.</p>
+          </div> }
+        } @else {
+          <dl class="customer-facts"><div><dt>Past chats</dt><dd>{{ pastChats }}</dd></div></dl>
+          <p class="customer-panel__notice">{{ active.customer_id.startsWith('guest:') ? 'Guest conversation. No registered customer profile.' : 'Additional customer details are available to assigned support staff.' }}</p>
+        }
+      </div>
+    } @else { <p class="customer-panel__notice">Select a conversation to view customer details.</p> }
+  </aside>
 </div>
+
+@if (reportOpen && active) { <app-report-post-modal target="account" [authorUsername]="customerDetails?.community_name || customerName(active)" [submitting]="reportPending" (cancel)="reportOpen = false" (submitReport)="reportCustomer($event)" /> }
+
+<dialog #transferDialog class="support-dialog" aria-labelledby="transfer-title" (cancel)="$event.preventDefault(); dismissDialogs()">
+  <form (submit)="$event.preventDefault(); transfer()">
+    <header><h2 id="transfer-title">Transfer conversation</h2><button type="button" class="dialog-x" aria-label="Cancel transfer" (click)="dismissDialogs()" [disabled]="actionPending"><img src="/assets/icons/chat/close.svg" alt=""></button></header>
+    <div class="support-dialog__body">
+      <p class="dialog-overline">Transfer to (CSKH online)</p>
+      <div class="agent-choices">
+        @for (agent of agents; track agent.user_id) {
+          <button type="button" class="agent-choice" [class.selected]="transferTarget === agent.user_id" [disabled]="agent.available === false || actionPending" [attr.aria-pressed]="transferTarget === agent.user_id" (click)="transferTarget = agent.user_id">
+            <span class="agent-choice__avatar">{{ initials(agent.name) }}</span>
+            <span><strong>{{ agent.name }}</strong><small>{{ agent.online === false ? 'Offline · not available' : agent.available === false ? 'At capacity · not available' : 'Online · ' + (agent.active_chats ?? 0) + ' active chats' }}</small></span>
+            @if (transferTarget === agent.user_id) { <span class="dialog-overline">Selected</span> }
+          </button>
+        } @empty { <p>No other support agents are available.</p> }
+      </div>
+      <label class="dialog-field"><span class="dialog-overline">Note for your colleague</span><textarea required maxlength="1000" [value]="transferNote" (input)="transferNote = $any($event.target).value" placeholder="Summarize the issue and what has been done."></textarea></label>
+      <p class="dialog-note"><img src="/assets/icons/chat/info.svg" alt=""><span>The customer will see: “You are being connected to {{ selectedAgent?.name || 'another support agent' }} from Offsite.” The full history stays with the chat. Your note is internal.</span></p>
+      @if (actionError) { <p class="dialog-error" role="alert">{{ actionError }}</p> }
+    </div>
+    <footer><button type="button" class="btn" (click)="dismissDialogs()" [disabled]="actionPending">Cancel</button><button type="submit" class="btn btn-primary" [disabled]="actionPending || !transferTarget || selectedAgent?.available === false || !transferNote.trim()">{{ actionPending ? 'Transferring...' : 'Transfer' }}</button></footer>
+  </form>
+</dialog>
+
+<dialog #closeDialog class="support-dialog" aria-labelledby="close-title" (cancel)="$event.preventDefault(); dismissDialogs()">
+  <form (submit)="$event.preventDefault(); confirmClose()">
+    <header><h2 id="close-title">Close conversation</h2><button type="button" class="dialog-x" aria-label="Cancel closing" (click)="dismissDialogs()" [disabled]="actionPending"><img src="/assets/icons/chat/close.svg" alt=""></button></header>
+    <div class="support-dialog__body">
+      <fieldset><legend class="dialog-overline">Outcome (required)</legend>
+        @for (outcome of closeOutcomes; track outcome.value) {
+          <label class="outcome-choice"><input type="radio" name="close-outcome" [value]="outcome.value" [checked]="closeOutcome === outcome.value" (change)="closeOutcome = outcome.value"><span>{{ outcome.label }}@if (outcome.value === 'spam') { <small>Consider reporting the customer after closing.</small> }</span></label>
+        }
+      </fieldset>
+      @if (closeOutcome === 'forwarded') { <p class="dialog-hint">Select this after forwarding through Orders. Closing does not submit a refund or change an order.</p> }
+      <label class="dialog-field"><span class="dialog-overline">Internal summary · shown in customer profile</span><textarea maxlength="1000" [value]="closeSummary" (input)="closeSummary = $any($event.target).value" placeholder="Summarize the issue and resolution."></textarea></label>
+      <label class="outcome-choice"><input type="checkbox" [checked]="sendClosingMessage" (change)="sendClosingMessage = $any($event.target).checked"><span>Send closing message to customer<small>“This chat is closed. Reply within 3 hours during support hours to continue with the team, or choose Back to chatbot.”</small></span></label>
+      <p class="dialog-note"><img src="/assets/icons/chat/info.svg" alt=""><span>Replies within 3 hours during support hours can reopen this chat in Mine. If you are at capacity, it returns to Waiting.</span></p>
+      @if (actionError) { <p class="dialog-error" role="alert">{{ actionError }}</p> }
+    </div>
+    <footer><button type="button" class="btn" (click)="dismissDialogs()" [disabled]="actionPending">Cancel</button><button type="submit" class="btn dialog-close" [disabled]="actionPending">{{ actionPending ? 'Closing...' : 'Close conversation' }}</button></footer>
+  </form>
+</dialog>

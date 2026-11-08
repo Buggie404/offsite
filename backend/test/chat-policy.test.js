@@ -2,6 +2,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const policy = require('../src/services/chat-policy');
 
+test('legacy support notifications display in English without translating customer messages', () => {
+  const { publicMessages } = require('../src/services/ai-chat-session.policy');
+  const original = 'Một nhân viên CSKH đã tham gia cuộc trò chuyện.';
+  const messages = publicMessages({ session_id: 'AI1', messages: [{ sender: 'system', text: original }, { sender: 'user', text: original }] });
+  assert.equal(messages[0].text, 'A customer support agent has joined the conversation.');
+  assert.equal(messages[1].text, original);
+});
+
 test('support hours use Vietnam 08:00 inclusive to 22:00 exclusive', () => {
   for (const [utc, expected] of [['00:59', false], ['01:00', true], ['14:59', true], ['15:00', false]]) {
     assert.equal(policy.supportOpen(new Date(`2026-11-08T${utc}:00Z`)), expected);

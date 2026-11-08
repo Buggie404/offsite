@@ -162,6 +162,10 @@ $surface: #fffdf9;
 
   span {
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   &:hover {
@@ -175,6 +179,10 @@ $surface: #fffdf9;
 }
 
 .dropdown-arrow {
+  display: block;
+  width: 16px;
+  height: 16px;
+  transform-origin: center;
   flex-shrink: 0;
   color: var(--color-warm-brown);
   transition: transform 0.2s ease;

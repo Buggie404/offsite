@@ -1,6 +1,14 @@
 /* You can add global styles to this file, and also import other style files */
 @use './styles/global.scss';
 
+// Keep Lucide SVGs aligned with text and prevent flex layouts from squeezing them.
+// Low specificity lets each component keep its own dimensions and positioning.
+:where(svg.lucide) {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 // Lucide icon standing in for a text glyph: scales with the surrounding font size.
 .inline-icon {
   display: inline-block;

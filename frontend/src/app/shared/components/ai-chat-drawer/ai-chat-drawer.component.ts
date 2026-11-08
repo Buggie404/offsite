@@ -179,7 +179,7 @@ export class AiChatDrawerComponent {
 
   onSupportAction(action: ChatSupportAction): void {
     if (action.kind === 'cskh') {
-      this.chatService.requestHandover(action.handoverReason || 'order_change', action.summary || '');
+      this.chatService.requestHandover(action.handoverReason || 'order_change');
       return;
     }
 
@@ -380,6 +380,7 @@ export class AiChatDrawerComponent {
   }
 
   composerPlaceholder(): string {
+    if (this.chatService.humanHandoverPending()) return 'Describe your issue and send to join the support queue';
     if (this.chatService.historyOpen()) return 'Choose a chat or start a new one';
     if (this.chatService.composerLocked()) return 'Message limit reached for today';
     if (this.chatService.interaction() === 'readonly') return 'This chat is view only';

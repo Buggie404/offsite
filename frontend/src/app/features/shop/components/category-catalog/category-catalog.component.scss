@@ -230,6 +230,7 @@ $pill-bg:   #EAE1DC;
 }
 
 .sort-dropdown__trigger {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -247,6 +248,9 @@ $pill-bg:   #EAE1DC;
   &:focus { box-shadow: 0 0 0 2px rgba(55, 85, 52, 0.2); }
 
   span {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
     overflow: hidden;
     font-family: var(--font-body), 'DM Mono', monospace;
     font-size: 12px;
@@ -260,6 +264,10 @@ $pill-bg:   #EAE1DC;
 }
 
 .sort-dropdown__icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  transform-origin: center;
   color: $dark;
   flex-shrink: 0;
   transition: transform 0.2s ease;

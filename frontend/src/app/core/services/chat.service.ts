@@ -18,6 +18,10 @@ export interface ChatConversation {
   response_warning?: 'waiting_reply' | 'overdue' | null;
   waiting_on?: 'customer' | 'agent';
   close_reason?: 'resolved' | 'idle' | 'return_to_bot' | null;
+  closed_at?: string | null;
+  claimed_at?: string | null;
+  closed_by_name?: string | null;
+  close_outcome?: 'resolved' | 'forwarded' | 'no_response' | 'spam' | null;
   transfers?: { from_agent_id: string; to_agent_id: string; note: string; at: string }[];
   last_message_preview: string;
   last_message_at: string;
@@ -33,12 +37,38 @@ export interface ChatMessage {
   sender_id: string | null;
   content: string;
   created_at: string;
+  metadata?: {
+    orderCard?: ChatOrderSnapshot | null;
+    orders?: ChatOrderSnapshot[];
+  } | null;
+}
+
+export interface ChatOrderSnapshot {
+  code?: string;
+  order_id?: string;
+  order_status?: string;
+  total_amount?: number;
+  image_url?: string | null;
+  imageUrl?: string;
+  item_count?: number;
+  items?: { quantity?: number }[];
+  status?: string;
+  total?: number;
+  currency?: string;
 }
 
 export interface ChatTyping {
   conversation_id: string;
   user_id?: string;
   typing: boolean;
+}
+
+export interface ChatAgent {
+  user_id: string;
+  name: string;
+  online?: boolean;
+  active_chats?: number;
+  available?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -70,16 +100,18 @@ export class ChatService {
   list(status?: string) {
     return this.http.get<{ data: ChatConversation[]; support_open?: boolean; support_hours?: string }>(`${this.api}/conversations${status ? '?status=' + status : ''}`, this.requestOptions());
   }
-  agents() { return this.http.get<{ data: { user_id: string; name: string }[] }>(`${this.api}/agents`, this.requestOptions()); }
+  agents() { return this.http.get<{ data: ChatAgent[] }>(`${this.api}/agents`, this.requestOptions()); }
   transfer(id: string, agent_id: string, note: string) {
     return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/transfer`, { agent_id, note }, this.requestOptions());
   }
   messages(id: string) { return this.http.get<{ data: ChatMessage[] }>(`${this.api}/conversations/${id}/messages`, this.requestOptions()); }
   claim(id: string) { return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/claim`, {}, this.requestOptions()); }
+  shareOrder(id: string, order_id: string) { return this.http.post<{ data: ChatMessage | null }>(`${this.api}/conversations/${id}/order-card`, { order_id }, this.requestOptions()); }
+  reportCustomer(userId: string, reason: string, note: string) { return this.http.post(`/api/profiles/${encodeURIComponent(userId)}/report`, { reason, note }, this.requestOptions()); }
   receipt(id: string, status: 'delivered' | 'seen', through: string) {
     return this.http.post(`${this.api}/conversations/${id}/receipt`, { status, through }, this.requestOptions());
   }
-  close(id: string) { return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/close`, {}, this.requestOptions()); }
+  close(id: string, options: { outcome: string; summary: string; send_closing_message: boolean } = { outcome: 'resolved', summary: '', send_closing_message: true }) { return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/close`, options, this.requestOptions()); }
 
   // ── Socket ──
   connect(): void {

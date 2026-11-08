@@ -13,7 +13,7 @@ Ngày rà: 08/11/2026. Giữ phân quyền và dữ liệu của các nhóm liê
 | N4-03 | Giữ xử lý report bài/comment, hidden banner, sửa bài và sản phẩm đã có; chạy test hồi quy báo cáo/trùng báo cáo/quyền cộng đồng. | Không đổi luồng moderation và điểm của nhóm khác. |
 | N4-04 | Create Post tối đa 5 thẻ tổng, 3 thẻ AI. Lưu `ai_product_ids`, phục hồi nguồn khi sửa. Hiện “Suggested by AI”. Lượt gợi ý được giữ ở server: 1 lần đầu + 2 lần lại, kể cả kết quả rỗng; kiểm tra chủ draft và hạn 1 giờ. Nếu luật không đạt 0.6 thì thử LLM, chỉ nhận ID trong catalog còn hàng và confidence ≥0.6. | Luật chắc chắn không gọi LLM. Cache catalog 5 phút. Thiếu cấu hình hoặc LLM lỗi thì dùng kết quả luật/manual. Product picker của Recipe được cập nhật hợp đồng trả về, giữ giới hạn 3 sản phẩm của Recipe. |
 | N4-05 | Claim/transfer chuẩn hóa ID; transaction khóa bản ghi nhân viên trước khi đếm, không nhận chat thứ 6 của CSKH. Transfer cần ghi chú nội bộ và người nhận hợp lệ. Cảnh báo 5/15 phút phân biệt đang chờ CSKH hay chờ khách. Job mỗi phút đóng chat không hoạt động 3 giờ. Khách trả lời trong 3 giờ sau khi CSKH đóng có thể trở lại người cũ; người cũ hết chỗ/không còn hoạt động thì về Waiting. | Giờ hỗ trợ **08:00–22:00 mỗi ngày (UTC+7)** theo xác nhận. Back to chatbot là lựa chọn rõ ràng, không tự mở lại sau đó. Ngoài cửa sổ 3 giờ không mở lại chat cũ; yêu cầu gặp nhân viên tiếp theo tạo chat Waiting mới, còn luồng AI vẫn dùng chính sách phiên của N5. Không chuyển Figma 24 giờ vào code. |
-| N4-06 | Mở `/admin/service-customers` và chi tiết cho CSKH/Admin CC, tái sử dụng Customers. Có Orders, Internal notes, Vouchers cá nhân và Violations. API list/get/add-note kiểm tra phạm vi. | **CSKH chỉ xem khách trong `assigned_chat_customer_ids`**, đúng phạm vi Orders N2/N3. Claim chat không tự cấp quyền xem hồ sơ/đơn. Voucher tạo/sửa dùng module N6 có sẵn; không thêm quyền khóa tài khoản hay sửa điểm/tier. |
+| N4-06 | Mở `/admin/service-customers` và chi tiết cho CSKH/Admin CC, tái sử dụng Customers. Có Orders, Internal notes, Vouchers cá nhân và Violations. Panel chat tải lại hồ sơ sau claim/close; tổng chat cũ lấy từ database. | Customers list và ghi chú vẫn theo `assigned_chat_customer_ids`. Đọc hồ sơ cho phép thêm khách trong chat do chính CSKH nhận, hỗ trợ agent ID Mongo cũ và user_id. Quyền xem chi tiết Orders N2/N3, sửa voucher, điểm/tier vẫn theo module hiện tại. |
 
 Ghi chú transfer không được broadcast ra socket phòng khách hoặc phòng nhân viên chung. Agent được phép đọc tải ghi chú qua API danh sách chat. Sau transfer, socket không còn quyền đọc bị rời phòng; gửi tin cũng kiểm tra người nhận chat, không chỉ quyền xem khách.
 
@@ -25,6 +25,8 @@ Ghi chú transfer không được broadcast ra socket phòng khách hoặc phòn
 4. LLM fallback dùng cấu hình Groq hiện có (`GROQ_API_KEY`, tùy chọn `GROQ_MODEL`); không cần khóa để test nhánh luật/manual. Không ghi khóa vào tài liệu hoặc ảnh chụp.
 
 ## Test thủ công theo thứ tự
+
+Luồng Talk to a person đã chốt: **chọn nút → nhập nội dung → gửi → Waiting (`agent_id=null`) → CSKH claim → Open/Mine của người nhận**. Chỉ chọn nút hoặc nhập toàn khoảng trắng không tạo hàng chờ. Có thể chọn Talk to chatbot để hủy ý định trước khi gửi; backend từ chối handover rỗng với 400. Ngoài giờ hỗ trợ dùng form để lại lời nhắn, không giả lập đang kết nối nhân viên.
 
 | Mục | Thao tác | Kết quả mong đợi |
 | --- | --- | --- |
@@ -41,7 +43,7 @@ Ghi chú transfer không được broadcast ra socket phòng khách hoặc phòn
 | 05 | CSKH đóng chat, khách nhắn lại trong 3 giờ, trong giờ hỗ trợ. | Trở lại người cũ nếu còn sức chứa; nếu đủ 5/không active thì về Waiting. Chọn Talk to chatbot trong cửa sổ này thì giữ AI, không tự reopen. |
 | 05 | Chat đã nhận không có hoạt động 3 giờ. | Job đóng và đồng bộ phiên AI, cập nhật frontend; chạy theo nhịp 1 phút, tối đa 200 chat/lượt. Giữ Waiting chưa nhận để không làm mất yêu cầu để lại lời nhắn ngoài giờ. |
 | 05 | Kiểm tra 07:59, 08:00, 21:59, 22:00 bằng test clock tự động. | Mở từ 08:00, đóng từ 22:00 Việt Nam. Ngoài giờ không claim/transfer mới, AI dùng form để lại lời nhắn. |
-| 06 | Menu Customers của CSKH; xem khách được phân công; mở URL khách ngoài phạm vi. | Danh sách chỉ đúng phạm vi, khách ngoài trả 403. CSKH không có nút unlock. Chat đã claim nhưng chưa phân công không tự xuất hiện ở Customers. |
+| 06 | Menu Customers của CSKH; xem khách được phân công; claim chat rồi mở hồ sơ; thử khách ngoài phạm vi. | Claim cho phép đọc hồ sơ nhưng không tự thêm khách vào Customers list hoặc cấp quyền ghi chú. Khách ngoài cả danh sách phân công và chat của mình trả 403. CSKH không có nút unlock. |
 | 06 | Chi tiết khách: Orders, Vouchers, Violations, Notes; Back. | Các tab hiện dữ liệu thật/empty state, không lẫn Notes vào Vouchers. Back về `/admin/service-customers`. Link voucher đi tới module voucher hiện tại. |
 
 Test 5/15 phút và 3 giờ có unit test dùng thời gian cố định; không cần chờ đủ 3 giờ để kiểm tra các điều kiện biên. Chưa xác nhận thủ công toàn bộ các luồng nhiều tài khoản trên dữ liệu thật, cũng chưa chạy LLM thật.

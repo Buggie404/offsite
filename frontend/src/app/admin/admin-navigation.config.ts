@@ -35,7 +35,7 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
   {
     label: 'Sales Operations',
     items: [
-      { label: 'Orders',        path: '/admin/orders',        icon: 'orders',        roles: SALES_OPS_ROLES },
+      { label: 'Orders',        path: '/admin/orders',        icon: 'orders',        roles: ['admin_cc', 'qlsp', 'cskh'] },
       { label: 'Products',      path: '/admin/products',      icon: 'products',      roles: SALES_OPS_ROLES },
       { label: 'Customers',     path: '/admin/customers',     icon: 'customers',     roles: SALES_OPS_ROLES },
       { label: 'Vouchers',      path: '/admin/vouchers',      icon: 'vouchers',      roles: SALES_OPS_ROLES },

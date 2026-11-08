@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { englishSystemText } = require('./chat-system-messages');
 
 const IDLE_MS = 30 * 60 * 1000;
 const ROTATE_MS = 24 * 60 * 60 * 1000;
@@ -70,7 +71,7 @@ function publicMessage(message, index, sessionId) {
   return {
     message_id: message.message_id || `${sessionId}:${index}`,
     sender: message.sender,
-    text: message.text || '',
+    text: message.sender === 'system' ? englishSystemText(message.text || '') : message.text || '',
     created_at: message.created_at || null,
     metadata: message.metadata || null
   };

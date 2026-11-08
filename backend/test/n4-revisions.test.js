@@ -75,7 +75,7 @@ test('internal transfer notes are never broadcast to customer or shared agent so
   assert.ok(emissions.every(row => !Object.hasOwn(row.payload, 'transfers')));
 });
 
-test('CSKH customer data follows the assigned-customer order scope; claiming a chat does not grant profile access', async () => {
+test('CSKH customer list stays scoped and profile outside assignments and owned chats is denied', async () => {
   let filter;
   const api = load('../src/controllers/admin-customers.controller.js', {
     '../models/User': {
@@ -83,7 +83,7 @@ test('CSKH customer data follows the assigned-customer order scope; claiming a c
       countDocuments: async query => { filter = query; return 0; },
       find: () => ({ sort: () => ({ skip: () => ({ limit: () => ({ lean: async () => [] }) }) }) })
     },
-    '../models/ChatConversation': { distinct: async () => ['USR2'] }
+    '../models/ChatConversation': { exists: async () => null }
   });
   const req = { user: { user_id: 'STAFF1', role: 'cskh' }, query: {}, params: { userId: 'UNASSIGNED' } };
   let res = response(); await api.listCustomers(req, res);
@@ -210,4 +210,84 @@ test('feed always paginates even with all=true and intersects Following with sus
   assert.deepEqual(query.$and, [{ user_id: { $in: ['BLOCKED', 'USR2'] } }]);
   assert.deepEqual(sort, { created_at: -1, _id: -1 });
   assert.equal(res.body.page, 2); assert.equal(res.body.limit, 100);
+});
+
+test('closing persists the selected outcome and private summary in the same transaction', async () => {
+  const transaction = { withTransaction: async fn => fn(), endSession: async () => {} };
+  let note, closure, synced;
+  const chat = { conversation_id: 'CHAT1', customer_id: 'USR1', agent_id: 'STAFF1', status: 'open' };
+  const api = load('../src/services/chat-lifecycle.service.js', {
+    '../models/ChatConversation': { db: { startSession: async () => transaction }, findOneAndUpdate: async (_, update) => { closure = update.$set; return { ...chat, ...closure, ai_session_id: 'AI1' }; } },
+    '../models/AiChatSession': { updateOne: async (_, update) => { synced = update.$set; } },
+    '../models/CustomerNote': { create: async ([data], options) => { assert.equal(options.session, transaction); note = data; } }
+  });
+  await api.closeResolvedChat(chat, { outcome: 'forwarded', summary: 'Private resolution', actorId: 'STAFF1', actorRole: 'cskh', actorName: 'Ha' });
+  assert.equal(closure.close_outcome, 'forwarded');
+  assert.equal(closure.closed_by_name, 'Ha');
+  assert.equal(closure.summary, undefined);
+  assert.equal(note.content, 'Private resolution');
+  assert.equal(synced.status, 'ai_active');
+  await assert.rejects(api.closeResolvedChat(chat, { outcome: 'invalid' }), error => error.status === 400);
+});
+
+test('close checkbox controls customer notification and does not send internal summaries', async () => {
+  for (const notify of [true, false]) {
+    const sent = [];
+    const chat = { conversation_id: 'CHAT1', agent_id: 'STAFF1', status: 'open', toObject() { return { ...this }; } };
+    const api = load('../src/controllers/chat.controller.js', {
+      '../models/ChatConversation': { findOne: async () => chat },
+      '../models/User': { findOne: () => ({ lean: async () => ({ profile_name: 'Ha' }) }) },
+      '../services/chat.service': { canAccessConversation: async () => true, resolveChatUserId: async () => 'STAFF1', appendMessage: async (_, data) => { sent.push(data); return null; } },
+      '../services/chat-lifecycle.service': { closeResolvedChat: async (_, options) => { assert.equal(options.summary, 'Internal only'); return { toObject: () => ({ status: 'closed' }) }; } },
+      '../services/socket.service': { emitChatEvent() {} }
+    });
+    const res = response();
+    await api.closeConversation({ user: { role: 'cskh', user_id: 'STAFF1' }, params: { id: 'CHAT1' }, body: { summary: 'Internal only', outcome: 'resolved', send_closing_message: notify } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(sent.length, notify ? 1 : 0);
+    if (notify) assert.ok(!sent[0].content.includes('Internal only'));
+  }
+});
+
+test('transfer choices use live presence and real workload; offline and full agents cannot be selected', async () => {
+  const api = load('../src/controllers/chat.controller.js', {
+    '../models/User': { find: () => ({ lean: async () => [
+      { _id: 'mongo1', user_id: 'STAFF1', profile_name: 'One', role: 'cskh' },
+      { _id: 'mongo2', user_id: 'STAFF2', profile_name: 'Two', role: 'cskh' },
+      { _id: 'mongo3', user_id: 'STAFF3', profile_name: 'Three', role: 'cskh' }
+    ] }) },
+    '../models/ChatConversation': { aggregate: async () => [{ _id: 'STAFF1', total: 2 }, { _id: 'mongo2', total: 5 }] },
+    '../services/socket.service': { getIO: () => ({ in: () => ({ fetchSockets: async () => [{ user: { chat_user_id: 'STAFF1' } }, { user: { user_id: 'mongo2' } }] }) }) }
+  });
+  const res = response(); await api.listAgents({}, res);
+  assert.equal(res.body.data[0].active_chats, 2); assert.equal(res.body.data[0].available, true);
+  assert.equal(res.body.data[1].active_chats, 5); assert.equal(res.body.data[1].available, false);
+  assert.equal(res.body.data[2].online, false); assert.equal(res.body.data[2].available, false);
+});
+
+test('transferring to an offline colleague is rejected before assignment', async () => {
+  const api = load('../src/controllers/chat.controller.js', {
+    '../services/chat.service': { resolveChatUserId: async () => 'STAFF1' },
+    '../services/chat-assignment.service': { assignConversation: async () => assert.fail('must not assign offline agent') },
+    '../services/socket.service': { getIO: () => ({ in: () => ({ fetchSockets: async () => [] }) }) }
+  });
+  const res = response();
+  await api.transferConversation({ body: { agent_id: 'STAFF2', note: 'Issue context' }, params: { id: 'CHAT1' }, user: { user_id: 'STAFF1', role: 'cskh' } }, res);
+  assert.equal(res.statusCode, 409);
+});
+
+test('agents can share only orders belonging to the selected customer and only in an open owned chat', async () => {
+  for (const ownOrder of [true, false]) {
+    let sent;
+    const api = load('../src/controllers/chat.controller.js', {
+      '../models/ChatConversation': { findOne: async () => ({ conversation_id: 'CHAT1', customer_id: 'USR1', agent_id: 'STAFF1', status: 'open' }) },
+      '../models/Order': { findOne: filter => { assert.equal(filter.user_id, 'USR1'); return { lean: async () => ownOrder ? { order_id: 'OF1029', order_status: 'processing', pricing: { total: 50 }, items: [] } : null }; } },
+      '../services/chat.service': { resolveChatUserId: async () => 'STAFF1', canAccessConversation: async () => true, appendMessage: async (_, message) => { sent = message; return { toObject: () => message }; } },
+      '../services/socket.service': { emitChatEvent() {} }
+    });
+    const res = response();
+    await api.shareOrder({ params: { id: 'CHAT1' }, body: { order_id: 'OF1029' }, user: { user_id: 'STAFF1', role: 'cskh' } }, res);
+    assert.equal(res.statusCode, ownOrder ? 201 : 404);
+    if (ownOrder) assert.equal(sent.metadata.orderCard.order_id, 'OF1029');
+  }
 });

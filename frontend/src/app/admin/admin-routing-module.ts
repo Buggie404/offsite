@@ -16,6 +16,7 @@ const adminRecipeLeaveGuard: CanDeactivateFn<{ confirmLeave: () => boolean | Pro
   component.confirmLeave();
 
 const SALES_OPS_ROLES    = ['admin_cc', 'qlsp'] as const;
+const ORDER_VIEW_ROLES   = ['admin_cc', 'qlsp', 'cskh'] as const;
 // Vouchers: CSKH may open the page (view + complaint vouchers only). Edit and stop stay with Admin CC and QLSP.
 const VOUCHER_ROLES      = ['admin_cc', 'qlsp', 'cskh'] as const;
 // Ritual Box: CSKH can view (read-only + notes); actions are limited per role on the server.
@@ -81,13 +82,13 @@ const routes: Routes = [
         path: 'orders',
         component: OrdersListingComponent,
         canActivate: [adminRoleGuard],
-        data: { adminRoles: SALES_OPS_ROLES }
+        data: { adminRoles: ORDER_VIEW_ROLES }
       },
       {
         path: 'orders/:id',
         component: OrderDetailComponent,
         canActivate: [adminRoleGuard],
-        data: { adminRoles: SALES_OPS_ROLES }
+        data: { adminRoles: ORDER_VIEW_ROLES }
       },
 
       {

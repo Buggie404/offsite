@@ -27,6 +27,62 @@ describe('AI Concierge human handover', () => {
     http.expectOne(request => request.url.endsWith('/ai-chat/handover')).flush({ handover: true });
   }
 
+  it('shares a selected account order through the existing human conversation', () => {
+    handover();
+    vi.spyOn(service, 'canUseHistory').mockReturnValue(true);
+    service.openOrderPicker();
+    http.expectOne(request => request.url.endsWith('/ai-chat/my-orders')).flush({ orders: [{ order_id: 'OF1029', order_status: 'processing', total_amount: 74.8, currency: 'USD' }] });
+    expect(service.shareableOrders()[0].code).toBe('#OF1029');
+    service.shareOrder(service.shareableOrders()[0]);
+    const request = http.expectOne(request => request.url.endsWith('/ai-chat/message'));
+    expect(request.request.body.order_id).toBe('OF1029');
+    expect(request.request.body.metadata).toBeUndefined();
+    expect(service.orderPickerOpen()).toBe(false);
+    request.flush({ human_chat: true, status: 'in_progress', messages: [{ sender: 'user', text: 'Order OF1029', metadata: { orderCard: { order_id: 'OF1029', order_status: 'processing', total_amount: 74.8 } } }] });
+    expect(service.messages().at(-1)?.orderCard?.total).toBe(74.8);
+  });
+
+  it('does not open the account order picker for a guest or an AI-only chat', () => {
+    service.openOrderPicker();
+    expect(service.orderPickerOpen()).toBe(false);
+    http.expectNone(request => request.url.endsWith('/ai-chat/my-orders'));
+  });
+
+  it('selecting Talk to a person alone does not create a waiting conversation', () => {
+    service.requestHandover();
+    http.expectNone(request => request.url.endsWith('/ai-chat/handover'));
+    expect(service.humanHandoverPending()).toBe(true);
+    expect(service.humanChatActive()).toBe(false);
+    expect(service.sendMessage('   ')).toBe(false);
+    service.returnToBot();
+    expect(service.humanHandoverPending()).toBe(false);
+    http.expectNone(request => request.url.endsWith('/ai-chat/return-to-bot'));
+  });
+
+  it('the first actual message after selecting a person is handed over once, then enters Waiting', () => {
+    service.requestHandover();
+    expect(service.sendMessage('My bowl arrived broken')).toBe(true);
+    const request = http.expectOne(request => request.url.endsWith('/ai-chat/handover'));
+    expect(request.request.body.message).toBe('My bowl arrived broken');
+    expect(service.humanChatActive()).toBe(false);
+    expect(service.sendMessage('Duplicate click')).toBe(false);
+    request.flush({ handover: true });
+    expect(service.humanHandoverPending()).toBe(false);
+    expect(service.humanChatActive()).toBe(true);
+  });
+
+  it('outside support hours shows the leave-message form without entering Waiting', () => {
+    service.requestHandover();
+    service.sendMessage('My bowl arrived broken');
+    http.expectOne(request => request.url.endsWith('/ai-chat/handover')).flush({
+      handover: false, show_contact_form: true, message: 'Support is offline'
+    });
+    expect(service.humanChatActive()).toBe(false);
+    expect(service.humanHandoverPending()).toBe(false);
+    expect(service.isTyping()).toBe(false);
+    expect(service.messages().find(message => message.sender === 'user')?.deliveryStatus).toBe('sent');
+  });
+
   it('restores human mode from waiting status even when an older session lacks the conversation link', () => {
     service.openHistory('LEGACY1');
     http.expectOne(request => request.url.endsWith('/ai-chat/sessions/LEGACY1')).flush({

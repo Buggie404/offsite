@@ -300,6 +300,9 @@
   }
 
   .sort-dropdown-btn {
+    width: 100%;
+    min-width: 0;
+    justify-content: space-between;
     background-color: var(--color-white);
     border: none;
     border-radius: 8px;
@@ -323,7 +326,21 @@
       box-shadow: 0 0 0 2px rgba(55, 85, 52, 0.2);
     }
 
+    > span {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      text-align: left;
+    }
+
     .chevron-icon {
+      display: block;
+      flex: 0 0 16px;
+      width: 16px;
+      height: 16px;
+      transform-origin: center;
       transition: transform 0.2s ease;
       &.open {
         transform: rotate(180deg);

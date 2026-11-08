@@ -53,3 +53,21 @@ npm.cmd run migrate:chat-agent-ids
 ```
 
 Script thay Mongo `_id` của nhân viên bằng `User.user_id` trong `ChatConversations.agent_id` và `AiChatSessions.assigned_admin_id`; chạy lại được. Claim mới lưu ID ứng dụng. Migration đã chạy thành công sau khi dùng kết nối ngoài sandbox: 0 hội thoại và 0 phân công phiên AI cần đổi.
+
+## Share order, Transfer and Close (08/11)
+
+- Customer: sign in, open the chat drawer, send a request through Talk to a person. In a live Waiting/Mine conversation, use **Share order** above the input, choose one of the five recent account orders. The card appears in the customer history and the agent thread. Guests can provide an order code in text; account order selection requires sign-in.
+- Agent: select an open owned chat, use **Share order** below the reply box, choose a recent customer order and click **Send order**. Backend ownership checks apply to both senders; order cards contain status, items and totals, without delivery contact details.
+- Transfer: open **Transfer**, select an online colleague below capacity, enter the required internal note, then confirm. Offline/full choices are disabled and backend checks presence/capacity again. The customer receives a neutral transfer notice; internal notes stay private. Use a second signed-in support browser tab to test online presence.
+- Close: **Close** opens a modal. Choose Resolved / Forwarded / No response / Spam, optionally write a summary, choose whether to send the closing message, then confirm. Cancel leaves the conversation open. The summary is saved privately in Customer Notes in the closure transaction; no summary text is sent to the customer. Forwarded records the chosen outcome; it does not submit or approve a refund.
+- Closed remains read-only. The previously agreed reopen window is **3 hours during support hours**, with capacity fallback to Waiting; it is not the 24-hour wording in the mockup.
+
+## Visual alignment and order-card regression (08/11)
+
+CSKH Orders read-only update: both `/admin/orders` and `/admin/orders/:id` now allow CSKH. API list, stats and detail read the current staff assignments from DB and include customers in the staff member's open/closed claimed chats (canonical or legacy agent IDs). Unrelated customers remain forbidden. Status, stock, refunds and internal-note writes remain restricted to Admin CC/QLSP. Verified the reported order `OFS-2026-00117`: detail/list 200, present in scoped list, empty note-write request 403 without changing data. Reload the app and reopen the order from Chat or the Orders menu; the existing `/admin/403` page does not redirect itself.
+
+- Mine now uses a compact AI summary, 300px message bubbles, 14px order-card text, thumbnails, item counts and currency formatting. Composer includes draft-only quick replies and icon buttons below the input. Quick actions use the existing Orders, personal-voucher and account-report workflows.
+- The Orders action is deliberately labelled **Open order / refund details**: CSKH cannot write order notes or approve refunds under the current Orders permissions. It does not pretend to submit a refund request. Personal-voucher links open the existing complaint form with the current customer preselected; server validation remains unchanged.
+- Fixed customer drawer templates: order cards now render for **user and agent** messages as well as AI, including history reloads. Previously they were stored but only the AI message branch rendered them.
+- Newly shared orders include the first item image and total quantity. Old snapshots without images use the local Figma placeholder; no fabricated product images or voucher cards are added.
+- Join/system notices no longer overwrite the customer issue in queue previews. Historical previews are not rewritten.

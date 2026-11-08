@@ -172,3 +172,63 @@ test('internal notes store the author role and are logged; empty notes are rejec
   assert.equal(seen.notes[0].author_name, 'Khoa Nguyen');
   assert.equal(logs[0].actionType, 'customer.add_note');
 });
+
+function profileApi({ claimed = false, assigned = [], pastChats = 4 } = {}) {
+  const seen = {};
+  const query = value => ({ lean: async () => value, sort() { return this; }, skip() { return this; }, limit() { return this; } });
+  const api = load('../src/controllers/admin-customers.controller.js', {
+    '../models/User': { findOne: filter => query(filter.role === 'customer'
+      ? customerDoc({ email: 'mai@example.com', createdAt: new Date('2025-03-01') })
+      : { _id: '64b7f0c2a1b2c3d4e5f60718', user_id: 'STAFF1', assigned_chat_customer_ids: assigned }) },
+    '../models/ChatConversation': {
+      exists: async filter => { seen.claimFilter = filter; return claimed ? { _id: 'chat' } : null; },
+      countDocuments: async filter => { seen.countFilter = filter; return pastChats; }
+    },
+    '../models/Order': { countDocuments: async () => 1, aggregate: async () => [], find: () => query([{ order_id: 'OF1029', order_status: 'processing', items: [], pricing: { total: 74.8 } }]) },
+    '../models/Subscription': { countDocuments: async () => 2 },
+    '../models/CustomerNote': { find: () => query([]) },
+    '../models/Voucher': { find: () => query([]) }
+  });
+  const req = { user: { user_id: '64b7f0c2a1b2c3d4e5f60718', role: 'cskh' }, params: { userId: 'USR00042' }, query: {}, body: { content: 'Private note' } };
+  return { api, req, seen };
+}
+
+test('claimed customer profile includes real orders, subscriptions and all past chats with canonical and legacy agent ids', async () => {
+  const { api, req, seen } = profileApi({ claimed: true });
+  const res = response();
+  await api.getCustomer(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.data.email, 'mai@example.com');
+  assert.equal(res.body.data.recent_orders, undefined);
+  const orders = response(); await api.listCustomerOrders(req, orders);
+  assert.equal(orders.statusCode, 200);
+  assert.equal(orders.body.data[0].order_id, 'OF1029');
+  assert.equal(res.body.data.ritual_boxes, 2);
+  assert.equal(res.body.data.past_chats, 4);
+  assert.deepEqual(seen.claimFilter.agent_id.$in.sort(), ['64b7f0c2a1b2c3d4e5f60718', 'STAFF1']);
+  assert.deepEqual(seen.claimFilter.status.$in, ['open', 'closed']);
+  assert.deepEqual(seen.countFilter, { customer_id: 'USR00042', status: 'closed' });
+});
+
+test('customer outside explicit assignments and claimed conversations remains forbidden', async () => {
+  const { api, req } = profileApi();
+  const res = response();
+  await api.getCustomer(req, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.data, undefined);
+});
+
+test('explicitly assigned customer profile remains readable without claiming', async () => {
+  const { api, req, seen } = profileApi({ assigned: ['USR00042'] });
+  const res = response();
+  await api.getCustomer(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(seen.claimFilter, undefined);
+});
+
+test('claiming grants profile read access without expanding note-writing permissions', async () => {
+  const { api, req } = profileApi({ claimed: true });
+  const res = response();
+  await api.addCustomerNote(req, res);
+  assert.equal(res.statusCode, 403);
+});

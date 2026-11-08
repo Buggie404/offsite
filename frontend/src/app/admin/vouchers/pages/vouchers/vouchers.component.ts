@@ -1,5 +1,6 @@
 import { ChangeDetectorRef, Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
@@ -68,6 +69,7 @@ const EMPTY_FORM: VoucherForm = {
   styleUrl: './vouchers.component.scss'
 })
 export class VouchersComponent implements OnInit {
+  private route = inject(ActivatedRoute);
   private vouchersService = inject(AdminVouchersService);
   private adminAuth = inject(AdminAuthService);
   private cdr = inject(ChangeDetectorRef);
@@ -152,6 +154,13 @@ export class VouchersComponent implements OnInit {
       .pipe(debounceTime(200), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe((value) => this.fetchCustomers(value));
     this.load();
+    const params = this.route.snapshot.queryParamMap;
+    if (params.get('create') === 'complaint' && params.get('customer_id')) {
+      this.openCreate(); this.setPurpose('complaint');
+      this.form.assigned_user = params.get('customer_id')!;
+      this.customerName = params.get('customer_name') || this.form.assigned_user;
+      this.customerQuery = this.customerName;
+    }
   }
 
   @HostListener('document:keydown.escape')
