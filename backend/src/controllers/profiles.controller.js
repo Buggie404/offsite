@@ -13,7 +13,7 @@ async function getPublicProfile(req, res) {
     const { userId } = req.params;
     const user = await User.findOne(
       { user_id: userId, status: 'active' },
-      'user_id community_name profile_name avatar_url bio membership_tier ritual_dna_quiz_completed createdAt'
+      'user_id community_name profile_name avatar_url bio membership_tier ritual_dna_quiz_completed ritual_dna.archetype_id ritual_dna.archetype_profile_version ritual_dna.quiz_taken_at createdAt'
     ).lean();
     if (!user) return res.status(404).json({ error: 'Profile not found' });
 
@@ -27,6 +27,10 @@ async function getPublicProfile(req, res) {
       currentUserId && !isSelf ? Follow.exists({ follower_id: currentUserId, following_id: userId }) : null
     ]);
 
+    const dna = user.ritual_dna;
+    const archetype = dna?.quiz_taken_at && dna.archetype_id
+      ? await require('../services/ritual-dna.archetype-release').archetypeForProfile(dna.archetype_id, dna.archetype_profile_version)
+      : null;
     res.json({
       user_id: user.user_id,
       username: user.community_name || user.profile_name,
@@ -34,6 +38,7 @@ async function getPublicProfile(req, res) {
       bio: user.bio || '',
       membership_tier: user.membership_tier || 'Seed',
       ritual_dna_completed: !!user.ritual_dna_quiz_completed,
+      ritual_dna_badge: archetype ? { id: archetype.archetype_id, name: archetype.name } : null,
       joined_at: user.createdAt,
       post_count: postCount,
       recipe_count: recipeCount,

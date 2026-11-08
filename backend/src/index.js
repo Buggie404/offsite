@@ -29,6 +29,7 @@ connectDB()
     require('./services/subscription-charge.service').startSubscriptionChargeJob();
     require('./services/pending-order-expiry.service').startPendingOrderExpiryJob();
     require('./services/pantry.service').startPantryExpiryJob();
+    require('./services/chat-lifecycle.service').startChatLifecycleJob();
   })
   .catch((error) => {
     console.error('Failed to start server:', error.message);

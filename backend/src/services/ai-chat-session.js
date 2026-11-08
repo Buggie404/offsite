@@ -139,6 +139,8 @@ async function readSession({ sessionId, userId }) {
     } else if (conversation?.status === 'closed') {
       body.status = session.status === 'closed' ? 'closed' : 'ai_active';
       body.human_chat = false;
+      const policy = require('./chat-policy');
+      body.can_reopen_support = policy.canReopen(conversation) && policy.supportOpen();
     }
   }
   body.messages = body.messages.map(message => message.sender === 'agent'

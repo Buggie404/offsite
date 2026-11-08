@@ -49,6 +49,7 @@ export class ProductPickerComponent {
   regenCount = 0;
   suggestMessage = '';
   private shownIds = new Set<number>();
+  private suggestionSessionId?: string;
 
   constructor() {
     this.query$
@@ -130,11 +131,13 @@ export class ProductPickerComponent {
     const exclude = [...new Set([...this.shownIds, ...this.selected.map(p => p.product_id)])];
 
     this.communityService
-      .suggestProducts({ content: this.suggestContent.trim(), base: this.suggestBase, exclude })
+      .suggestProducts({ content: this.suggestContent.trim(), base: this.suggestBase, exclude, suggestion_session_id: this.suggestionSessionId })
       .subscribe({
-        next: list => {
+        next: response => {
           this.suggestLoading = false;
-          const fresh = list.filter(p => !exclude.includes(p.product_id)).slice(0, this.maxProducts);
+          this.suggestionSessionId = response.suggestion_session_id;
+          this.regenCount = this.maxRegenerate - response.remaining;
+          const fresh = response.data.filter(p => !exclude.includes(p.product_id)).slice(0, this.maxProducts);
           if (fresh.length === 0) {
             // Không còn gợi ý mới: giữ kết quả cũ, không trừ lượt "Gợi ý lại"
             this.suggestMessage = this.hasSuggested
@@ -145,12 +148,12 @@ export class ProductPickerComponent {
           }
           this.suggestions = fresh;
           fresh.forEach(p => this.shownIds.add(p.product_id));
-          if (isRegenerate) this.regenCount++;
           this.hasSuggested = true;
         },
-        error: () => {
+        error: err => {
           this.suggestLoading = false;
-          this.suggestMessage = 'Could not load suggestions, please try again.';
+          if (err?.status === 429) this.regenCount = this.maxRegenerate;
+          this.suggestMessage = err?.error?.error || 'Could not load suggestions, please try again.';
         },
       });
   }
@@ -162,6 +165,7 @@ export class ProductPickerComponent {
     this.searchDone = false;
     this.suggestions = [];
     this.shownIds.clear();
+    this.suggestionSessionId = undefined;
     this.hasSuggested = false;
     this.regenCount = 0;
     this.suggestMessage = '';

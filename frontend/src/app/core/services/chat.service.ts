@@ -14,6 +14,11 @@ export interface ChatConversation {
   summary?: string;
   handover_reason?: string | null;
   ai_session_id?: string | null;
+  dify_conversation_id?: string | null;
+  response_warning?: 'waiting_reply' | 'overdue' | null;
+  waiting_on?: 'customer' | 'agent';
+  close_reason?: 'resolved' | 'idle' | 'return_to_bot' | null;
+  transfers?: { from_agent_id: string; to_agent_id: string; note: string; at: string }[];
   last_message_preview: string;
   last_message_at: string;
   unread_agent: number;
@@ -63,7 +68,11 @@ export class ChatService {
   getMine() { return this.http.get<{ data: ChatConversation | null }>(`${this.api}/me`); }
   start() { return this.http.post<{ data: ChatConversation }>(`${this.api}/start`, {}); }
   list(status?: string) {
-    return this.http.get<{ data: ChatConversation[] }>(`${this.api}/conversations${status ? '?status=' + status : ''}`, this.requestOptions());
+    return this.http.get<{ data: ChatConversation[]; support_open?: boolean; support_hours?: string }>(`${this.api}/conversations${status ? '?status=' + status : ''}`, this.requestOptions());
+  }
+  agents() { return this.http.get<{ data: { user_id: string; name: string }[] }>(`${this.api}/agents`, this.requestOptions()); }
+  transfer(id: string, agent_id: string, note: string) {
+    return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/transfer`, { agent_id, note }, this.requestOptions());
   }
   messages(id: string) { return this.http.get<{ data: ChatMessage[] }>(`${this.api}/conversations/${id}/messages`, this.requestOptions()); }
   claim(id: string) { return this.http.patch<{ data: ChatConversation }>(`${this.api}/conversations/${id}/claim`, {}, this.requestOptions()); }

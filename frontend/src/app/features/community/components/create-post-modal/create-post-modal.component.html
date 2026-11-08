@@ -159,7 +159,7 @@
               <span class="ai-chip" *ngFor="let p of aiProducts">
                 <img *ngIf="p.image_url" [src]="p.image_url" [alt]="p.name" />
                 <span>{{ p.name }}</span>
-                <span class="ai-chip__tag">AI</span>
+                <span class="ai-chip__tag">Suggested by AI</span>
                 <button type="button" (click)="removeAiProduct(p)" aria-label="Remove AI tag">
                   <svg lucideX [size]="12"></svg>
                 </button>

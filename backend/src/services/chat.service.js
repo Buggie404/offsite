@@ -24,7 +24,7 @@ async function canAccessConversation(authUser, conversation) {
   if (authUser.role === 'admin_cc') return true;
   if (authUser.role === 'cskh') {
     if (conversation.status === 'waiting' && !conversation.agent_id) return true;
-    if ([userId, String(authUser.user_id)].includes(conversation.agent_id)) return true;
+    if ([userId, String(authUser.user_id), authUser.mongo_user_id].includes(conversation.agent_id)) return true;
     const agent = await User.findOne({ user_id: userId }, 'assigned_chat_customer_ids').lean();
     return (agent?.assigned_chat_customer_ids || []).includes(conversation.customer_id);
   }
@@ -46,10 +46,13 @@ async function appendMessage(conversation, { sender_type, sender_id = null, cont
         source_session_id: conversation.ai_session_id || null, source_message_id: sourceMessageId,
         metadata: sender_type === 'customer' ? { delivery_status: 'sent' } : {}
       }], { session });
-      await ChatConversation.updateOne(
-        { conversation_id: conversation.conversation_id },
-        { $set: { last_message_preview: text.slice(0, 120), last_message_at: message.created_at }, $inc: inc }, { session }
+      const updated = await ChatConversation.updateOne(
+        { conversation_id: conversation.conversation_id,
+          ...(sender_type === 'agent' ? { status: 'open', agent_id: conversation.agent_id } : sender_type === 'customer' ? { status: { $ne: 'closed' } } : {}) },
+        { $set: { last_message_preview: text.slice(0, 120), last_message_at: message.created_at,
+          ...(sender_type === 'customer' ? { last_customer_message_at: message.created_at } : sender_type === 'agent' ? { last_agent_message_at: message.created_at } : {}) }, $inc: inc }, { session }
       );
+      if (updated?.matchedCount === 0) throw Object.assign(new Error('Conversation changed. Please reload.'), { status: 409 });
       if (conversation.ai_session_id) {
         await require('../models/AiChatSession').updateOne({ session_id: conversation.ai_session_id }, {
           $push: { messages: {

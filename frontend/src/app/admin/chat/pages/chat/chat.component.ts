@@ -6,7 +6,7 @@ import { customerKey, groupChats } from './chat-grouping';
 import { ChatConversation, ChatMessage, ChatService } from '../../../../core/services/chat.service';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 
-type StatusFilter = 'all' | 'waiting' | 'open' | 'closed';
+type StatusFilter = 'waiting' | 'mine' | 'closed' | 'all';
 
 @Component({
   selector: 'app-admin-chat',
@@ -25,12 +25,23 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   @ViewChild('thread') private thread?: ElementRef<HTMLElement>;
 
   filters: { value: StatusFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
     { value: 'waiting', label: 'Waiting' },
-    { value: 'open', label: 'Open' },
-    { value: 'closed', label: 'Closed' }
+    { value: 'mine', label: 'Mine' },
+    { value: 'closed', label: 'Closed' },
+    { value: 'all', label: 'All' }
   ];
-  filter: StatusFilter = 'all';
+  filter: StatusFilter = 'waiting';
+  search = '';
+  sourceFilter: 'all' | 'ai' | 'direct' = 'all';
+  sortOrder: 'latest' | 'oldest' = 'latest';
+  actionPending = false;
+  actionError = '';
+  supportOpen = true;
+  supportHours = '08:00–22:00 (Vietnam time)';
+  transferOpen = false;
+  transferTarget = '';
+  transferNote = '';
+  agents: { user_id: string; name: string }[] = [];
 
   conversations: ChatConversation[] = [];
   active: ChatConversation | null = null;
@@ -47,21 +58,66 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   loadError = '';
 
   get visible(): ChatConversation[] {
-    const grouped = groupChats(this.conversations);
-    return this.filter === 'all' ? grouped : grouped.filter(c => c.status === this.filter);
+    const term = this.search.trim().toLocaleLowerCase();
+    const matches = this.conversations.filter(c => this.matchesTab(c, this.filter) &&
+      (this.sourceFilter === 'all' || this.source(c) === this.sourceFilter) &&
+      (!term || [this.customerName(c), c.customer_id, c.customer?.user_id, c.conversation_id]
+        .some(value => value?.toLocaleLowerCase().includes(term))));
+    return groupChats(matches).sort((a, b) => {
+      const difference = Date.parse(b.last_message_at) - Date.parse(a.last_message_at);
+      return this.sortOrder === 'oldest' ? -difference : difference;
+    });
   }
 
-  get waitingCount(): number { return groupChats(this.conversations).filter(c => c.status === 'waiting').length; }
+  private isMine(c: ChatConversation): boolean {
+    return !!c.agent_id && [this.myId, this.auth.getUser()?._id].includes(c.agent_id);
+  }
+
+  private matchesTab(c: ChatConversation, tab: StatusFilter): boolean {
+    if (tab === 'all') return c.status !== 'bot';
+    if (tab === 'mine') return c.status === 'open' && this.isMine(c);
+    return c.status === tab;
+  }
+
+  tabCount(tab: StatusFilter): number {
+    return groupChats(this.conversations.filter(c => this.matchesTab(c, tab))).length;
+  }
+
+  source(c: ChatConversation): 'ai' | 'direct' {
+    return c.ai_session_id || c.dify_conversation_id || c.handover_reason || c.handoff_summary ? 'ai' : 'direct';
+  }
+
+  get waitingCount(): number { return this.tabCount('waiting'); }
+  get mineCount(): number { return this.tabCount('mine'); }
+  get canClaim(): boolean { return this.supportOpen && !!this.active && this.active.status === 'waiting' && !this.active.agent_id; }
+  get canClose(): boolean { return this.canReply || (this.auth.getUser()?.role === 'admin_cc' && this.active?.status === 'open'); }
+  get activeState(): string {
+    if (!this.active) return '';
+    if (this.active.status === 'closed') return 'Closed · read only';
+    if (this.canClaim) return 'Unclaimed · view only';
+    if (this.canReply) return 'Claimed by you';
+    return 'Assigned to another agent · view only';
+  }
+
+  setFilter(filter: StatusFilter): void {
+    this.filter = filter;
+    this.active = null;
+    this.messages = [];
+    this.draft = '';
+    this.customerTyping = false;
+    this.actionError = '';
+    this.transferOpen = false;
+  }
 
   get canReply(): boolean {
-    return !!this.active?.agent_id && this.active.status === 'open' &&
-      [this.myId, this.auth.getUser()?._id].includes(this.active.agent_id);
+    return !!this.active && this.active.status === 'open' && this.isMine(this.active);
   }
 
   ngOnInit(): void {
     const params = this.route.snapshot.queryParamMap;
     const status = params.get('status');
-    if (this.filters.some(f => f.value === status)) this.filter = status as StatusFilter;
+    if (status === 'open') this.filter = 'mine'; // Existing dashboard links.
+    else if (this.filters.some(f => f.value === status)) this.filter = status as StatusFilter;
     this.openId = params.get('conversation');
 
     this.chat.joinAgents();
@@ -113,6 +169,8 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   loadList(): void {
     this.chat.list().subscribe({
       next: res => {
+        this.supportOpen = res.support_open ?? true;
+        this.supportHours = res.support_hours || this.supportHours;
         this.conversations = res.data;
         this.loadError = '';
         for (const c of res.data) {
@@ -121,10 +179,13 @@ export class AdminChatComponent implements OnInit, OnDestroy {
         if (this.openId) {
           const target = res.data.find(c => c.conversation_id === this.openId);
           this.openId = null;
-          if (target) this.select(target);
+          if (target) {
+            this.filter = target.status === 'closed' ? 'closed' : this.isMine(target) && target.status === 'open' ? 'mine' : target.status === 'waiting' ? 'waiting' : 'all';
+            this.select(target);
+          }
         }
         if (this.active) {
-          const fresh = groupChats(res.data).find(c => customerKey(c) === customerKey(this.active!));
+          const fresh = res.data.find(c => c.conversation_id === this.active!.conversation_id);
           if (fresh) {
             this.active = fresh;
             this.refreshMessages(fresh.conversation_id);
@@ -146,20 +207,23 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   }
 
   select(c: ChatConversation): void {
+    this.transferOpen = false;
+    this.draft = '';
+    this.actionError = '';
     this.active = c;
     this.messages = [];
     this.customerTyping = false;
-    this.refreshMessages(c.conversation_id);
+    this.refreshMessages(c.conversation_id, true);
   }
 
-  private refreshMessages(conversationId: string): void {
+  private refreshMessages(conversationId: string, forceScroll = false): void {
     if (!this.active) return;
     const key = customerKey(this.active);
     const threads = this.conversations.filter(c => customerKey(c) === key);
     threads.forEach(c => this.chat.joinConversation(c.conversation_id));
     forkJoin(threads.map(c => this.chat.messages(c.conversation_id))).subscribe({
       next: results => {
-        if (!this.active || customerKey(this.active) !== key) return;
+        if (!this.active || this.active.conversation_id !== conversationId || customerKey(this.active) !== key) return;
         this.messages = results.flatMap(res => res.data).sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
         results.forEach((res, index) => {
           const last = res.data.at(-1);
@@ -167,32 +231,85 @@ export class AdminChatComponent implements OnInit, OnDestroy {
           threads[index].unread_agent = 0;
         });
         this.active.unread_agent = 0;
-        this.scrollSoon();
+        this.scrollSoon(forceScroll);
         this.cdr.markForCheck();
       }
     });
   }
 
   claim(): void {
-    if (!this.active) return;
+    if (!this.active || !this.canClaim || this.actionPending) return;
+    const id = this.active.conversation_id;
+    this.actionPending = true;
+    this.actionError = '';
     this.chat.claim(this.active.conversation_id).subscribe({
-      next: res => { this.active = { ...this.active!, ...res.data }; this.loadList(); },
-      error: err => alert(err?.error?.error || 'Could not claim this chat')
+      next: res => {
+        this.actionPending = false;
+        this.upsert(res.data);
+        if (this.active?.conversation_id === id) {
+          this.active = { ...this.active, ...res.data };
+          this.filter = 'mine';
+        }
+        this.loadList();
+        this.cdr.markForCheck();
+      },
+      error: err => { this.actionPending = false; this.actionError = err?.error?.error || 'Could not claim this chat'; this.cdr.markForCheck(); }
     });
   }
 
   closeChat(): void {
-    if (!this.active || !confirm('Close this conversation?')) return;
+    if (!this.active || !this.canClose || this.actionPending || !confirm('Close this conversation?')) return;
+    const id = this.active.conversation_id;
+    this.actionPending = true;
+    this.actionError = '';
     this.chat.close(this.active.conversation_id).subscribe({
-      next: res => { this.active = { ...this.active!, ...res.data }; this.loadList(); }
+      next: res => {
+        this.actionPending = false;
+        this.upsert(res.data);
+        if (this.active?.conversation_id === id) {
+          this.active = { ...this.active, ...res.data };
+          this.filter = 'closed';
+          this.draft = '';
+        }
+        this.loadList();
+        this.cdr.markForCheck();
+      },
+      error: err => { this.actionPending = false; this.actionError = err?.error?.error || 'Could not close this chat'; this.cdr.markForCheck(); }
     });
   }
 
   onDraftInput(): void {
-    if (!this.active) return;
-    this.chat.typing(this.active.conversation_id, true);
+    if (!this.active || !this.canReply) return;
+    const id = this.active.conversation_id;
+    this.chat.typing(id, true);
     clearTimeout(this.stopTypingTimer);
-    this.stopTypingTimer = setTimeout(() => this.chat.typing(this.active!.conversation_id, false), 2000);
+    this.stopTypingTimer = setTimeout(() => this.chat.typing(id, false), 2000);
+  }
+
+  openTransfer(): void {
+    if (!this.canClose || !this.supportOpen) return;
+    this.transferTarget = '';
+    this.transferNote = '';
+    this.chat.agents().subscribe({
+      next: response => { this.agents = response.data.filter(agent => agent.user_id !== this.active?.agent_id); this.transferOpen = true; this.cdr.markForCheck(); },
+      error: () => { this.actionError = 'Could not load agents'; this.cdr.markForCheck(); }
+    });
+  }
+
+  transfer(): void {
+    if (!this.active || !this.canClose || !this.transferTarget || !this.transferNote.trim() || this.actionPending) return;
+    const id = this.active.conversation_id;
+    this.actionPending = true;
+    this.chat.transfer(id, this.transferTarget, this.transferNote.trim()).subscribe({
+      next: response => {
+        this.actionPending = false;
+        this.transferOpen = false;
+        this.upsert(response.data);
+        if (this.active?.conversation_id === id) { this.active = { ...this.active, ...response.data }; this.filter = 'all'; this.draft = ''; }
+        this.loadList(); this.cdr.markForCheck();
+      },
+      error: error => { this.actionPending = false; this.actionError = error?.error?.error || 'Could not transfer this chat'; this.cdr.markForCheck(); }
+    });
   }
 
   send(): void {
@@ -210,10 +327,14 @@ export class AdminChatComponent implements OnInit, OnDestroy {
 
   customerName(c: ChatConversation): string { return c.customer?.profile_name || c.customer_id; }
 
-  private scrollSoon(): void {
+  private scrollSoon(force = false): void {
+    const current = this.thread?.nativeElement;
+    if (!force && current && current.scrollHeight - current.scrollTop - current.clientHeight > 80) return;
+    const activeId = this.active?.conversation_id;
+    const scrollTop = current?.scrollTop;
     setTimeout(() => {
       const el = this.thread?.nativeElement;
-      if (el) el.scrollTop = el.scrollHeight;
+      if (el && this.active?.conversation_id === activeId && (force || el.scrollTop === scrollTop)) el.scrollTop = el.scrollHeight;
     }, 0);
   }
 }

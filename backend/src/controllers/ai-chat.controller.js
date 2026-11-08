@@ -13,7 +13,7 @@ const MAX_MESSAGE_LENGTH = 500;
 const MAX_PRODUCT_CARDS = 3;
 const LLM_ATTEMPT_STATUSES = ['success', 'error', 'timeout'];
 const UNAVAILABLE_MESSAGE = 'Our assistant is unavailable right now. Leave a message and we will reply by email.';
-const CLOSED_SUPPORT_MESSAGE = 'Our team is offline right now (8:00–20:00). Leave a message and we will reply by email.';
+const CLOSED_SUPPORT_MESSAGE = 'Our team is offline right now (8:00–22:00). Leave a message and we will reply by email.';
 const PROVIDER_RETRY_MESSAGE = 'Our assistant is unavailable right now. Please try again in a moment.';
 const PROVIDER_RETRY_LIMIT = 2;
 const CATALOG_CACHE_MS = 30_000;
@@ -59,8 +59,7 @@ function unavailableBody(status) {
 }
 
 function isSupportOpenNow(date = new Date()) {
-  const vnHours = (date.getUTCHours() + 7) % 24;
-  return vnHours >= 8 && vnHours < 20;
+  return require('../services/chat-policy').supportOpen(date);
 }
 
 function contactFormFields(message, closed = false) {
@@ -1005,6 +1004,14 @@ exports.handleChatMessage = async (req, res) => {
 
     let chatSession = prepared.session;
 
+    if (chatSession.support_conversation_id && chatSession.status === 'ai_active') {
+      const previous = await require('../models/ChatConversation').findOne({ conversation_id: chatSession.support_conversation_id });
+      if (previous?.status === 'closed' && previous.close_reason === 'resolved') {
+        const customerId = await require('../services/ai-chat-handover.service').customerIdFor(chatSession);
+        const reopened = await require('../services/chat-lifecycle.service').reopenForCustomer(previous, customerId);
+        if (reopened) chatSession.status = reopened.status === 'open' ? 'in_progress' : 'waiting';
+      }
+    }
     if (!chatSession.support_conversation_id && ['waiting', 'in_progress'].includes(chatSession.status)) {
       await require('../services/ai-chat-handover.service').handoverAiSession(chatSession);
     }
@@ -1210,7 +1217,7 @@ exports.handleChatMessage = async (req, res) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
-    // Support hours are 08:00–20:00 VN time (UTC+7). Closed hours stay with the form.
+    // Support hours are 08:00–22:00 VN time (UTC+7). Closed hours stay with the form.
     const isSupportOpen = isSupportOpenNow();
 
     const difyPayload = {
@@ -1345,7 +1352,7 @@ exports.handleChatMessage = async (req, res) => {
       aiAnswer = unavailableMarker.text;
     }
 
-    // Outside 08:00–20:00 a handoff is a leave-a-message form, not a live transfer.
+    // Outside 08:00–22:00 a handoff is a leave-a-message form, not a live transfer.
     if (!isSupportOpen && (isHandover || showContactForm)) {
       isHandover = false;
       showContactForm = true;
@@ -1650,6 +1657,13 @@ exports.requestHandover = async (req, res) => {
       });
     }
 
+    if (chatSession.support_conversation_id && chatSession.status === 'ai_active') {
+      const previous = await require('../models/ChatConversation').findOne({ conversation_id: chatSession.support_conversation_id });
+      const customerId = await require('../services/ai-chat-handover.service').customerIdFor(chatSession);
+      const reopened = await require('../services/chat-lifecycle.service').reopenForCustomer(previous, customerId);
+      if (reopened) chatSession.status = reopened.status === 'open' ? 'in_progress' : 'waiting';
+    }
+
     if (note) {
       sessionAccess.appendMessage(chatSession, {
         sender: 'user',
@@ -1695,12 +1709,13 @@ exports.returnToBot = async (req, res) => {
     const session = await require('../models/AiChatSession').findOne({ session_id: req.body.session_id });
     if (session.support_conversation_id) {
       const conversation = await require('../models/ChatConversation').findOneAndUpdate(
-        { conversation_id: session.support_conversation_id }, { $set: { status: 'closed' } }, { new: true }
+        { conversation_id: session.support_conversation_id }, { $set: { status: 'closed', closed_at: new Date(), close_reason: 'return_to_bot' } }, { new: true }
       );
       if (conversation) require('../services/socket.service').emitChatEvent('chat_updated', conversation.toObject());
     }
     session.status = 'ai_active';
     session.assigned_admin_id = null;
+    session.support_reopen_until = null;
     session.support_conversation_id = null;
     sessionAccess.appendMessage(session, { sender: 'system', text: 'You are now chatting with the Offsite chatbot.' });
     session.last_activity_at = new Date();

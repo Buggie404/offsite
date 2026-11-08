@@ -10,6 +10,7 @@
     "build": "echo 'No build needed for Node.js'",
     "seed:admin": "node seed_admin.js",
     "seed:admins": "node scripts/seed-admins.js",
+    "migrate:chat-agent-ids": "node scripts/migrate-chat-agent-ids.js",
     "seed:reviews": "node seed_reviews.js",
     "seed:refund-requests": "node seed_refund_requests.js",
     "seed:ritual-dna": "node scripts/seed-ritual-dna.js",

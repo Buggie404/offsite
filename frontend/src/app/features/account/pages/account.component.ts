@@ -7,6 +7,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/auth.service';
 import { AuthModalService } from '../../../core/auth-modal.service';
 import { OrderSocketService } from '../../../core/services/order-socket.service';
+import { RitualDnaBadgeService } from '../../../core/services/ritual-dna-badge.service';
 import { MembershipTier, UserAddress, UserPaymentMethod } from '../../../shared/models/user.model';
 import { CheckoutService } from '../../purchase/services/checkout.service';
 import { CartService } from '../../purchase/services/cart.service';
@@ -140,6 +141,8 @@ import { isWithinRefundWindow } from '../../purchase/models/refund-window.model'
 export class AccountComponent implements OnInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   readonly ritualBox = inject(RitualBoxService);
+  private readonly dnaBadgeService = inject(RitualDnaBadgeService);
+  readonly dnaBadge = signal<string | null>(null);
   readonly ritualBoxFocusId = signal<string | null>(null);
   readonly pantry = inject(PantryService);
   private authService = inject(AuthService);
@@ -557,6 +560,7 @@ export class AccountComponent implements OnInit, OnDestroy {
     // Ritual Box drives the sidebar "!" badge, so load it whatever tab is open.
     if (isPlatformBrowser(this.platformId)) {
       this.ritualBox.load();
+      this.dnaBadgeService.load().subscribe({ next: name => this.dnaBadge.set(name), error: () => this.dnaBadge.set(null) });
     }
 
     this.socketSub = this.orderSocketService.orderUpdated$.subscribe((event) => {

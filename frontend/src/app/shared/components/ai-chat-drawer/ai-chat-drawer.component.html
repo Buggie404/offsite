@@ -435,7 +435,7 @@
         </button>
       </div>
       <div class="footer-meta">
-        @if (chatService.humanChatActive()) {
+        @if (chatService.humanChatActive() || chatService.canReopenSupport()) {
         <button
           type="button"
           class="talk-to-human-link"

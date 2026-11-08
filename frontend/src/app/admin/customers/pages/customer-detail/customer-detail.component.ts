@@ -10,7 +10,7 @@ import { avatarInitials } from '../../../../shared/utils/avatar';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { AdminCustomersService, CustomerDetail } from '../../services/admin-customers.service';
 
-type Tab = 'orders' | 'notes';
+type Tab = 'orders' | 'notes' | 'vouchers' | 'violations';
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
   pending: 'Pending', processing: 'Processing', shipping: 'Shipping', delivery_failed: 'Delivery failed',
@@ -47,6 +47,8 @@ export class CustomerDetailComponent implements OnInit {
   confirmOpen = false;
   statusSaving = false;
   confirmError = '';
+  get customersPath(): string { return this.route.snapshot.data['serviceCustomers'] ? '/admin/service-customers' : '/admin/customers'; }
+  get serviceCustomers(): boolean { return !!this.route.snapshot.data['serviceCustomers']; }
 
   ngOnInit(): void {
     this.load();

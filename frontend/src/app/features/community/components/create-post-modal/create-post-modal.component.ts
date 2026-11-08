@@ -78,8 +78,10 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
   readonly baseOptions: BaseValue[] = ['COFFEE', 'MATCHA'];
 
   // ----- Gắn sản phẩm: thủ công (selectedProducts) và do AI gợi ý (aiProducts) -----
-  // Cả hai cộng lại tối đa 3. AI không bao giờ chiếm chỗ của thẻ tự tag.
-  readonly maxProducts = 3;
+  // Up to five total tags, including three AI tags. Manual tags take priority.
+  readonly maxProducts = 5;
+  readonly maxAiProducts = 3;
+  private suggestionSessionId?: string;
   selectedProducts: ProductOption[] = [];
   aiProducts: ProductOption[] = [];
   productQuery = '';
@@ -159,6 +161,9 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
         source: 'manual' as const,
         confidence: null,
       }));
+      this.aiProducts = this.selectedProducts.filter(product => p.ai_product_ids?.includes(product.product_id))
+        .map(product => ({ ...product, source: 'ai' as const }));
+      this.selectedProducts = this.selectedProducts.filter(product => !p.ai_product_ids?.includes(product.product_id));
 
       // Ảnh/video giữ nguyên khi sửa, chỉ để xem
       this.previews = (p.media || []).map(m => ({ url: m.url, type: m.type }));
@@ -400,9 +405,9 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const slots = this.maxProducts - this.selectedProducts.length;
+    const slots = Math.min(this.maxAiProducts, this.maxProducts - this.selectedProducts.length);
     if (slots <= 0) {
-      this.suggestMessage = 'You have tagged 3 products. Remove one to see AI suggestions.';
+      this.suggestMessage = 'You have tagged 5 products. Remove one to see AI suggestions.';
       return;
     }
 
@@ -415,11 +420,13 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     ];
 
     this.communityService
-      .suggestProducts({ content: this.composedContent, base: this.selectedBase, exclude })
+      .suggestProducts({ content: this.composedContent, base: this.selectedBase, exclude, suggestion_session_id: this.suggestionSessionId })
       .subscribe({
-        next: list => {
+        next: response => {
           this.suggestLoading = false;
-          const fresh = (list as ProductOption[]).filter(p => !exclude.includes(p.product_id)).slice(0, slots);
+          this.suggestionSessionId = response.suggestion_session_id;
+          this.regenCount = this.maxRegenerate - response.remaining;
+          const fresh = (response.data as ProductOption[]).filter(p => !exclude.includes(p.product_id)).slice(0, slots);
 
           if (fresh.length === 0) {
             // Không còn gì mới: giữ nguyên kết quả cũ và KHÔNG tính vào lượt gợi ý lại
@@ -432,12 +439,12 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
 
           this.aiProducts = fresh.map(p => ({ ...p, source: 'ai' as const }));
           fresh.forEach(p => this.shownSuggestionIds.add(p.product_id));
-          if (isRegenerate) this.regenCount++;
           this.hasSuggested = true;
         },
-        error: () => {
+        error: err => {
           this.suggestLoading = false;
-          this.suggestMessage = 'Could not load suggestions, please try again.';
+          if (err?.status === 429) this.regenCount = this.maxRegenerate;
+          this.suggestMessage = err?.error?.error || 'Could not load suggestions, please try again.';
         },
       });
   }
@@ -498,6 +505,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     this.searchResults = [];
     this.searchDone = false;
     this.shownSuggestionIds.clear();
+    this.suggestionSessionId = undefined;
     this.hasSuggested = false;
     this.regenCount = 0;
     this.suggestMessage = '';
@@ -561,7 +569,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
 
     const finalContent = this.composedContent;
     const base = baseTag.label.toUpperCase() as BaseValue;
-    // Thẻ tự tag trước, thẻ AI còn giữ sau; tổng tối đa 3
+    // Manual tags first, then AI tags, up to five in total.
     const linkedProducts = [...this.selectedProducts, ...this.aiProducts]
       .slice(0, this.maxProducts)
       .map(p => p.product_id);
@@ -572,7 +580,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       if (this.post) {
         const editedId = this.post.post_id;
         this.communityService
-          .updatePost(editedId, { content: finalContent, base, linked_products: JSON.stringify(linkedProducts) })
+          .updatePost(editedId, { content: finalContent, base, linked_products: JSON.stringify(linkedProducts), ai_product_ids: JSON.stringify(this.aiProducts.map(p => p.product_id)) })
           .subscribe({
             next: () => {
               this.isSubmitting = false;
@@ -591,8 +599,9 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       formData.append('content', finalContent);
       formData.append('base', base);
       formData.append('media', JSON.stringify(media));
-      // Backend: parseLinkedProducts() nhận JSON string, tối đa 3 id
+      // The API accepts JSON product IDs, up to five in total.
       formData.append('linked_products', JSON.stringify(linkedProducts));
+      formData.append('ai_product_ids', JSON.stringify(this.aiProducts.map(p => p.product_id)));
 
       this.communityService.createPost(formData).subscribe({
         next: res => {

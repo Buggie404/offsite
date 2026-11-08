@@ -24,6 +24,7 @@ describe('grouped customer thread', () => {
       { provide: ChangeDetectorRef, useValue: { markForCheck: vi.fn() } }
     ] });
     const component = TestBed.runInInjectionContext(() => new AdminChatComponent());
+    component.filter = 'mine';
     const thread = (id: string, user: string): ChatConversation => ({
       conversation_id: id, customer_id: user, agent_id: 'STAFF1', status: 'open',
       last_message_preview: id, last_message_at: '2026-11-01T02:00:00Z', unread_agent: 1, unread_customer: 0
@@ -34,5 +35,27 @@ describe('grouped customer thread', () => {
     expect(component.messages.map(m => m.content)).toEqual(['OLD', 'NEW']);
     expect(component.visible).toHaveLength(2);
     expect(component.canReply).toBe(true);
+
+    vi.useFakeTimers();
+    try {
+      const element = { scrollHeight: 1000, clientHeight: 200, scrollTop: 100 };
+      const internal = component as any;
+      internal.thread = { nativeElement: element };
+      internal.refreshMessages('NEW');
+      vi.runAllTimers();
+      expect(element.scrollTop).toBe(100);
+
+      element.scrollTop = 790;
+      internal.refreshMessages('NEW');
+      vi.runAllTimers();
+      expect(element.scrollTop).toBe(1000);
+
+      element.scrollTop = 100;
+      component.select(component.visible[0]);
+      vi.runAllTimers();
+      expect(element.scrollTop).toBe(1000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

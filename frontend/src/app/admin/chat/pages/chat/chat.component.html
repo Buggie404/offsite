@@ -1,17 +1,38 @@
 <header class="page-header">
   <div class="page-header__left">
     <h1>Support chat</h1>
-    <p>{{ waitingCount }} waiting · conversations handed off from the chatbot appear here in real time.</p>
+    <p>{{ waitingCount }} waiting · {{ mineCount }} assigned to you</p>
+    <p>Support hours: {{ supportHours }}{{ supportOpen ? '' : ' · currently offline' }}</p>
   </div>
 </header>
 
 <div class="chat-layout">
   <aside class="chat-list">
-    <div class="chat-filters">
-      @for (f of filters; track f.value) {
-        <button type="button" class="chat-filter" [class.active]="filter === f.value" (click)="filter = f.value">{{ f.label }}</button>
-      }
+    <div class="chat-controls">
+      <input class="chat-search" type="search" aria-label="Search by name or customer ID" placeholder="Name or customer ID"
+        [value]="search" (input)="search = $any($event.target).value">
+      <div class="chat-filters" role="group" aria-label="Conversation status">
+        @for (f of filters; track f.value) {
+          <button type="button" class="chat-filter" [class.active]="filter === f.value" [attr.aria-pressed]="filter === f.value"
+            (click)="setFilter(f.value)">{{ f.label }} ({{ tabCount(f.value) }})</button>
+        }
+      </div>
+      <div class="chat-options">
+        <label>Sort
+          <select [value]="sortOrder" (change)="sortOrder = $any($event.target).value">
+            <option value="latest">Latest activity</option>
+            <option value="oldest">Oldest activity</option>
+          </select>
+        </label>
+        <select aria-label="Conversation source" [value]="sourceFilter" (change)="sourceFilter = $any($event.target).value">
+          <option value="all">All sources</option>
+          <option value="ai">AI handover</option>
+          <option value="direct">Direct</option>
+        </select>
+      </div>
     </div>
+
+    @if (loadError) { <p class="chat-empty" role="alert">{{ loadError }}</p> }
 
     @for (c of visible; track c.customer?.user_id || c.customer_id) {
       <button type="button" class="chat-item" [class.active]="(active?.customer?.user_id || active?.customer_id) === (c.customer?.user_id || c.customer_id)" (click)="select(c)">
@@ -25,6 +46,8 @@
             <time>{{ c.last_message_at | date: 'HH:mm' }}</time>
           </span>
           <span class="chat-item__preview">{{ c.last_message_preview || 'No messages yet' }}</span>
+          @if (c.response_warning) { <span class="chat-warning">{{ c.waiting_on === 'customer' ? 'Customer has not replied' : 'Needs agent reply' }} · {{ c.response_warning === 'overdue' ? '15+ min' : '5+ min' }}</span> }
+          <span class="chat-source" [class.chat-source--ai]="source(c) === 'ai'">{{ source(c) === 'ai' ? 'AI handover' : 'Direct' }}</span>
         </span>
         <span class="chat-item__meta">
           <span class="status status--{{ c.status }}">{{ c.status }}</span>
@@ -32,7 +55,7 @@
         </span>
       </button>
     } @empty {
-      <p class="chat-empty" [attr.role]="loadError ? 'alert' : null">{{ loadError || 'No conversations.' }}</p>
+      @if (!loadError) { <p class="chat-empty">No conversations match these filters.</p> }
     }
   </aside>
 
@@ -43,19 +66,36 @@
           <strong>{{ customerName(active) }}</strong>
           @if (active.customer?.membership_tier) { <span class="tier">{{ active.customer?.membership_tier }}</span> }
           <small>{{ active.conversation_id }}</small>
+          <small class="chat-state" aria-live="polite">{{ activeState }}</small>
         </div>
         <div class="chat-pane__actions">
-          @if (active.status === 'waiting') {
-            <button type="button" class="btn btn-primary" (click)="claim()">Take over</button>
-          }
-          @if (active.status !== 'closed') {
-            <button type="button" class="btn" (click)="closeChat()">Close</button>
+          @if (canClose) {
+            <button type="button" class="btn" (click)="openTransfer()" [disabled]="actionPending || !supportOpen">Transfer</button>
+            <button type="button" class="btn" (click)="closeChat()" [disabled]="actionPending">{{ actionPending ? 'Updating...' : 'Close' }}</button>
           }
         </div>
       </header>
 
+      @if (actionError) { <p class="chat-action-error" role="alert">{{ actionError }}</p> }
+      @if (transferOpen) {
+        <form class="chat-transfer" (submit)="$event.preventDefault(); transfer()">
+          <label>Transfer to <select required [value]="transferTarget" (change)="transferTarget = $any($event.target).value">
+            <option value="">Choose an agent</option>
+            @for (agent of agents; track agent.user_id) { <option [value]="agent.user_id">{{ agent.name }}</option> }
+          </select></label>
+          <label>Internal handover note <textarea required maxlength="1000" [value]="transferNote" (input)="transferNote = $any($event.target).value"></textarea></label>
+          <button type="submit" class="btn btn-primary" [disabled]="actionPending || !transferTarget || !transferNote.trim()">Confirm transfer</button>
+          <button type="button" class="btn" (click)="transferOpen = false">Cancel</button>
+        </form>
+      }
+      @if (active.transfers?.length) {
+        <details class="chat-summary"><summary>Internal handover notes</summary>
+          @for (entry of active.transfers; track $index) { <p>{{ entry.at | date:'short' }} · {{ entry.from_agent_id }} → {{ entry.to_agent_id }}: {{ entry.note }}</p> }
+        </details>
+      }
+
       @if (active.summary || active.handoff_summary) {
-        <div class="chat-summary"><strong>Bot summary:</strong> {{ active.summary || active.handoff_summary }}@if (active.handover_reason) { <div><strong>Handover reason:</strong> {{ active.handover_reason }}</div> }</div>
+        <div class="chat-summary"><strong>AI summary{{ canClaim ? ' · read before claiming' : '' }}:</strong> {{ active.summary || active.handoff_summary }}@if (active.handover_reason) { <div><strong>Handover reason:</strong> {{ active.handover_reason }}</div> }</div>
       }
 
       <div class="chat-thread" #thread>
@@ -70,10 +110,18 @@
       </div>
 
       <footer class="chat-compose">
+        @if (canReply) {
         <textarea rows="2" [value]="draft" (input)="draft = $any($event.target).value; onDraftInput()" (keydown)="onKey($event)"
+          aria-label="Reply to customer"
           [disabled]="!canReply"
           [placeholder]="canReply ? 'Type a reply — Enter to send' : (active.status === 'closed' ? 'Conversation closed' : 'Take over this chat to reply')"></textarea>
         <button type="button" class="btn btn-primary" (click)="send()" [disabled]="!canReply || !draft.trim()">Send</button>
+        } @else if (canClaim) {
+          <p>You are viewing only. Claim this conversation to reply.</p>
+          <button type="button" class="btn btn-primary" (click)="claim()" [disabled]="actionPending">{{ actionPending ? 'Claiming...' : 'Claim & reply' }}</button>
+        } @else {
+          <p>{{ active.status === 'closed' ? 'This conversation is closed and read only.' : (!supportOpen && active.status === 'waiting' ? 'Support is offline. Claim during support hours.' : 'Another agent is handling this conversation. You can view the history.') }}</p>
+        }
       </footer>
     } @else {
       <p class="chat-empty chat-empty--center">Select a conversation to start.</p>

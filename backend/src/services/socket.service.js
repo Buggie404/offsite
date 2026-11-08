@@ -40,7 +40,8 @@ function initSocket(server) {
           const account = await User.findOne(query, 'user_id status role assigned_chat_customer_ids').lean();
           socket.user = account && account.status !== 'suspended' ? {
             ...decoded,
-            user_id: account.user_id,
+            user_id: String(account._id),
+            chat_user_id: account.user_id,
             role: account.role === 'admin' ? 'admin_cc' : account.role,
             assigned_chat_customer_ids: account.assigned_chat_customer_ids || []
           } : null;
@@ -81,7 +82,7 @@ function initSocket(server) {
       const isAssignedChatCustomer = socket.user.role === 'cskh' &&
         (socket.user.assigned_chat_customer_ids || []).includes(data.user_id);
       if (
-        socket.user.user_id !== data.user_id &&
+        ![socket.user.user_id, socket.user.chat_user_id].includes(data.user_id) &&
         !hasAdminRole(socket.user, ADMIN_CROSS_USER_ROLES) &&
         !isAssignedChatCustomer
       ) {
@@ -121,8 +122,11 @@ function initSocket(server) {
 
     socket.on('chat_message', async (data) => {
       try {
-        const conversation = data?.conversation_id &&
+        let conversation = data?.conversation_id &&
           await ChatConversation.findOne({ conversation_id: data.conversation_id });
+        if (conversation?.status === 'closed' && socket.user?.role === 'customer') {
+          conversation = await require('./chat-lifecycle.service').reopenForCustomer(conversation, socket.user.chat_user_id) || conversation;
+        }
         if (!conversation || conversation.status === 'closed' ||
             !(await canAccessConversation(socket.user, conversation))) {
           socket.emit('error', { message: 'Cannot send to this chat.' });
@@ -130,6 +134,10 @@ function initSocket(server) {
         }
         const senderId = await resolveChatUserId(socket.user.user_id);
         const isCustomer = conversation.customer_id === senderId;
+        if (!isCustomer && (conversation.status !== 'open' || ![senderId, socket.user.user_id].includes(conversation.agent_id))) {
+          socket.emit('error', { message: 'Claim this conversation before replying.' });
+          return;
+        }
         const message = await appendMessage(conversation, {
           sender_type: isCustomer ? 'customer' : 'agent',
           sender_id: senderId,
@@ -144,7 +152,7 @@ function initSocket(server) {
     socket.on('chat_typing', (data) => {
       if (!data?.conversation_id || !socket.rooms.has(`chat_${data.conversation_id}`)) return;
       socket.to(`chat_${data.conversation_id}`).emit('chat_typing', {
-        conversation_id: data.conversation_id, user_id: socket.user?.user_id, typing: !!data.typing
+        conversation_id: data.conversation_id, user_id: socket.user?.chat_user_id, typing: !!data.typing
       });
     });
 
@@ -180,7 +188,7 @@ function initSocket(server) {
           isAuthorized = true;
         }
         // Registered user owns the order
-        else if (socket.user && socket.user.user_id && order.user_id === socket.user.user_id) {
+        else if (socket.user && socket.user.user_id && [socket.user.user_id, socket.user.chat_user_id].includes(order.user_id)) {
           isAuthorized = true;
         }
         // Guest session matches order's session_id
@@ -267,9 +275,10 @@ function emitChatEvent(event, payload, conversation = null) {
     io.to('chat_agents').emit('chat_updated_hint', { conversation_id: payload.conversation_id });
     return;
   }
-  io.to('chat_agents').emit(event, payload);
-  if (payload.conversation_id) io.to(`chat_${payload.conversation_id}`).emit(event, payload);
-  if (payload.customer_id) io.to(`user_${payload.customer_id}`).emit(event, payload);
+    const { transfers, ...customerPayload } = payload;
+    io.to('chat_agents').emit(event, customerPayload);
+    if (payload.conversation_id) io.to(`chat_${payload.conversation_id}`).emit(event, customerPayload);
+    if (payload.customer_id) io.to(`user_${payload.customer_id}`).emit(event, customerPayload);
 }
 
 function emitChatHandover(chatSession, agentUserIds = [], note = null) {

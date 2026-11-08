@@ -25,6 +25,7 @@ export class AiChatService {
   readonly composerLocked = signal<boolean>(false);
   readonly conversationId = signal<string>('');
   readonly humanChatActive = signal(false);
+  readonly canReopenSupport = signal(false);
   readonly sessionId = signal<string>('');
   readonly interaction = signal<ChatInteraction>('ready');
   readonly historyOpen = signal(false);
@@ -87,6 +88,7 @@ export class AiChatService {
   /** Fresh concierge thread. Login and logout both start over so order context matches the account. */
   resetSession(): void {
     this.humanChatActive.set(false);
+    this.canReopenSupport.set(false);
     this.requestEpoch += 1;
     this.viewToken += 1;
     this.storage()?.removeItem(this.storageKey);
@@ -278,6 +280,7 @@ export class AiChatService {
 
   private applyLoaded(res: any, source: 'current' | 'history'): void {
     this.humanChatActive.set(res?.human_chat === true || ['waiting', 'in_progress'].includes(res?.status));
+    this.canReopenSupport.set(res?.can_reopen_support === true);
     const decision: ChatDecision = res?.decision || 'continue';
     this.currentDecision.set(decision);
     if (decision === 'rotate' && source === 'current') {
@@ -340,6 +343,7 @@ export class AiChatService {
 
   private adoptSession(id: string, serverMessages: any[], draft: string | null): void {
     this.humanChatActive.set(false);
+    this.canReopenSupport.set(false);
     this.storage()?.setItem(this.storageKey, id);
     this.sessionId.set(id);
     this.conversationId.set('');
@@ -743,7 +747,7 @@ export class AiChatService {
   }
 
   returnToBot(): void {
-    if (!this.humanChatActive() || this.composerBlocked()) return;
+    if ((!this.humanChatActive() && !this.canReopenSupport()) || this.composerBlocked()) return;
     const epoch = this.requestEpoch, view = this.viewToken;
     this.interaction.set('loading');
     this.http.post<any>(`${environment.apiUrl}/ai-chat/return-to-bot`, { session_id: this.sessionId() }).subscribe({

@@ -95,6 +95,18 @@ const routes: Routes = [
         data: { adminRoles: SALES_OPS_ROLES }
       },
       {
+        path: 'service-customers',
+        loadComponent: () => import('./customers/pages/customers-listing/customers-listing.component').then(m => m.CustomersListingComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SERVICES_OPS_ROLES, serviceCustomers: true }
+      },
+      {
+        path: 'service-customers/:userId',
+        loadComponent: () => import('./customers/pages/customer-detail/customer-detail.component').then(m => m.CustomerDetailComponent),
+        canActivate: [adminRoleGuard],
+        data: { adminRoles: SERVICES_OPS_ROLES, serviceCustomers: true }
+      },
+      {
         path: 'customers/:userId',
         loadComponent: () =>
           import('./customers/pages/customer-detail/customer-detail.component').then((m) => m.CustomerDetailComponent),

@@ -125,6 +125,7 @@ const userSchema = new mongoose.Schema({
   referred_by: { type: String, default: null },
   welcome_voucher_code: { type: String, default: null },
   ritual_dna_quiz_completed: { type: Boolean, default: false },
+  chat_assignment_version: { type: Number, default: 0 },
   // Null until a registered customer submits the Ritual DNA quiz.
   ritual_dna: { type: ritualDnaSchema, default: null },
   addresses: { type: [addressSchema], default: [] },

@@ -58,6 +58,7 @@ export interface Post {
 
   // Tagged products (max 3) resolved by the API, and visibility state.
   products?: PostProductCard[];
+  ai_product_ids?: number[];
   status?: 'visible' | 'hidden';
 }
 

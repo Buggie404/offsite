@@ -45,3 +45,55 @@ test('cskh cannot open a chat another agent took, unless the customer is assigne
   assert.equal(await service().canAccessConversation(agent, taken), false);
   assert.equal(await service(['USR00050']).canAccessConversation(agent, taken), true);
 });
+
+test('list resolves JWT Mongo identity before loading assigned customers', async () => {
+  let filter;
+  const controller = load('../src/controllers/chat.controller.js', {
+    '../services/chat.service': service(),
+    '../services/socket.service': {},
+    '../models/User': {
+      findOne: query => {
+        assert.equal(query.user_id, 'USR00002');
+        return lean({ assigned_chat_customer_ids: ['CUSTOMER1'] });
+      },
+      find: () => lean([])
+    },
+    '../models/ChatConversation': {
+      find: query => {
+        filter = query;
+        return { sort: () => ({ limit: () => lean([]) }) };
+      }
+    }
+  });
+  const res = { json() {}, status() { throw new Error('Unexpected error'); } };
+  await controller.listConversations({ user: agent, query: {} }, res);
+  assert.deepEqual(filter.$or[0], { customer_id: { $in: ['CUSTOMER1'] } });
+  assert.deepEqual(filter.$or[1], { agent_id: { $in: ['USR00002', AGENT_ID] } });
+});
+
+test('claim accepts a legacy assignment and writes the application user ID atomically', async () => {
+  const conversation = {
+    conversation_id: 'CHAT1', customer_id: 'CUSTOMER1', status: 'open', agent_id: AGENT_ID,
+    toObject() { return { ...this }; }
+  };
+  const controller = load('../src/controllers/chat.controller.js', {
+    '../services/chat.service': { ...service(), appendMessage: async () => null },
+    '../services/socket.service': { emitChatEvent() {} },
+    '../services/chat-assignment.service': { assignConversation: async options => {
+      assert.equal(options.targetId, 'USR00002');
+      assert.ok(options.actorIds.includes(AGENT_ID));
+      return { toObject: () => ({ ...conversation, agent_id: 'USR00002', status: 'open' }) };
+    } },
+    '../models/ChatConversation': {
+      findOne: async () => conversation,
+      findOneAndUpdate: async (query, update) => {
+        assert.deepEqual(query.$or, [{ agent_id: null }, { agent_id: { $in: ['USR00002', AGENT_ID] } }]);
+        assert.equal(update.$set.agent_id, 'USR00002');
+        return { ...conversation, ...update.$set };
+      }
+    }
+  });
+  const res = { json(body) { this.body = body; }, status() { throw new Error('Unexpected error'); } };
+  await controller.claimConversation({ user: agent, params: { id: 'CHAT1' } }, res);
+  assert.equal(res.body.data.agent_id, 'USR00002');
+});
