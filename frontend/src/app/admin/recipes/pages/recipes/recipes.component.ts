@@ -15,7 +15,7 @@ import {
   LucideTriangleAlert,
   LucideX
 } from '@lucide/angular';
-import { AdminRecipeRow, AdminRecipeService } from '../../services/admin-recipe.service';
+import { AdminRecipeRow, AdminRecipeService, FeaturedSlot } from '../../services/admin-recipe.service';
 import {
   NOTE_MAX,
   RecipeModerationReason,
@@ -27,7 +27,7 @@ import {
 type SourceFilter = 'all' | 'offsite' | 'community';
 type LinkedFilter = 'all' | 'linked' | 'not_linked';
 type VisibilityFilter = 'all' | 'published' | 'hidden' | 'resubmitted' | 'deleted';
-type RecipeModalKind = 'hide' | 'show' | 'delete';
+type RecipeModalKind = 'hide' | 'show' | 'delete' | 'feature';
 
 function rowStatus(row: AdminRecipeRow): VisibilityFilter | 'hidden_final' {
   if (row.deleted || row.moderation_status === 'deleted') return 'deleted';
@@ -78,6 +78,7 @@ export class AdminRecipesComponent implements OnInit {
   loading = true;
   error = '';
   rows: AdminRecipeRow[] = [];
+  featuredSlots: FeaturedSlot[] = [];
   query = '';
   source: SourceFilter = 'all';
   linked: LinkedFilter = 'all';
@@ -89,6 +90,7 @@ export class AdminRecipesComponent implements OnInit {
   savingModal = false;
   note = '';
   reason = '';
+  replaceId = '';
   readonly noteMax = NOTE_MAX;
 
   readonly sources: { value: SourceFilter; label: string }[] = [
@@ -112,6 +114,7 @@ export class AdminRecipesComponent implements OnInit {
     this.recipesApi.list().subscribe({
       next: (response) => {
         this.rows = response.data || [];
+        this.featuredSlots = response.featured_recipes || [];
         this.featuredLimit = response.featured_limit || 10;
         this.loading = false;
         this.cdr.markForCheck();
@@ -181,7 +184,7 @@ export class AdminRecipesComponent implements OnInit {
   }
 
   get reasonOptions(): RecipeModerationReason[] {
-    if (!this.modal || this.modal.kind === 'show') return [];
+    if (!this.modal || this.modal.kind === 'show' || this.modal.kind === 'feature') return [];
     return reasonsFor(this.modal.kind, this.modal.row.source);
   }
 
@@ -222,25 +225,12 @@ export class AdminRecipesComponent implements OnInit {
   }
 
   setFeatured(row: AdminRecipeRow, featured: boolean): void {
-    if (this.savingId || row.featured === featured || !this.isPublished(row)) return;
-    const previous = row.featured;
-    this.savingId = row.recipe_id;
-    this.error = '';
-    row.featured = featured;
-    this.recipesApi.setFeatured(row.recipe_id, featured).subscribe({
-      next: (response) => {
-        this.replaceRow(response.data);
-        this.savingId = null;
-        this.showToast(response.data, previous);
-        this.cdr.markForCheck();
-      },
-      error: (error) => {
-        row.featured = previous;
-        this.savingId = null;
-        this.error = error?.error?.error || `Could not update “${row.title}”.`;
-        this.cdr.markForCheck();
-      }
-    });
+    if (this.savingId || this.savingModal || this.modal || row.featured === featured || !this.isPublished(row)) return;
+    if (featured && this.featuredCount >= this.featuredLimit) {
+      this.openModal('feature', row);
+      return;
+    }
+    this.commitFeatured(row, featured);
   }
 
   undoFeatured(): void {
@@ -274,11 +264,15 @@ export class AdminRecipesComponent implements OnInit {
     if (this.savingModal) return;
     this.modal = null;
     this.modalError = '';
+    this.replaceId = '';
   }
 
   get canConfirm(): boolean {
     if (!this.modal || this.savingModal) return false;
     if (this.modal.kind === 'show') return true;
+    if (this.modal.kind === 'feature') {
+      return this.featuredSlots.some((item) => item.recipe_id === this.replaceId);
+    }
     if (!this.reasonOptions.some((item) => item.value === this.reason)) return false;
     if (this.noteNeedsValue && !this.note.trim()) return false;
     return this.note.trim().length <= this.noteMax;
@@ -292,6 +286,7 @@ export class AdminRecipesComponent implements OnInit {
     const title = this.modal?.row.title || 'this recipe';
     if (this.modal?.kind === 'hide') return `Hide “${title}”?`;
     if (this.modal?.kind === 'show') return `Show “${title}” on the Recipes page?`;
+    if (this.modal?.kind === 'feature') return `Feature “${title}” on the homepage?`;
     return `Delete “${title}”?`;
   }
 
@@ -301,6 +296,7 @@ export class AdminRecipesComponent implements OnInit {
       return this.modal.row.source === 'community' ? 'Hide & notify' : 'Hide recipe';
     }
     if (this.modal?.kind === 'show') return 'Show recipe';
+    if (this.modal?.kind === 'feature') return 'Replace & feature';
     return this.modal?.row.source === 'community' ? 'Delete & notify' : 'Delete recipe';
   }
 
@@ -315,6 +311,11 @@ export class AdminRecipesComponent implements OnInit {
     this.savingModal = true;
     this.modalError = '';
     const note = this.note.trim();
+
+    if (modal.kind === 'feature') {
+      this.commitFeatured(modal.row, true, this.replaceId, true);
+      return;
+    }
 
     if (modal.kind === 'delete') {
       this.recipesApi.deleteRecipe(modal.row.recipe_id, { reason: this.reason, note }).subscribe({
@@ -355,20 +356,82 @@ export class AdminRecipesComponent implements OnInit {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
+  private commitFeatured(
+    row: AdminRecipeRow,
+    featured: boolean,
+    replaceRecipeId?: string,
+    fromModal = false
+  ): void {
+    const previous = row.featured;
+    const replaceId = replaceRecipeId || '';
+    this.savingId = row.recipe_id;
+    this.error = '';
+    if (!fromModal) row.featured = featured;
+    this.recipesApi.setFeatured(row.recipe_id, featured, replaceId || null).subscribe({
+      next: (response) => {
+        if (replaceId) {
+          const replaced = this.rows.find((item) => item.recipe_id === replaceId);
+          if (replaced) this.replaceRow({ ...replaced, featured: false });
+        }
+        this.replaceRow(response.data);
+        this.savingId = null;
+        if (fromModal) this.finishModal();
+        this.showToast(response.data, previous);
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        if (!fromModal) row.featured = previous;
+        this.savingId = null;
+        const message = error?.error?.error || `Could not update “${row.title}”.`;
+        if (fromModal) {
+          this.modalError = message;
+          this.savingModal = false;
+        } else {
+          this.error = message;
+        }
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
   private replaceRow(next: AdminRecipeRow): void {
+    const previous = this.rows.find((row) => row.recipe_id === next.recipe_id);
     // Soft-deleted recipes stay listed but sink to the bottom (matches admin API sort).
     if (next.deleted || next.moderation_status === 'deleted') {
       this.rows = [...this.rows.filter((row) => row.recipe_id !== next.recipe_id), next];
+    } else {
+      this.rows = this.rows.map((row) => row.recipe_id === next.recipe_id ? next : row);
+    }
+    if (!previous || previous.featured !== next.featured) this.syncFeaturedSlots(next);
+  }
+
+  private syncFeaturedSlots(next: AdminRecipeRow): void {
+    if (next.featured) {
+      if (this.featuredSlots.some((item) => item.recipe_id === next.recipe_id)) return;
+      this.featuredSlots = [
+        ...this.featuredSlots,
+        { recipe_id: next.recipe_id, title: next.title, image_url: next.image_url }
+      ].slice(0, this.featuredLimit);
       return;
     }
-    this.rows = this.rows.map((row) => row.recipe_id === next.recipe_id ? next : row);
+    this.featuredSlots = this.featuredSlots.filter((item) => item.recipe_id !== next.recipe_id);
   }
 
   private openModal(kind: RecipeModalKind, row: AdminRecipeRow): void {
     this.modal = { kind, row };
     this.modalError = '';
     this.note = '';
-    const options = kind === 'show' ? [] : reasonsFor(kind, row.source);
+    this.replaceId = '';
+    if (kind === 'feature' && this.featuredSlots.length < this.featuredLimit) {
+      this.featuredSlots = this.rows
+        .filter((item) => rowStatus(item) === 'published' && item.featured)
+        .map((item) => ({
+          recipe_id: item.recipe_id,
+          title: item.title,
+          image_url: item.image_url
+        }));
+    }
+    const options = kind === 'show' || kind === 'feature' ? [] : reasonsFor(kind, row.source);
     this.reason = options[0]?.value || '';
   }
 
@@ -376,6 +439,7 @@ export class AdminRecipesComponent implements OnInit {
     this.savingModal = false;
     this.modal = null;
     this.modalError = '';
+    this.replaceId = '';
     this.cdr.markForCheck();
   }
 

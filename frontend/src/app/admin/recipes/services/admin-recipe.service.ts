@@ -139,8 +139,15 @@ export class AdminRecipeService {
     this.list().subscribe({ error: () => undefined });
   }
 
-  setFeatured(recipeId: string, featured: boolean): Observable<{ data: AdminRecipeRow }> {
-    return this.http.patch<{ data: AdminRecipeRow }>(`/api/admin/recipes/${recipeId}`, { featured }).pipe(
+  setFeatured(
+    recipeId: string,
+    featured: boolean,
+    replaceRecipeId?: string | null
+  ): Observable<{ data: AdminRecipeRow }> {
+    return this.http.patch<{ data: AdminRecipeRow }>(`/api/admin/recipes/${recipeId}`, {
+      featured,
+      ...(replaceRecipeId ? { replace_recipe_id: replaceRecipeId } : {})
+    }).pipe(
       tap(() => this.invalidate())
     );
   }

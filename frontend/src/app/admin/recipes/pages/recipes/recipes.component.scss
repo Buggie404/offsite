@@ -628,6 +628,10 @@ $brown: var(--color-warm-brown, #544a40);
     cursor: pointer;
   }
 
+  &.is-empty select {
+    color: rgba(84, 74, 64, 0.55);
+  }
+
   svg {
     position: absolute;
     top: 12px;

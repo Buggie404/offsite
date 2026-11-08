@@ -57,9 +57,10 @@
 
   <section class="card" aria-label="Recipes table">
     <p class="state-message" *ngIf="loading">Loading recipes…</p>
-    <p class="state-message" *ngIf="!loading && !error && !visibleRows.length">No recipes match these filters.</p>
+    <p class="state-message" *ngIf="!loading && !rows.length && !error">No recipes yet.</p>
+    <p class="state-message" *ngIf="!loading && rows.length && !visibleRows.length">No recipes match these filters.</p>
 
-    <table class="recipe-table" *ngIf="!loading && !error && visibleRows.length">
+    <table class="recipe-table" *ngIf="!loading && visibleRows.length">
       <thead>
         <tr>
           <th>Recipe</th>
@@ -193,8 +194,11 @@
             Check featured and product links first — those references leave with it.
           </ng-container>
         </p>
+        <p class="modal__copy" *ngIf="dialog.kind === 'feature'">
+          The homepage already has {{ featuredLimit }} recipes. Choose which one “{{ dialog.row.title }}” replaces.
+        </p>
 
-        <div class="callout" *ngIf="dialog.kind !== 'show' && dialog.row.source === 'community'">
+        <div class="callout" *ngIf="dialog.kind !== 'show' && dialog.kind !== 'feature' && dialog.row.source === 'community'">
           <svg lucideTriangleAlert [size]="16" aria-hidden="true"></svg>
           <p *ngIf="dialog.kind === 'hide'">
             Community recipe<span *ngIf="ownerHandle(dialog.row)"> by <strong>{{ ownerHandle(dialog.row) }}</strong></span>.
@@ -205,6 +209,17 @@
             The recipe is deleted and the owner is notified. The original post stays in Community.
           </p>
         </div>
+
+        <label class="field" *ngIf="dialog.kind === 'feature'">
+          <span>Replace on the homepage</span>
+          <span class="reason-select" [class.is-empty]="!replaceId">
+            <select [ngModel]="replaceId" (ngModelChange)="replaceId = $event" aria-label="Recipe to replace">
+              <option value="">Choose a recipe</option>
+              <option *ngFor="let item of featuredSlots" [value]="item.recipe_id">{{ item.title }}</option>
+            </select>
+            <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+          </span>
+        </label>
 
         <ng-container *ngIf="dialog.kind === 'hide' || dialog.kind === 'delete'">
           <label class="field">
