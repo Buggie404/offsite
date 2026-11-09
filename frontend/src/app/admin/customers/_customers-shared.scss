@@ -113,29 +113,25 @@ $shadow-card: 0 2px 10px rgba(84, 74, 64, 0.07);
     color: var(--color-warm-brown);
   }
 
-  // Membership tiers: same colors as the customer's Rewards badge
+  // Match the membership badges on the account profile.
   &--tier-seed {
-    border: 1px solid #544a40;
-    background: #faf0eb;
-    color: #1f2328;
+    background: var(--color-wheat);
+    color: var(--color-warm-brown);
   }
 
   &--tier-leaf {
-    border: 1px solid var(--color-sage-deep);
     background: var(--color-sage);
     color: var(--color-forest-green);
   }
 
   &--tier-bloom {
-    border: 1px solid #efb5d0;
-    background: #ffdcec;
-    color: #2e2208;
+    background: var(--color-blush-pink);
+    color: var(--color-near-black);
   }
 
   &--tier-zen {
-    border: 1px solid rgba(220, 227, 232, 0.6);
-    background: #2a2f35;
-    color: #ffffff;
+    background: var(--color-forest-green);
+    color: var(--color-cream);
   }
 }
 

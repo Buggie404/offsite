@@ -126,6 +126,7 @@ function initSocket(server) {
           await ChatConversation.findOne({ conversation_id: data.conversation_id });
         if (conversation?.status === 'closed' && socket.user?.role === 'customer') {
           conversation = await require('./chat-lifecycle.service').reopenForCustomer(conversation, socket.user.chat_user_id) || conversation;
+          if (conversation.status !== 'closed') socket.join(`chat_${conversation.conversation_id}`);
         }
         if (!conversation || conversation.status === 'closed' ||
             !(await canAccessConversation(socket.user, conversation))) {
@@ -266,19 +267,24 @@ function emitNewOrder(order) {
   }
 }
 
-// Chat events: new handoffs / status changes go to the agent queue; messages go to the conversation room.
+// Deliver conversation data only to its customer and current agent, including after transfers.
 function emitChatEvent(event, payload, conversation = null) {
   if (!io || !payload) return;
-  if (event === 'chat_message') {
-    io.to(`chat_${payload.conversation_id}`).emit(event, payload);
-    // Let agents' list refresh previews even if they haven't opened the thread.
-    io.to('chat_agents').emit('chat_updated_hint', { conversation_id: payload.conversation_id });
-    return;
+  const chat = conversation || payload;
+  const { transfers, ...publicPayload } = payload;
+  for (const socket of io.sockets.sockets.values()) {
+    const user = socket.user;
+    if (!user) continue;
+    const identities = [user.user_id, user.chat_user_id, user.mongo_user_id].filter(Boolean);
+    const customer = user.role === 'customer' && identities.includes(chat.customer_id);
+    const agent = AGENT_ROLES.includes(user.role) && (user.role === 'admin_cc' || identities.includes(chat.agent_id) || (chat.status === 'waiting' && !chat.agent_id));
+    if ((customer || agent) && (event !== 'chat_message' || socket.rooms.has(`chat_${payload.conversation_id}`))) {
+      const visiblePayload = user.role === 'admin_cc' ? publicPayload : { ...publicPayload, ...(Object.hasOwn(publicPayload, 'closed_by_name') ? { closed_by_name: null } : {}), ...(Object.hasOwn(publicPayload, 'agent_name') ? { agent_name: null } : {}) };
+      socket.emit(event, visiblePayload);
+    }
   }
-    const { transfers, ...customerPayload } = payload;
-    io.to('chat_agents').emit(event, customerPayload);
-    if (payload.conversation_id) io.to(`chat_${payload.conversation_id}`).emit(event, customerPayload);
-    if (payload.customer_id) io.to(`user_${payload.customer_id}`).emit(event, customerPayload);
+  // Shared queue listeners refresh through the scoped API; hints contain no conversation data.
+  io.to('chat_agents').emit('chat_updated_hint', {});
 }
 
 function emitChatHandover(chatSession, agentUserIds = [], note = null) {

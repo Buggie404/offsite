@@ -110,27 +110,27 @@
             @for (conversation of conversations; track conversation.conversation_id) {
               <button type="button" [class.active]="selectedConversation?.conversation_id === conversation.conversation_id" [attr.aria-current]="selectedConversation?.conversation_id === conversation.conversation_id ? 'true' : null" (click)="selectConversation(conversation)">
                 <span><strong>{{ shortDate(conversation.last_message_at) }} <time>{{ conversation.last_message_at | date:'HH:mm' }}</time></strong><span class="chip" [class.chip--active]="conversation.status === 'closed'" [class.chip--open]="conversation.status === 'open'">{{ conversationLabel(conversation) }}</span></span>
-                <small>{{ conversation.last_message_preview || 'Conversation' }} · {{ conversation.agent_name || 'AI only' }}</small>
+                <small>{{ conversation.last_message_preview || 'Conversation' }}@if (isSenior) { &middot; {{ conversation.agent_name || 'AI only' }} }</small>
               </button>
             }
           </nav>
           <div class="conversation-preview">
             @if (selectedConversation; as conversation) {
-              @if (conversation.summary) { <p class="conversation-summary"><strong>Summary@if (conversation.agent_name) { by {{ conversation.agent_name }} }:</strong> {{ conversation.summary }}</p> }
+              @if (conversation.summary) { <p class="conversation-summary"><strong>Summary@if (isSenior && conversation.agent_name) { by {{ conversation.agent_name }} }:</strong> {{ conversation.summary }}</p> }
               <div class="conversation-thread" aria-label="Conversation history" [attr.aria-busy]="messagesLoading">
                 @if (messagesLoading) { <div class="state">Loading messages...</div> }
                 @else if (messagesError) { <div class="state state--error" role="alert">{{ messagesError }} <button class="link-btn" type="button" (click)="selectConversation(conversation)">Try again</button></div> }
                 @else {
                   @for (message of conversationMessages; track message._id || $index) {
                     <div class="history-message" [class.history-message--agent]="message.sender_type === 'agent'" [class.history-message--system]="message.sender_type === 'system'">
-                      <small>{{ message.sender_type === 'customer' ? customer.profile_name : message.sender_type === 'agent' ? conversation.agent_name || 'Support' : message.sender_type === 'bot' ? 'Offsite AI' : 'System' }} · {{ message.created_at | date:'MMM d, HH:mm' }}</small>
+                      <small>{{ message.sender_type === 'customer' ? customer.profile_name : message.sender_type === 'agent' ? (isSenior ? conversation.agent_name || 'Support' : 'Support') : message.sender_type === 'bot' ? 'Offsite AI' : 'System' }} · {{ message.created_at | date:'MMM d, HH:mm' }}</small>
                       <p>{{ message.content }}</p>
                       @if (message.metadata?.orderCard; as order) { <div class="history-order">Order #{{ order.code || order.order_id }} · {{ order.status || order.order_status }}</div> }
                     </div>
                   } @empty { <div class="state">No messages in this conversation.</div> }
                 }
               </div>
-              <footer class="conversation-footer"><span>Read only here</span><a class="btn btn--outline" routerLink="/admin/chat" [queryParams]="{ conversation: conversation.conversation_id }">Continue in support chat ↗</a></footer>
+              <footer class="conversation-footer"><span>Read only here</span><a class="btn btn--outline" routerLink="/admin/chat" [queryParams]="{ conversation: conversation.conversation_id }">Continue in support chat <svg lucideArrowRight [size]="16" aria-hidden="true"></svg></a></footer>
             }
           </div>
         }

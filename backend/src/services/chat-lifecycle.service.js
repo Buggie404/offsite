@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const ChatConversation = require('../models/ChatConversation');
 const AiChatSession = require('../models/AiChatSession');
-const { canReopen, supportOpen, MAX_AGENT_CHATS, IDLE_CLOSE_MS, REOPEN_MS } = require('./chat-policy');
+const { canReopen, supportOpen, IDLE_CLOSE_MS, REOPEN_MS } = require('./chat-policy');
 
 async function closeResolvedChat(chat, { outcome = 'resolved', summary = '', actorId = null, actorName = null, actorRole = null } = {}) {
   if (!['resolved', 'forwarded', 'no_response', 'spam'].includes(outcome) || typeof summary !== 'string' || summary.length > 1000) throw Object.assign(new Error('Select a valid outcome and keep the summary within 1000 characters.'), { status: 400 });
@@ -23,32 +23,32 @@ async function closeResolvedChat(chat, { outcome = 'resolved', summary = '', act
   } finally { await transaction.endSession(); }
 }
 
+// A follow-up is a new unassigned session; the closed conversation stays immutable.
 async function reopenForCustomer(chat, customerId) {
   if (!chat || chat.customer_id !== customerId || !canReopen(chat) || !supportOpen()) return null;
   const transaction = await ChatConversation.db.startSession();
-  let reopened = null;
+  let next = null;
   try {
     await transaction.withTransaction(async () => {
-      reopened = null;
       const current = await ChatConversation.findOne({ conversation_id: chat.conversation_id, status: 'closed' }).session(transaction);
       if (!current || !canReopen(current)) return;
-      const id = String(current.agent_id || '');
-      const staff = id ? await User.findOne({ $or: [{ user_id: id }, ...(/^[a-f0-9]{24}$/i.test(id) ? [{ _id: id }] : [])], role: { $in: ['cskh', 'admin_cc'] }, status: 'active' }).session(transaction).lean() : null;
-      let agentId = null;
-      if (staff) {
-        await User.updateOne({ _id: staff._id }, { $inc: { chat_assignment_version: 1 } }, { session: transaction });
-        const count = await ChatConversation.countDocuments({ status: 'open', agent_id: { $in: [staff.user_id, String(staff._id)] } }).session(transaction);
-        if (staff.role === 'admin_cc' || count < MAX_AGENT_CHATS) agentId = staff.user_id;
+      next = await ChatConversation.findOne({ customer_id: customerId, status: { $in: ['waiting', 'open'] } }).session(transaction);
+      if (next) return;
+      const aiSessionId = current.ai_session_id;
+      if (aiSessionId) {
+        await ChatConversation.updateOne({ conversation_id: current.conversation_id, ai_session_id: aiSessionId }, { $set: { archived_ai_session_id: aiSessionId, ai_session_id: null } }, { session: transaction });
       }
-      reopened = await ChatConversation.findOneAndUpdate({ conversation_id: current.conversation_id, status: 'closed' }, { $set: {
-        status: agentId ? 'open' : 'waiting', agent_id: agentId, closed_at: null, close_reason: null, close_outcome: null, closed_by_name: null,
-        waiting_since: new Date(), last_message_at: new Date()
-      } }, { new: true, session: transaction });
-      if (reopened?.ai_session_id) await AiChatSession.updateOne({ session_id: reopened.ai_session_id }, { $set: { status: agentId ? 'in_progress' : 'waiting', assigned_admin_id: agentId } }, { session: transaction });
+      [next] = await ChatConversation.create([{
+        conversation_id: require('./chat.service').newConversationId(), customer_id: customerId,
+        status: 'waiting', agent_id: null, ai_session_id: aiSessionId || null
+      }], { session: transaction });
+      if (aiSessionId) await AiChatSession.updateOne({ session_id: aiSessionId }, { $set: {
+        status: 'waiting', assigned_admin_id: null, support_conversation_id: next.conversation_id, support_reopen_until: null
+      } }, { session: transaction });
     });
   } finally { await transaction.endSession(); }
-  if (reopened) require('./socket.service').emitChatEvent('chat_updated', reopened.toObject());
-  return reopened;
+  if (next) require('./socket.service').emitChatEvent('chat_handoff', next.toObject());
+  return next;
 }
 
 async function closeIdleChats(now = new Date()) {

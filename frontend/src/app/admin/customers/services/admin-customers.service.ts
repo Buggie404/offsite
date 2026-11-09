@@ -8,6 +8,7 @@ export type CustomerStatus = 'active' | 'suspended';
 export type CustomerStatusFilter = CustomerStatus | 'restricted' | '';
 
 export interface CustomerRow {
+  can_view_detail?: boolean;
   user_id: string;
   profile_name: string;
   community_name: string | null;
@@ -60,6 +61,7 @@ export interface CustomerDetail extends CustomerRow {
 }
 
 export interface CustomerListQuery {
+  assignment?: 'mine' | 'all';
   page: number;
   q?: string;
   tier?: CustomerTier | '';
@@ -81,20 +83,21 @@ export class AdminCustomersService {
   private http = inject(HttpClient);
   private readonly api = '/api/admin/customers';
 
-  list(query: CustomerListQuery): Observable<{ data: CustomerRow[]; total: number; page: number; limit: number }> {
+  list(query: CustomerListQuery): Observable<{ data: CustomerRow[]; total: number; page: number; limit: number; assigned_total?: number }> {
     const params: Record<string, string> = { page: String(query.page) };
+    if (query.assignment) params['assignment'] = query.assignment;
     if (query.q) params['q'] = query.q;
     if (query.tier) params['tier'] = query.tier;
     if (query.status) params['status'] = query.status;
-    return this.http.get<{ data: CustomerRow[]; total: number; page: number; limit: number }>(this.api, { params });
+    return this.http.get<{ data: CustomerRow[]; total: number; page: number; limit: number; assigned_total?: number }>(this.api, { params });
   }
 
   get(userId: string): Observable<{ data: CustomerDetail }> {
     return this.http.get<{ data: CustomerDetail }>(`${this.api}/${encodeURIComponent(userId)}`);
   }
 
-  orders(userId: string, page: number): Observable<{ data: CustomerOrder[]; total: number; page: number; limit: number }> {
-    return this.http.get<{ data: CustomerOrder[]; total: number; page: number; limit: number }>(
+  orders(userId: string, page: number): Observable<{ data: CustomerOrder[]; total: number; page: number; limit: number; assigned_total?: number }> {
+    return this.http.get<{ data: CustomerOrder[]; total: number; page: number; limit: number; assigned_total?: number }>(
       `${this.api}/${encodeURIComponent(userId)}/orders`, { params: { page: String(page) } }
     );
   }

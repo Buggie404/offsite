@@ -4,6 +4,7 @@ export function customerKey(chat: ChatConversation): string {
   return chat.customer?.user_id || chat.customer_id;
 }
 
+// One inbox row per customer; closed sessions stay available in the timeline.
 export function groupChats(chats: ChatConversation[]): ChatConversation[] {
   const groups = new Map<string, ChatConversation[]>();
   for (const chat of chats) {
@@ -16,6 +17,6 @@ export function groupChats(chats: ChatConversation[]): ChatConversation[] {
     const target = group.find(chat => chat.status === 'open' || chat.status === 'waiting') || latest;
     return { ...target, last_message_at: latest.last_message_at,
       last_message_preview: latest.last_message_preview,
-      unread_agent: group.reduce((count, chat) => count + chat.unread_agent, 0) };
+      unread_agent: group.reduce((sum, chat) => sum + chat.unread_agent, 0) };
   }).sort((a, b) => Date.parse(b.last_message_at) - Date.parse(a.last_message_at));
 }

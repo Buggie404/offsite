@@ -4,9 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
-import { LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideSearch, LucideUsers } from '@lucide/angular';
+import { LucideLock, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideSearch, LucideUsers } from '@lucide/angular';
 import { avatarInitials } from '../../../../shared/utils/avatar';
 import { AdminCustomersService, CustomerRow, CustomerStatusFilter, CustomerTier } from '../../services/admin-customers.service';
+import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { pageCount, pageList } from '../../pagination';
 
 const PAGE_SIZE = 20;
@@ -14,11 +15,16 @@ const PAGE_SIZE = 20;
 @Component({
   selector: 'app-admin-customers-listing',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideSearch, LucideUsers],
+  imports: [CommonModule, FormsModule, LucideLock, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideSearch, LucideUsers],
   templateUrl: './customers-listing.component.html',
   styleUrl: './customers-listing.component.scss'
 })
 export class CustomersListingComponent implements OnInit {
+  private auth = inject(AdminAuthService);
+  get isCskh(): boolean { return this.serviceCustomers && this.auth.getUser()?.role === 'cskh'; }
+  assignment: 'mine' | 'all' = 'all';
+  assignedTotal = 0;
+
   private customersService = inject(AdminCustomersService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -49,6 +55,7 @@ export class CustomersListingComponent implements OnInit {
   ngOnInit(): void {
     // Filters live in the URL so "Back to customers" returns to the same list.
     const params = this.route.snapshot.queryParamMap;
+    this.assignment = this.isCskh && params.get('assignment') !== 'all' ? 'mine' : 'all';
     this.q = params.get('q') || '';
     this.tier = (this.tiers.includes(params.get('tier') as CustomerTier) ? params.get('tier') : '') as CustomerTier | '';
     this.status = (['active', 'restricted', 'suspended'].includes(params.get('status') || '') ? params.get('status') : '') as CustomerStatusFilter;
@@ -60,7 +67,9 @@ export class CustomersListingComponent implements OnInit {
     this.load();
     if (this.serviceCustomers) this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       const query = params.get('q') || '';
-      if (query === this.q) return;
+      const assignment = this.isCskh && params.get('assignment') !== 'all' ? 'mine' : 'all';
+      if (query === this.q && assignment === this.assignment) return;
+      this.assignment = assignment;
       this.q = query;
       this.page = Math.max(Number(params.get('page')) || 1, 1);
       this.load();
@@ -71,11 +80,12 @@ export class CustomersListingComponent implements OnInit {
     const version = ++this.requestVersion;
     this.loading = true;
     this.error = '';
-    this.customersService.list({ page: this.page, q: this.q.trim(), tier: this.tier, status: this.status }).subscribe({
+    this.customersService.list({ page: this.page, q: this.q.trim(), tier: this.tier, status: this.status, ...(this.isCskh ? { assignment: this.assignment } : {}) }).subscribe({
       next: (res) => {
         if (version !== this.requestVersion) return;
         this.rows = res.data;
         this.total = res.total;
+        this.assignedTotal = res.assigned_total ?? 0;
         this.page = res.page;
         this.loading = false;
         this.cdr.markForCheck();
@@ -92,6 +102,11 @@ export class CustomersListingComponent implements OnInit {
   onSearch(value: string): void {
     this.q = value;
     this.search$.next(value.trim());
+  }
+
+  setAssignment(value: 'mine' | 'all'): void {
+    this.assignment = value;
+    this.applyFilters();
   }
 
   setTier(tier: CustomerTier | ''): void {
@@ -114,11 +129,12 @@ export class CustomersListingComponent implements OnInit {
     void this.router.navigate([], {
       relativeTo: this.route,
       replaceUrl: true,
-      queryParams: { q: this.q.trim() || null, tier: this.tier || null, status: this.status || null, page: this.page > 1 ? this.page : null }
+      queryParams: { assignment: this.isCskh ? this.assignment : null, q: this.q.trim() || null, tier: this.tier || null, status: this.status || null, page: this.page > 1 ? this.page : null }
     });
   }
 
   open(row: CustomerRow): void {
+    if (row.can_view_detail === false) return;
     void this.router.navigate([this.route.snapshot.data['serviceCustomers'] ? '/admin/service-customers' : '/admin/customers', row.user_id], { queryParamsHandling: 'preserve' });
   }
 

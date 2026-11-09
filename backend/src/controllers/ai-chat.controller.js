@@ -1011,7 +1011,12 @@ exports.handleChatMessage = async (req, res) => {
       if (previous?.status === 'closed' && previous.close_reason === 'resolved') {
         const customerId = await require('../services/ai-chat-handover.service').customerIdFor(chatSession);
         const reopened = await require('../services/chat-lifecycle.service').reopenForCustomer(previous, customerId);
-        if (reopened) chatSession.status = reopened.status === 'open' ? 'in_progress' : 'waiting';
+        if (reopened) {
+          chatSession.status = reopened.status === 'open' ? 'in_progress' : 'waiting';
+          chatSession.support_conversation_id = reopened.conversation_id;
+          chatSession.assigned_admin_id = reopened.agent_id || null;
+          chatSession.support_reopen_until = null;
+        }
       }
     }
     if (!chatSession.support_conversation_id && ['waiting', 'in_progress'].includes(chatSession.status)) {
@@ -1674,7 +1679,12 @@ exports.requestHandover = async (req, res) => {
       const previous = await require('../models/ChatConversation').findOne({ conversation_id: chatSession.support_conversation_id });
       const customerId = await require('../services/ai-chat-handover.service').customerIdFor(chatSession);
       const reopened = await require('../services/chat-lifecycle.service').reopenForCustomer(previous, customerId);
-      if (reopened) chatSession.status = reopened.status === 'open' ? 'in_progress' : 'waiting';
+      if (reopened) {
+          chatSession.status = reopened.status === 'open' ? 'in_progress' : 'waiting';
+          chatSession.support_conversation_id = reopened.conversation_id;
+          chatSession.assigned_admin_id = reopened.agent_id || null;
+          chatSession.support_reopen_until = null;
+        }
     }
 
     sessionAccess.appendMessage(chatSession, { sender: 'user', text: note });

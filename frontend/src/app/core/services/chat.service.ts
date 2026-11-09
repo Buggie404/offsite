@@ -6,9 +6,12 @@ import { io, Socket } from 'socket.io-client';
 import { AdminAuthService } from '../../admin/auth/services/admin-auth.service';
 
 export interface ChatConversation {
+  created_at?: string;
   conversation_id: string;
   customer_id: string;
   agent_id: string | null;
+  agent_name?: string | null;
+  agent_user_id?: string | null;
   status: 'bot' | 'waiting' | 'open' | 'closed';
   handoff_summary?: string;
   summary?: string;

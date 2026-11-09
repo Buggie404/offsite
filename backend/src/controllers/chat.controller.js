@@ -75,16 +75,14 @@ async function startConversation(req, res) {
   }
 }
 
-// GET /api/chat/conversations  (cskh: waiting queue, own chats, assigned customers; admin_cc: all)
+// GET /api/chat/conversations (agents: unclaimed queue and own conversations)
 async function listConversations(req, res) {
   try {
     const query = {};
     if (req.query.status) query.status = req.query.status;
     if (req.user.role === 'cskh') {
       const userId = await resolveChatUserId(req.user.user_id);
-      const agent = await User.findOne({ user_id: userId }, 'assigned_chat_customer_ids').lean();
       query.$or = [
-        { customer_id: { $in: agent?.assigned_chat_customer_ids || [] } },
         { agent_id: { $in: [...new Set([userId, String(req.user.user_id), req.user.mongo_user_id].filter(Boolean))] } },
         { status: 'waiting', agent_id: null }
       ];
@@ -96,7 +94,10 @@ async function listConversations(req, res) {
       { user_id: { $in: customerIds } }, { _id: { $in: objectIds } }
     ] }, 'user_id profile_name avatar_url membership_tier').lean();
     const byId = new Map(users.flatMap(u => [[u.user_id, u], [String(u._id), u]]));
-    res.json({ data: data.map(c => ({ ...c, response_warning: warningFor(c), waiting_on: c.last_agent_message_at && (!c.last_customer_message_at || new Date(c.last_agent_message_at) >= new Date(c.last_customer_message_at)) ? 'customer' : 'agent', customer: byId.get(c.customer_id) || null })), support_open: supportOpen(), support_hours: '08:00–22:00 (Vietnam time)' });
+    const staff = req.user.role === 'admin_cc'
+      ? await User.find({ role: { $in: ['cskh', 'admin_cc'] } }, 'user_id profile_name').lean() : [];
+    const agents = new Map(staff.flatMap(user => [[user.user_id, user], [String(user._id), user]]));
+    res.json({ data: data.map(c => ({ ...c, closed_by_name: req.user.role === 'admin_cc' ? c.closed_by_name : null, ...(req.user.role === 'admin_cc' ? { agent_name: agents.get(c.agent_id)?.profile_name || c.agent_id || null, agent_user_id: agents.get(c.agent_id)?.user_id || c.agent_id || null } : {}), response_warning: warningFor(c), waiting_on: c.last_agent_message_at && (!c.last_customer_message_at || new Date(c.last_agent_message_at) >= new Date(c.last_customer_message_at)) ? 'customer' : 'agent', customer: byId.get(c.customer_id) || null })), support_open: supportOpen(), support_hours: '08:00–22:00 (Vietnam time)' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to list conversations' });
   }
@@ -158,7 +159,7 @@ async function closeConversation(req, res) {
     const closed = await require('../services/chat-lifecycle.service').closeResolvedChat(conversation, options);
     Object.assign(conversation, closed.toObject());
     if (req.body?.send_closing_message !== false) {
-      const message = await appendMessage(conversation, { sender_type: 'system', content: 'This chat is closed. Reply within 3 hours during support hours to continue with the team, or choose Back to chatbot.' });
+      const message = await appendMessage(conversation, { sender_type: 'system', content: 'This chat is closed. Send another message during support hours to start a new request in the waiting queue, or choose Back to chatbot.' });
       if (message) emitChatEvent('chat_message', message.toObject(), conversation);
     }
     emitChatEvent('chat_updated', conversation.toObject());

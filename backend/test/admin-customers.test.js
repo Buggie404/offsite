@@ -26,20 +26,20 @@ function customerDoc(fields = {}) {
   };
 }
 
-function loadApi({ customer = customerDoc(), users = [] } = {}) {
+function loadApi({ customer = customerDoc(), users = [], assigned = [], chatted = [] } = {}) {
   const seen = { notes: [] };
   const api = load('../src/controllers/admin-customers.controller.js', {
     '../models/User': {
       findOne: (query) => {
         seen.findOne = query;
-        const result = query.role === 'customer' ? customer : { profile_name: 'Khoa Nguyen' };
+        const result = query.role === 'customer' ? customer : { profile_name: 'Khoa Nguyen', user_id: 'STAFF1', assigned_chat_customer_ids: assigned };
         return Object.assign(Promise.resolve(result), { lean: async () => result });
       },
-      countDocuments: async (query) => { seen.listQuery = query; return users.length; },
+      countDocuments: async (query) => { seen.listQuery ??= query; return users.length; },
       find: () => ({ sort: () => ({ skip: () => ({ limit: () => ({ lean: async () => users }) }) }) })
     },
     '../models/Order': { aggregate: async () => [] },
-    '../models/ChatConversation': { aggregate: async () => [] },
+    '../models/ChatConversation': { aggregate: async () => [], distinct: async (field, filter) => { seen.chatScope = filter; return chatted; } },
     '../models/AccountReport': { aggregate: async () => [] },
     '../models/Subscription': {},
     '../models/CustomerNote': {
@@ -150,7 +150,7 @@ test('CSKH can list all registered customers without assignment or conversation 
   assert.equal(seen.listQuery.role, 'customer');
   assert.deepEqual(seen.listQuery.$and, [{ $or: [{ membership_tier: 'Seed' }, { membership_tier: null }, { membership_tier: '' }] }]);
   assert.equal(seen.listQuery.user_id, undefined);
-  assert.equal(seen.findOne, undefined);
+  assert.equal(res.body.data[0].can_view_detail, false);
   assert.ok(seen.listQuery.$or);
 });
 
@@ -179,9 +179,9 @@ test('restricted filter selects active community penalties separately from suspe
   assert.ok(seen.listQuery['community_restriction.until'].$gt instanceof Date);
 });
 
-test('conversation history and message endpoints deny customers outside the CSKH scope', async () => {
+test('CSKH cannot read any detail resource for an unassigned customer', async () => {
   const { api, req } = profileApi();
-  for (const handler of [api.listCustomerConversations, api.listCustomerConversationMessages]) {
+  for (const handler of [api.getCustomer, api.listCustomerOrders, api.listCustomerConversations, api.listCustomerConversationMessages]) {
     const res = response();
     await handler(req, res);
     assert.equal(res.statusCode, 403);
@@ -193,11 +193,11 @@ test('conversation messages are scoped to both customer and conversation and ret
   const seen = {};
   const query = result => ({ lean: async () => result });
   const api = load('../src/controllers/admin-customers.controller.js', {
-    '../models/ChatConversation': { findOne: filter => { seen.conversation = filter; return query({ conversation_id: 'CHAT1' }); } },
+    '../models/ChatConversation': { findOne: filter => { seen.conversation = filter; return query({ conversation_id: 'CHAT1', agent_id: 'STAFF1', status: 'closed' }); } },
     '../models/ChatMessage': { find: filter => { seen.messages = filter; return { sort: order => { seen.sort = order; return { limit: limit => { seen.limit = limit; return query([{ _id: 'NEW' }, { _id: 'OLD' }]); } }; } }; } }
   });
   const res = response();
-  await api.listCustomerConversationMessages({ user: { role: 'admin_cc' }, params: { userId: 'USR1', conversationId: 'CHAT1' } }, res);
+  await api.listCustomerConversationMessages({ user: { role: 'admin_cc', user_id: 'STAFF1' }, params: { userId: 'USR1', conversationId: 'CHAT1' } }, res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(seen.conversation, { customer_id: 'USR1', conversation_id: 'CHAT1' });
   assert.deepEqual(seen.messages, { conversation_id: 'CHAT1' });
@@ -247,10 +247,11 @@ function profileApi({ claimed = false, assigned = [], pastChats = 4 } = {}) {
   const seen = {};
   const query = value => ({ lean: async () => value, sort() { return this; }, skip() { return this; }, limit() { return this; } });
   const api = load('../src/controllers/admin-customers.controller.js', {
-    '../models/User': { findOne: filter => query(filter.role === 'customer'
+    '../models/User': { find: () => query([]), findOne: filter => query(filter.role === 'customer'
       ? customerDoc({ email: 'mai@example.com', createdAt: new Date('2025-03-01') })
       : { _id: '64b7f0c2a1b2c3d4e5f60718', user_id: 'STAFF1', assigned_chat_customer_ids: assigned }) },
     '../models/ChatConversation': {
+      find: filter => { seen.historyFilter = filter; return query([]); },
       exists: async filter => { seen.claimFilter = filter; return claimed ? { _id: 'chat' } : null; },
       countDocuments: async filter => { seen.countFilter = filter; return pastChats; }
     },
@@ -263,7 +264,7 @@ function profileApi({ claimed = false, assigned = [], pastChats = 4 } = {}) {
   return { api, req, seen };
 }
 
-test('claimed customer profile includes real orders, subscriptions and all past chats with canonical and legacy agent ids', async () => {
+test('CSKH customer profile includes real orders, subscriptions and all past chats', async () => {
   const { api, req, seen } = profileApi({ claimed: true });
   const res = response();
   await api.getCustomer(req, res);
@@ -276,16 +277,7 @@ test('claimed customer profile includes real orders, subscriptions and all past 
   assert.equal(res.body.data.ritual_boxes, 2);
   assert.equal(res.body.data.past_chats, 4);
   assert.deepEqual(seen.claimFilter.agent_id.$in.sort(), ['64b7f0c2a1b2c3d4e5f60718', 'STAFF1']);
-  assert.deepEqual(seen.claimFilter.status.$in, ['open', 'closed']);
   assert.deepEqual(seen.countFilter, { customer_id: 'USR00042', status: 'closed' });
-});
-
-test('customer outside explicit assignments and claimed conversations remains forbidden', async () => {
-  const { api, req } = profileApi();
-  const res = response();
-  await api.getCustomer(req, res);
-  assert.equal(res.statusCode, 403);
-  assert.equal(res.body.data, undefined);
 });
 
 test('explicitly assigned customer profile remains readable without claiming', async () => {
@@ -301,4 +293,20 @@ test('claiming grants profile read access without expanding note-writing permiss
   const res = response();
   await api.addCustomerNote(req, res);
   assert.equal(res.statusCode, 403);
+});
+
+test('Assigned to me combines explicit assignments and owned chats before pagination', async () => {
+  const { api, req, seen } = loadApi({ assigned: ['DIRECT'], chatted: ['CHAT', 'DIRECT'], users: [customerDoc({ user_id: 'CHAT' })] });
+  const request = req({}, { assignment: 'mine', status: 'active', q: 'Mai', page: '2' });
+  request.user.role = 'cskh';
+  const res = response();
+  await api.listCustomers(request, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(seen.listQuery.user_id, { $in: ['DIRECT', 'CHAT'] });
+  assert.deepEqual(seen.chatScope.agent_id.$in, ['64b7f0c2a1b2c3d4e5f60718', 'STAFF1']);
+  assert.deepEqual(seen.chatScope.status.$in, ['open', 'closed']);
+  assert.equal(res.body.data[0].can_view_detail, true);
+  assert.equal(res.body.assigned_total, 1);
+  assert.equal(res.body.page, 2);
+  assert.ok(seen.listQuery.$or);
 });

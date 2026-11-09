@@ -8,6 +8,7 @@ const Voucher = require('../models/Voucher');
 const ChatConversation = require('../models/ChatConversation');
 const ChatMessage = require('../models/ChatMessage');
 const AccountReport = require('../models/AccountReport');
+const { canAccessConversation, resolveChatUserId } = require('../services/chat.service');
 
 async function scopedCustomerIds(req) {
   if (req.user.role !== 'cskh') return null;
@@ -25,6 +26,16 @@ async function canReadCustomer(req, userId) {
   if (!staff) return false;
   const agentIds = [...new Set([identity, staff.user_id, staff._id?.toString()].filter(Boolean))];
   return !!(await ChatConversation.exists({ customer_id: String(userId), agent_id: { $in: agentIds }, status: { $in: ['open', 'closed'] } }));
+}
+
+async function readableCustomerIds(req) {
+  if (req.user.role !== 'cskh') return null;
+  const identity = String(req.user.user_id || '');
+  const staff = await User.findOne(/^[a-f0-9]{24}$/i.test(identity) ? { _id: identity } : { user_id: identity }, 'user_id assigned_chat_customer_ids').lean();
+  if (!staff) return [];
+  const agentIds = [...new Set([identity, staff.user_id, staff._id?.toString()].filter(Boolean))];
+  const chatted = await ChatConversation.distinct('customer_id', { agent_id: { $in: agentIds }, status: { $in: ['open', 'closed'] } });
+  return [...new Set([...(staff.assigned_chat_customer_ids || []), ...chatted])];
 }
 
 // Admin Customers (1.4): list, profile, unlock, internal notes.
@@ -71,6 +82,8 @@ async function listCustomers(req, res) {
   try {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const query = { role: 'customer' };
+    const readable = await readableCustomerIds(req);
+    if (readable && req.query.assignment === 'mine') query.user_id = { $in: readable };
     // The customer directory includes all registered customers for CSKH as well.
     // Assignment checks belong to the individual customer resources below.
     if (req.user.role === 'cskh' && req.query.tier === 'Seed') {
@@ -129,7 +142,8 @@ async function listCustomers(req, res) {
     for (const stat of [...chatStats, ...reportStats]) statsById.set(stat._id, { ...statsById.get(stat._id), ...stat });
 
     res.json({
-      data: users.map((user) => customerRow(user, statsById.get(user.user_id))),
+      data: users.map((user) => ({ ...customerRow(user, statsById.get(user.user_id)), can_view_detail: !readable || readable.includes(user.user_id) })),
+      assigned_total: readable ? await User.countDocuments({ ...query, user_id: { $in: readable } }) : undefined,
       total,
       page,
       limit: PAGE_SIZE
@@ -291,14 +305,19 @@ async function listCustomerConversations(req, res) {
   try {
     if (!(await canReadCustomer(req, req.params.userId))) return res.status(403).json({ error: 'This customer is not assigned to you.' });
     if (!(await findCustomer(req.params.userId))) return res.status(404).json({ error: 'Customer not found.' });
-    const conversations = await ChatConversation.find({ customer_id: req.params.userId }).sort({ last_message_at: -1, _id: -1 }).lean();
+    const filter = { customer_id: req.params.userId };
+    if (req.user.role !== 'admin_cc') {
+      const agentId = await resolveChatUserId(req.user.user_id);
+      filter.agent_id = { $in: [...new Set([agentId, String(req.user.user_id), req.user.mongo_user_id].filter(Boolean))] };
+    }
+    const conversations = await ChatConversation.find(filter).sort({ last_message_at: -1, _id: -1 }).lean();
     const agentIds = [...new Set(conversations.map(row => row.agent_id).filter(Boolean))];
     const agents = await User.find({ $or: [{ user_id: { $in: agentIds } }, { _id: { $in: agentIds.filter(id => /^[a-f0-9]{24}$/i.test(id)) } }] }, 'user_id profile_name').lean();
     const names = new Map(agents.flatMap(user => [[user.user_id, user.profile_name], [String(user._id), user.profile_name]]));
     res.json({ data: conversations.map(row => ({
       conversation_id: row.conversation_id, status: row.status, last_message_at: row.last_message_at,
       last_message_preview: row.last_message_preview, summary: row.summary || row.handoff_summary || '',
-      close_outcome: row.close_outcome || null, agent_name: names.get(row.agent_id) || null
+      close_outcome: row.close_outcome || null, agent_name: req.user.role === 'admin_cc' ? names.get(row.agent_id) || null : null
     })) });
   } catch (error) {
     res.status(500).json({ error: 'Failed to load conversations.' });
@@ -310,6 +329,7 @@ async function listCustomerConversationMessages(req, res) {
     if (!(await canReadCustomer(req, req.params.userId))) return res.status(403).json({ error: 'This customer is not assigned to you.' });
     const conversation = await ChatConversation.findOne({ customer_id: req.params.userId, conversation_id: req.params.conversationId }).lean();
     if (!conversation) return res.status(404).json({ error: 'Conversation not found.' });
+    if (!(await canAccessConversation(req.user, conversation))) return res.status(403).json({ error: 'Access denied.' });
     const data = await ChatMessage.find({ conversation_id: conversation.conversation_id }).sort({ created_at: -1, _id: -1 }).limit(500).lean();
     res.json({ data: data.reverse() });
   } catch (error) {

@@ -16,17 +16,15 @@ async function resolveChatUserId(id) {
   return user?.user_id || value;
 }
 
-// CSKH can pick up waiting chats; claimed threads stay scoped to their agent/customer.
+// Agents share the unclaimed queue; assigned conversations belong to their agent.
 async function canAccessConversation(authUser, conversation) {
   if (!authUser || !conversation) return false;
   const userId = await resolveChatUserId(authUser.user_id);
-  if (conversation.customer_id === userId) return true;
   if (authUser.role === 'admin_cc') return true;
-  if (authUser.role === 'cskh') {
+  if (authUser.role === 'customer') return conversation.customer_id === userId;
+  if (AGENT_ROLES.includes(authUser.role)) {
     if (conversation.status === 'waiting' && !conversation.agent_id) return true;
-    if ([userId, String(authUser.user_id), authUser.mongo_user_id].includes(conversation.agent_id)) return true;
-    const agent = await User.findOne({ user_id: userId }, 'assigned_chat_customer_ids').lean();
-    return (agent?.assigned_chat_customer_ids || []).includes(conversation.customer_id);
+    return [userId, String(authUser.user_id), authUser.mongo_user_id].filter(Boolean).includes(conversation.agent_id);
   }
   return false;
 }

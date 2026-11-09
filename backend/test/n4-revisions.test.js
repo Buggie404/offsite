@@ -15,30 +15,32 @@ function load(relative, mocks) {
 }
 const response = () => ({ statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; } });
 
-test('customer reopening returns to the same agent when there is room, otherwise queues without exceeding five', async () => {
+test('customer follow-up creates an unassigned waiting session and preserves the closed chat', async () => {
   const policy = require('../src/services/chat-policy');
-  let count = 5, sessionUpdate;
-  const chat = { conversation_id: 'CHAT1', customer_id: 'USR1', agent_id: 'legacy', status: 'closed', close_reason: 'resolved', closed_at: new Date(Date.now() - 1000), ai_session_id: 'AI1' };
+  let sessionUpdate, archived, created = 0, active = null;
+  const chat = { conversation_id: 'CHAT1', customer_id: 'USR1', agent_id: 'STAFF1', status: 'closed', close_reason: 'resolved', close_outcome: 'resolved', closed_at: new Date(Date.now() - 1000), ai_session_id: 'AI1' };
   const transaction = { withTransaction: async fn => fn(), endSession: async () => {} };
   const api = load('../src/services/chat-lifecycle.service.js', {
     './chat-policy': { ...policy, supportOpen: () => true },
-    '../models/User': { findOne: () => ({ session: () => ({ lean: async () => ({ _id: 'legacy', user_id: 'STAFF1', role: 'cskh' }) }) }), updateOne: async () => {} },
     '../models/ChatConversation': {
-      db: { startSession: async () => transaction }, findOne: () => ({ session: async () => chat }),
-      countDocuments: () => ({ session: async () => count }),
-      findOneAndUpdate: async (_, update) => { const result = { ...chat, ...update.$set }; return { ...result, toObject: () => result }; }
+      db: { startSession: async () => transaction },
+      findOne: filter => ({ session: async () => filter.conversation_id ? chat : active }),
+      updateOne: async (_, update) => { archived = update.$set; },
+      create: async docs => { created++; active = { ...docs[0], toObject() { return { ...this }; } }; return [active]; }
     },
     '../models/AiChatSession': { updateOne: async (_, update) => { sessionUpdate = update.$set; } },
     './socket.service': { emitChatEvent() {} }
   });
   assert.equal(await api.reopenForCustomer(chat, 'OTHER'), null);
-  let result = await api.reopenForCustomer(chat, 'USR1');
+  const result = await api.reopenForCustomer(chat, 'USR1');
+  assert.notEqual(result.conversation_id, 'CHAT1');
   assert.equal(result.status, 'waiting'); assert.equal(result.agent_id, null);
-  assert.equal(sessionUpdate.status, 'waiting');
-  count = 4;
-  result = await api.reopenForCustomer(chat, 'USR1');
-  assert.equal(result.status, 'open'); assert.equal(result.agent_id, 'STAFF1');
-  assert.equal(sessionUpdate.assigned_admin_id, 'STAFF1');
+  assert.equal(chat.status, 'closed'); assert.equal(chat.agent_id, 'STAFF1');
+  assert.deepEqual(archived, { archived_ai_session_id: 'AI1', ai_session_id: null });
+  assert.equal(sessionUpdate.support_conversation_id, result.conversation_id);
+  assert.equal(sessionUpdate.assigned_admin_id, null);
+  assert.equal(await api.reopenForCustomer(chat, 'USR1'), result);
+  assert.equal(created, 1);
 });
 
 test('idle expiry closes chat and AI support together, but skips a chat with newer activity', async () => {
@@ -65,14 +67,21 @@ test('idle expiry closes chat and AI support together, but skips a chat with new
   assert.equal(syncs, 1); assert.equal(emits, 1);
 });
 
-test('internal transfer notes are never broadcast to customer or shared agent socket rooms', () => {
+test('realtime chat data reaches current agent, customer and senior admins after transfer', () => {
   const emissions = [];
-  class Server { use() {} on() {} to(room) { return { emit(event, payload) { emissions.push({ room, payload }); } }; } }
+  const client = (id, role, appId) => ({ user: { user_id: id, role, chat_user_id: appId }, rooms: new Set(['chat_CHAT1']), emit(event, payload) { emissions.push({ id, event, payload }); } });
+  class Server {
+    sockets = { sockets: new Map([['a', client('mongo-a', 'cskh', 'STAFF1')], ['b', client('mongo-b', 'admin_cc', 'STAFF2')], ['c', client('mongo-c', 'customer', 'USR1')], ['d', client('mongo-d', 'admin_cc', 'SENIOR')]]) };
+    use() {} on() {} to() { return { emit() {} }; }
+  }
   const socket = load('../src/services/socket.service.js', { 'socket.io': { Server } });
   socket.initSocket({});
-  socket.emitChatEvent('chat_updated', { conversation_id: 'CHAT1', customer_id: 'USR1', transfers: [{ note: 'Private context' }] });
-  assert.equal(emissions.length, 3);
+  socket.emitChatEvent('chat_updated', { conversation_id: 'CHAT1', customer_id: 'USR1', agent_id: 'STAFF2', status: 'open', transfers: [{ note: 'Private context' }] });
+  assert.deepEqual(emissions.map(row => row.id), ['mongo-b', 'mongo-c', 'mongo-d']);
   assert.ok(emissions.every(row => !Object.hasOwn(row.payload, 'transfers')));
+  emissions.length = 0;
+  socket.emitChatEvent('chat_message', { conversation_id: 'CHAT1', content: 'Private reply' }, { customer_id: 'USR1', agent_id: 'STAFF2', status: 'open' });
+  assert.deepEqual(emissions.map(row => row.id), ['mongo-b', 'mongo-c', 'mongo-d']);
 });
 
 test('CSKH customer list stays scoped and profile outside assignments and owned chats is denied', async () => {

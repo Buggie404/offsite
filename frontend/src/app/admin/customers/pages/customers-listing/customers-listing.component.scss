@@ -202,3 +202,7 @@
     width: 100%;
   }
 }
+
+.assignment-filter { width: fit-content; margin-bottom: 16px; }
+.customers-table tbody tr.detail-locked { cursor: default; }
+.detail-locked .col-go { color: var(--color-warm-brown); }

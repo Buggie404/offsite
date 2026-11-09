@@ -19,6 +19,16 @@
             (click)="setFilter(f.value)">{{ f.label }} ({{ tabCount(f.value) }})</button>
         }
       </div>
+      @if (isSenior) {
+        <label class="chat-assignee-filter">Assigned admin
+          <select aria-label="Assigned admin" [value]="assignedAgent" (change)="setAssignedAgent($any($event.target).value)">
+            <option value="">All admins</option>
+            @for (agent of inboxAgents; track agent.user_id) {
+              <option [value]="agent.user_id">{{ agent.name }} ({{ assignedCount(agent.user_id) }} active)</option>
+            }
+          </select>
+        </label>
+      }
       <div class="chat-options">
         <label>Sort
           <select [value]="sortOrder" (change)="sortOrder = $any($event.target).value">
@@ -45,8 +55,9 @@
         <span class="chat-item__body">
           <span class="chat-item__top">
             <strong>{{ customerName(c) }}</strong>
-            <time>{{ c.last_message_at | date: 'HH:mm' }}</time>
+            <time>{{ c.last_message_at | date: 'dd/MM/yyyy HH:mm':'+0700' }}</time>
           </span>
+          @if (isSenior && c.agent_name) { <span class="chat-assignee-name">{{ c.agent_name }}</span> }
           <span class="chat-item__preview">{{ c.last_message_preview || 'No messages yet' }}</span>
           @if (c.response_warning) { <span class="chat-warning">{{ c.waiting_on === 'customer' ? 'Customer has not replied' : 'Needs agent reply' }} · {{ c.response_warning === 'overdue' ? '15+ min' : '5+ min' }}</span> }
           <span class="chat-source" [class.chat-source--ai]="c.status !== 'closed' && source(c) === 'ai'" [class.chat-source--closed]="c.status === 'closed'">{{ c.status === 'closed' ? outcomeLabel(c) : source(c) === 'ai' ? 'AI handover' : 'Direct' }}</span>
@@ -66,7 +77,7 @@
         <span class="chat-item__avatar chat-head-avatar">@if (active.customer?.avatar_url) { <img [src]="active.customer?.avatar_url" alt=""> } @else { {{ initials(customerName(active)) }} }</span>
         <div class="chat-pane__identity">
           <strong>{{ customerName(active) }}</strong>
-          <small class="chat-state" aria-live="polite">{{ activeState }}@if (active.status === 'open' && active.claimed_at) { · {{ active.claimed_at | date:'HH:mm' }} }@if (active.status === 'closed' && active.closed_at) { · {{ active.closed_at | date:'HH:mm' }} }</small>
+          <small class="chat-state" aria-live="polite">{{ activeState }}@if (active.status === 'open' && active.claimed_at) { · {{ active.claimed_at | date:'HH:mm' }} }@if (active.status === 'closed' && active.closed_at) { · {{ active.closed_at | date:'dd/MM/yyyy HH:mm':'+0700' }} }</small>
         </div>
         @if (active.status === 'closed' || !canReply) { <span class="status" [class.status--waiting]="active.status === 'waiting'" [class.status--closed]="active.status === 'closed'">{{ active.status === 'closed' ? closedLabel : 'View only' }}</span> }
         <div class="chat-pane__actions">
@@ -89,12 +100,20 @@
       }
 
       <div class="chat-thread" #thread>
-        @for (m of messages; track m._id || $index) {
+        @for (session of sessionThreads; track session.conversation.conversation_id) {
+          <div class="chat-session-divider" [class.chat-session-divider--current]="session.conversation.conversation_id === active.conversation_id">
+            <strong>Session {{ session.conversation.created_at || session.messages[0]?.created_at || session.conversation.last_message_at | date:'dd/MM/yyyy HH:mm':'+0700' }}</strong>
+            <span>{{ session.conversation.status === 'closed' ? 'Closed' : session.conversation.status === 'waiting' ? 'Waiting' : 'Open' }}@if (isSenior && (session.conversation.agent_name || session.conversation.closed_by_name)) { &middot; {{ session.conversation.agent_name || session.conversation.closed_by_name }} }@if (session.conversation.conversation_id === active.conversation_id) { &middot; Selected session }</span>
+          </div>
+        @for (m of session.messages; track m._id || $index) {
+          @if ($first || (m.created_at | date:'yyyy-MM-dd':'+0700') !== (session.messages[$index - 1].created_at | date:'yyyy-MM-dd':'+0700')) {
+            <div class="chat-date-divider"><time>{{ m.created_at | date:'dd/MM/yyyy':'+0700' }}</time></div>
+          }
           @if (m.sender_type === 'system') {
-            <p class="chat-system-event">{{ m.content }} · {{ m.created_at | date:'HH:mm' }}</p>
+            <p class="chat-system-event">{{ m.content }} · {{ m.created_at | date:'HH:mm':'+0700' }}</p>
           } @else {
             <div class="message-row" [class.message-row--agent]="m.sender_type === 'agent'">
-              <div class="message-meta">{{ m.sender_type === 'agent' ? (m.sender_id === myId ? 'You' : 'Support') : m.sender_type === 'bot' ? 'Offsite AI' : customerName(active) }} · <time>{{ m.created_at | date:'HH:mm' }}</time>@if (orderCards(m).length) { · Order card }</div>
+              <div class="message-meta">{{ m.sender_type === 'agent' ? (m.sender_id === myId ? 'You' : 'Support') : m.sender_type === 'bot' ? 'Offsite AI' : customerName(active) }} · <time>{{ m.created_at | date:'HH:mm':'+0700' }}</time>@if (orderCards(m).length) { · Order card }</div>
               @if (m.content) { <div class="bubble bubble--{{ m.sender_type }}"><p>{{ m.content }}</p></div> }
               @for (order of orderCards(m); track order.code || order.order_id) {
                 <div class="chat-order-card">
@@ -107,7 +126,8 @@
             </div>
           }
         }
-        @if (active.status === 'closed') { <p class="chat-system-event">{{ closedLabel }}@if (active.closed_at) { · {{ active.closed_at | date:'HH:mm' }} }</p> }
+        }
+        @if (active.status === 'closed') { <p class="chat-system-event">{{ closedLabel }}@if (active.closed_at) { · {{ active.closed_at | date:'dd/MM/yyyy HH:mm':'+0700' }} }</p> }
         @if (customerTyping) { <div class="typing">Customer is typing…</div> }
       </div>
 
@@ -136,7 +156,7 @@
           <button type="button" class="btn btn-primary" (click)="claim()" [disabled]="actionPending">{{ actionPending ? 'Claiming...' : 'Claim & reply' }}</button>
         } @else {
           <p>{{ active.status === 'closed' ? 'This conversation is closed and read only.' : (!supportOpen && active.status === 'waiting' ? 'Support is offline. Claim during support hours.' : 'Another agent is handling this conversation. You can view the history.') }}
-            @if (active.status === 'closed' && active.close_reason === 'resolved') { <span>Replies within 3 hours during support hours can reopen the chat.</span> }
+            @if (active.status === 'closed' && active.close_reason === 'resolved') { <span>Your next message starts a new request in the waiting queue.</span> }
           </p>
           @if (active.status === 'closed' && customerProfileUrl) { <a class="btn profile-button" [href]="customerProfileUrl"><img src="/assets/icons/chat/open-profile.svg" alt="" width="14" height="14">Open profile</a> }
         }
@@ -219,8 +239,8 @@
       </fieldset>
       @if (closeOutcome === 'forwarded') { <p class="dialog-hint">Select this after forwarding through Orders. Closing does not submit a refund or change an order.</p> }
       <label class="dialog-field"><span class="dialog-overline">Internal summary · shown in customer profile</span><textarea maxlength="1000" [value]="closeSummary" (input)="closeSummary = $any($event.target).value" placeholder="Summarize the issue and resolution."></textarea></label>
-      <label class="outcome-choice"><input type="checkbox" [checked]="sendClosingMessage" (change)="sendClosingMessage = $any($event.target).checked"><span>Send closing message to customer<small>“This chat is closed. Reply within 3 hours during support hours to continue with the team, or choose Back to chatbot.”</small></span></label>
-      <p class="dialog-note"><img src="/assets/icons/chat/info.svg" alt=""><span>Replies within 3 hours during support hours can reopen this chat in Mine. If you are at capacity, it returns to Waiting.</span></p>
+      <label class="outcome-choice"><input type="checkbox" [checked]="sendClosingMessage" (change)="sendClosingMessage = $any($event.target).checked"><span>Send closing message to customer<small>“This chat is closed. Send another message during support hours to start a new request in the waiting queue, or choose Back to chatbot.”</small></span></label>
+      <p class="dialog-note"><img src="/assets/icons/chat/info.svg" alt=""><span>If the customer messages again, a new session goes to Waiting and must be claimed. This session stays closed.</span></p>
       @if (actionError) { <p class="dialog-error" role="alert">{{ actionError }}</p> }
     </div>
     <footer><button type="button" class="btn" (click)="dismissDialogs()" [disabled]="actionPending">Cancel</button><button type="submit" class="btn dialog-close" [disabled]="actionPending">{{ actionPending ? 'Closing...' : 'Close conversation' }}</button></footer>

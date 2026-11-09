@@ -10,7 +10,7 @@ import { AdminCustomersService } from '../../../customers/services/admin-custome
 
 describe('grouped customer thread', () => {
   afterEach(() => TestBed.resetTestingModule());
-  it('opens all sessions for the selected user and merges their messages chronologically', () => {
+  it('loads customer history while preserving the selected reply session', () => {
     const chat = {
       joinConversation: vi.fn(), receipt: vi.fn(() => of({})),
       messages: vi.fn((id: string) => of({ data: [{

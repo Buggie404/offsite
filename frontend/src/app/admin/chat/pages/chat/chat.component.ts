@@ -1,7 +1,7 @@
 import { afterNextRender, ChangeDetectorRef, Component, ElementRef, Injector, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
-import { Subscription, forkJoin } from 'rxjs';
+import { Subscription, forkJoin, catchError, of } from 'rxjs';
 import { customerKey, groupChats } from './chat-grouping';
 import { ChatAgent, ChatConversation, ChatMessage, ChatService } from '../../../../core/services/chat.service';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
@@ -126,12 +126,29 @@ export class AdminChatComponent implements OnInit, OnDestroy {
 
   /** Chat requested by the dashboard link, opened after the list loads. */
   private openId: string | null = null;
+  get isSenior(): boolean { return this.auth.getUser()?.role === 'admin_cc'; }
+  assignedAgent = '';
+  inboxAgents: ChatAgent[] = [];
+
+  matchesAssignedAgent(c: ChatConversation): boolean {
+    return !this.isSenior || !this.assignedAgent || (c.agent_user_id || c.agent_id) === this.assignedAgent;
+  }
+
+  setAssignedAgent(id: string): void {
+    this.assignedAgent = id;
+    this.setFilter('all');
+  }
+
+  assignedCount(id: string): number {
+    return groupChats(this.conversations.filter(c => c.status === 'open' && (c.agent_user_id || c.agent_id) === id)).length;
+  }
+
   get myId(): string | undefined { return this.auth.getUser()?.user_id; }
   loadError = '';
 
   get visible(): ChatConversation[] {
     const term = this.search.trim().toLocaleLowerCase();
-    const matches = this.conversations.filter(c => this.matchesTab(c, this.filter) &&
+    const matches = this.conversations.filter(c => this.matchesTab(c, this.filter) && this.matchesAssignedAgent(c) &&
       (this.sourceFilter === 'all' || this.source(c) === this.sourceFilter) &&
       (!term || [this.customerName(c), c.customer_id, c.customer?.user_id, c.conversation_id]
         .some(value => value?.toLocaleLowerCase().includes(term))));
@@ -152,7 +169,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   }
 
   tabCount(tab: StatusFilter): number {
-    return groupChats(this.conversations.filter(c => this.matchesTab(c, tab))).length;
+    return groupChats(this.conversations.filter(c => this.matchesTab(c, tab) && this.matchesAssignedAgent(c))).length;
   }
 
   source(c: ChatConversation): 'ai' | 'direct' {
@@ -165,7 +182,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   get canClose(): boolean { return this.canReply || (this.auth.getUser()?.role === 'admin_cc' && this.active?.status === 'open'); }
   get activeState(): string {
     if (!this.active) return '';
-    if (this.active.status === 'closed') return `Closed${this.active.closed_by_name ? ' by ' + this.active.closed_by_name : ''} · read only`;
+    if (this.active.status === 'closed') return `Closed${this.isSenior && this.active.closed_by_name ? ' by ' + this.active.closed_by_name : ''} · read only`;
     if (this.canClaim) return 'Unclaimed · view only';
     if (this.canReply) return 'Claimed by you';
     return 'Assigned to another agent · view only';
@@ -195,6 +212,10 @@ export class AdminChatComponent implements OnInit, OnDestroy {
     else if (this.filters.some(f => f.value === status)) this.filter = status as StatusFilter;
     this.openId = params.get('conversation');
 
+    if (this.isSenior) this.chat.agents().subscribe({
+      next: res => { this.inboxAgents = res.data; this.cdr.markForCheck(); },
+      error: () => { this.actionError = 'Could not load the admin list.'; this.cdr.markForCheck(); }
+    });
     this.chat.joinAgents();
     this.loadList();
     this.refreshTimer = setInterval(() => {
@@ -264,6 +285,10 @@ export class AdminChatComponent implements OnInit, OnDestroy {
           if (fresh) {
             this.active = fresh;
             this.refreshMessages(fresh.conversation_id);
+          } else {
+            this.active = null;
+            this.messages = [];
+            this.customerDetails = null;
           }
         }
         this.cdr.markForCheck();
@@ -309,12 +334,19 @@ export class AdminChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  get sessionThreads(): { conversation: ChatConversation; messages: ChatMessage[] }[] {
+    if (!this.active) return [];
+    return this.conversations.filter(c => customerKey(c) === customerKey(this.active!))
+      .map(conversation => ({ conversation, messages: this.messages.filter(m => m.conversation_id === conversation.conversation_id) }))
+      .sort((a, b) => Date.parse(a.conversation.created_at || a.messages[0]?.created_at || a.conversation.last_message_at) - Date.parse(b.conversation.created_at || b.messages[0]?.created_at || b.conversation.last_message_at));
+  }
+
   private refreshMessages(conversationId: string, forceScroll = false): void {
     if (!this.active) return;
     const key = customerKey(this.active);
     const threads = this.conversations.filter(c => customerKey(c) === key);
     threads.forEach(c => this.chat.joinConversation(c.conversation_id));
-    forkJoin(threads.map(c => this.chat.messages(c.conversation_id))).subscribe({
+    forkJoin(threads.map(c => this.chat.messages(c.conversation_id).pipe(catchError(() => of({ data: [] as ChatMessage[] }))))).subscribe({
       next: results => {
         if (!this.active || this.active.conversation_id !== conversationId || customerKey(this.active) !== key) return;
         this.messages = this.uniqueMessages(results.flatMap(res => res.data));

@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { LucideArrowLeft, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideLock, LucideLockOpen } from '@lucide/angular';
+import { LucideArrowLeft, LucideArrowRight, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideLock, LucideLockOpen } from '@lucide/angular';
 import { ADMIN_ROLE_LABELS, AdminRole } from '../../../../shared/models/admin-role.model';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ToastService } from '../../../../shared/services/toast.service';
@@ -28,7 +28,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-admin-customer-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, ConfirmationModalComponent, LucideArrowLeft, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideLock, LucideLockOpen, VouchersComponent, ReportPostModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, ConfirmationModalComponent, LucideArrowLeft, LucideArrowRight, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideLock, LucideLockOpen, VouchersComponent, ReportPostModalComponent],
   templateUrl: './customer-detail.component.html',
   styleUrl: './customer-detail.component.scss'
 })
@@ -38,6 +38,7 @@ export class CustomerDetailComponent implements OnInit {
   private router = inject(Router);
   private toast = inject(ToastService);
   private adminAuth = inject(AdminAuthService);
+  get isSenior(): boolean { return this.adminAuth.getAdminRole() === 'admin_cc'; }
   private cdr = inject(ChangeDetectorRef);
   private chatService = inject(ChatService);
   conversations: CustomerConversation[] = [];

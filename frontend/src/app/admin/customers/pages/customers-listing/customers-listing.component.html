@@ -6,6 +6,12 @@
     </div>
   </header>
 
+  @if (isCskh) {
+    <div class="assignment-filter segmented" role="group" aria-label="Customer assignment">
+      <button type="button" [class.active]="assignment === 'mine'" [attr.aria-pressed]="assignment === 'mine'" (click)="setAssignment('mine')">Assigned to me ({{ assignedTotal | number }})</button>
+      <button type="button" [class.active]="assignment === 'all'" [attr.aria-pressed]="assignment === 'all'" (click)="setAssignment('all')">All customers</button>
+    </div>
+  }
   <div class="filters">
     <label class="search">
       <svg lucideSearch [size]="16"></svg>
@@ -64,7 +70,7 @@
           </thead>
           <tbody>
             @for (row of rows; track row.user_id) {
-              <tr tabindex="0" (click)="open(row)" (keydown.enter)="open(row)">
+              <tr [class.detail-locked]="row.can_view_detail === false" [attr.tabindex]="row.can_view_detail === false ? null : 0" (click)="open(row)" (keydown.enter)="open(row)">
                 <td>
                   <div class="person">
                     <span class="avatar">
@@ -94,7 +100,7 @@
                 <td class="col-orders">{{ row.order_count }}</td>
                 <td class="col-last">{{ shortDate(serviceCustomers ? row.last_chat_at || null : row.last_order_at) }}@if (serviceCustomers && row.last_chat_status) { · {{ row.last_chat_status }} }</td>
                 @if (serviceCustomers) { <td [class.report-open]="row.open_reports">{{ row.open_reports ? row.open_reports + ' open' : row.handled_reports ? row.handled_reports + ' handled' : '—' }}</td> }
-                <td class="col-go"><svg lucideChevronRight [size]="16"></svg></td>
+                <td class="col-go">@if (row.can_view_detail === false) { <span title="You can only view customers assigned to you" aria-label="You can only view customers assigned to you"><svg lucideLock [size]="16" aria-hidden="true"></svg></span> } @else { <svg lucideChevronRight [size]="16"></svg> }</td>
               </tr>
             }
           </tbody>

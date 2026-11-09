@@ -285,3 +285,49 @@ it('reloads customer facts after claim succeeds and uses the server history coun
   component.active = { ...component.active!, status: 'closed' };
   expect(component.pastChats).toBe(6);
 });
+
+it('shows Vietnam calendar dates when messages cross midnight', () => {
+  const { component, fixture } = setup();
+  component.select(component.conversations.find(c => c.conversation_id === 'OWN')!);
+  component.messages = [
+    { _id: 'D1', conversation_id: 'OWN', sender_type: 'customer', sender_id: 'OWN', content: 'Before', created_at: '2026-11-08T16:59:00Z' },
+    { _id: 'D2', conversation_id: 'OWN', sender_type: 'agent', sender_id: 'STAFF1', content: 'After', created_at: '2026-11-08T17:01:00Z' }
+  ];
+  fixture.changeDetectorRef.markForCheck();
+  fixture.detectChanges();
+  const dates = [...fixture.nativeElement.querySelectorAll('.chat-date-divider')].map((node: any) => node.textContent.trim());
+  expect(dates).toEqual(['08/11/2026', '09/11/2026']);
+});
+
+it('loads old sessions in the timeline without changing the active reply target', () => {
+  const { component, rows, chat } = setup();
+  component.select(rows[1]);
+  expect(chat.messages.mock.calls.map(([id]) => id)).toEqual(['OWN', 'CLOSED']);
+  vi.spyOn(component, 'loadList').mockImplementation(() => {});
+  chat.message$.next({ _id: 'OLD', conversation_id: 'CLOSED', sender_type: 'customer', sender_id: 'OWN', content: 'Old session', created_at: '2026-11-08T01:00:00Z' });
+  expect(component.messages).toHaveLength(1);
+  expect(component.active?.conversation_id).toBe('OWN');
+  expect(component.sessionThreads).toHaveLength(2);
+});
+
+it('shows handler names and per-admin assignment filters only to the senior admin', () => {
+  const { component, fixture, rows } = setup();
+  rows[1].agent_name = 'Quynh'; rows[1].agent_user_id = 'STAFF1';
+  rows[4].agent_name = 'Quynh'; rows[4].closed_by_name = 'Quynh'; rows[4].agent_user_id = 'STAFF1';
+  component.select(rows[1]);
+  fixture.changeDetectorRef.markForCheck(); fixture.detectChanges();
+  expect(fixture.nativeElement.querySelector('[aria-label="Assigned admin"]')).toBeNull();
+  expect(fixture.nativeElement.querySelector('.chat-session-divider').textContent).not.toContain('Quynh');
+  vi.spyOn(TestBed.inject(AdminAuthService), 'getUser').mockReturnValue({ user_id: 'SENIOR', _id: 'mongo-senior', role: 'admin_cc', email: 'senior@example.com' });
+  component.inboxAgents = [{ user_id: 'STAFF1', name: 'Quynh' }, { user_id: 'STAFF2', name: 'Minh' }];
+  component.setAssignedAgent('STAFF1');
+  fixture.changeDetectorRef.markForCheck(); fixture.detectChanges();
+  expect(fixture.nativeElement.querySelector('[aria-label="Assigned admin"]')).not.toBeNull();
+  expect(component.visible.map(c => c.conversation_id)).toEqual(['OWN']);
+  expect(component.assignedCount('STAFF1')).toBe(1);
+  component.select(rows[1]);
+  fixture.changeDetectorRef.markForCheck(); fixture.detectChanges();
+  expect(fixture.nativeElement.querySelector('.chat-session-divider').textContent).toContain('Quynh');
+  component.setAssignedAgent('STAFF2');
+  expect(component.visible.map(c => c.conversation_id)).toEqual(['OTHER']);
+});
