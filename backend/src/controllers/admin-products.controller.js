@@ -5,6 +5,7 @@ const ProductBatch = require('../models/ProductBatch');
 const ActivityLog = require('../models/ActivityLog');
 const User = require('../models/User');
 const { vnDateKey } = require('../services/pantry.logic');
+const { normalizeBatchChanges, presentBatch, applyBatchChanges } = require('../services/product-batch-changes');
 
 const CATEGORIES = ['matcha', 'coffee', 'drinkware', 'sets_bundles', 'tools'];
 const VARIANT_TYPES = ['none', 'size', 'color', 'type', 'package'];
@@ -40,7 +41,7 @@ function parseBatchDate(value) {
     return { error: 'batch_expiry_date must be YYYY-MM-DD' };
   }
   const date = new Date(`${value}T00:00:00+07:00`);
-  if (Number.isNaN(date.getTime())) return { error: 'batch_expiry_date is invalid' };
+  if (Number.isNaN(date.getTime()) || vnDateKey(date) !== value) return { error: 'batch_expiry_date is invalid' };
   return { date };
 }
 
@@ -100,11 +101,21 @@ function buildPayload(body, existing = null) {
   if (variants.some((variant) => variant.stock < 0)) errors.push('Variant stock cannot be negative.');
   if (variants.some((variant) => variant.low_stock_threshold < 0)) errors.push('Low-stock threshold cannot be negative.');
   if (variants.filter((variant) => variant.is_default).length !== 1) errors.push('Choose exactly one default variant.');
+  const oldComposition = existing?.sets_bundles?.composition || [];
+  const composition = cleanComposition(body.sets_bundles?.composition);
+  if (composition.some(entry => entry && typeof entry === 'object' && Object.hasOwn(entry, 'quantity')
+    && (!Number.isSafeInteger(entry.quantity) || entry.quantity < 1)
+    && !oldComposition.some(previous => JSON.stringify(previous) === JSON.stringify(entry)))) {
+    errors.push('Composition quantities must be whole numbers of at least 1.');
+  }
   const discount = body?.subscribe_discount_percent == null || body.subscribe_discount_percent === ''
     ? null : finiteNumber(body.subscribe_discount_percent, NaN);
   if (discount != null && (!Number.isInteger(discount) || discount < 5 || discount > 15)) {
     errors.push('Subscription discount must be a whole number from 5 to 15.');
   }
+  let batchChanges;
+  try { batchChanges = normalizeBatchChanges(body.batch_changes, variants); }
+  catch (error) { errors.push(error.message); }
   if (errors.length) return { error: errors[0], errors };
   const previousBatchKey = existing?.batch_expiry_date ? vnDateKey(existing.batch_expiry_date) : null;
   const nextBatchKey = parsedBatch.date ? vnDateKey(parsedBatch.date) : null;
@@ -116,7 +127,6 @@ function buildPayload(body, existing = null) {
     seo_title: text(body.seo_title, 300),
     category,
     product_tag: [...new Set((Array.isArray(body.product_tag) ? body.product_tag : []).map((tag) => text(tag, 80)).filter(Boolean))],
-    is_subscription: bool(body.is_subscription),
     is_best_seller: bool(body.is_best_seller),
     is_new_arrival: bool(body.is_new_arrival),
     is_subscribable: bool(body.is_subscribable),
@@ -125,7 +135,7 @@ function buildPayload(body, existing = null) {
     images,
     variants,
     is_active: body.is_active !== false,
-    quiz_eligible: body.quiz_eligible !== false,
+    ...(batchChanges ? { batch_changes: batchChanges } : {}),
     batch_expiry_date: parsedBatch.date,
     batch_expiry_set_at: batchChanged ? (parsedBatch.date ? new Date() : null) : (existing?.batch_expiry_set_at || null),
     matcha: category === 'matcha' ? {
@@ -143,7 +153,7 @@ function buildPayload(body, existing = null) {
     } : undefined,
     sets_bundles: category === 'sets_bundles' ? {
       set_type: optionalText(body.sets_bundles?.set_type), is_exclusive: bool(body.sets_bundles?.is_exclusive),
-      composition: cleanComposition(body.sets_bundles?.composition)
+      composition
     } : undefined,
     tools: category === 'tools' ? {
       tool_category: optionalText(body.tools?.tool_category), tool_type: optionalText(body.tools?.tool_type)
@@ -203,6 +213,25 @@ async function listProducts(req, res) {
   } catch (error) {
     console.error('Error listing products for admin:', error);
     res.status(500).json({ error: 'Failed to retrieve products' });
+  }
+}
+
+async function searchCompositionProducts(req, res) {
+  try {
+    const query = text(req.query.q, 100);
+    if (!query) return res.json({ data: [] });
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const filter = { is_active: { $ne: false }, category: { $ne: 'sets_bundles' },
+      $or: [{ name: new RegExp(escaped, 'i') }, { 'variants.sku': new RegExp(escaped, 'i') }] };
+    const exclude = Number(req.query.exclude);
+    if (Number.isSafeInteger(exclude) && exclude > 0) filter.product_id = { $ne: exclude };
+    const data = await Product.find(filter, { _id: 0, product_id: 1, name: 1, category: 1, is_active: 1,
+      images: 1, 'variants.sku': 1, 'variants.label': 1, 'variants.price': 1, 'variants.stock': 1,
+      'variants.is_default': 1, 'variants.images': 1 }).sort({ product_id: 1 }).limit(20).lean();
+    res.json({ data });
+  } catch (error) {
+    console.error('Error searching composition products:', error);
+    res.status(500).json({ error: 'Could not search products for composition.' });
   }
 }
 
@@ -298,65 +327,18 @@ async function listBatches(req, res) {
     const productId = Number(req.params.productId);
     if (!Number.isSafeInteger(productId) || productId <= 0) return res.status(400).json({ error: 'Invalid product id.' });
     const rows = await ProductBatch.find({ product_id: productId }).sort({ received_at: -1, created_at: -1 }).lean();
-    res.json({ data: rows });
+    res.json({ data: rows.map(presentBatch) });
   } catch (error) {
     console.error('Error listing product batches:', error);
     res.status(500).json({ error: 'Failed to retrieve product batches' });
   }
 }
 
-async function addBatch(req, res) {
-  try {
-    const productId = Number(req.params.productId);
-    const product = Number.isSafeInteger(productId) && productId > 0
-      ? await Product.findOne({ product_id: productId }, 'product_id variants.sku') : null;
-    if (!product) return res.status(404).json({ error: 'Product not found' });
-    const batchCode = text(req.body?.batch_code, 80);
-    const variantSku = text(req.body?.variant_sku, 100);
-    const quantity = Number(req.body?.quantity);
-    const receivedAt = parseBatchDate(req.body?.received_at);
-    const bestBefore = parseBatchDate(req.body?.best_before);
-    if (!batchCode || !product.variants.some((variant) => variant.sku === variantSku)
-      || !Number.isSafeInteger(quantity) || quantity < 1 || !receivedAt.date || receivedAt.error || bestBefore.error
-      || (bestBefore.date && bestBefore.date < receivedAt.date)) {
-      return res.status(400).json({ error: 'Enter a batch code, valid SKU, positive quantity, received date and valid best-before date.' });
-    }
-    const actor = req.user?.user_id;
-    const row = await ProductBatch.create({ batch_code: batchCode, product_id: productId,
-      variant_sku: variantSku, quantity, received_at: receivedAt.date, best_before: bestBefore.date,
-      added_by: actor, added_by_name: text(req.user?.profile_name || req.user?.email || actor, 120) });
-    await req.writeActivityLog({ actionType: 'product.batch-create', targetEntity: 'Products', targetId: String(productId),
-      oldValue: null, newValue: { batch_code: batchCode, variant_sku: variantSku, quantity, best_before: bestBefore.date } });
-    res.status(201).json({ data: row });
-  } catch (error) {
-    if (error?.code === 11000) return res.status(409).json({ error: 'Batch code already exists for this product.' });
-    console.error('Error creating product batch:', error);
-    res.status(500).json({ error: 'Failed to create product batch' });
-  }
+function batchWriteRequiresPublish(_req, res) {
+  return res.status(409).json({ error: "Batch edits must be saved with Save draft or Publish from Edit product." });
 }
-
-async function updateBatchBestBefore(req, res) {
-  try {
-    const productId = Number(req.params.productId);
-    const parsed = parseBatchDate(req.body?.best_before);
-    if (!Number.isSafeInteger(productId) || productId <= 0 || parsed.error) {
-      return res.status(400).json({ error: parsed.error || 'Invalid product id.' });
-    }
-    const row = await ProductBatch.findOne({ _id: req.params.batchId, product_id: productId });
-    if (!row) return res.status(404).json({ error: 'Batch not found.' });
-    if (parsed.date && parsed.date < row.received_at) return res.status(400).json({ error: 'Best-before date cannot precede received date.' });
-    const previous = row.best_before;
-    row.best_before = parsed.date;
-    await row.save();
-    await req.writeActivityLog({ actionType: 'product.batch-expiry', targetEntity: 'Products', targetId: String(productId),
-      oldValue: { batch_code: row.batch_code, best_before: previous },
-      newValue: { batch_code: row.batch_code, best_before: row.best_before } });
-    res.json({ data: row });
-  } catch (error) {
-    console.error('Error updating batch best-before:', error);
-    res.status(500).json({ error: 'Failed to update batch best-before' });
-  }
-}
+const addBatch = batchWriteRequiresPublish;
+const updateBatchBestBefore = batchWriteRequiresPublish;
 
 async function productHistory(req, res) {
   try {
@@ -377,10 +359,52 @@ async function productHistory(req, res) {
   }
 }
 
+async function publishWithBatchChanges(req, res, productId, { createOnly = false, requireDraft = false } = {}) {
+  let session;
+  try {
+    session = await Product.db.startSession();
+    let published, previous, events, created;
+    await session.withTransaction(async () => {
+      const product = await Product.findOne({ product_id: productId }).session(session);
+      if (createOnly && product) throw Object.assign(new Error('Product already exists.'), { status: 409 });
+      if (!product && requireDraft && !await ProductDraft.findOne({ product_id: productId }).session(session).lean()) {
+        throw Object.assign(new Error('Draft no longer exists. Reload Edit product.'), { status: 409 });
+      }
+      const built = buildPayload(req.body, product);
+      if (built.error) throw Object.assign(new Error(built.error), { status: 400 });
+      const { batch_changes: changes, ...payload } = built.payload;
+      previous = product ? presentProduct(product) : null;
+      created = !product;
+      events = changes ? await applyBatchChanges(productId, changes, req.user, session, payload.variants) : [];
+      const now = new Date().toISOString();
+      if (product) {
+        Object.assign(product, payload, { is_active: product.is_active, updatedAt: now });
+        await product.save({ session });
+        published = product;
+      } else {
+        [published] = await Product.create([{ ...payload, product_id: productId, is_active: true,
+          total_sold_quantity: 0, rating_avg: null, review_count: 0, createdAt: now, updatedAt: now }], { session });
+      }
+      await ProductDraft.deleteOne({ product_id: productId }, { session });
+    });
+    await req.writeActivityLog({ actionType: created ? 'product.create' : 'product.update', targetEntity: 'Products', targetId: String(productId),
+      oldValue: previous ? { name: previous.name, is_active: previous.is_active } : null,
+      newValue: { name: published.name, is_active: published.is_active } });
+    for (const event of events) await req.writeActivityLog({ ...event, targetEntity: 'Products', targetId: String(productId) });
+    return res.status(createOnly ? 201 : 200).json({ data: presentProduct(published) });
+  } catch (error) {
+    const message = duplicateError(error) || validationError(error) || error.message;
+    const status = error.status || (error.code === 11000 ? 409 : error.name === 'ValidationError' ? 400 : 500);
+    if (status === 500) console.error('Error publishing product and batches:', error);
+    return res.status(status).json({ error: status === 500 ? 'Could not publish product and batches. No batch changes were applied.' : message });
+  } finally { if (session) await session.endSession(); }
+}
+
 async function createProduct(req, res) {
   try {
     const built = buildPayload(req.body);
     if (built.error) return res.status(400).json({ error: built.error, errors: built.errors });
+    if (built.payload.batch_changes) return publishWithBatchChanges(req, res, await nextProductId(), { createOnly: true });
     const now = new Date().toISOString();
     const product = await Product.create({ ...built.payload, product_id: await nextProductId(),
       total_sold_quantity: 0, rating_avg: null, review_count: 0, createdAt: now, updatedAt: now });
@@ -405,6 +429,7 @@ async function updateProduct(req, res) {
       if (!draft) return res.status(404).json({ error: 'Product not found' });
       const built = buildPayload(req.body);
       if (built.error) return res.status(400).json({ error: built.error, errors: built.errors });
+      if (built.payload.batch_changes) return publishWithBatchChanges(req, res, draft.product_id, { requireDraft: true });
       const now = new Date().toISOString();
       const created = await Product.create({ ...built.payload, product_id: draft.product_id, is_active: true,
         total_sold_quantity: 0, rating_avg: null, review_count: 0, createdAt: now, updatedAt: now });
@@ -415,6 +440,7 @@ async function updateProduct(req, res) {
     }
     const built = buildPayload(req.body, product);
     if (built.error) return res.status(400).json({ error: built.error, errors: built.errors });
+    if (built.payload.batch_changes) return publishWithBatchChanges(req, res, product.product_id);
     // Publishing content and changing storefront visibility are separate admin actions.
     built.payload.is_active = product.is_active;
     const previous = presentProduct(product);
@@ -496,29 +522,6 @@ async function updateStatuses(req, res) {
   }
 }
 
-async function updateBatchExpiry(req, res) {
-  try {
-    const productId = Number(req.params.productId);
-    if (!Number.isFinite(productId)) return res.status(400).json({ error: 'Invalid product id' });
-    const parsed = parseBatchDate(req.body?.batch_expiry_date);
-    if (parsed.error) return res.status(400).json({ error: parsed.error });
-    const product = await Product.findOne({ product_id: productId });
-    if (!product) return res.status(404).json({ error: 'Product not found' });
-    const previous = presentProduct(product);
-    const nextKey = parsed.date ? vnDateKey(parsed.date) : null;
-    if (nextKey !== previous.batch_expiry_date) {
-      product.batch_expiry_date = parsed.date;
-      product.batch_expiry_set_at = parsed.date ? new Date() : null;
-      product.updatedAt = new Date().toISOString();
-      await req.writeActivityLog({ actionType: 'product.batch-expiry', targetEntity: 'Products', targetId: String(product.product_id),
-        oldValue: { batch_expiry_date: previous.batch_expiry_date }, newValue: { batch_expiry_date: nextKey } });
-      await product.save();
-    }
-    res.json({ data: presentProduct(product) });
-  } catch (error) {
-    console.error('Error updating batch expiry:', error);
-    res.status(500).json({ error: 'Failed to update batch expiry' });
-  }
-}
+const updateBatchExpiry = batchWriteRequiresPublish;
 
-module.exports = { listProducts, listDrafts, discardDraft, publishDraft, getProduct, saveDraft, listBatches, addBatch, updateBatchBestBefore, productHistory, createProduct, updateProduct, updateStatus, updateStatuses, updateBatchExpiry };
+module.exports = { listProducts, searchCompositionProducts, listDrafts, discardDraft, publishDraft, getProduct, saveDraft, listBatches, addBatch, updateBatchBestBefore, productHistory, createProduct, updateProduct, updateStatus, updateStatuses, updateBatchExpiry };

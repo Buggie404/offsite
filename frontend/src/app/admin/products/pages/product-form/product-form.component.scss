@@ -47,3 +47,54 @@ input, select { height: 38px; padding: 0 10px; }textarea { resize: vertical; pad
 .inline-field-error { display: block; margin-top: 5px; color: #c0392b; font: 400 11px/15px var(--font-body); }
 .state--success { border: 1px solid rgba(55,85,52,.2); background: #e9f0e2; color: #375534; }
 .variant-price-cell input.invalid:focus { box-shadow: 0 0 0 2px rgba(192,57,43,.12); }
+.variant-choice { position: relative; }
+.variant-choice:focus-visible { outline: 2px solid var(--color-forest-green); outline-offset: 4px; }
+.variant-choice-check { position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--color-forest-green); color: var(--color-white, #fff); }
+
+// Keep both tables aligned with their card headings, with overflow for later columns.
+.variants-card footer, .batches-card footer { padding: 10px 24px; }
+.variant-table th:first-child, .variant-table td:first-child,
+.batch-table th:first-child, .batch-table td:first-child { padding-left: 24px; }
+.variant-table th:last-child, .variant-table td:last-child,
+.batch-table th:last-child, .batch-table td:last-child { padding-right: 24px; }
+.variant-table { min-width: 1000px; table-layout: fixed; }
+.variant-col-sku { width: 160px; }.variant-col-label { width: 150px; }
+.variant-col-price { width: 150px; }.variant-col-stock { width: 130px; }
+.variant-col-default { width: 90px; }.variant-col-image { width: 90px; }
+.variant-col-threshold { width: 150px; }.variant-col-actions { width: 70px; }
+.variant-table th { white-space: nowrap; }
+.variant-table td { vertical-align: top; padding-top: 10px; padding-bottom: 30px; }
+.variant-table td > input:not(.radio) { margin-top: 3px; }
+.variant-table td > .radio { margin: 14px 0 0; }
+.variant-price-cell { position: relative; }
+.variant-price-cell .inline-field-error { position: absolute; left: 12px; top: 55px; margin: 0; white-space: nowrap; }
+.batch-table { min-width: 760px; }
+.batch-table th:last-child { text-align: right; }
+.batch-table td.empty-batches { text-align: left; }
+textarea:disabled { background: #f3efea; color: #847b72; cursor: not-allowed; }
+.batch-table { min-width: 960px; }
+.batch-add-row { background: #f7f8f3; }
+.batch-add-row td { vertical-align: middle; }
+.batch-add-row input:not([type=date]), .batch-add-row select { min-width: 110px; }
+.batch-add-row input[type=number] { width: 72px; min-width: 72px; }
+.batch-row-actions { display: flex; align-items: center; gap: 4px; }
+.batch-confirm { color: var(--color-forest-green); }
+.batches-card footer { display: flex; align-items: center; gap: 12px; }
+.batches-card footer button:disabled { opacity: .5; cursor: default; }
+.batch-table { min-width: 1040px; }
+.batch-stage-note { margin: 12px 24px; color: #746b62; font: 400 11px/16px var(--font-body); }
+.composition-controls { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.composition-search { position: relative; }.composition-search > svg { position: absolute; top: 11px; left: 12px; color: #746b62; pointer-events: none; }.composition-search input { padding-left: 36px; }
+.composition-options { max-height: 240px; overflow-y: auto; list-style: none; padding: 4px; margin: 0; border: 1px solid rgba(84,74,64,.2); border-radius: 5px; background: white; }
+.composition-options button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: 4px; background: white; color: inherit; text-align: left; font: inherit; cursor: pointer; }.composition-options button:hover, .composition-options button:focus-visible { background: #edf2e8; }
+.composition-thumb { flex: 0 0 40px; display: block; width: 40px; height: 40px; border: 1px solid rgba(84,74,64,.18); border-radius: 4px; overflow: hidden; background: #f1e8e2; }.composition-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.composition-thumb { display: grid; place-items: center; color: #847b72; }
+.composition-options strong, .composition-product strong { display: block; font-size: 13px; font-weight: 500; }.composition-options small, .composition-product small { display: block; margin-top: 3px; color: #746b62; font-size: 11px; }
+.composition-selection { display: grid; grid-template-columns: minmax(0, 1fr) 80px auto; align-items: end; gap: 10px; }.composition-selection > small { grid-column: 1 / -1; }
+.composition-selection button:disabled { opacity: .45; cursor: default; }
+.composition-error { margin: 0; color: #c0392b !important; font: 400 11px/15px var(--font-body); }
+.composition-list-heading, .composition-row { display: grid; grid-template-columns: minmax(0, 1fr) 78px 32px; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(84,74,64,.14); }
+.composition-list-heading { color: #544a40; font: 400 10px/14px var(--font-mono, monospace); text-transform: uppercase; letter-spacing: .08em; }
+.composition-product { display: flex; align-items: center; gap: 10px; min-width: 0; }.composition-product > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.composition-qty { display: grid; gap: 4px; }.composition-controls:disabled input, .composition-controls:disabled select, .composition-controls input:disabled { background: #f3efea; color: #847b72; cursor: not-allowed; }.composition-controls:disabled button { opacity: .45; cursor: default; }
+@media (max-width: 700px) { .composition-selection { grid-template-columns: minmax(0, 1fr) 80px; }.composition-selection > button { grid-column: 1 / -1; justify-self: end; }.composition-row, .composition-list-heading { gap: 8px; grid-template-columns: minmax(0, 1fr) 64px 32px; } }

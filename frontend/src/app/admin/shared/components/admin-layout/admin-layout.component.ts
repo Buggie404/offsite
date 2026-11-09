@@ -303,7 +303,7 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
       return;
     }
     this.router.navigate([currentPath], {
-      queryParams: { search: value || null },
+      queryParams: currentPath === '/admin/products' ? { search: value || null, page: null, scroll: null } : { search: value || null },
       queryParamsHandling: 'merge',
       replaceUrl: currentPath === '/admin/products'
     });

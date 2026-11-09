@@ -92,6 +92,7 @@ router.post('/orders/:id/out-of-stock/resolve', authMiddleware, requireRole(...A
 router.post('/orders/:id/notes', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.addInternalNote);
 
 router.get('/products', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.listProducts);
+router.get('/products/composition-options', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.searchCompositionProducts);
 router.get('/products/drafts', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.listDrafts);
 router.delete('/products/:productId/draft', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.discardDraft);
 router.post('/products/:productId/publish-draft', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.publishDraft);

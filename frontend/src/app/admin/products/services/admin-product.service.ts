@@ -25,6 +25,7 @@ export interface AdminProductVariant {
 }
 
 export interface AdminProduct {
+  batch_changes?: ProductBatchChanges;
   is_new_product?: boolean;
   has_draft?: boolean;
   draft_saved_at?: string | null;
@@ -36,7 +37,6 @@ export interface AdminProduct {
   seo_title: string;
   category: ProductCategory;
   product_tag: string[];
-  is_subscription: boolean;
   is_best_seller: boolean;
   is_new_arrival: boolean;
   is_subscribable: boolean;
@@ -52,7 +52,6 @@ export interface AdminProduct {
   createdAt: string;
   updatedAt: string;
   is_active: boolean;
-  quiz_eligible: boolean;
   matcha?: { product_grade?: string; origin?: string; pricing_tier?: string };
   coffee?: { roast_level?: string; process_type?: string; product_origin?: string; tasting_notes?: string[] };
   drinkware?: { ware_type?: string; material?: string; product_size?: string };
@@ -74,6 +73,12 @@ export interface ProductBatch {
   added_by_name: string;
 }
 
+export type ProductBatchValues = Pick<ProductBatch, 'batch_code' | 'variant_sku' | 'quantity' | 'received_at' | 'best_before'>;
+export interface ProductBatchChanges {
+  upserts: (ProductBatchValues & { id?: string; client_id?: string; expected?: ProductBatchValues })[];
+  deletes: { id: string; expected: ProductBatchValues }[];
+}
+
 export interface ProductHistoryEntry {
   action_type: string;
   actor_name: string;
@@ -87,6 +92,10 @@ export type AdminProductRow = Pick<AdminProduct,
     images: Pick<AdminProductImage, 'url' | 'sort_order' | 'alt_text'>[];
     variants: Pick<AdminProductVariant, 'sku' | 'price' | 'stock' | 'is_default' | 'low_stock_threshold'>[];
   };
+
+export type CompositionProduct = Pick<AdminProduct, 'product_id' | 'name' | 'category' | 'images' | 'is_active'> & {
+  variants: Pick<AdminProductVariant, 'sku' | 'label' | 'price' | 'stock' | 'is_default' | 'images'>[];
+};
 
 @Injectable({ providedIn: 'root' })
 export class AdminProductService {
@@ -145,6 +154,12 @@ export class AdminProductService {
     return this.http.get<{ data: AdminProduct }>(`/api/admin/products/${productId}`);
   }
 
+  searchCompositionProducts(query: string, exclude?: number): Observable<{ data: CompositionProduct[] }> {
+    const params: Record<string, string> = { q: query.trim() };
+    if (exclude != null) params['exclude'] = String(exclude);
+    return this.http.get<{ data: CompositionProduct[] }>('/api/admin/products/composition-options', { params });
+  }
+
   drafts(): Observable<{ data: AdminProductRow[]; total: number }> {
     return this.http.get<{ data: AdminProductRow[]; total: number }>('/api/admin/products/drafts');
   }
@@ -161,13 +176,6 @@ export class AdminProductService {
     return this.http.get<{ data: ProductBatch[] }>(`/api/admin/products/${productId}/batches`);
   }
 
-  addBatch(productId: number, batch: Pick<ProductBatch, 'batch_code' | 'variant_sku' | 'quantity' | 'received_at' | 'best_before'>): Observable<{ data: ProductBatch }> {
-    return this.http.post<{ data: ProductBatch }>(`/api/admin/products/${productId}/batches`, batch);
-  }
-
-  updateBatchBestBefore(productId: number, batchId: string, bestBefore: string | null): Observable<{ data: ProductBatch }> {
-    return this.http.patch<{ data: ProductBatch }>(`/api/admin/products/${productId}/batches/${batchId}/best-before`, { best_before: bestBefore });
-  }
 
   history(productId: number): Observable<{ data: ProductHistoryEntry[] }> {
     return this.http.get<{ data: ProductHistoryEntry[] }>(`/api/admin/products/${productId}/history`);
@@ -210,11 +218,6 @@ export class AdminProductService {
     }));
   }
 
-  updateBatchExpiry(productId: number, batchExpiryDate: string | null): Observable<{ data: AdminProduct }> {
-    return this.http.patch<{ data: AdminProduct }>(`/api/admin/products/${productId}/batch-expiry`, {
-      batch_expiry_date: batchExpiryDate
-    });
-  }
 
   private updateCachedRow(product: AdminProduct): void {
     this.invalidateList(false);

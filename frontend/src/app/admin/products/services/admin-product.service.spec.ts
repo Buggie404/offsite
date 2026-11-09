@@ -17,6 +17,16 @@ describe('Admin product cache', () => {
   });
   afterEach(() => { http.verify(); TestBed.resetTestingModule(); });
 
+  it('searches live composition candidates by name or SKU without loading a draft editor', () => {
+    api.searchCompositionProducts(' MAT036 ', 14001).subscribe();
+    const search = http.expectOne(request => request.url === '/api/admin/products/composition-options');
+    expect(search.request.method).toBe('GET');
+    expect(search.request.params.get('q')).toBe('MAT036');
+    expect(search.request.params.get('exclude')).toBe('14001');
+    search.flush({ data: [] });
+    http.expectNone('/api/admin/products/14001');
+  });
+
   it('uses separate API routes for draft listing, discard and publishing', () => {
     api.drafts().subscribe();
     http.expectOne('/api/admin/products/drafts').flush({ data: [], total: 0 });

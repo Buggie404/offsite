@@ -13,14 +13,20 @@
 
   <div class="filters">
     <span class="select-wrap">
-      <select [(ngModel)]="category" (ngModelChange)="applyFilters()" aria-label="Filter by category">
+      <select [(ngModel)]="category" (ngModelChange)="onFilterChange()" aria-label="Filter by category">
         <option *ngFor="let item of categories" [ngValue]="item.value">{{ item.label }}</option>
       </select>
       <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
     </span>
     <span class="select-wrap" *ngIf="!viewingDrafts">
-      <select [(ngModel)]="status" (ngModelChange)="applyFilters()" aria-label="Filter by status">
+      <select [(ngModel)]="status" (ngModelChange)="onFilterChange()" aria-label="Filter by status">
         <option *ngFor="let item of statuses" [ngValue]="item.value">{{ item.label }}</option>
+      </select>
+      <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
+    </span>
+    <span class="select-wrap">
+      <select [(ngModel)]="tag" (ngModelChange)="onFilterChange()" aria-label="Filter by tag">
+        <option *ngFor="let item of tags" [ngValue]="item.value">{{ item.label }}</option>
       </select>
       <svg lucideChevronDown [size]="16" aria-hidden="true"></svg>
     </span>
@@ -33,7 +39,7 @@
     <button type="button" class="low-stock-filter drafts-filter" [class.is-active]="viewingDrafts" [attr.aria-pressed]="viewingDrafts" (click)="toggleDrafts()">Drafts ({{ draftsLoading ? '…' : draftRows.length }})</button>
   </div>
 
-  <p class="notice" *ngIf="notice" role="status">{{ notice }}</p>
+  <p class="notice" [class.publish-notice]="publishNotice" *ngIf="notice" role="status">{{ notice }}</p>
   <p class="state state--error" *ngIf="error" role="alert">{{ error }}</p>
   <p class="state state--error" *ngIf="viewingDrafts && draftsError" role="alert">{{ draftsError }}</p>
   <div class="pending-bar" *ngIf="pendingCount" role="status">
@@ -47,8 +53,8 @@
   <section class="table-card">
     <p class="state" *ngIf="currentLoading">Loading {{ viewingDrafts ? 'drafts' : 'products' }}…</p>
     <p class="state" *ngIf="!currentLoading && !error && !(viewingDrafts && draftsError) && !filteredRows.length">No {{ viewingDrafts ? 'drafts' : 'products' }} match these filters.</p>
-    <div class="table-scroll" *ngIf="!currentLoading && filteredRows.length">
-      <table>
+    <div class="table-scroll" *ngIf="!currentLoading && filteredRows.length" (scroll)="closeMenu()">
+      <table [class.is-drafts]="viewingDrafts">
         <thead><tr><th>Product</th><th>Category</th><th>From</th><th>Stock</th><th>{{ viewingDrafts ? 'Live status' : 'Status' }}</th><th>{{ viewingDrafts ? 'Draft saved' : 'Tags' }}</th><th></th></tr></thead>
         <tbody>
           <tr *ngFor="let row of visibleRows; trackBy: trackProduct" [class.is-warning]="isLowStock(row) || isOutOfStock(row)" (dblclick)="edit(row)">
@@ -75,8 +81,7 @@
             </td>
             <td><ng-container *ngIf="!viewingDrafts"><span class="tag" *ngIf="row.is_best_seller">Best seller</span><span class="tag tag--new" *ngIf="row.is_new_arrival">New arrival</span><span class="muted" *ngIf="!row.is_best_seller && !row.is_new_arrival">—</span></ng-container><span *ngIf="viewingDrafts">{{ row.draft_saved_at | date:'MMM d, y · HH:mm' }}</span></td>
             <td class="menu-cell">
-              <button class="icon-btn" type="button" (click)="toggleMenu(row); $event.stopPropagation()" [attr.aria-label]="'Actions for ' + row.name"><svg lucideMoreHorizontal [size]="18"></svg></button>
-              <div class="row-menu" *ngIf="openMenuId === row.product_id"><button type="button" (click)="edit(row)">{{ viewingDrafts ? 'Edit draft' : 'Edit product' }}</button><button *ngIf="!viewingDrafts" type="button" (click)="toggleStatus(row)">Set {{ statusOf(row) ? 'inactive' : 'active' }}</button><ng-container *ngIf="viewingDrafts"><button type="button" [disabled]="draftActionSaving" (click)="publishSavedDraft(row)">Publish draft</button><button type="button" [disabled]="draftActionSaving" (click)="draftPendingDiscard = row; openMenuId = null">Discard draft</button></ng-container></div>
+              <button class="icon-btn" type="button" (click)="toggleMenu(row, $event); $event.stopPropagation()" [attr.aria-label]="'Actions for ' + row.name" aria-haspopup="menu" [attr.aria-expanded]="openMenuId === row.product_id" [attr.aria-controls]="openMenuId === row.product_id ? 'product-row-menu' : null"><svg lucideMoreHorizontal [size]="18"></svg></button>
             </td>
           </tr>
         </tbody>
@@ -94,6 +99,11 @@
       </nav>
     </footer>
   </section>
+  <div #rowMenu class="row-menu" id="product-row-menu" *ngIf="menuRow as row" role="menu" [attr.aria-label]="'Actions for ' + row.name" (keydown)="onMenuKeydown($event)">
+    <button type="button" role="menuitem" (click)="edit(row)">{{ viewingDrafts ? 'Edit draft' : 'Edit product' }}</button>
+    <button *ngIf="!viewingDrafts" type="button" role="menuitem" (click)="toggleStatus(row)">Set {{ statusOf(row) ? 'inactive' : 'active' }}</button>
+    <ng-container *ngIf="viewingDrafts"><button type="button" role="menuitem" [disabled]="draftActionSaving" (click)="publishSavedDraft(row)">Publish draft</button><button type="button" role="menuitem" [disabled]="draftActionSaving" (click)="requestDiscardDraft(row)">Discard draft</button></ng-container>
+  </div>
 </section>
 <app-confirmation-modal [isOpen]="draftPendingDiscard !== null" appearance="admin" type="danger" title="Discard this draft?"
   [message]="'Discard the saved changes for ' + (draftPendingDiscard?.name || 'this product') + '?'"

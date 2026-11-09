@@ -61,7 +61,8 @@ const productSchema = new mongoose.Schema({
     enum: ['matcha', 'coffee', 'drinkware', 'sets_bundles', 'tools'] 
   },
   product_tag: { type: [String], default: [] },
-  is_subscription: { type: Boolean, default: false },
+  // Legacy field: preserve existing values without creating it on unrelated saves.
+  is_subscription: { type: Boolean },
   is_best_seller: { type: Boolean, default: false },
   is_new_arrival: { type: Boolean, default: false },
   is_subscribable: { type: Boolean, default: false },
@@ -89,7 +90,8 @@ const productSchema = new mongoose.Schema({
   updatedAt: { type: String, required: true },
   is_active: { type: Boolean, default: true },
   // Merchandising can hide a SKU from Starter Kit Quiz without unpublishing it.
-  quiz_eligible: { type: Boolean, default: true },
+  // Missing values remain eligible in the quiz; unrelated admin saves must not add this field.
+  quiz_eligible: { type: Boolean },
   
   // Category-specific details
   matcha: { type: matchaDetailsSchema },

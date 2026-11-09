@@ -2,41 +2,48 @@ import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angul
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { catchError, of, Subject, switchMap, timer } from 'rxjs';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { LucideArrowLeft, LucideChevronDown, LucideImagePlus, LucidePlus, LucideTrash2 } from '@lucide/angular';
+import { LucideArrowLeft, LucideCheck, LucideChevronDown, LucideImage, LucideImagePlus, LucidePencil, LucidePlus, LucideSearch, LucideTrash2, LucideX } from '@lucide/angular';
 import {
   AdminProduct, AdminProductImage, AdminProductPayload, AdminProductService,
-  AdminProductVariant, ProductBatch, ProductHistoryEntry, ProductCategory, ProductVariantType
+  AdminProductVariant, CompositionProduct, ProductBatch, ProductBatchChanges, ProductBatchValues, ProductHistoryEntry, ProductCategory, ProductVariantType
 } from '../../services/admin-product.service';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { CloudinaryService } from '../../../../features/community/services/cloudinary.service';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { PRODUCT_ATTRIBUTE_OPTIONS, ProductAttributeKey, ProductAttributeOption } from '../../services/product-attribute-options';
+import { isProductDate, ProductDateInputComponent } from './product-date-input.component';
+import { ProductPublishFeedbackService } from '../../services/product-publish-feedback.service';
 
 function emptyImage(order = 0): AdminProductImage {
   return { url: '', public_id: '', sort_order: order, alt_text: '' };
 }
 
-function emptyVariant(): AdminProductVariant {
-  return { sku: '', label: 'Default', price: 0, stock: 0, low_stock_threshold: 10, is_default: true, images: [] };
+type VariantForm = Omit<AdminProductVariant, 'price'> & { price: number | null };
+type ProductForm = Omit<AdminProductPayload, 'variants'> & { variants: VariantForm[] };
+
+function emptyVariant(): VariantForm {
+  return { sku: '', label: 'Default', price: null, stock: 0, low_stock_threshold: 10, is_default: true, images: [] };
 }
 
-function emptyForm(): AdminProductPayload {
+function emptyForm(): ProductForm {
   return {
     name: '', slug: '', description: '', seo_title: '', category: 'coffee', product_tag: [],
-    is_subscription: false, is_best_seller: false, is_new_arrival: false, is_subscribable: false,
+    is_best_seller: false, is_new_arrival: false, is_subscribable: false,
     subscribe_discount_percent: null, batch_expiry_date: null, variant_type: 'none', images: [],
-    variants: [emptyVariant()], is_active: false, quiz_eligible: true,
+    variants: [emptyVariant()], is_active: false,
     matcha: {}, coffee: { tasting_notes: [] }, drinkware: {}, sets_bundles: { composition: [] }, tools: {}
   };
 }
 
 @Component({
   selector: 'app-admin-product-form', standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LucideArrowLeft, LucideChevronDown, LucidePlus, LucideTrash2, LucideImagePlus, ConfirmationModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LucideArrowLeft, LucideCheck, LucideChevronDown, LucideImage, LucidePencil, LucidePlus, LucideSearch, LucideTrash2, LucideImagePlus, LucideX, ConfirmationModalComponent, ProductDateInputComponent],
   templateUrl: './product-form.component.html', styleUrl: './product-form.component.scss'
 })
 export class ProductFormComponent implements OnInit {
+  private publishFeedback = inject(ProductPublishFeedbackService);
   private productsApi = inject(AdminProductService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -48,15 +55,20 @@ export class ProductFormComponent implements OnInit {
   imageError = '';
   selectingVariantIndex: number | null = null;
   imagePendingDelete: AdminProductImage | null = null;
+  variantPendingDelete: VariantForm | null = null;
+  variantPendingImageClear: VariantForm | null = null;
   get canViewHistory(): boolean { return this.auth.getAdminRole() === 'admin_cc'; }
   batches: ProductBatch[] = [];
+  private publishedBatches: ProductBatch[] = [];
+  batchesLoading = false;
+  batchesLoadFailed = false;
+  batchPendingDelete: ProductBatch | null = null;
+  batchEditingId: string | null = null;
+  private nextBatchKey = 0;
   history: ProductHistoryEntry[] = [];
-  batchModalOpen = false;
-  batchSaving = false;
+  addingBatch = false;
   batchError = '';
   batchDraft = { batch_code: '', variant_sku: '', quantity: 1, received_at: new Date().toISOString().slice(0, 10), best_before: null as string | null };
-  editingBatchId: string | null = null;
-  editingBestBefore: string | null = null;
   loadFailed = false;
 
   readonly categories: { value: ProductCategory; label: string }[] = [
@@ -95,13 +107,26 @@ export class ProductFormComponent implements OnInit {
   notice = '';
   returnToDrafts = false;
   returnSearch = '';
-  get backQueryParams(): Record<string, string | null> { return { view: this.returnToDrafts ? 'drafts' : null, search: this.returnSearch || null }; }
+  private returnFilters: Record<string, string> = {};
+  get backQueryParams(): Record<string, string | null> { return { ...this.returnFilters, view: this.returnToDrafts ? 'drafts' : null, search: this.returnSearch || null }; }
   submitAttempted = false;
+  private submittedPriceRows = new WeakSet<VariantForm>();
   tagsText = '';
   tastingNotesText = '';
-  compositionText = '';
+  compositionQuery = '';
+  compositionOptions: CompositionProduct[] = [];
+  compositionLoading = false;
+  compositionError = '';
+  compositionMessage = '';
+  compositionSelection: CompositionProduct | null = null;
+  compositionSku = '';
+  compositionQuantity: number | null = 1;
+  compositionPendingDelete: { entry: unknown; index: number } | null = null;
+  private compositionSearch = new Subject<string>();
+  private editedCompositionEntries = new Set<unknown>();
+  private failedCompositionImages = new Set<string>();
   slugEdited = false;
-  private originalTextFields = { tags: '', tastingNotes: '', composition: '' };
+  private originalTextFields = { tags: '', tastingNotes: '' };
 
   get isEdit(): boolean { return !!this.product; }
   get title(): string { return this.isEdit ? 'Edit product' : 'Add product'; }
@@ -113,8 +138,23 @@ export class ProductFormComponent implements OnInit {
   get setBundle() { return this.form.sets_bundles!; }
 
   ngOnInit(): void {
+    this.compositionSearch.pipe(switchMap(query => {
+      if (!query || this.form.category !== 'sets_bundles' || this.setBundle.is_exclusive) return of({ data: [] as CompositionProduct[] });
+      return timer(200).pipe(switchMap(() => this.productsApi.searchCompositionProducts(query, this.product?.product_id)),
+        catchError(err => { this.compositionError = err?.error?.error || 'Could not search products. Try again.'; return of({ data: [] as CompositionProduct[] }); }));
+    }), takeUntilDestroyed(this.destroyRef)).subscribe(({ data }) => {
+      this.compositionLoading = false;
+      this.compositionOptions = this.form.category === 'sets_bundles' && !this.setBundle.is_exclusive ? data : [];
+      this.cdr.markForCheck();
+    });
     this.returnToDrafts = this.route.snapshot.queryParamMap?.get('returnView') === 'drafts';
     this.returnSearch = this.route.snapshot.queryParamMap?.get('search') || '';
+    for (const key of ['category', 'status', 'tag', 'stock', 'page']) {
+      const value = this.route.snapshot.queryParamMap?.get(key);
+      if (value) this.returnFilters[key] = value;
+    }
+    const returnScroll = this.route.snapshot.queryParamMap?.get('returnScroll');
+    if (returnScroll != null) this.returnFilters['scroll'] = returnScroll;
     const rawId = this.route.snapshot.paramMap.get('productId');
     if (!rawId || rawId === 'new') return;
     const productId = Number(rawId);
@@ -132,13 +172,119 @@ export class ProductFormComponent implements OnInit {
     if (!this.slugEdited || !this.form.slug) this.form.slug = this.slugify(this.form.name);
   }
 
+  onCompositionSearch(query: string): void {
+    this.compositionQuery = query;
+    this.compositionOptions = [];
+    this.compositionSelection = null;
+    this.compositionSku = '';
+    this.compositionQuantity = 1;
+    this.compositionError = '';
+    this.compositionMessage = '';
+    this.compositionLoading = !!query.trim() && !this.setBundle.is_exclusive && this.form.category === 'sets_bundles';
+    this.compositionSearch.next(query.trim());
+  }
+  resetCompositionSearch(): void { this.onCompositionSearch(''); }
+  selectCompositionProduct(product: CompositionProduct): void {
+    if (this.setBundle.is_exclusive || product.product_id === this.product?.product_id || product.category === 'sets_bundles' || product.is_active === false) return;
+    const query = this.compositionQuery.trim().toLowerCase();
+    this.compositionSearch.next('');
+    this.compositionSelection = product;
+    this.compositionQuery = product.name;
+    this.compositionSku = (product.variants.find(variant => variant.sku.toLowerCase() === query)
+      || product.variants.find(variant => variant.is_default) || product.variants[0])?.sku || '';
+    this.compositionQuantity = 1;
+    this.compositionOptions = [];
+    this.compositionLoading = false;
+  }
+  get compositionEntries(): unknown[] { return this.setBundle.composition || []; }
+  get selectedCompositionVariant() { return this.compositionSelection?.variants.find(variant => variant.sku === this.compositionSku); }
+  get compositionAlreadyAdded(): boolean {
+    return !!this.compositionSelection && this.compositionEntries.some(entry => {
+      const details = this.compositionDetails(entry);
+      return details.id === this.compositionSelection!.product_id && details.sku === this.compositionSku;
+    });
+  }
+  isCompositionQuantity(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1; }
+  compositionLabel(value: unknown): string {
+    const label = typeof value === 'string' ? value.trim() : '';
+    return /^(null|undefined)$/i.test(label) ? '' : label;
+  }
+  private compositionImage(values: unknown[]): string {
+    for (const value of values) {
+      const url = typeof value === 'string' ? value.trim() : '';
+      if (!url || this.failedCompositionImages.has(url)) continue;
+      try { if (['https:', 'http:'].includes(new URL(url).protocol)) return url; } catch { /* A public ID is not an image URL. */ }
+    }
+    return '';
+  }
+  compositionOptionImage(product: CompositionProduct): string {
+    return this.compositionImage([...(product.images || [])].sort((a, b) => a.sort_order - b.sort_order).map(image => image.url)
+      .concat(product.variants.flatMap(variant => (variant.images || []).map(image => image.url))));
+  }
+  onCompositionImageError(event: Event): void {
+    const url = (event.target as HTMLImageElement).getAttribute('src');
+    if (url) this.failedCompositionImages.add(url);
+    this.cdr.markForCheck();
+  }
+  compositionDetails(entry: unknown) {
+    let display = entry;
+    if (typeof display === 'string') { try { display = JSON.parse(display); } catch { /* Keep legacy names as display text. */ } }
+    const record = display && typeof display === 'object' && !Array.isArray(display) ? display as Record<string, unknown> : null;
+    const id = Number(record?.['component_product_id'] ?? record?.['product_id']);
+    const rawQuantity = record && Object.hasOwn(record, 'quantity') ? record['quantity'] : record?.['component_quantity'] ?? record?.['qty'] ?? 1;
+    const quantity = rawQuantity == null ? null : Number(rawQuantity);
+    const sku = String(record?.['component_variant_sku'] ?? record?.['variant_sku'] ?? record?.['sku'] ?? '');
+    return { id, sku, name: String(record?.['component_name'] || record?.['name'] || (Number.isFinite(id) ? `Product #${id}` : typeof entry === 'string' ? entry : 'Existing component')),
+      label: this.compositionLabel(record?.['component_variant_label']) || this.compositionLabel(record?.['variant_label']),
+      // Some legacy entries swapped URL and public ID. Resolve only for display; never rewrite the entry.
+      image: this.compositionImage([record?.['component_image_url'], record?.['component_image_public_id'], record?.['image_url']]),
+      quantity: quantity != null && Number.isFinite(quantity) ? quantity : null,
+      editable: !!entry && typeof entry === 'object' && !Array.isArray(entry) && Number.isSafeInteger(id) && id > 0 && !!sku };
+  }
+  compositionQuantityError(entry: unknown): boolean { return this.editedCompositionEntries.has(entry) && !this.isCompositionQuantity(this.compositionDetails(entry).quantity); }
+  updateCompositionQuantity(index: number, quantity: number | null): void {
+    const entry = this.compositionEntries[index];
+    if (this.setBundle.is_exclusive || !this.compositionDetails(entry).editable) return;
+    const updated = { ...(entry as Record<string, unknown>), quantity };
+    this.compositionEntries[index] = updated;
+    this.editedCompositionEntries.delete(entry);
+    this.editedCompositionEntries.add(updated);
+  }
+  addComposition(): void {
+    const product = this.compositionSelection, variant = this.selectedCompositionVariant;
+    if (this.setBundle.is_exclusive || !product || !variant || !this.isCompositionQuantity(this.compositionQuantity) || this.compositionAlreadyAdded || this.compositionEntries.length >= 100) return;
+    const image = [...(variant.images?.length ? variant.images : product.images || [])].sort((a, b) => a.sort_order - b.sort_order)[0];
+    const entry = { component_product_id: product.product_id, component_name: product.name, component_category: product.category,
+      component_variant_sku: variant.sku, component_variant_label: this.compositionLabel(variant.label), component_price: variant.price,
+      component_image_url: image?.url || '', component_image_public_id: image?.public_id || '', quantity: this.compositionQuantity };
+    this.setBundle.composition = [...this.compositionEntries, entry];
+    this.editedCompositionEntries.add(entry);
+    this.resetCompositionSearch();
+    this.compositionMessage = 'Component added. Save draft or Publish to keep your changes.';
+  }
+  requestRemoveComposition(index: number): void {
+    if (!this.setBundle.is_exclusive && index >= 0 && index < this.compositionEntries.length) this.compositionPendingDelete = { entry: this.compositionEntries[index], index };
+  }
+  removePendingComposition(): void {
+    const pending = this.compositionPendingDelete;
+    this.compositionPendingDelete = null;
+    if (!pending || this.setBundle.is_exclusive || this.compositionEntries[pending.index] !== pending.entry) return;
+    this.compositionEntries.splice(pending.index, 1);
+    this.editedCompositionEntries.delete(pending.entry);
+  }
+
   addVariant(): void {
     this.form.variants.push({ ...emptyVariant(), label: '', is_default: false });
   }
-  variantImage(variant: AdminProductVariant): AdminProductImage | null {
+  variantImage(variant: Pick<AdminProductVariant, 'images'>): AdminProductImage | null {
     return [...(variant.images || [])].filter(image => !!image.url).sort((a, b) => a.sort_order - b.sort_order)[0] || null;
   }
   chooseVariantImage(index: number): void { this.selectingVariantIndex = index; this.imageError = ''; }
+  isSelectedVariantImage(image: AdminProductImage): boolean {
+    if (this.selectingVariantIndex === null) return false;
+    const variant = this.form.variants[this.selectingVariantIndex];
+    return !!variant && this.variantImage(variant)?.url.trim() === image.url.trim();
+  }
   assignVariantImage(image: AdminProductImage): void {
     if (this.selectingVariantIndex === null || !image.url.trim()
       || !this.form.images.some(candidate => candidate.url.trim() === image.url.trim())) return;
@@ -147,55 +293,142 @@ export class ProductFormComponent implements OnInit {
   }
   clearVariantImage(): void {
     if (this.selectingVariantIndex === null) return;
-    this.form.variants[this.selectingVariantIndex].images = [];
+    const variant = this.form.variants[this.selectingVariantIndex];
+    this.variantPendingImageClear = variant?.images.length ? variant : null;
     this.selectingVariantIndex = null;
+  }
+  cancelVariantImageClear(): void {
+    const index = this.variantPendingImageClear ? this.form.variants.indexOf(this.variantPendingImageClear) : -1;
+    this.variantPendingImageClear = null;
+    this.selectingVariantIndex = index >= 0 ? index : null;
+  }
+  confirmVariantImageClear(): void {
+    if (this.variantPendingImageClear && this.form.variants.includes(this.variantPendingImageClear)) this.variantPendingImageClear.images = [];
+    this.variantPendingImageClear = null;
   }
 
   private loadRelated(productId: number): void {
-    this.productsApi.batches(productId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: ({ data }) => { this.batches = data; this.cdr.markForCheck(); },
-      error: () => { this.batchError = 'Could not load batches.'; this.cdr.markForCheck(); }
-    });
+    if (this.product?.is_new_product) this.restoreBatchChanges([], this.product.batch_changes);
+    else {
+      this.batchesLoading = true;
+      this.batchesLoadFailed = false;
+      this.productsApi.batches(productId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: ({ data }) => { this.restoreBatchChanges(data, this.product?.batch_changes); this.batchesLoading = false; this.cdr.markForCheck(); },
+        error: () => { this.batchesLoading = false; this.batchesLoadFailed = true; this.batchError = 'Could not load batches. Reload the editor before saving.'; this.cdr.markForCheck(); }
+      });
+    }
     if (this.canViewHistory) this.productsApi.history(productId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ data }) => { this.history = data; this.cdr.markForCheck(); },
       error: () => { this.cdr.markForCheck(); }
     });
   }
 
-  openBatchModal(): void {
-    this.batchDraft = { batch_code: '', variant_sku: this.defaultVariant()?.sku || '', quantity: 1,
-      received_at: new Date().toISOString().slice(0, 10), best_before: null };
+  addBatchRow(): void {
+    if (this.addingBatch || this.batchesLoading || this.batchesLoadFailed || this.saving) return;
+    const variants = this.batchVariantOptions;
+    if (!variants.length) { this.batchError = 'Enter a variant SKU before adding a batch.'; return; }
+    this.batchEditingId = null;
+    this.batchDraft = { batch_code: '', variant_sku: (variants.find(variant => variant.is_default) || variants[0])?.sku || '', quantity: 1,
+      received_at: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date()), best_before: null };
     this.batchError = '';
-    this.batchModalOpen = true;
+    this.addingBatch = true;
   }
-  closeBatchModal(): void { if (!this.batchSaving) this.batchModalOpen = false; }
-  saveBatch(): void {
-    if (!this.product || this.batchSaving) return;
-    this.batchSaving = true;
+  cancelBatchRow(): void { if (!this.saving) { this.addingBatch = false; this.batchEditingId = null; this.batchError = ''; } }
+  get batchVariantOptions(): VariantForm[] { return this.form.variants.filter(variant => !!variant.sku.trim()); }
+  hasBatchSku(sku: string): boolean { return this.batchVariantOptions.some(variant => variant.sku.trim() === sku.trim()); }
+  private batchDay(value: string | null): string | null {
+    if (!value) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).format(date) : value;
+  }
+  private batchValues(row: ProductBatchValues): ProductBatchValues {
+    return { batch_code: row.batch_code.trim(), variant_sku: row.variant_sku.trim(), quantity: row.quantity,
+      received_at: this.batchDay(row.received_at) || '', best_before: this.batchDay(row.best_before) };
+  }
+  private restoreBatchChanges(published: ProductBatch[], changes?: ProductBatchChanges): void {
+    this.publishedBatches = published.map(row => ({ ...row, ...this.batchValues(row) }));
+    this.batches = this.publishedBatches.map(row => ({ ...row }));
+    const rememberOriginal = (id: string, expected: ProductBatchValues) => {
+      const index = this.publishedBatches.findIndex(row => row._id === id);
+      const row: ProductBatch = { ...(this.publishedBatches[index] || {}), ...expected, _id: id, product_id: this.product?.product_id || 0, added_by_name: this.publishedBatches[index]?.added_by_name || '—' };
+      if (index >= 0) this.publishedBatches[index] = row;
+      else this.publishedBatches.push(row);
+    };
+    for (const operation of changes?.deletes || []) {
+      rememberOriginal(operation.id, operation.expected);
+      this.batches = this.batches.filter(row => row._id !== operation.id);
+    }
+    for (const operation of changes?.upserts || []) {
+      const id = operation.id || operation.client_id!;
+      const previous = this.batches.find(row => row._id === id);
+      if (operation.id && operation.expected) rememberOriginal(operation.id, operation.expected);
+      const row = { ...previous, ...this.batchValues(operation), _id: id, product_id: this.product?.product_id || 0, added_by_name: previous?.added_by_name || '—' };
+      const index = this.batches.findIndex(row => row._id === id);
+      if (index >= 0) this.batches[index] = row;
+      else this.batches.push(row);
+    }
+  }
+  get pendingBatchChanges(): ProductBatchChanges {
+    const byId = new Map(this.publishedBatches.map(row => [row._id, row]));
+    const upserts: ProductBatchChanges['upserts'] = [];
+    for (const row of this.batches) {
+      const original = byId.get(row._id), values = this.batchValues(row);
+      if (!original) upserts.push({ ...values, client_id: row._id });
+      else if (JSON.stringify(values) !== JSON.stringify(this.batchValues(original))) upserts.push({ ...values, id: row._id, expected: this.batchValues(original) });
+    }
+    const ids = new Set(this.batches.map(row => row._id));
+    return { upserts, deletes: this.publishedBatches.filter(row => !ids.has(row._id)).map(row => ({ id: row._id, expected: this.batchValues(row) })) };
+  }
+  get pendingBatchCount(): number { const changes = this.pendingBatchChanges; return changes.upserts.length + changes.deletes.length; }
+  editBatch(row: ProductBatch): void {
+    if (this.addingBatch || this.saving || this.batchesLoading) return;
+    this.batchEditingId = row._id;
+    this.batchDraft = { ...this.batchValues(row) };
+    this.addingBatch = true;
     this.batchError = '';
-    this.productsApi.addBatch(this.product.product_id, this.batchDraft).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: ({ data }) => { this.batches = [data, ...this.batches]; this.batchSaving = false; this.batchModalOpen = false; this.cdr.markForCheck(); },
-      error: (err) => { this.batchSaving = false; this.batchError = err?.error?.error || 'Could not add batch.'; this.cdr.markForCheck(); }
-    });
   }
-  editBestBefore(batch: ProductBatch): void { this.editingBatchId = batch._id; this.editingBestBefore = batch.best_before?.slice(0, 10) || null; }
-  saveBestBefore(batch: ProductBatch): void {
-    if (!this.product) return;
-    this.productsApi.updateBatchBestBefore(this.product.product_id, batch._id, this.editingBestBefore).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: ({ data }) => { this.batches = this.batches.map(item => item._id === data._id ? data : item); this.editingBatchId = null; this.batchError = ''; this.cdr.markForCheck(); },
-      error: (err) => { this.batchError = err?.error?.error || 'Could not update date.'; this.cdr.markForCheck(); }
-    });
+  confirmBatchRow(): boolean {
+    if (!this.addingBatch || this.saving) return false;
+    const draft = this.batchDraft;
+    if (!draft.batch_code.trim() || !this.hasBatchSku(draft.variant_sku)
+      || !Number.isSafeInteger(draft.quantity) || draft.quantity < 1 || !isProductDate(draft.received_at)
+      || (draft.best_before && !isProductDate(draft.best_before))
+      || (draft.best_before && draft.best_before < draft.received_at)) {
+      this.batchError = 'Enter a batch code, valid SKU, positive quantity and dates. Best before cannot precede received date.';
+      return false;
+    }
+    if (this.batches.some(row => row._id !== this.batchEditingId && row.batch_code === draft.batch_code.trim())) {
+      this.batchError = 'Batch code already exists in this product.'; return false;
+    }
+    if (this.batchEditingId) {
+      this.batches = this.batches.map(row => row._id === this.batchEditingId ? { ...row, ...this.batchValues(draft) } : row);
+    } else this.batches.push({ ...this.batchValues(draft), _id: `new-${Date.now()}-${++this.nextBatchKey}`, product_id: this.product?.product_id || 0, added_by_name: '—' });
+    this.cancelBatchRow();
+    return true;
+  }
+  requestRemoveBatch(row: ProductBatch): void { if (!this.saving && !this.addingBatch) this.batchPendingDelete = row; }
+  removePendingBatch(): void {
+    if (this.batchPendingDelete && !this.saving) this.batches = this.batches.filter(row => row._id !== this.batchPendingDelete!._id);
+    this.batchPendingDelete = null;
   }
   historyLabel(entry: ProductHistoryEntry): string {
     if (entry.action_type === 'product.update' && entry.old_value?.['price'] !== entry.new_value?.['price']) {
       return `Price ${entry.old_value?.['price'] ?? '—'} → ${entry.new_value?.['price'] ?? '—'}`;
     }
     return ({ 'product.create': 'Created', 'product.update': 'Updated', 'product.draft-save': 'Draft saved', 'product.status': 'Status changed',
-      'product.batch-create': 'Batch added', 'product.batch-expiry': 'Best-before changed' } as Record<string, string>)[entry.action_type] || entry.action_type;
+      'product.batch-create': 'Batch added', 'product.batch-update': 'Batch updated', 'product.batch-delete': 'Batch removed',
+      'product.batch-expiry': 'Best-before changed' } as Record<string, string>)[entry.action_type] || entry.action_type;
   }
 
   removeVariant(index: number): void {
-    if (this.form.variants.length === 1) return;
+    if (this.form.variants.length <= 1) return;
+    this.variantPendingDelete = this.form.variants[index] || null;
+  }
+  deletePendingVariant(): void {
+    const index = this.variantPendingDelete ? this.form.variants.indexOf(this.variantPendingDelete) : -1;
+    this.variantPendingDelete = null;
+    if (index < 0 || this.form.variants.length <= 1) return;
     const removedDefault = this.form.variants[index].is_default;
     this.form.variants.splice(index, 1);
     if (removedDefault) this.setDefault(0);
@@ -277,21 +510,28 @@ export class ProductFormComponent implements OnInit {
   save(publish: boolean): void {
     if (this.saving || this.loading || this.loadFailed || this.uploadingImages) return;
     this.submitAttempted = true;
+    this.form.variants.forEach(variant => this.submittedPriceRows.add(variant));
     this.error = '';
     this.notice = '';
+    if (this.addingBatch && !this.confirmBatchRow()) { this.error = this.batchError; return; }
     this.syncTextFields();
     const issue = this.validate();
     if (issue) { this.error = issue; return; }
     if (publish && (!this.product || this.product.is_new_product)) this.form.is_active = true;
     this.saving = true;
     const wasNew = !this.product;
-    const request = !publish ? this.productsApi.saveDraft(this.product?.product_id ?? null, this.form)
-      : this.product ? this.productsApi.update(this.product.product_id, this.form) : this.productsApi.create(this.form);
+    // Blank prices exist only in the editor; validation above requires a positive number.
+    const payload: AdminProductPayload = { ...this.form, variants: this.form.variants.map(variant => ({ ...variant, price: Number(variant.price) })) };
+    const batchChanges = this.pendingBatchChanges;
+    if (batchChanges.upserts.length || batchChanges.deletes.length) payload.batch_changes = batchChanges;
+    const request = !publish ? this.productsApi.saveDraft(this.product?.product_id ?? null, payload)
+      : this.product ? this.productsApi.update(this.product.product_id, payload) : this.productsApi.create(payload);
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ data }) => {
         this.saving = false;
         if (publish) {
-          void this.router.navigate(['/admin/products'], { queryParams: { saved: data.product_id } });
+          this.publishFeedback.published();
+          void this.router.navigate(['/admin/products'], { queryParams: this.backQueryParams });
         } else {
           this.product = data;
           this.form = this.toForm(data);
@@ -307,15 +547,19 @@ export class ProductFormComponent implements OnInit {
   }
 
   categoryLabel(): string { return this.categories.find((item) => item.value === this.form.category)?.label || 'Product'; }
-  defaultVariant(): AdminProductVariant | undefined { return this.form.variants.find((variant) => variant.is_default) || this.form.variants[0]; }
+  defaultVariant(): VariantForm | undefined { return this.form.variants.find((variant) => variant.is_default) || this.form.variants[0]; }
   isInvalidPrice(value: unknown): boolean { return typeof value !== 'number' || !Number.isFinite(value) || value <= 0; }
+  showPriceError(variant: VariantForm): boolean {
+    return this.isInvalidPrice(variant.price) && (variant.price != null || this.submittedPriceRows.has(variant));
+  }
   trackIndex(index: number): number { return index; }
 
   private hydrateTextFields(): void {
     this.tagsText = this.form.product_tag.join(', ');
     this.tastingNotesText = this.form.coffee?.tasting_notes?.join(', ') || '';
-    this.compositionText = (this.form.sets_bundles?.composition || []).map((entry) => typeof entry === 'string' ? entry : JSON.stringify(entry)).join('\n');
-    this.originalTextFields = { tags: this.tagsText, tastingNotes: this.tastingNotesText, composition: this.compositionText };
+    this.originalTextFields = { tags: this.tagsText, tastingNotes: this.tastingNotesText };
+    this.editedCompositionEntries.clear();
+    this.resetCompositionSearch();
     this.slugEdited = true;
   }
 
@@ -323,11 +567,6 @@ export class ProductFormComponent implements OnInit {
     if (!this.product || this.tagsText !== this.originalTextFields.tags) this.form.product_tag = this.splitList(this.tagsText);
     if (!this.product || this.tastingNotesText !== this.originalTextFields.tastingNotes) {
       this.form.coffee = { ...(this.form.coffee || {}), tasting_notes: this.splitList(this.tastingNotesText) };
-    }
-    if (!this.product || this.compositionText !== this.originalTextFields.composition) {
-      this.form.sets_bundles = { ...(this.form.sets_bundles || {}), composition: this.compositionText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
-        try { return JSON.parse(line); } catch { return line; }
-      }) };
     }
     this.form.images = this.form.images.filter((image) => image.url.trim()).map((image, index) => ({
       ...image, url: image.url.trim(), public_id: (image.public_id || '').trim(), alt_text: (image.alt_text || '').trim(), sort_order: index
@@ -337,12 +576,16 @@ export class ProductFormComponent implements OnInit {
   private validate(): string {
     if (!this.form.name.trim()) return 'Product name is required.';
     if (!this.form.slug.trim()) return 'Slug is required.';
+    if (this.batchesLoading || this.batchesLoadFailed) return 'Wait for batch records to load, or reload the editor before saving.';
+    if (this.batches.some(row => !this.hasBatchSku(row.variant_sku))) return 'A batch refers to a removed variant. Edit or remove that batch before saving.';
+    if (this.form.category === 'sets_bundles' && !this.setBundle.is_exclusive && this.compositionEntries.some(entry => this.compositionQuantityError(entry))) return 'Composition quantities must be whole numbers of at least 1.';
+    if (this.form.batch_expiry_date && !isProductDate(this.form.batch_expiry_date)) return 'Enter a valid current batch expiry as dd/mm/yyyy.';
     if (!this.hasVariantType(this.form.variant_type)) return 'Choose a valid variant type.';
     if (!this.form.variants.length) return 'Add at least one variant.';
     if (this.form.variants.some(variant => this.isInvalidPrice(variant.price))) return 'Variant prices must be greater than 0.';
     if (this.form.variants.some((variant) => !variant.sku.trim())) return 'Every variant needs a SKU.';
     if (new Set(this.form.variants.map((variant) => variant.sku.trim().toLowerCase())).size !== this.form.variants.length) return 'Variant SKUs must be unique.';
-    if (this.form.variants.some((variant) => variant.price < 0 || variant.stock < 0 || (variant.low_stock_threshold ?? 10) < 0)) return 'Price, stock and low-stock threshold cannot be negative.';
+    if (this.form.variants.some((variant) => variant.stock < 0 || (variant.low_stock_threshold ?? 10) < 0)) return 'Stock and low-stock threshold cannot be negative.';
     if (this.form.variants.filter((variant) => variant.is_default).length !== 1) return 'Choose one default variant.';
     if (this.form.is_subscribable && this.form.subscribe_discount_percent != null
       && (this.form.subscribe_discount_percent < 5 || this.form.subscribe_discount_percent > 15 || !Number.isInteger(this.form.subscribe_discount_percent))) {
@@ -351,7 +594,7 @@ export class ProductFormComponent implements OnInit {
     return '';
   }
 
-  private toForm(product: AdminProduct): AdminProductPayload {
+  private toForm(product: AdminProduct): ProductForm {
     const variants = (product.variants || []).map((variant) => ({
       ...variant, low_stock_threshold: variant.low_stock_threshold ?? 10,
       images: (variant.images || []).map((image) => ({ ...image }))
@@ -359,14 +602,14 @@ export class ProductFormComponent implements OnInit {
     const images = this.mergeImages(product.images || [], variants.flatMap(variant => variant.images));
     return {
       name: product.name, slug: product.slug, description: product.description || '', seo_title: product.seo_title || '',
-      category: product.category, product_tag: [...(product.product_tag || [])], is_subscription: !!product.is_subscription,
+      category: product.category, product_tag: [...(product.product_tag || [])],
       is_best_seller: !!product.is_best_seller, is_new_arrival: !!product.is_new_arrival,
       is_subscribable: !!product.is_subscribable, subscribe_discount_percent: product.subscribe_discount_percent ?? null,
       batch_expiry_date: product.batch_expiry_date || null,
       variant_type: product.variant_type,
       images,
       variants,
-      is_active: product.is_active, quiz_eligible: product.quiz_eligible !== false,
+      is_active: product.is_active,
       matcha: { ...(product.matcha || {}) }, coffee: { ...(product.coffee || {}),
         roast_level: product.coffee?.roast_level || '',
         tasting_notes: [...(product.coffee?.tasting_notes || [])] },

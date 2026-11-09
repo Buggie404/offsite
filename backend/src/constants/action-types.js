@@ -39,6 +39,8 @@ const ACTION_TYPES = [
   { value: 'recipe.update', label: 'Recipe details updated', group: 'Recipes' },
   { value: 'recipe.delete', label: 'Recipe deleted', group: 'Recipes' },
   { value: 'product.batch-create', label: 'Product batch added', group: 'Products' },
+  { value: 'product.batch-update', label: 'Product batch updated', group: 'Products' },
+  { value: 'product.batch-delete', label: 'Product batch deleted', group: 'Products' },
   { value: 'subscription.pause', label: 'Ritual Box paused', group: 'Ritual Box' },
   { value: 'subscription.skip', label: 'Ritual Box cycle skipped', group: 'Ritual Box' },
   { value: 'subscription.unpause', label: 'Ritual Box resumed', group: 'Ritual Box' },
