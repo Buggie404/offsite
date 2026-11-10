@@ -150,6 +150,8 @@ router.patch('/contact-messages/:contactId', authMiddleware, requireRole('admin_
 
 router.get('/starter-quiz', authMiddleware, requireRole('admin_cc'), adminStarterQuizController.getConfig);
 router.get('/starter-quiz/metrics', authMiddleware, requireRole('admin_cc'), adminStarterQuizController.getKitMetrics);
+router.put('/starter-quiz/draft', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.saveDraftConfig);
+router.post('/starter-quiz/publish', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.publishDraft);
 router.patch('/starter-quiz/settings', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.updateSettings);
 router.post('/starter-quiz/questions', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.createQuestion);
 router.put('/starter-quiz/questions/reorder', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminStarterQuizController.reorderQuestions);

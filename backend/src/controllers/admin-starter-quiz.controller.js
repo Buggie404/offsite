@@ -2,7 +2,10 @@ const QuizConfig = require('../models/QuizConfig');
 const QuizSettings = require('../models/QuizSettings');
 const StarterKit = require('../models/StarterKit');
 const Product = require('../models/Product');
-const { annotateSlot, bestInStock, slotMatches } = require('../services/starter-quiz.slots');
+const StarterQuizDraft = require('../models/StarterQuizDraft');
+const { annotateSlot, bestInStock, loadProductCatalog, productsForSlot, slotMatches, stockLabel } = require('../services/starter-quiz.slots');
+
+const BUNDLE_DISCOUNT_PERCENT = 20;
 
 const SETTINGS_ID = 'starter_kit';
 const ROLES = ['copy_only', 'primary', 'secondary', 'hard_filter'];
@@ -161,17 +164,9 @@ function publicQuestion(question) {
   };
 }
 
-function stockLabel(slots) {
-  const heroEmpty = slots.some((slot) => slot.hero && slot.stock_count === 0);
-  if (heroEmpty) return { code: 'hero_oos', label: 'Hero range OOS' };
-  const low = slots.filter((slot) => slot.stock_count < 3).length;
-  if (low) return { code: 'range_low', label: `${low} range low` };
-  return { code: 'ok', label: 'OK' };
-}
-
 function displayStatus(kit, stock) {
   if (kit.status === 'draft') return 'draft';
-  if (kit.status === 'suspended' || stock.code === 'hero_oos') return 'suspended';
+  if (kit.status === 'suspended' || stock.code === 'hero_oos' || stock.code === 'slot_oos') return 'suspended';
   return 'active';
 }
 
@@ -180,7 +175,7 @@ function annotateKit(kit, products) {
   const stock = stockLabel(slots);
   const retailMin = slots.reduce((sum, slot) => sum + slot.min_price, 0);
   const retailMax = slots.reduce((sum, slot) => sum + slot.max_price, 0);
-  const factor = 1 - (Number(kit.discount_percent) || 0) / 100;
+  const factor = 1 - BUNDLE_DISCOUNT_PERCENT / 100;
   return {
     kit_id: kit.kit_id,
     name: kit.name,
@@ -191,7 +186,7 @@ function annotateKit(kit, products) {
     level: kit.level,
     budget: kit.budget,
     budget_label: budgetLabel(kit.budget),
-    discount_percent: kit.discount_percent,
+    discount_percent: BUNDLE_DISCOUNT_PERCENT,
     status: kit.status,
     display_status: displayStatus(kit, stock),
     order: kit.order,
@@ -205,9 +200,7 @@ function annotateKit(kit, products) {
 }
 
 async function loadProducts() {
-  return Product.find({ is_active: { $ne: false } })
-    .select('product_id name slug category product_tag is_active quiz_eligible images variants matcha coffee tools drinkware total_sold_quantity rating_avg')
-    .lean();
+  return loadProductCatalog(Product);
 }
 
 async function ensureSettings() {
@@ -235,7 +228,9 @@ function cleanOption(option, index) {
     option_id: String(option.option_id || code || `OPT${index + 1}`).trim(),
     text,
     hint: String(option.hint || ''),
-    icon: String(option.icon || ''),
+    icon: /^[a-z0-9-]{0,64}$/.test(String(option?.icon || '').trim().toLowerCase())
+      ? String(option?.icon || '').trim().toLowerCase()
+      : '',
     code,
     score_weights: option.score_weights && typeof option.score_weights === 'object' ? option.score_weights : {}
   };
@@ -305,7 +300,7 @@ function cleanKit(body, { enforceSlotCount = true } = {}) {
   }
   const slots = (Array.isArray(body.slots) ? body.slots : []).map(cleanSlot);
   if (enforceSlotCount && (slots.length < 2 || slots.length > 3)) {
-    const error = new Error('A kit needs 2 or 3 slots.');
+    const error = new Error(`${name} needs 2 or 3 slots.`);
     error.status = 400;
     throw error;
   }
@@ -319,9 +314,8 @@ function cleanKit(body, { enforceSlotCount = true } = {}) {
     error.status = 400;
     throw error;
   }
-  const discount = Number(body.discount_percent);
-  if (!Number.isFinite(discount) || discount < 0 || discount > 100) {
-    const error = new Error('Bundle discount must be between 0 and 100.');
+  if (body.discount_percent != null && Number(body.discount_percent) !== BUNDLE_DISCOUNT_PERCENT) {
+    const error = new Error('Bundle discount is fixed at 20%.');
     error.status = 400;
     throw error;
   }
@@ -335,7 +329,7 @@ function cleanKit(body, { enforceSlotCount = true } = {}) {
     drink: body.drink,
     level: body.level,
     budget: body.budget,
-    discount_percent: discount,
+    discount_percent: BUNDLE_DISCOUNT_PERCENT,
     status
   };
 }
@@ -393,7 +387,8 @@ function explainTest(kits, products, answers) {
   }
   const full = winner.slots.map((slot) => {
     const source = (kits.find((kit) => kit.kit_id === winner.kit_id)?.slots || []).find((item) => item.slot_id === slot.slot_id) || slot;
-    const pick = bestInStock(products.filter((product) => slotMatches(product, source)));
+    const pool = productsForSlot(products, source);
+    const pick = bestInStock(pool.filter((product) => slotMatches(product, source)));
     return pick ? pick.name : `${slot.name} (none in stock)`;
   });
   steps.push(`Each slot picks the best in-stock product from its range (${full.join(', ')}).`);
@@ -426,7 +421,7 @@ function summarizeKit(kit) {
     level: kit.level,
     budget: kit.budget,
     budget_label: budgetLabel(kit.budget),
-    discount_percent: kit.discount_percent,
+    discount_percent: BUNDLE_DISCOUNT_PERCENT,
     status: kit.status,
     display_status: kit.status,
     order: kit.order,
@@ -439,18 +434,122 @@ function summarizeKit(kit) {
   };
 }
 
+function assertMatchingRoles(questions) {
+  const active = (questions || []).filter((question) => question.is_active !== false);
+  const roles = new Set(active.map((question) => defaultRole(question)));
+  if (!roles.has('primary') || !roles.has('hard_filter')) {
+    const error = new Error('Keep at least one Primary question and one Hard filter question. Without them every kit matches.');
+    error.status = 400;
+    throw error;
+  }
+}
+
+function assertDraftOverlap(kits) {
+  const seen = new Map();
+  for (const kit of kits) {
+    if (kit.status !== 'active') continue;
+    const key = `${kit.drink}|${kit.level}|${kit.budget}`;
+    if (seen.has(key)) {
+      const error = new Error(`No overlap with other active kits. “${seen.get(key)}” already uses this Drink + Level + Budget.`);
+      error.status = 409;
+      throw error;
+    }
+    seen.set(key, kit.name);
+  }
+}
+
+function cleanDraft(body) {
+  const rawQuestions = Array.isArray(body.questions) ? body.questions : [];
+  if (rawQuestions.length > 6) {
+    const error = new Error('The quiz can have at most 6 questions.');
+    error.status = 400;
+    throw error;
+  }
+  const questions = rawQuestions.map((question, index) => ({
+    question_id: String(question.question_id || `SQ${index + 1}`),
+    code: String(question.code || `q${index + 1}`),
+    order: index + 1,
+    ...cleanQuestion(question)
+  }));
+  assertMatchingRoles(questions);
+  const kits = (Array.isArray(body.kits) ? body.kits : []).map((kit, index) => ({
+    kit_id: String(kit.kit_id || `SK${index + 1}`),
+    order: index + 1,
+    ...cleanKit({ ...kit, discount_percent: BUNDLE_DISCOUNT_PERCENT })
+  }));
+  assertDraftOverlap(kits);
+  const enabled = !!body.enabled;
+  if (enabled) {
+    const count = questions.filter((question) => question.is_active !== false).length;
+    if (count < 5 || count > 6) {
+      const error = new Error('Turn the quiz on only when it has 5 or 6 active questions.');
+      error.status = 400;
+      throw error;
+    }
+  }
+  return { enabled, questions, kits };
+}
+
+async function publishedConfig() {
+  const [settings, questions] = await Promise.all([
+    ensureSettings(),
+    QuizConfig.find({ quiz_type: 'starter_kit' }).sort({ order: 1 }).lean()
+  ]);
+  await ensureKits();
+  const kits = await StarterKit.find().sort({ order: 1, name: 1 }).lean();
+  return {
+    enabled: settings.enabled !== false,
+    questions: questions.map(publicQuestion),
+    kits
+  };
+}
+
+async function workingKits() {
+  const draft = await StarterQuizDraft.findById(SETTINGS_ID).lean();
+  if (draft) return draft.kits || [];
+  await ensureKits();
+  return StarterKit.find().sort({ order: 1, name: 1 }).lean();
+}
+
+async function publishCollections(config) {
+  const questionIds = config.questions.map((question) => question.question_id);
+  await QuizConfig.deleteMany({ quiz_type: 'starter_kit', question_id: { $nin: questionIds } });
+  for (const question of config.questions) {
+    await QuizConfig.updateOne(
+      { question_id: question.question_id },
+      { $set: { ...question, quiz_type: 'starter_kit' } },
+      { upsert: true }
+    );
+  }
+  const kitIds = config.kits.map((kit) => kit.kit_id);
+  if (kitIds.length) await StarterKit.deleteMany({ kit_id: { $nin: kitIds } });
+  for (const kit of config.kits) {
+    await StarterKit.updateOne({ kit_id: kit.kit_id }, { $set: kit }, { upsert: true });
+  }
+  await QuizSettings.findByIdAndUpdate(
+    SETTINGS_ID,
+    { enabled: config.enabled },
+    { upsert: true, setDefaultsOnInsert: true }
+  );
+}
+
 async function getConfig(_req, res) {
   try {
-    const [settings, questions] = await Promise.all([
-      ensureSettings(),
-      QuizConfig.find({ quiz_type: 'starter_kit' }).sort({ order: 1 }).lean()
-    ]);
-    await ensureKits();
-    const kits = await StarterKit.find().sort({ order: 1, name: 1 }).lean();
+    const draft = await StarterQuizDraft.findById(SETTINGS_ID).lean();
+    if (draft) {
+      return res.json({
+        enabled: draft.enabled !== false,
+        questions: draft.questions || [],
+        kits: (draft.kits || []).map(summarizeKit),
+        unpublished: true
+      });
+    }
+    const published = await publishedConfig();
     return res.json({
-      enabled: settings.enabled !== false,
-      questions: questions.map(publicQuestion),
-      kits: kits.map(summarizeKit)
+      enabled: published.enabled,
+      questions: published.questions,
+      kits: published.kits.map(summarizeKit),
+      unpublished: false
     });
   } catch (error) {
     return sendError(res, error);
@@ -460,10 +559,44 @@ async function getConfig(_req, res) {
 async function getKitMetrics(_req, res) {
   try {
     const [kits, products] = await Promise.all([
-      StarterKit.find().sort({ order: 1, name: 1 }).lean(),
+      workingKits(),
       loadProducts()
     ]);
     return res.json({ kits: kits.map((kit) => annotateKit(kit, products)) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+async function saveDraftConfig(req, res) {
+  try {
+    const cleaned = cleanDraft(req.body || {});
+    await StarterQuizDraft.findByIdAndUpdate(SETTINGS_ID, cleaned, { upsert: true });
+    return res.json({
+      enabled: cleaned.enabled,
+      questions: cleaned.questions,
+      kits: cleaned.kits.map(summarizeKit),
+      unpublished: true
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+async function publishDraft(_req, res) {
+  try {
+    const draft = await StarterQuizDraft.findById(SETTINGS_ID).lean();
+    if (!draft) return res.status(400).json({ error: 'There are no unpublished changes.' });
+    const cleaned = cleanDraft(draft);
+    await publishCollections(cleaned);
+    await StarterQuizDraft.deleteOne({ _id: SETTINGS_ID });
+    const published = await publishedConfig();
+    return res.json({
+      enabled: published.enabled,
+      questions: published.questions,
+      kits: published.kits.map(summarizeKit),
+      unpublished: false
+    });
   } catch (error) {
     return sendError(res, error);
   }
@@ -529,6 +662,10 @@ async function updateQuestion(req, res) {
     const existing = await QuizConfig.findOne({ question_id: req.params.questionId, quiz_type: 'starter_kit' });
     if (!existing) return res.status(404).json({ error: 'Question not found.' });
     const cleaned = cleanQuestion(req.body || {}, existing);
+    const all = await QuizConfig.find({ quiz_type: 'starter_kit' }).lean();
+    assertMatchingRoles(all.map((question) => (
+      question.question_id === existing.question_id ? { ...question, ...cleaned } : question
+    )));
     existing.question = cleaned.question;
     existing.matching_role = cleaned.matching_role;
     existing.is_active = cleaned.is_active;
@@ -545,6 +682,8 @@ async function deleteQuestion(req, res) {
   try {
     const existing = await QuizConfig.findOne({ question_id: req.params.questionId, quiz_type: 'starter_kit' }).lean();
     if (!existing) return res.status(404).json({ error: 'Question not found.' });
+    const all = await QuizConfig.find({ quiz_type: 'starter_kit' }).lean();
+    assertMatchingRoles(all.filter((question) => question.question_id !== existing.question_id));
     await QuizConfig.deleteOne({ question_id: existing.question_id, quiz_type: 'starter_kit' });
     await QuizConfig.updateMany(
       { quiz_type: 'starter_kit', 'visible_when.question_id': existing.question_id },
@@ -618,7 +757,7 @@ async function previewKit(req, res) {
       drink: req.body?.drink || 'any',
       level: req.body?.level || 'any',
       budget: req.body?.budget || 'under_60',
-      discount_percent: req.body?.discount_percent ?? 20,
+      discount_percent: BUNDLE_DISCOUNT_PERCENT,
       status: req.body?.status || 'draft',
       slots: req.body?.slots || []
     }, { enforceSlotCount: false });
@@ -631,11 +770,14 @@ async function previewKit(req, res) {
 
 async function testRules(req, res) {
   try {
-    await ensureKits();
-    const [kits, products] = await Promise.all([
-      StarterKit.find().sort({ order: 1 }).lean(),
-      loadProducts()
-    ]);
+    const products = await loadProducts();
+    const kits = Array.isArray(req.body?.kits)
+      ? req.body.kits.map((kit, index) => ({
+        kit_id: String(kit.kit_id || `SK${index + 1}`),
+        order: Number(kit.order) || index + 1,
+        ...cleanKit({ ...kit, discount_percent: BUNDLE_DISCOUNT_PERCENT }, { enforceSlotCount: false })
+      }))
+      : await workingKits();
     return res.json(explainTest(kits, products, req.body || {}));
   } catch (error) {
     return sendError(res, error);
@@ -645,6 +787,8 @@ async function testRules(req, res) {
 module.exports = {
   getConfig,
   getKitMetrics,
+  saveDraftConfig,
+  publishDraft,
   updateSettings,
   createQuestion,
   updateQuestion,
@@ -653,5 +797,6 @@ module.exports = {
   createKit,
   updateKit,
   previewKit,
-  testRules
+  testRules,
+  assertMatchingRoles
 };

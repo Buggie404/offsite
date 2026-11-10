@@ -4,8 +4,13 @@
       <h1>Starter quiz</h1>
       <p>Rule-based · {{ questions.length }} questions · {{ kits.length }} kits</p>
     </div>
-    <div class="quiz-admin__tools">
-      <a class="preview-link" href="/starter-quiz" target="_blank" rel="noopener">
+      <div class="quiz-admin__tools">
+        @if (unpublished || localDirty) {
+          <span class="publish-state">Unpublished</span>
+        }
+        <button type="button" class="btn btn--ghost" [disabled]="!localDirty || saving" (click)="saveChanges()">Save changes</button>
+        <button type="button" class="btn btn--forest" [disabled]="saving || (!unpublished && !localDirty)" (click)="askPublish()">Publish changes</button>
+        <a class="preview-link" href="/starter-quiz" target="_blank" rel="noopener">
         <svg lucideEye aria-hidden="true" [size]="16"></svg>
         Preview quiz
       </a>
@@ -90,12 +95,12 @@
 
           <label>
             <span>Question</span>
-            <input [(ngModel)]="draft.question" (blur)="saveDraft()" />
+            <input [(ngModel)]="draft.question" (blur)="commitQuestion()" />
           </label>
 
           <label>
             <span>Role in matching</span>
-            <select [(ngModel)]="draft.matching_role" (ngModelChange)="saveDraft()">
+            <select [(ngModel)]="draft.matching_role" (ngModelChange)="onRoleChange()">
               @for (role of roles; track role.value) {
                 <option [value]="role.value">{{ role.select }}</option>
               }
@@ -115,10 +120,10 @@
             </div>
             @for (option of draft.options; track option.option_id) {
               <div class="option-row">
-                <span class="option-icon" aria-hidden="true"></span>
+                <app-lucide-icon-picker [value]="option.icon" (valueChange)="option.icon = $event; commitQuestion()"></app-lucide-icon-picker>
                 @if (editingOptionId === option.option_id) {
-                  <input [(ngModel)]="option.text" (blur)="saveDraft()" aria-label="Option label" />
-                  <input [(ngModel)]="option.code" (blur)="saveDraft()" aria-label="Answer value" />
+                  <input [(ngModel)]="option.text" (blur)="commitQuestion()" aria-label="Option label" />
+                  <input [(ngModel)]="option.code" (blur)="commitQuestion()" aria-label="Answer value" />
                   <button type="button" class="icon-btn" [disabled]="draft.options.length < 2" (click)="removeOption(option.option_id)" aria-label="Remove option">
                     <svg lucideTrash2 aria-hidden="true" [size]="16"></svg>
                   </button>
@@ -239,6 +244,7 @@
           <h2>Stock rules</h2>
           <p><span class="stock" data-stock="range_low">1 range low</span> A slot’s filter still matches in-stock products, but fewer than 3 → kit still sold, quiz picks the next in-stock match.</p>
           <p><span class="stock" data-stock="hero_oos">Hero range OOS</span> No product in the hero slot’s range is in stock → kit suspended automatically and skipped by the quiz.</p>
+          <p><span class="stock" data-stock="slot_oos">Range empty</span> A slot matches nothing that is in stock, so this is not “range low”. The kit is skipped.</p>
           <p><span class="status" data-status="draft">Draft</span> Not used by the quiz yet.</p>
         </aside>
       </div>
@@ -370,12 +376,10 @@
       </section>
 
       <div class="kit-footer-fields">
-        <label class="discount-field">
+        <label>
           <span>Bundle discount</span>
-          <div>
-            <input type="number" min="0" max="100" [(ngModel)]="kitForm.discount_percent" name="discount" (ngModelChange)="queuePreview()" />
-            <em>%</em>
-          </div>
+          <input readonly value="20 %" />
+          <small>Fixed at 20%, the same rate checkout uses.</small>
         </label>
         <label class="price-preview">
           <span>Price preview (range)</span>
@@ -416,4 +420,16 @@
   type="danger"
   (confirm)="deleteSelected()"
   (cancel)="confirmDelete = false"
+></app-confirmation-modal>
+
+<app-confirmation-modal
+  [isOpen]="confirmPublish"
+  title="Publish changes?"
+  message="Customers will see this version of the starter quiz. It replaces the quiz that is live now."
+  confirmText="Publish changes"
+  cancelText="Cancel"
+  type="info"
+  appearance="admin"
+  (confirm)="confirmPublishChanges()"
+  (cancel)="confirmPublish = false"
 ></app-confirmation-modal>

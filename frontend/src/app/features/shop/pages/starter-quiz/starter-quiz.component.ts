@@ -4,10 +4,11 @@ import { PLATFORM_ID } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import {
   LucideArrowLeft, LucideArrowRight, LucideBlend, LucideCandy, LucideCheck, LucideClock,
-  LucideCoffee, LucideCupSoda, LucideDroplet, LucideFlame, LucideGem, LucideGift, LucideLeaf, LucideLoaderCircle,
+  LucideCoffee, LucideCupSoda, LucideDroplet, LucideDynamicIcon, LucideFlame, LucideGem, LucideGift, LucideLeaf, LucideLoaderCircle,
   LucideMilk, LucidePackage, LucideRotateCcw, LucideScale, LucideSnowflake, LucideSparkles, LucideSun, LucideTag,
-  LucideTimer, LucideUserRound, LucideWallet, LucideWrench
+  LucideTimer, LucideUserRound, LucideWallet, LucideWrench, provideLucideIcons
 } from '@lucide/angular';
+import { QUIZ_LUCIDE_ICONS, quizIconName } from '../../../../shared/icons/quiz-lucide-icons';
 import { AuthService } from '../../../../core/auth.service';
 import { CartService } from '../../../purchase/services/cart.service';
 import { createKitBundle } from '../../../purchase/models/bundle-cart.model';
@@ -27,8 +28,9 @@ type QuizStep = 'intro' | 'question' | 'result';
     LucideArrowLeft, LucideArrowRight, LucideBlend, LucideCandy, LucideCheck, LucideClock,
     LucideCoffee, LucideCupSoda, LucideDroplet, LucideFlame, LucideGem, LucideGift, LucideLeaf, LucideLoaderCircle,
     LucideMilk, LucidePackage, LucideRotateCcw, LucideScale, LucideSnowflake, LucideSparkles, LucideSun, LucideTag,
-    LucideTimer, LucideUserRound, LucideWallet, LucideWrench
+    LucideTimer, LucideUserRound, LucideWallet, LucideWrench, LucideDynamicIcon
   ],
+  providers: [provideLucideIcons(...QUIZ_LUCIDE_ICONS)],
   templateUrl: './starter-quiz.component.html',
   styleUrl: './starter-quiz.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -197,6 +199,10 @@ export class StarterQuizComponent implements OnInit {
       slotProductOrder: kit.slotProductOrder as Partial<Record<SlotKey, number[]>>
     });
     this.router.navigate(['/shop/build-your-bundle']);
+  }
+
+  optionIcon(icon: string): string {
+    return quizIconName(icon);
   }
 
   formatPrice(amount: number): string {

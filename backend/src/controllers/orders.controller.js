@@ -13,7 +13,9 @@ const pendingOrderExpiry = require('../services/pending-order-expiry.service');
 const { hasAdminRole, isAdminRole, ADMIN_ORDER_VIEW_ROLES } = require('../middleware/auth.middleware');
 
 const REFUND_REASONS = ['Damaged item', 'Wrong item', 'Size/color mismatch', 'Other'];
-// Build-your-bundle discount, same as BUNDLE_DISCOUNT_RATE in the frontend bundle-cart.model.ts.
+// Build-your-bundle and starter-quiz kits both use this fixed 20% rate.
+// Checkout ignores a client sale price and applies this rate per component,
+// so a kit must not store a different discount.
 const BUNDLE_DISCOUNT_RATE = 0.2;
 
 const round2 = n => Math.round(n * 100) / 100;

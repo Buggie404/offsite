@@ -15,6 +15,7 @@ import {
   LucideArrowRight
 } from '@lucide/angular';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { LucideIconPickerComponent } from './lucide-icon-picker.component';
 import {
   AdminStarterQuizService,
   KitBudget,
@@ -46,6 +47,7 @@ export const ROLE_OPTIONS: { value: MatchingRole; badge: string; select: string 
     CommonModule,
     FormsModule,
     ConfirmationModalComponent,
+    LucideIconPickerComponent,
     LucideEye,
     LucideFilter,
     LucideGripVertical,
@@ -109,6 +111,9 @@ export class AdminStarterQuizComponent implements OnInit {
   editingOptionId = '';
   draggingId = '';
   confirmDelete = false;
+  confirmPublish = false;
+  unpublished = false;
+  localDirty = false;
 
   kitOpen = false;
   editingKitId = '';
@@ -149,6 +154,8 @@ export class AdminStarterQuizComponent implements OnInit {
           this.selectedId = this.questions[0]?.question_id || '';
         }
         this.resetDraft();
+        this.unpublished = !!response.unpublished;
+        this.localDirty = false;
         this.loading = false;
         this.paint();
         this.loadMetrics();
@@ -180,91 +187,95 @@ export class AdminStarterQuizComponent implements OnInit {
   }
 
   toggleQuiz(): void {
-    const next = !this.enabled;
-    this.enabled = next;
-    this.api.updateSettings(next).subscribe({
-      next: (response) => {
-        this.enabled = response.enabled;
-        this.error = '';
-      },
-      error: (error) => {
-        this.enabled = !next;
-        this.error = error?.error?.error || 'The quiz switch could not be saved.';
-      }
-    });
+    this.enabled = !this.enabled;
+    this.localDirty = true;
+    this.error = '';
   }
 
   selectQuestion(question: QuizQuestion): void {
     if (question.question_id === this.selectedId) return;
-    this.saveDraft(() => {
-      this.selectedId = question.question_id;
-      this.editingOptionId = '';
-      this.resetDraft();
-    });
+    this.commitQuestion();
+    this.selectedId = question.question_id;
+    this.editingOptionId = '';
+    this.resetDraft();
   }
 
-  saveDraft(done?: () => void): void {
-    if (!this.draft) {
-      done?.();
+  commitQuestion(): void {
+    if (!this.draft) return;
+    const current = this.questions.find((question) => question.question_id === this.draft?.question_id);
+    if (current && JSON.stringify(current) === JSON.stringify(this.draft)) return;
+    this.questions = this.questions.map((question) => (
+      question.question_id === this.draft?.question_id ? structuredClone(this.draft!) : question
+    ));
+    this.localDirty = true;
+  }
+
+  onRoleChange(): void {
+    if (!this.draft) return;
+    const gap = this.roleGap(this.questionsWithDraft());
+    if (gap) {
+      const previous = this.questions.find((question) => question.question_id === this.draft?.question_id);
+      if (previous) this.draft.matching_role = previous.matching_role;
+      this.error = gap;
+      this.paint();
       return;
     }
-    const current = this.selected;
-    if (current && JSON.stringify(current) === JSON.stringify(this.draft)) {
-      done?.();
-      return;
-    }
-    this.saving = true;
-    this.api.updateQuestion(this.draft.question_id, this.draft).subscribe({
-      next: (response) => {
-        this.questions = this.questions.map((question) => (
-          question.question_id === response.question.question_id ? response.question : question
-        ));
-        if (this.selectedId === response.question.question_id) this.draft = structuredClone(response.question);
-        this.saving = false;
-        this.error = '';
-        done?.();
-      },
-      error: (error) => {
-        this.saving = false;
-        this.error = error?.error?.error || 'The question could not be saved.';
-      }
-    });
+    this.error = '';
+    this.commitQuestion();
   }
 
   addQuestion(): void {
     if (this.questions.length >= 6) return;
-    this.api.createQuestion().subscribe({
-      next: (response) => {
-        this.questions = [...this.questions, response.question];
-        this.selectedId = response.question.question_id;
-        this.resetDraft();
-      },
-      error: (error) => {
-        this.error = error?.error?.error || 'The question could not be added.';
-      }
-    });
+    this.commitQuestion();
+    const question: QuizQuestion = {
+      question_id: `SQ${Date.now()}`,
+      code: `q${this.questions.length + 1}`,
+      question: 'New question',
+      order: this.questions.length + 1,
+      matching_role: 'secondary',
+      is_active: true,
+      options: [{
+        option_id: `OPT${Date.now()}`,
+        text: 'New option',
+        hint: '',
+        icon: 'sparkles',
+        code: 'new_option'
+      }]
+    };
+    this.questions = [...this.questions, question];
+    this.selectedId = question.question_id;
+    this.localDirty = true;
+    this.resetDraft();
   }
 
   askDelete(): void {
-    if (this.draft) this.confirmDelete = true;
+    if (!this.draft) return;
+    const next = this.questions.filter((question) => question.question_id !== this.draft?.question_id);
+    const gap = this.roleGap(next);
+    if (gap) {
+      this.error = gap;
+      return;
+    }
+    this.confirmDelete = true;
   }
 
   deleteSelected(): void {
     const questionId = this.draft?.question_id;
     this.confirmDelete = false;
     if (!questionId) return;
-    this.api.deleteQuestion(questionId).subscribe({
-      next: () => {
-        this.questions = this.questions
-          .filter((question) => question.question_id !== questionId)
-          .map((question, index) => ({ ...question, order: index + 1 }));
-        this.selectedId = this.questions[0]?.question_id || '';
-        this.resetDraft();
-      },
-      error: (error) => {
-        this.error = error?.error?.error || 'The question could not be deleted.';
-      }
-    });
+    const next = this.questions
+      .filter((question) => question.question_id !== questionId)
+      .map((question, index) => ({ ...question, order: index + 1 }));
+    const gap = this.roleGap(next);
+    if (gap) {
+      this.error = gap;
+      return;
+    }
+    this.questions = next;
+    this.selectedId = this.questions[0]?.question_id || '';
+    this.localDirty = true;
+    this.error = '';
+    this.resetDraft();
   }
 
   addOption(): void {
@@ -272,17 +283,17 @@ export class AdminStarterQuizComponent implements OnInit {
     const index = this.draft.options.length + 1;
     this.draft.options = [
       ...this.draft.options,
-      { option_id: `OPT${Date.now()}`, text: 'New option', hint: '', icon: '', code: `option_${index}` }
+      { option_id: `OPT${Date.now()}`, text: 'New option', hint: '', icon: 'sparkles', code: `option_${index}` }
     ];
     this.editingOptionId = this.draft.options[this.draft.options.length - 1].option_id;
-    this.saveDraft();
+    this.commitQuestion();
   }
 
   removeOption(optionId: string): void {
     if (!this.draft || this.draft.options.length < 2) return;
     this.draft.options = this.draft.options.filter((option) => option.option_id !== optionId);
     this.editingOptionId = '';
-    this.saveDraft();
+    this.commitQuestion();
   }
 
   dragStart(questionId: string): void {
@@ -302,12 +313,7 @@ export class AdminStarterQuizComponent implements OnInit {
       const updated = this.questions.find((question) => question.question_id === this.draft?.question_id);
       if (updated) this.draft = { ...this.draft, order: updated.order };
     }
-    this.api.reorderQuestions(this.questions.map((question) => question.question_id)).subscribe({
-      error: (error) => {
-        this.error = error?.error?.error || 'The question order could not be saved.';
-        this.load();
-      }
-    });
+    this.localDirty = true;
   }
 
   openAddKit(): void {
@@ -391,20 +397,56 @@ export class AdminStarterQuizComponent implements OnInit {
   }
 
   saveKit(): void {
-    this.saving = true;
     this.kitError = '';
-    const request = this.editingKitId
-      ? this.api.updateKit(this.editingKitId, this.kitForm)
-      : this.api.createKit(this.kitForm);
-    request.subscribe({
-      next: () => {
-        this.saving = false;
-        this.kitOpen = false;
-        this.load();
-      },
-      error: (error) => {
-        this.saving = false;
-        this.kitError = error?.error?.error || 'The kit could not be saved.';
+    const clash = this.kits.find((kit) => (
+      kit.kit_id !== this.editingKitId
+      && kit.status === 'active'
+      && this.kitForm.status === 'active'
+      && kit.drink === this.kitForm.drink
+      && kit.level === this.kitForm.level
+      && kit.budget === this.kitForm.budget
+    ));
+    if (clash) {
+      this.kitError = `No overlap with other active kits. “${clash.name}” already uses this Drink + Level + Budget.`;
+      return;
+    }
+    const kitId = this.editingKitId || `SK${Date.now()}`;
+    const next: QuizKit = {
+      kit_id: kitId,
+      name: this.kitForm.name.trim(),
+      tier: this.kitForm.tier,
+      description: this.kitForm.description,
+      image_url: this.kitForm.image_url,
+      drink: this.kitForm.drink,
+      level: this.kitForm.level,
+      budget: this.kitForm.budget,
+      budget_label: this.budgets.find((item) => item.value === this.kitForm.budget)?.label || this.kitForm.budget,
+      discount_percent: 20,
+      status: this.kitForm.status,
+      display_status: this.kitForm.status,
+      order: this.editingKitId
+        ? (this.kits.find((kit) => kit.kit_id === kitId)?.order || this.kits.length + 1)
+        : this.kits.length + 1,
+      slots: this.kitForm.slots.map((slot) => ({ ...slot })),
+      slot_summary: this.kitForm.slots.map((slot) => slot.name).join(' · '),
+      stock: null,
+      retail: null,
+      bundle: null,
+      price_label: ''
+    };
+    if (!next.name) {
+      this.kitError = 'Kit name is required.';
+      return;
+    }
+    this.kits = this.editingKitId
+      ? this.kits.map((kit) => kit.kit_id === kitId ? next : kit)
+      : [...this.kits, next];
+    this.localDirty = true;
+    this.kitOpen = false;
+    this.api.previewKit({ ...this.kitForm, discount_percent: 20 }).subscribe({
+      next: (response) => {
+        this.kits = this.kits.map((kit) => kit.kit_id === kitId ? { ...response.kit, kit_id: kitId } : kit);
+        this.paint();
       }
     });
   }
@@ -414,9 +456,87 @@ export class AdminStarterQuizComponent implements OnInit {
   }
 
   runTest(): void {
-    this.api.testRules({ drink: this.testDrink, level: this.testLevel, budget: this.testBudget }).subscribe({
+    this.api.testRules({
+      drink: this.testDrink,
+      level: this.testLevel,
+      budget: this.testBudget,
+      kits: this.kitPayload()
+    }).subscribe({
       next: (result) => {
         this.test = result;
+        this.paint();
+      }
+    });
+  }
+
+  saveChanges(): void {
+    this.commitQuestion();
+    this.saving = true;
+    this.api.saveDraft({
+      enabled: this.enabled,
+      questions: this.questions,
+      kits: this.kitPayload()
+    }).subscribe({
+      next: (response) => {
+        this.applyConfig(response);
+        this.saving = false;
+        this.unpublished = true;
+        this.localDirty = false;
+        this.error = '';
+        this.loadMetrics();
+        this.runTest();
+        this.paint();
+      },
+      error: (error) => {
+        this.saving = false;
+        this.error = error?.error?.error || 'The draft could not be saved.';
+        this.paint();
+      }
+    });
+  }
+
+  askPublish(): void {
+    this.commitQuestion();
+    this.confirmPublish = true;
+  }
+
+  confirmPublishChanges(): void {
+    this.confirmPublish = false;
+    const publish = () => {
+      this.api.publish().subscribe({
+        next: (response) => {
+          this.applyConfig(response);
+          this.saving = false;
+          this.unpublished = false;
+          this.localDirty = false;
+          this.error = '';
+          this.loadMetrics();
+          this.runTest();
+          this.paint();
+        },
+        error: (error) => {
+          this.saving = false;
+          this.error = error?.error?.error || 'The quiz could not be published.';
+          this.paint();
+        }
+      });
+    };
+    if (!this.localDirty && this.unpublished) {
+      this.saving = true;
+      publish();
+      return;
+    }
+    this.saving = true;
+    this.api.saveDraft({
+      enabled: this.enabled,
+      questions: this.questions,
+      kits: this.kitPayload()
+    }).subscribe({
+      next: () => publish(),
+      error: (error) => {
+        this.saving = false;
+        this.error = error?.error?.error || 'The draft could not be saved.';
+        this.paint();
       }
     });
   }
@@ -451,6 +571,54 @@ export class AdminStarterQuizComponent implements OnInit {
 
   private resetDraft(): void {
     this.draft = this.selected ? structuredClone(this.selected) : null;
+  }
+
+  private questionsWithDraft(): QuizQuestion[] {
+    if (!this.draft) return this.questions;
+    return this.questions.map((question) => (
+      question.question_id === this.draft?.question_id ? this.draft! : question
+    ));
+  }
+
+  private roleGap(questions: QuizQuestion[]): string | null {
+    const active = questions.filter((question) => question.is_active !== false);
+    const primary = active.some((question) => question.matching_role === 'primary');
+    const hard = active.some((question) => question.matching_role === 'hard_filter');
+    if (primary && hard) return null;
+    return 'Keep at least one Primary question and one Hard filter question. Without them every kit matches.';
+  }
+
+  private kitPayload(): Array<KitDraft & { kit_id: string }> {
+    return this.kits.map((kit) => ({
+      kit_id: kit.kit_id,
+      name: kit.name,
+      tier: kit.tier,
+      description: kit.description,
+      image_url: kit.image_url,
+      drink: kit.drink,
+      level: kit.level,
+      budget: kit.budget,
+      discount_percent: 20,
+      status: kit.status,
+      slots: kit.slots.map((slot) => ({
+        slot_id: slot.slot_id,
+        name: slot.name,
+        category: slot.category,
+        attribute: slot.attribute,
+        constraint: slot.constraint,
+        hero: slot.hero
+      }))
+    }));
+  }
+
+  private applyConfig(response: { enabled: boolean; questions: QuizQuestion[]; kits: QuizKit[] }): void {
+    this.enabled = response.enabled;
+    this.questions = response.questions;
+    this.kits = response.kits;
+    if (!this.questions.some((question) => question.question_id === this.selectedId)) {
+      this.selectedId = this.questions[0]?.question_id || '';
+    }
+    this.resetDraft();
   }
 
   private emptyKit(): KitDraft {

@@ -44,7 +44,7 @@ const kits = [
     drink: 'matcha',
     level: 'beginner',
     budget: 'any',
-    discount_percent: 20,
+    discount_percent: 5,
     status: 'active',
     slots: [
       { slot_id: 'S1', name: 'Powder', category: 'matcha', attribute: 'Any grade', constraint: 'Any price', hero: true },
@@ -74,7 +74,7 @@ const answers = [
 const matched = matchConfiguredKit({ questions, answers, kits, products });
 assert.strictEqual(matched.error, undefined);
 assert.strictEqual(matched.kit.title, 'The Matcha Kit');
-assert.deepStrictEqual(matched.kit.items.map((item) => item.productId), [1, 2]);
+assert.strictEqual(matched.kit.discountPercent, 20);
 
 const deletedQuestion = matchConfiguredKit({
   questions: questions.filter((question) => question.question_id !== 'SQ2'),

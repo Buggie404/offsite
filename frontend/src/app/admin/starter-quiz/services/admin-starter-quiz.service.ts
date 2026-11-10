@@ -57,7 +57,7 @@ export interface QuizKit {
   order: number;
   slots: KitSlot[];
   slot_summary: string;
-  stock: { code: 'ok' | 'range_low' | 'hero_oos'; label: string } | null;
+  stock: { code: 'ok' | 'range_low' | 'hero_oos' | 'slot_oos'; label: string } | null;
   retail: { min: number; max: number } | null;
   bundle: { min: number; max: number } | null;
   price_label: string;
@@ -89,6 +89,7 @@ export interface QuizConfigResponse {
   enabled: boolean;
   questions: QuizQuestion[];
   kits: QuizKit[];
+  unpublished?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -136,7 +137,15 @@ export class AdminStarterQuizService {
     return this.http.patch<{ kit: QuizKit }>(`${this.api}/kits/${kitId}`, draft);
   }
 
-  testRules(answers: { drink: string; level: string; budget: string }): Observable<RuleTest> {
+  saveDraft(config: { enabled: boolean; questions: QuizQuestion[]; kits: Array<KitDraft & { kit_id?: string }> }): Observable<QuizConfigResponse> {
+    return this.http.put<QuizConfigResponse>(`${this.api}/draft`, config);
+  }
+
+  publish(): Observable<QuizConfigResponse> {
+    return this.http.post<QuizConfigResponse>(`${this.api}/publish`, {});
+  }
+
+  testRules(answers: { drink: string; level: string; budget: string; kits?: Array<KitDraft & { kit_id?: string }> }): Observable<RuleTest> {
     return this.http.post<RuleTest>(`${this.api}/kits/test`, answers);
   }
 }

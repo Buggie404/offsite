@@ -90,24 +90,7 @@
               (click)="selectOption(question.question_id, option.option_id)"
             >
               <span class="starter-option__mark" aria-hidden="true">
-                @switch (option.icon) {
-                  @case ('package') { <svg lucidePackage [size]="20"></svg> }
-                  @case ('cup') { <svg lucideCupSoda [size]="20"></svg> }
-                  @case ('tools') { <svg lucideWrench [size]="20"></svg> }
-                  @case ('leaf') { <svg lucideLeaf [size]="20"></svg> }
-                  @case ('coffee') { <svg lucideCoffee [size]="20"></svg> }
-                  @case ('blend') { <svg lucideBlend [size]="20"></svg> }
-                  @case ('sun') { <svg lucideSun [size]="20"></svg> }
-                  @case ('scale') { <svg lucideScale [size]="20"></svg> }
-                  @case ('flame') { <svg lucideFlame [size]="20"></svg> }
-                  @case ('sweet') { <svg lucideCandy [size]="20"></svg> }
-                  @case ('ice') { <svg lucideSnowflake [size]="20"></svg> }
-                  @case ('milk') { <svg lucideMilk [size]="20"></svg> }
-                  @case ('clock') { <svg lucideClock [size]="20"></svg> }
-                  @case ('wallet') { <svg lucideWallet [size]="20"></svg> }
-                  @case ('gem') { <svg lucideGem [size]="20"></svg> }
-                  @default { <svg lucideSparkles [size]="20"></svg> }
-                }
+                <svg [lucideIcon]="optionIcon(option.icon)" [size]="20"></svg>
               </span>
               <span class="starter-option__copy">
                 <span class="starter-option__title">{{ option.text }}</span>

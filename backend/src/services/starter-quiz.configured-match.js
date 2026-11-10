@@ -1,4 +1,6 @@
-const { bestInStock, slotMatches, inStockVariant, variantPrice } = require('./starter-quiz.slots');
+const { bestInStock, slotMatches, inStockVariant, variantPrice, productsForSlot } = require('./starter-quiz.slots');
+
+const BUNDLE_DISCOUNT_PERCENT = 20;
 
 const DRINKS = new Set(['matcha', 'coffee', 'mixed', 'any']);
 const LEVELS = new Set(['beginner', 'ritual', 'craft', 'any']);
@@ -104,7 +106,11 @@ function toItem(slot, product, slotKey) {
 function fillKit(kit, products) {
   const filled = [];
   for (const slot of kit.slots || []) {
-    const matches = products.filter((product) => slotMatches(product, slot));
+    const pool = productsForSlot(products, slot);
+    const matches = [];
+    for (let index = 0; index < pool.length; index += 1) {
+      if (slotMatches(pool[index], slot)) matches.push(pool[index]);
+    }
     const pick = bestInStock(matches);
     if (!pick) return null;
     filled.push({ slot, pick, matches });
@@ -126,7 +132,7 @@ function matchConfiguredKit({ questions, answers, kits, products, previousItems 
     const shape = shapeOf(filled.map((entry) => entry.slot));
     const items = filled.map((entry, index) => toItem(entry.slot, entry.pick, slotKeyFor(entry.slot, index, shape)));
     const original = items.reduce((sum, item) => sum + Number(item.price || 0), 0);
-    const discount = Number(kit.discount_percent) || 0;
+    const discount = BUNDLE_DISCOUNT_PERCENT;
     const sale = original * (1 - discount / 100);
     const slotProductOrder = {};
     filled.forEach((entry, index) => {
