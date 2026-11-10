@@ -27,12 +27,14 @@
             {{ getUserTierLabel() }}
             <ng-container *ngIf="getUserPoints() > 0"> · {{ getUserPoints() | number }} pts</ng-container>
           </span>
-          <span class="sidebar-customer-tier-badge" [ngClass]="getCustomerTierClass()">
-            {{ getCustomerTier() }}
-          </span>
-          <button *ngIf="dnaBadge()" type="button" class="sidebar-customer-tier-badge" (click)="switchTab('dna')" aria-label="View your Ritual DNA">
-            {{ dnaBadge() }}
-          </button>
+          <div class="sidebar-user-badges">
+            <span class="sidebar-customer-tier-badge" [ngClass]="getCustomerTierClass()">
+              {{ getCustomerTier() }}
+            </span>
+            <button *ngIf="dnaBadge() as archetype" type="button" class="sidebar-customer-tier-badge sidebar-archetype-badge" [attr.data-archetype]="archetype.id" [attr.title]="archetype.name" (click)="switchTab('dna')" aria-label="View your Ritual DNA">
+              {{ archetype.name }}
+            </button>
+          </div>
         </div>
       </div>
 

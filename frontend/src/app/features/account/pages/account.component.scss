@@ -254,6 +254,36 @@
     }
   }
 
+  .sidebar-user-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    margin-top: 2px;
+
+    .sidebar-customer-tier-badge { align-self: center; line-height: 16px; }
+  }
+
+  .sidebar-archetype-badge {
+    --badge-ink: #254e30;
+    --badge-start: #e5eed8;
+    --badge-end: #b9d799;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border: 1px solid color-mix(in srgb, var(--badge-ink) 16%, transparent);
+    background: linear-gradient(110deg, var(--badge-start), var(--badge-end));
+    color: var(--badge-ink);
+    font-family: inherit;
+    cursor: pointer;
+    transition: box-shadow .2s ease;
+
+    &[data-archetype='ARC0002'] { --badge-ink: #642e52; --badge-start: #f5e5ef; --badge-end: #e7b2d2; }
+    &[data-archetype='ARC0003'] { --badge-ink: #764315; --badge-start: #f7e7ca; --badge-end: #edbd6b; }
+    &[data-archetype='ARC0004'] { --badge-ink: #773c36; --badge-start: #f7e3de; --badge-end: #efaaa0; }
+    &:hover { box-shadow: 0 3px 9px color-mix(in srgb, var(--badge-ink) 18%, transparent); }
+  }
+
   // ── Grouped Navigation ───────────────────────────────
   .sidebar-menu {
     display: flex;

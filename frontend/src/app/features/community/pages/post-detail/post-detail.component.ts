@@ -10,6 +10,7 @@ import { CommunityService } from '../../services/community.service';
 import { CommentSectionComponent } from '../../components/comment-section/comment-section.component';
 import { ShareModalComponent } from '../../components/share-modal/share-modal.component';
 import { AuthService } from '../../../../core/auth.service';
+import { RitualQuizInviteComponent } from '../../components/ritual-quiz-invite/ritual-quiz-invite.component';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ReportPostModalComponent, ReportPayload } from '../../components/report-post-modal/report-post-modal.component';
@@ -23,7 +24,7 @@ import { RestrictionBannerComponent } from '../../components/restriction-banner/
   selector: 'app-post-detail',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, RouterModule, RestrictionBannerComponent, CommentSectionComponent, ShareModalComponent, ConfirmationModalComponent,
+    CommonModule, FormsModule, RouterModule, RitualQuizInviteComponent, RestrictionBannerComponent, CommentSectionComponent, ShareModalComponent, ConfirmationModalComponent,
     ReportPostModalComponent, CreatePostModalComponent, LucideArrowLeft, LucideArrowRight, LucideBookmark, LucideClock,
     LucideEllipsis, LucideFlag, LucideHeart, LucideMessageCircle, LucidePencil, LucidePlay, LucideShare2, LucideStar,
     LucideTrash2, LucideUser

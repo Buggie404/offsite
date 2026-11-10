@@ -142,7 +142,7 @@ export class AccountComponent implements OnInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   readonly ritualBox = inject(RitualBoxService);
   private readonly dnaBadgeService = inject(RitualDnaBadgeService);
-  readonly dnaBadge = signal<string | null>(null);
+  readonly dnaBadge = signal<{ id: string; name: string } | null>(null);
   readonly ritualBoxFocusId = signal<string | null>(null);
   readonly pantry = inject(PantryService);
   private authService = inject(AuthService);

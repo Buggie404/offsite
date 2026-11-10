@@ -703,3 +703,7 @@ a.author-name {
 
   &:hover { text-decoration: underline; }
 }
+
+
+.media-main--ritual { height: auto; aspect-ratio: 420 / 750; border: 0; background: transparent; }
+.media-main--ritual img { object-fit: contain; }

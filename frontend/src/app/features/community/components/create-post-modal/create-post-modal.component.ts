@@ -51,7 +51,10 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
 
   // Có post truyền vào = chế độ sửa bài
   @Input() post: Post | null = null;
+  @Input() ritualCard: File | null = null;
   @Output() saved = new EventEmitter<string>(); // post_id vừa sửa xong
+
+  get isRitualPost(): boolean { return !!this.ritualCard || this.post?.post_type === 'ritual_dna'; }
 
   get isEdit(): boolean {
     return !!this.post;
@@ -172,7 +175,14 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.applyBrewShareDraft();
+    if (this.ritualCard) {
+      this.files = [this.ritualCard];
+      this.previews = [{ url: URL.createObjectURL(this.ritualCard), type: 'image' }];
+      this.contentPlaceholder = 'Tell the community about your Ritual DNA...';
+      this.tags = [];
+    } else {
+      this.applyBrewShareDraft();
+    }
     this.initialSnapshot = this.snapshot();
   }
 
@@ -555,7 +565,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     this.addTagFromInput();
 
     const baseTag = this.tags.find(t => t.isBase);
-    if (!baseTag) {
+    if (!baseTag && !this.isRitualPost) {
       this.errorMessage = 'Please select a base tag (coffee or matcha).';
       return;
     }
@@ -568,7 +578,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     this.isSubmitting = true;
 
     const finalContent = this.composedContent;
-    const base = baseTag.label.toUpperCase() as BaseValue;
+    const base = this.isRitualPost ? 'OTHERS' : baseTag!.label.toUpperCase() as BaseValue;
     // Manual tags first, then AI tags, up to five in total.
     const linkedProducts = [...this.selectedProducts, ...this.aiProducts]
       .slice(0, this.maxProducts)
@@ -597,6 +607,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
 
       const formData = new FormData();
       formData.append('content', finalContent);
+      if (this.ritualCard) formData.append('post_type', 'ritual_dna');
       formData.append('base', base);
       formData.append('media', JSON.stringify(media));
       // The API accepts JSON product IDs, up to five in total.

@@ -3,12 +3,13 @@ import { Component, ElementRef, EventEmitter, HostListener, Input, Output } from
 import { CommonModule } from '@angular/common';
 import { LucideBookmark, LucideEllipsis, LucideFlag, LucideHeart, LucideMessageCircle, LucidePencil, LucideShare2, LucideTrash2 } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
+import { RitualQuizInviteComponent } from '../ritual-quiz-invite/ritual-quiz-invite.component';
 import { Post, PostProductCard, postProductLink } from '../../models/post.model';
 
 @Component({
   selector: 'app-post-card',
   standalone: true,
-  imports: [CommonModule, RouterLink, LucideEllipsis, LucideFlag, LucideBookmark, LucideTrash2, LucideHeart, LucideMessageCircle, LucideShare2, LucidePencil],
+  imports: [CommonModule, RouterLink, RitualQuizInviteComponent, LucideEllipsis, LucideFlag, LucideBookmark, LucideTrash2, LucideHeart, LucideMessageCircle, LucideShare2, LucidePencil],
   templateUrl: './post-card.component.html',
   styleUrls: ['./post-card.component.scss']
 })
@@ -53,6 +54,16 @@ export class PostCardComponent {
 
   get productTags(): PostProductCard[] {
     return (this.post?.products || []).slice(0, 3);
+  }
+
+  get ritualRadarPoints(): string {
+    const radar = this.post.ritual_preview?.radar;
+    if (!radar) return '';
+    return ['brightness', 'boldness', 'sweetness', 'skill', 'tempo'].map((axis, i) => {
+      const angle = (-90 + i * 72) * Math.PI / 180;
+      const distance = 68 * radar[axis] / 100;
+      return `${100 + Math.cos(angle) * distance},${100 + Math.sin(angle) * distance}`;
+    }).join(' ');
   }
 
   productLink(product: PostProductCard): string[] {

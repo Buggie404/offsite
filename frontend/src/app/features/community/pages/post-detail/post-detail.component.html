@@ -11,7 +11,7 @@
 
     <!-- ── Left: media ── -->
     <div class="media-column">
-      <div class="media-main" *ngIf="activeMedia; else textTile">
+      <div class="media-main" [class.media-main--ritual]="post.post_type === 'ritual_dna'" *ngIf="activeMedia; else textTile">
         <img *ngIf="activeMedia.type === 'image'" [src]="activeMedia.url" [alt]="post.content">
         <video *ngIf="activeMedia.type === 'video'" [src]="activeMedia.url" controls playsinline preload="metadata"></video>
       </div>
@@ -160,6 +160,8 @@
           </ng-container>
         </p>
       </ng-container>
+
+      <app-ritual-quiz-invite *ngIf="post.post_type === 'ritual_dna'" [post]="post"></app-ritual-quiz-invite>
 
       <div class="post-actions">
         <button type="button" class="action-btn action-btn--like" [class.active]="postLiked" (click)="likePost()">

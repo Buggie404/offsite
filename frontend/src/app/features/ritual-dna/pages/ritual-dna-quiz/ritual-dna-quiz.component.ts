@@ -14,6 +14,8 @@ import {
 import { HttpService } from '../../../../core/http.service';
 import { RitualFitService } from '../../../../shared/components/ritual-fit/ritual-fit.service';
 import { toBlob } from 'html-to-image';
+import { CreatePostModalComponent } from '../../../community/components/create-post-modal/create-post-modal.component';
+import { RitualQuizInviteService } from '../../../community/services/ritual-quiz-invite.service';
 
 type Axis = 'brightness' | 'boldness' | 'sweetness' | 'skill' | 'tempo';
 type Radar = Record<Axis, number>;
@@ -50,7 +52,7 @@ interface RitualResult {
   selector: 'app-ritual-dna-quiz',
   standalone: true,
   imports: [LucideAsterisk, LucideSparkle,CommonModule, LucideArrowLeft, LucideArrowRight, LucideDownload,
-    LucideRotateCcw, LucideShare2, LucideSparkles],
+    LucideRotateCcw, LucideShare2, LucideSparkles, CreatePostModalComponent],
   templateUrl: './ritual-dna-quiz.component.html',
   styleUrl: './ritual-dna-quiz.component.scss'
 })
@@ -59,10 +61,13 @@ export class RitualDnaQuizComponent implements OnInit {
   @ViewChild('exportCardHost') private exportCardHost?: ElementRef<HTMLElement>;
   private readonly http = inject(HttpService);
   private readonly ritualFits = inject(RitualFitService);
+  private readonly ritualInvite = inject(RitualQuizInviteService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
   questions: RitualQuestion[] = [];
+  shareCardFile: File | null = null;
+  sharing = false;
   quizVersion = '';
   result: RitualResult | null = null;
   loading = true;
@@ -181,6 +186,7 @@ export class RitualDnaQuizComponent implements OnInit {
         quiz_version: this.quizVersion, answers
       }) as { result: RitualResult };
       this.result = response.result;
+      this.ritualInvite.quizCompleted();
       this.ritualFits.refresh();
       this.completed = true;
       this.reviewingAnswers = false;
@@ -210,12 +216,9 @@ export class RitualDnaQuizComponent implements OnInit {
 
   exit(): void { void this.router.navigate(['/']); }
 
-  async exportCard(): Promise<void> {
+  private async captureCard(): Promise<Blob> {
     const card = this.exportCardHost?.nativeElement.querySelector<HTMLElement>('.dna-card');
-    if (!card || !this.result || this.exporting) return;
-    this.exporting = true;
-    this.resultNotice = '';
-    try {
+    if (!card) throw new Error('Card unavailable');
       await document.fonts.ready;
       await Promise.all(Array.from(card.querySelectorAll('img'), image => image.decode().catch(() => undefined)));
       // SVG paint properties can be absent from html-to-image's HTML-derived
@@ -248,6 +251,30 @@ export class RitualDnaQuizComponent implements OnInit {
         }
       }
       if (!png) throw new Error('Could not capture the card.');
+      return png;
+  }
+
+  async shareToCommunity(): Promise<void> {
+    if (this.sharing || !this.result) return;
+    this.sharing = true;
+    this.resultNotice = '';
+    try {
+      const png = await this.captureCard();
+      this.shareCardFile = new File([png], `offsite-ritual-dna-${this.result.archetype.id.toLowerCase()}.png`, { type: 'image/png' });
+    } catch {
+      this.resultNotice = 'Could not prepare your card. Please try again.';
+    } finally {
+      this.sharing = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  async exportCard(): Promise<void> {
+    if (!this.result || this.exporting) return;
+    this.exporting = true;
+    this.resultNotice = '';
+    try {
+      const png = await this.captureCard();
       const url = URL.createObjectURL(png);
       const link = document.createElement('a');
       link.href = url;
@@ -265,7 +292,5 @@ export class RitualDnaQuizComponent implements OnInit {
     }
   }
 
-  showPreviewNotice(): void {
-    this.resultNotice = 'Community sharing is coming next. Your saved DNA is available here anytime.';
-  }
+  closeShare(): void { this.shareCardFile = null; }
 }

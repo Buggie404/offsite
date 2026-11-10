@@ -7,8 +7,8 @@
     <!-- Header -->
     <div class="modal-header">
       <div class="header-text">
-        <h2 class="modal-title">{{ isEdit ? 'Edit Post' : 'New Post' }}</h2>
-        <p class="modal-subtitle">Share your daily ritual with the community.</p>
+        <h2 class="modal-title">{{ isEdit ? 'Edit Post' : ritualCard ? 'Share your Ritual DNA' : 'New Post' }}</h2>
+        <p class="modal-subtitle">{{ ritualCard ? 'Your full card is ready. Add a caption and share it.' : 'Share your daily ritual with the community.' }}</p>
       </div>
       <button class="btn-close" type="button" (click)="onRequestClose()" aria-label="Close">
         <svg lucideX [size]="24"></svg>
@@ -23,7 +23,7 @@
         <div class="media-col">
           <input #fileInput type="file" accept="image/*,video/*" multiple hidden (change)="onFilesSelected($event)" />
 
-          <div class="media-main">
+          <div class="media-main" [class.media-main--ritual]="ritualCard">
             <ng-container *ngIf="activePreview as m; else emptyMedia">
               <img *ngIf="m.type === 'image'" [src]="m.url" alt="preview" />
               <video *ngIf="m.type === 'video'" [src]="m.url" muted playsinline controls></video>
@@ -37,7 +37,7 @@
             </ng-template>
           </div>
 
-          <div class="media-thumbs" *ngIf="previews.length || canAddMoreFiles">
+          <div class="media-thumbs" *ngIf="!ritualCard && (previews.length || canAddMoreFiles)">
             <div class="media-thumb" *ngFor="let preview of previews; let i = index"
               [class.media-thumb--active]="i === activeIndex" (click)="activeIndex = i">
               <img *ngIf="preview.type === 'image'" [src]="preview.url" alt="" />
@@ -67,7 +67,7 @@
           ></textarea>
 
           <!-- Base + hashtag -->
-          <div class="chip-row">
+          <div class="chip-row" *ngIf="!isRitualPost">
             <button class="base-chip" type="button" *ngFor="let base of baseOptions"
               [class.base-chip--active]="selectedBase === base" (click)="toggleBase(base)">
               {{ base }}

@@ -10,7 +10,8 @@
       <span class="author-name">&#64;{{ post.author.username }}</span>
     </a>
     <span class="chip chip--wheat" *ngIf="post.post_type === 'recipe'">Recipe</span>
-    <span class="chip chip--sage" *ngIf="baseLabel">{{ baseLabel }}</span>
+    <span class="chip chip--sage" *ngIf="post.post_type === 'ritual_dna'">Ritual DNA</span>
+    <span class="chip chip--sage" *ngIf="baseLabel && post.post_type !== 'ritual_dna'">{{ baseLabel }}</span>
     <span class="header-spacer"></span>
 
     <div class="card-menu-wrap">
@@ -38,35 +39,59 @@
     </div>
   </header>
 
-  <div class="card-media" [class.card-media--text]="!hasMedia" [ngClass]="!hasMedia ? 'card-media--' + (post.base | lowercase) : ''">
-    <ng-container *ngIf="hasMedia; else textOnly">
-      <img *ngIf="heroMedia.type === 'image'" [src]="heroMedia.url" [alt]="post.content">
-      <div class="video-preview" *ngIf="heroMedia.type === 'video'">
-        <video [src]="heroMedia.url" preload="metadata" muted playsinline></video>
-        <div class="play-overlay">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
+  <div class="card-media" [class.card-media--ritual]="post.post_type === 'ritual_dna'" [class.card-media--text]="!hasMedia" [ngClass]="!hasMedia ? 'card-media--' + (post.base | lowercase) : ''">
+    <div class="ritual-preview" *ngIf="post.post_type === 'ritual_dna' && post.ritual_preview as ritual; else regularPreview" [attr.data-archetype]="ritual.archetype_id">
+      <div class="ritual-preview__panel">
+        <div class="ritual-preview__heading"><span>THE RITUAL RADAR</span><span>05 NOTES</span></div>
+        <svg viewBox="-25 0 250 200" role="img" aria-label="Five-axis Ritual DNA radar">
+          <g class="ritual-preview__grid">
+            <polygon points="100,32 164.7,79 140,155 60,155 35.3,79"></polygon>
+            <polygon points="100,55 142.8,86.1 126.5,136.4 73.5,136.4 57.2,86.1"></polygon>
+            <polygon points="100,78 120.9,93.2 112.9,117.8 87.1,117.8 79.1,93.2"></polygon>
+            <path d="M100 32V100L164.7 79M100 100L140 155M100 100L60 155M100 100L35.3 79"></path>
+          </g>
+          <polygon class="ritual-preview__shape" [attr.points]="ritualRadarPoints"></polygon>
+          <g class="ritual-preview__axes">
+            <text x="100" y="17" text-anchor="middle">BRIGHTNESS</text>
+            <text x="175" y="81">BOLDNESS</text><text x="25" y="81" text-anchor="end">TEMPO</text>
+            <text x="145" y="180" text-anchor="middle">SWEETNESS</text><text x="55" y="180" text-anchor="middle">SKILL</text>
+          </g>
+        </svg>
+      </div>
+      <div class="ritual-preview__identity"><span>YOUR ARCHETYPE</span><h3>{{ ritual.name }}</h3></div>
+    </div>
+    <ng-template #regularPreview>
+      <ng-container *ngIf="hasMedia; else textOnly">
+        <img *ngIf="heroMedia.type === 'image'" [src]="heroMedia.url" [alt]="post.content">
+        <div class="video-preview" *ngIf="heroMedia.type === 'video'">
+          <video [src]="heroMedia.url" preload="metadata" muted playsinline></video>
+          <div class="play-overlay">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </div>
         </div>
-      </div>
-      <div class="product-tags" *ngIf="productTags.length">
-        <a class="product-tag" *ngFor="let product of productTags"
-           [routerLink]="productLink(product)" (click)="$event.stopPropagation()">
-          <img *ngIf="product.image_url" [src]="product.image_url" [alt]="product.name">
-          <span>{{ product.name }}</span>
-        </a>
-      </div>
-    </ng-container>
-    <ng-template #textOnly>
-      <svg class="media-quote" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M9.6 6C6 7.2 3.6 10.2 3.6 14.4V19h6.6v-6H7c.2-2 1.5-3.6 3.4-4.2L9.6 6Zm10.2 0c-3.6 1.2-6 4.2-6 8.4V19h6.6v-6h-3.2c.2-2 1.5-3.6 3.4-4.2L19.8 6Z"/>
-      </svg>
-      <p class="media-text">{{ post.content }}</p>
+        <div class="product-tags" *ngIf="productTags.length">
+          <a class="product-tag" *ngFor="let product of productTags"
+             [routerLink]="productLink(product)" (click)="$event.stopPropagation()">
+            <img *ngIf="product.image_url" [src]="product.image_url" [alt]="product.name">
+            <span>{{ product.name }}</span>
+          </a>
+        </div>
+      </ng-container>
+      <ng-template #textOnly>
+        <svg class="media-quote" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9.6 6C6 7.2 3.6 10.2 3.6 14.4V19h6.6v-6H7c.2-2 1.5-3.6 3.4-4.2L9.6 6Zm10.2 0c-3.6 1.2-6 4.2-6 8.4V19h6.6v-6h-3.2c.2-2 1.5-3.6 3.4-4.2L19.8 6Z"/>
+        </svg>
+        <p class="media-text">{{ post.content }}</p>
+      </ng-template>
     </ng-template>
   </div>
 
   <div class="card-body">
     <p class="card-caption" *ngIf="hasMedia && post.content">{{ post.content }}</p>
+
+    <app-ritual-quiz-invite *ngIf="post.post_type === 'ritual_dna'" [post]="post"></app-ritual-quiz-invite>
 
     <div class="card-actions">
       <button type="button" class="action-btn action-btn--like" [class.active]="post.liked" (click)="onLike($event)">

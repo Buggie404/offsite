@@ -41,6 +41,7 @@ export interface Post {
   post_type: string;
   content: string;
   media: PostMedia[];
+  ritual_preview?: { archetype_id: string; name: string; radar: Record<string, number> } | null;
 
   recipe_id: string | null;
   base: 'MATCHA' | 'COFFEE' | 'OTHERS' | 'RECIPE';

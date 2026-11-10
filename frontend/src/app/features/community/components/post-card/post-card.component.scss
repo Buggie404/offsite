@@ -379,3 +379,44 @@ $placeholder: #ebe2dc;
 
   &:hover .author-name { text-decoration: underline; }
 }
+
+
+.card-media--ritual { background: #faf3ed; }
+.ritual-preview {
+  --ritual-accent: #417548;
+  --ritual-strong: #254e30;
+  --ritual-tint: #e6eed6;
+  --ritual-radar: #cce7ac;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 12px 16px 14px;
+  background: radial-gradient(circle at 100% 0%, var(--ritual-tint), transparent 60%), #fbf5ee;
+
+  &[data-archetype='ARC0002'] { --ritual-accent: #914b79; --ritual-strong: #642e52; --ritual-tint: #f5e5ef; --ritual-radar: #f5b7df; }
+  &[data-archetype='ARC0003'] { --ritual-accent: #a96824; --ritual-strong: #764315; --ritual-tint: #f7e7ca; --ritual-radar: #ffd48c; }
+  &[data-archetype='ARC0004'] { --ritual-accent: #ae5c52; --ritual-strong: #773c36; --ritual-tint: #f7e3de; --ritual-radar: #ffc3b4; }
+}
+.ritual-preview__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #42433b;
+  border-radius: 12px;
+  background: radial-gradient(ellipse at 50% 55%, color-mix(in srgb, var(--ritual-accent) 30%, #1c1d1a), #1c1d1a 75%);
+
+  &::after { content: ''; position: absolute; right: -25px; bottom: -60px; width: 130px; height: 130px; border: 1px dashed #ffffff18; border-radius: 50%; pointer-events: none; }
+  svg { display: block; width: 100%; flex: 1; min-height: 0; }
+}
+.ritual-preview__heading { display: flex; justify-content: space-between; padding: 12px 14px 0; color: #e8e5dc; font: 8px var(--font-mono); letter-spacing: .07em; }
+.ritual-preview__grid { fill: none; stroke: #e8e5dc50; stroke-width: 1; }
+.ritual-preview__shape { fill: color-mix(in srgb, var(--ritual-radar) 40%, transparent); stroke: var(--ritual-radar); stroke-width: 2.5; stroke-linejoin: round; }
+.ritual-preview__axes { fill: #e8e5dc; font: 7px var(--font-mono); letter-spacing: .06em; }
+.ritual-preview__identity span { display: block; color: var(--ritual-accent); font: 9px var(--font-mono); letter-spacing: .1em; }
+.ritual-preview__identity h3 { margin: 5px 0 0; color: var(--ritual-strong); font: 400 22px/1.15 var(--font-display); }
+// Historical shares whose profile has changed retain their full original image.
+.card-media--ritual > img { object-fit: contain; }

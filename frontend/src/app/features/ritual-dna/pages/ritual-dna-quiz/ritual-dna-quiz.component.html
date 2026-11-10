@@ -160,7 +160,7 @@
       </div>
       <footer class="result-actions">
         <div class="result-actions__main">
-          <button type="button" class="primary-action" (click)="showPreviewNotice()"><svg lucideShare2 [size]="16" aria-hidden="true"></svg> SHARE TO COMMUNITY</button>
+          <button type="button" class="primary-action" [disabled]="sharing" (click)="shareToCommunity()"><svg lucideShare2 [size]="16" aria-hidden="true"></svg> {{ sharing ? 'PREPARING CARD...' : 'SHARE TO COMMUNITY' }}</button>
           <button type="button" class="secondary-action" [disabled]="exporting" (click)="exportCard()"><svg lucideDownload [size]="16" aria-hidden="true"></svg> {{ exporting ? 'EXPORTING...' : 'EXPORT CARD' }}</button>
         </div>
         <div class="result-actions__edit"><button type="button" class="text-button" (click)="restart()"><svg lucideRotateCcw [size]="15" aria-hidden="true"></svg> RETAKE QUIZ</button></div>
@@ -169,3 +169,6 @@
     </section>
   }
 </main>
+@if (shareCardFile; as cardFile) {
+  <app-create-post-modal [ritualCard]="cardFile" (close)="closeShare()"></app-create-post-modal>
+}

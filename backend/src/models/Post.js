@@ -18,6 +18,11 @@ const postSchema = new mongoose.Schema({
   post_type: { type: String, default: 'regular' },
   content: { type: String, default: "" },
   media: { type: [mediaSchema], default: [] },
+  ritual_preview: { type: new mongoose.Schema({
+    archetype_id: String,
+    name: String,
+    radar: Object
+  }, { _id: false }), default: null },
   recipe_id: { type: String, default: null },
   // Recipes-page fork created when the community recipe reaches 30 likes.
   catalog_recipe_id: { type: String, default: null },

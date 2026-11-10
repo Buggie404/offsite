@@ -8,6 +8,7 @@ const Product = require('../models/Product');
 const { getFollowingIds } = require('../services/follow.service');
 const { syncCommunityRecipePublication } = require('../services/recipe-source');
 const mongoose = require('mongoose');
+const ritualPreview = require('../services/ritual-post-preview.service');
 
 const MAX_LINKED_PRODUCTS = 5;
 const RECIPE_BASES = new Set(['MATCHA', 'COFFEE', 'OTHERS']);
@@ -122,6 +123,7 @@ async function getAllPosts(req, res) {
 
     const productCards = await loadProductCards(posts);
     const recipeBaseById = await loadRecipeBases(posts);
+    const legacyPreviews = await ritualPreview.forLegacyPosts(posts);
 
     const authors = await require('../services/community-author.service').hydrateAuthors(posts);
     const data = posts.map((p, index) => {
@@ -133,6 +135,7 @@ async function getAllPosts(req, res) {
       }
       return {
         ...row,
+        ritual_preview: row.ritual_preview || legacyPreviews.get(p.post_id) || null,
         author: authors[index].author,
         liked: likedPostIds.has(p.post_id),
         saved: savedPostIds.has(p.post_id),
@@ -214,6 +217,7 @@ async function getPostById(req, res) {
     }
 
     const productCards = await loadProductCards([post]);
+    const legacyPreviews = await ritualPreview.forLegacyPosts([post]);
     const payload = post.toObject();
     const recipeBase = String(recipeDetails?.metadata?.base || '').toUpperCase();
     if (post.post_type === 'recipe' && RECIPE_BASES.has(recipeBase)) {
@@ -222,6 +226,7 @@ async function getPostById(req, res) {
 
     res.json({
       ...payload,
+      ritual_preview: payload.ritual_preview || legacyPreviews.get(post.post_id) || null,
       author: (await require('../services/community-author.service').hydrateAuthors([post]))[0].author,
       liked,
       saved,
@@ -280,6 +285,7 @@ async function createPost(req, res) {
       post_type,
       content,
       media,
+      ritual_preview: post_type === 'ritual_dna' ? await ritualPreview.forUser(user) : null,
       recipe_id,
       base,
       linked_products: linkedProducts,
