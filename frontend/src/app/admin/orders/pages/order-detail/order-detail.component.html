@@ -90,12 +90,6 @@
       <section class="detail-card">
         <div class="detail-card__header">
           <h2 class="detail-card__title">Line Items</h2>
-          @if (canReportOutOfStock) {
-            <button type="button" class="btn btn-secondary btn-sm" (click)="openOutOfStockModal()">
-              <svg lucidePackageX aria-hidden="true" [size]="15"></svg>
-              Report out of stock
-            </button>
-          }
         </div>
         <div class="line-items">
           @for (item of order.items; track item.product_id + item.variant_name) {
@@ -114,16 +108,8 @@
                   <span class="line-item__sub-tag"><svg lucideRepeat [size]="12"></svg>{{ subLabel }}</span>
                 }
                 @if (item.out_of_stock) {
+                  <!-- Legacy: marked by the removed "out of stock after ordering" flow (read only). -->
                   <span class="line-item__oos-tag"><svg lucidePackageX [size]="12"></svg>Out of stock</span>
-                  @if (canResolveOutOfStock) {
-                    <span class="line-item__oos-actions">
-                      <span class="line-item__oos-hint">Waiting for the customer's choice:</span>
-                      @if (item.purchase_type !== 'subscription') {
-                        <button type="button" class="btn btn-secondary btn-sm" (click)="openResolveModal(item, 'swap')">Swap item</button>
-                      }
-                      <button type="button" class="btn btn-secondary btn-sm" (click)="openResolveModal(item, 'remove')">Remove</button>
-                    </span>
-                  }
                 }
               </div>
               <span class="line-item__qty">× {{ item.quantity }}</span>
@@ -288,6 +274,51 @@
               </div>
             }
 
+            @if (order.order_status === 'delivery_failed' && (order.delivery_failed_reason_code || order.redelivery)) {
+              <div class="redelivery-panel">
+                <p class="redelivery-panel__title">
+                  {{ deliveryFailedReasonLabel(order.delivery_failed_reason_code) || 'Delivery failed' }}
+                  · attempt {{ order.delivery_attempts }} of {{ (order.max_redelivery_attempts ?? 2) + 1 }}
+                </p>
+                @if (order.delivery_failed_reason) {
+                  <p>{{ order.delivery_failed_reason }}</p>
+                }
+                @if (order.redelivery; as r) {
+                  <dl class="redelivery-panel__grid">
+                    <dt>Status</dt>
+                    <dd>{{ redeliveryStatusLabel(r.status) }}@if (r.status === 'awaiting_customer') { · {{ timeLeft(r.expires_at) }}}@if (r.reminder_sent_at) { · reminded {{ formatDateTime(r.reminder_sent_at) }}}</dd>
+                    @if (r.status === 'confirmed') {
+                      <dt>Phone</dt><dd>{{ r.contact_phone }}</dd>
+                      <dt>Address</dt><dd>{{ r.shipping_address?.recipient_name }} · {{ r.shipping_address?.address }}, {{ r.shipping_address?.city }}</dd>
+                      <dt>Note</dt><dd>{{ r.note || '—' }}</dd>
+                      <dt>Confirmed</dt><dd>{{ formatDateTime(r.confirmed_at) }}</dd>
+                    }
+                  </dl>
+                } @else if (order.delivery_failed_reason_code === 'carrier_issue' && order.can_redeliver) {
+                  <p>Carrier issue: ship it again, nothing is asked of the customer.</p>
+                } @else if (!order.can_redeliver) {
+                  <p>No redeliveries left: cancel the order (refund rules apply).</p>
+                }
+              </div>
+            }
+
+            @if (order.refund_status) {
+              <div class="redelivery-panel">
+                <p class="redelivery-panel__title">
+                  Refund {{ order.refund_status === 'pending_payout' ? 'waiting for payout' : 'completed' }}
+                </p>
+                @if (order.refund_destination; as d) {
+                  <p>{{ d.bank_name }} · {{ d.account_number }} · {{ d.account_holder }}</p>
+                } @else if (order.refund_status === 'pending_payout') {
+                  <p>Waiting for the customer's bank account.</p>
+                }
+                @if (order.refund_status === 'pending_payout' && canManageOrders) {
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="markRefundPaid()"
+                    [disabled]="refundPaying || !order.refund_destination">Mark refunded</button>
+                }
+              </div>
+            }
+
             @for (failure of deliveryFailures; track failure.changed_at) {
               <div class="timeline__alert timeline__alert--delivery-failed">
                 <svg lucideTruck aria-hidden="true" [size]="18"></svg>
@@ -361,11 +392,14 @@
                 class="btn btn-primary btn-block"
                 [class.btn-primary--danger]="option.danger"
                 (click)="chooseStatus(option)"
-                [disabled]="statusSaving"
+                [disabled]="statusSaving || !!option.disabledReason"
               >
                 <svg lucideSave aria-hidden="true" [size]="16"></svg>
-                {{ option.requiresReason ? option.label + '…' : 'Save status' }}
+                {{ option.requiresReason ? option.label + '…' : (option.value === 'shipping' && order.order_status === 'delivery_failed' ? 'Ship again' : 'Save status') }}
               </button>
+              @if (option.disabledReason) {
+                <p class="field-hint">{{ option.disabledReason }}</p>
+              }
             </div>
           }
         } @else {
@@ -756,7 +790,17 @@
 
         <div class="modal-card__body">
           <p class="field-hint">{{ option.hint }} The reason is shown to the customer and kept in the activity log.</p>
-          <label class="field-label" for="status-reason">Reason</label>
+          @if (option.value === 'delivery_failed') {
+            <label class="field-label" for="status-reason-code">Why did it fail?</label>
+            <select id="status-reason-code" class="field-textarea field-select" [value]="statusReasonCode"
+              (change)="statusReasonCode = $any($event.target).value; statusReasonError = null">
+              <option value="">Choose a reason</option>
+              @for (r of deliveryFailedReasons; track r.value) {
+                <option [value]="r.value">{{ r.label }}</option>
+              }
+            </select>
+          }
+          <label class="field-label" for="status-reason">{{ option.value === 'delivery_failed' ? 'Note' : 'Reason' }}</label>
           <textarea
             id="status-reason"
             class="field-textarea"
@@ -780,169 +824,6 @@
             [disabled]="statusSaving"
           >
             {{ option.label }}
-          </button>
-        </footer>
-      </div>
-    </div>
-  }
-
-  @if (showOutOfStockModal) {
-    <div class="modal-backdrop" (click)="closeOutOfStockModal()">
-      <div
-        class="modal-card modal-card--reject"
-        role="dialog"
-        aria-labelledby="oos-modal-title"
-        aria-modal="true"
-        (click)="$event.stopPropagation()"
-      >
-        <header class="modal-card__header">
-          <h2 id="oos-modal-title" class="modal-card__title">Report out of stock</h2>
-          <button type="button" class="modal-card__close" (click)="closeOutOfStockModal()" aria-label="Close">
-            <svg lucideX [size]="18"></svg>
-          </button>
-        </header>
-
-        <div class="modal-card__body">
-          <p class="field-hint">
-            The customer is asked to swap each marked line for an item of the same or lower price, or to remove it.
-            Apply their choice from the line items; the order can't ship until then.
-            If every line is out of stock, the whole order is cancelled{{ order.payment_status === 'paid' ? ' and refunded in full' : '' }}.
-            Lines you mark aren't put back in stock.
-          </p>
-          <div class="oos-lines">
-            @for (item of order.items; track lineKey(item)) {
-              @if (!item.out_of_stock) {
-              <label class="oos-line">
-                <input
-                  type="checkbox"
-                  [checked]="outOfStockSelection.has(lineKey(item))"
-                  (change)="toggleOutOfStockLine(item, $any($event.target).checked)"
-                />
-                <span>
-                  {{ item.product_name }}
-                  @if (isMeaningfulVariantLabel(item.variant_name)) {
-                    <span class="oos-line__variant">{{ item.variant_name }}</span>
-                  }
-                </span>
-                <span class="oos-line__qty">× {{ item.quantity }}</span>
-              </label>
-              }
-            }
-          </div>
-          <label class="field-label" for="oos-reason">Note for the customer (optional)</label>
-          <textarea
-            id="oos-reason"
-            class="field-textarea"
-            placeholder="e.g. Supplier delay until next month"
-            [value]="outOfStockReason"
-            (input)="outOfStockReason = $any($event.target).value"
-          ></textarea>
-          @if (outOfStockError) {
-            <p class="modal-field-error" role="alert">{{ outOfStockError }}</p>
-          }
-        </div>
-
-        <footer class="modal-card__footer">
-          <button type="button" class="btn btn-secondary" (click)="closeOutOfStockModal()">Back</button>
-          <button
-            type="button"
-            class="btn btn-primary btn-primary--danger"
-            (click)="submitOutOfStock()"
-            [disabled]="outOfStockSaving"
-          >
-            <svg lucidePackageX aria-hidden="true" [size]="16"></svg>
-            @if (outOfStockCancelsOrder) {
-              Cancel order{{ order.payment_status === 'paid' ? ' & refund' : '' }}
-            } @else {
-              Notify customer
-            }
-          </button>
-        </footer>
-      </div>
-    </div>
-  }
-
-  @if (resolveLine) {
-    <div class="modal-backdrop" (click)="closeResolveModal()">
-      <div
-        class="modal-card modal-card--reject"
-        role="dialog"
-        aria-labelledby="resolve-modal-title"
-        aria-modal="true"
-        (click)="$event.stopPropagation()"
-      >
-        <header class="modal-card__header">
-          <h2 id="resolve-modal-title" class="modal-card__title">Out of stock: {{ resolveLine.product_name }}</h2>
-          <button type="button" class="modal-card__close" (click)="closeResolveModal()" aria-label="Close">
-            <svg lucideX [size]="18"></svg>
-          </button>
-        </header>
-
-        <div class="modal-card__body">
-          <p class="field-hint">Apply what the customer agreed to. They are notified and the order total is updated.</p>
-          <div class="oos-lines">
-            <label class="oos-line" [class.oos-line--disabled]="resolveLine.purchase_type === 'subscription'">
-              <input type="radio" name="resolve-action" [checked]="resolveAction === 'swap'"
-                [disabled]="resolveLine.purchase_type === 'subscription'" (change)="setResolveAction('swap')" />
-              <span>Swap for another item (same or lower price, × {{ resolveLine.quantity }})
-                @if (resolveLine.purchase_type === 'subscription') {
-                  <span class="oos-line__variant">Ritual Box lines can only be removed.</span>
-                }
-              </span>
-            </label>
-            <label class="oos-line">
-              <input type="radio" name="resolve-action" [checked]="resolveAction === 'remove'" (change)="setResolveAction('remove')" />
-              <span>Remove from the order
-                @if (resolveCancelsOrder) {
-                  <span class="oos-line__variant">It's the last line: the order is cancelled{{ order.payment_status === 'paid' ? ' and refunded in full' : '' }}.</span>
-                }
-              </span>
-            </label>
-          </div>
-
-          @if (resolveAction === 'swap') {
-            <label class="field-label" for="resolve-replacement">Replacement</label>
-            @if (replacementsLoading) {
-              <p class="field-hint">Loading items…</p>
-            } @else if (!replacementOptions.length) {
-              <p class="field-hint">No item priced at {{ formatPrice(resolveLine.unit_price, order.pricing.currency) }} or less has enough stock. Remove the line instead.</p>
-            } @else {
-              <select id="resolve-replacement" class="field-textarea" [value]="selectedReplacementKey"
-                (change)="selectedReplacementKey = $any($event.target).value; resolveError = null">
-                <option value="">Choose the item the customer picked</option>
-                @for (option of replacementOptions; track lineKey(option)) {
-                  <option [value]="lineKey(option)">
-                    {{ option.product_name }}{{ isMeaningfulVariantLabel(option.variant_name) ? ' – ' + option.variant_name : '' }}
-                    · {{ formatPrice(option.unit_price, order.pricing.currency) }} · {{ option.stock }} in stock
-                  </option>
-                }
-              </select>
-            }
-          }
-
-          <label class="field-label" for="resolve-reason">Note (optional)</label>
-          <textarea
-            id="resolve-reason"
-            class="field-textarea"
-            placeholder="e.g. Customer confirmed by chat"
-            [value]="resolveReason"
-            (input)="resolveReason = $any($event.target).value"
-          ></textarea>
-          @if (resolveError) {
-            <p class="modal-field-error" role="alert">{{ resolveError }}</p>
-          }
-        </div>
-
-        <footer class="modal-card__footer">
-          <button type="button" class="btn btn-secondary" (click)="closeResolveModal()">Back</button>
-          <button type="button" class="btn btn-primary" (click)="submitResolve()" [disabled]="resolveSaving">
-            @if (resolveAction === 'swap') {
-              Swap item
-            } @else if (resolveCancelsOrder) {
-              Cancel order{{ order.payment_status === 'paid' ? ' & refund' : '' }}
-            } @else {
-              Remove item
-            }
           </button>
         </footer>
       </div>

@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import {
   LucideCheck,
@@ -28,7 +29,18 @@ import { PaymentModalComponent } from '../../components/payment-modal/payment-mo
 import { ReviewModalComponent } from '../../components/review-modal/review-modal.component';
 import { ChangePaymentModalComponent } from '../../components/change-payment-modal/change-payment-modal.component';
 import { PaymentMethod } from '../../services/checkout.service';
-import { UserPaymentMethod } from '../../../../shared/models/user.model';
+import { UserAddress, UserPaymentMethod } from '../../../../shared/models/user.model';
+import { AiChatService } from '../../../../shared/components/ai-chat-drawer/ai-chat.service';
+import { RefundDestination } from '../../services/checkout.service';
+
+/** Banks a QR refund can be paid out to (same list as the QR payment form). */
+const REFUND_BANKS = ['Vietcombank', 'BIDV', 'Techcombank', 'VietinBank', 'Agribank', 'MB Bank', 'VPBank', 'ACB', 'Sacombank', 'TPBank', 'VIB', 'SHB', 'MSB', 'SeABank'];
+const DELIVERY_FAILED_REASONS: Record<string, string> = {
+  customer_unreachable: "The courier couldn't reach you",
+  wrong_address: 'The address could not be found',
+  refused: 'The package was refused at delivery',
+  carrier_issue: 'A problem on the carrier side'
+};
 import { AuthService } from '../../../../core/auth.service';
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
@@ -58,6 +70,7 @@ import { isMeaningfulVariantLabel } from '../../../../shared/utils/variant-label
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     RouterLink,
     LucideRepeat,
     OrderTypeBadgeComponent,
@@ -102,6 +115,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private authPromptModalService = inject(AuthPromptModalService);
   private orderSocketService = inject(OrderSocketService);
+  private aiChat = inject(AiChatService);
   private socketSub: Subscription | null = null;
 
   order = signal<any>(null);
@@ -110,6 +124,22 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
   // Ritual Box that couldn't start at checkout (order.subscription_start_failed): the customer
   // starts it here with a saved Visa / Mastercard.
   ritualBoxCards = signal<UserPaymentMethod[]>([]);
+
+  // ─── Redelivery after a failed delivery ───────────────────
+  readonly refundBanks = REFUND_BANKS;
+  redeliveryForm = { recipient_name: '', phone: '', city: '', address: '', note: '' };
+  redeliveryAddresses = signal<UserAddress[]>([]);
+  redeliveryAddressId = signal<string>('new');
+  redeliveryErrors = signal<Record<string, string>>({});
+  redeliveryBusy = signal(false);
+  redeliveryError = signal<string | null>(null);
+  showRedeliveryCancel = signal(false);
+  refundForm: RefundDestination = { bank_name: '', account_number: '', account_holder: '' };
+  refundError = signal<string | null>(null);
+  /** Ticks every 30s so "Reply within …" stays current. */
+  private nowTick = signal(Date.now());
+  private redeliveryTimer: ReturnType<typeof setInterval> | null = null;
+  private redeliveryFormFor: string | null = null;
   ritualBoxCardId = signal<string | null>(null);
   startingRitualBox = signal<boolean>(false);
   ritualBoxError = signal<string | null>(null);
@@ -382,6 +412,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     }
     this.stopCountdown();
     this.stopPolling();
+    if (this.redeliveryTimer) clearInterval(this.redeliveryTimer);
   }
 
   private async refreshOrderIfNeeded(): Promise<void> {
@@ -662,7 +693,7 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
   }
 
   isAnyModalOpen(): boolean {
-    return this.showFailedModal() || this.showCompletePaymentModal() || this.showPaymentModal() || this.showReviewModal() || this.showChangePaymentModal() || this.showTrackingModal() || this.isConfirmModalOpen;
+    return this.showFailedModal() || this.showCompletePaymentModal() || this.showPaymentModal() || this.showReviewModal() || this.showChangePaymentModal() || this.showTrackingModal() || this.isConfirmModalOpen || this.showRedeliveryCancel();
   }
 
   onPaymentConfirmed(updatedOrder: any): void {
@@ -959,4 +990,178 @@ export class OrderDetailComponent implements OnInit, OnDestroy {
     }
     return false;
   }
+
+  // ─── Redelivery after a failed delivery ───────────────────
+
+  /** What the redelivery block shows: waiting on the customer, confirmed, carrier fault (staff
+   *  ship again), no redeliveries left, or a QR refund waiting to be paid out. */
+  redeliveryState(): 'awaiting' | 'confirmed' | 'carrier' | 'exhausted' | 'payout' | null {
+    const ord = this.order();
+    if (!ord) return null;
+    if (this.isDeliveryFailed()) {
+      const r = ord.redelivery;
+      if (r?.status === 'awaiting_customer') return 'awaiting';
+      if (r?.status === 'confirmed') return 'confirmed';
+      if ((ord.delivery_attempts || 0) > (ord.max_redelivery_attempts ?? 2)) return 'exhausted';
+      if (ord.delivery_failed_reason_code === 'carrier_issue') return 'carrier';
+      return null; // older failed deliveries: the banner says the team will contact them
+    }
+    return ord.refund_status === 'pending_payout' ? 'payout' : null;
+  }
+
+  deliveryFailedReasonLabel(): string | null {
+    const code = this.order()?.delivery_failed_reason_code;
+    return code ? DELIVERY_FAILED_REASONS[code] || null : null;
+  }
+
+  redeliveryNumberLabel(): string {
+    const ord = this.order();
+    return `Redelivery ${ord?.redelivery_number || 1} of ${ord?.max_redelivery_attempts ?? 2}`;
+  }
+
+  /** "Reply within 23h" (minutes under an hour). */
+  redeliveryCountdown(): string | null {
+    const expires = this.order()?.redelivery?.expires_at;
+    if (!expires) return null;
+    const ms = new Date(expires).getTime() - this.nowTick();
+    if (ms <= 0) return 'Time to reply has run out';
+    const hours = Math.floor(ms / 3_600_000);
+    return hours >= 1 ? `Reply within ${hours}h` : `Reply within ${Math.max(1, Math.ceil(ms / 60_000))}m`;
+  }
+
+  needsRefundDestination(): boolean {
+    const ord = this.order();
+    return ord?.payment?.method === 'qr' && (ord?.payment_status === 'paid' || ord?.refund_status === 'pending_payout');
+  }
+
+  /** Fills the form once per order (delivery address, then the address book) and starts the clock. */
+  prepareRedelivery(): boolean {
+    const ord = this.order();
+    if (this.redeliveryState() !== 'awaiting' || this.redeliveryFormFor === ord.order_id) return true;
+    this.redeliveryFormFor = ord.order_id;
+    const info = ord.delivery_info || {};
+    this.redeliveryForm = {
+      recipient_name: info.recipient_name || '', phone: info.mobile || '', city: info.city || '', address: info.address || '', note: ''
+    };
+    if (!this.redeliveryTimer) this.redeliveryTimer = setInterval(() => this.nowTick.set(Date.now()), 30_000);
+    if (this.authService.isAuthenticated()) {
+      this.checkoutService.getUserProfile()
+        .then(profile => this.redeliveryAddresses.set(profile.addresses || []))
+        .catch(() => this.redeliveryAddresses.set([]));
+    }
+    return true;
+  }
+
+  selectRedeliveryAddress(id: string): void {
+    this.redeliveryAddressId.set(id);
+    const addr = this.redeliveryAddresses().find(a => a._id === id);
+    if (addr) {
+      this.redeliveryForm = { ...this.redeliveryForm, recipient_name: addr.recipient_name, phone: addr.phone, city: addr.city, address: addr.detail_address };
+    }
+    this.redeliveryErrors.set({});
+  }
+
+  /** Same rules as checkout (the server checks them again, including the city list). */
+  private validateRedeliveryForm(): Record<string, string> {
+    const f = this.redeliveryForm;
+    const errors: Record<string, string> = {};
+    const phone = (f.phone || '').replace(/\s+/g, '');
+    if (!phone) errors['contact_phone'] = 'Mobile number is required.';
+    else if (!/^\d+$/.test(phone)) errors['contact_phone'] = 'Mobile number must contain digits and spaces only.';
+    else if (phone.length < 10 || phone.length > 11) errors['contact_phone'] = 'Mobile number must be 10 to 11 digits.';
+    if (!f.recipient_name.trim()) errors['recipient_name'] = 'Name is required.';
+    if (!f.city.trim()) errors['city'] = 'City is required.';
+    const address = f.address.trim();
+    if (!address) errors['address'] = 'Address is required.';
+    else if (!/^\d+/.test(address)) errors['address'] = 'Address must start with a house number.';
+    else if (!address.includes(',')) errors['address'] = 'Address must include a comma to separate the street and ward.';
+    return errors;
+  }
+
+  async confirmRedelivery(): Promise<void> {
+    const ord = this.order();
+    if (!ord?.order_id || this.redeliveryBusy()) return;
+    const errors = this.validateRedeliveryForm();
+    this.redeliveryErrors.set(errors);
+    if (Object.keys(errors).length) return;
+    this.redeliveryBusy.set(true);
+    this.redeliveryError.set(null);
+    try {
+      const f = this.redeliveryForm;
+      await this.checkoutService.confirmRedelivery(ord.order_id, {
+        contact_phone: f.phone,
+        shipping_address: { recipient_name: f.recipient_name, city: f.city, address: f.address },
+        note: f.note
+      }, this.getSessionId(ord));
+      await this.refreshOrderIfNeeded();
+    } catch (e: any) {
+      if (e?.error?.errors) this.redeliveryErrors.set(e.error.errors);
+      this.redeliveryError.set(e?.error?.error || "We couldn't save your redelivery. Please try again.");
+      if (e?.status === 409) await this.refreshOrderIfNeeded();
+    } finally {
+      this.redeliveryBusy.set(false);
+    }
+  }
+
+  openRedeliveryCancel(): void {
+    this.refundError.set(null);
+    this.showRedeliveryCancel.set(true);
+  }
+
+  closeRedeliveryCancel(): void {
+    this.showRedeliveryCancel.set(false);
+  }
+
+  private refundDestinationOrError(): RefundDestination | null {
+    const r = this.refundForm;
+    const number = (r.account_number || '').replace(/\s+/g, '');
+    if (!r.bank_name) { this.refundError.set('Choose the bank to refund to.'); return null; }
+    if (!/^\d{6,20}$/.test(number)) { this.refundError.set('Account number must be 6 to 20 digits.'); return null; }
+    if (r.account_holder.trim().length < 2) { this.refundError.set('Enter the account holder name.'); return null; }
+    this.refundError.set(null);
+    return { bank_name: r.bank_name, account_number: number, account_holder: r.account_holder.trim() };
+  }
+
+  async submitRedeliveryCancel(): Promise<void> {
+    const ord = this.order();
+    if (!ord?.order_id || this.redeliveryBusy()) return;
+    let destination: RefundDestination | null = null;
+    if (this.needsRefundDestination()) {
+      destination = this.refundDestinationOrError();
+      if (!destination) return;
+    }
+    this.redeliveryBusy.set(true);
+    try {
+      await this.checkoutService.cancelRedelivery(ord.order_id, destination, this.getSessionId(ord));
+      this.showRedeliveryCancel.set(false);
+      await this.refreshOrderIfNeeded();
+    } catch (e: any) {
+      this.refundError.set(e?.error?.error || "We couldn't cancel the order. Please try again.");
+      if (e?.status === 409) await this.refreshOrderIfNeeded();
+    } finally {
+      this.redeliveryBusy.set(false);
+    }
+  }
+
+  async submitRefundDestination(): Promise<void> {
+    const ord = this.order();
+    const destination = this.refundDestinationOrError();
+    if (!ord?.order_id || !destination || this.redeliveryBusy()) return;
+    this.redeliveryBusy.set(true);
+    try {
+      await this.checkoutService.setRefundDestination(ord.order_id, destination, this.getSessionId(ord));
+      await this.refreshOrderIfNeeded();
+    } catch (e: any) {
+      this.refundError.set(e?.error?.error || "We couldn't save the account. Please try again.");
+    } finally {
+      this.redeliveryBusy.set(false);
+    }
+  }
+
+  /** Opens the support chat with a person, the order code already in the message. */
+  chatAboutOrder(): void {
+    const id = this.order()?.order_id;
+    if (id) this.aiChat.openHumanChatForOrder(id);
+  }
+
 }

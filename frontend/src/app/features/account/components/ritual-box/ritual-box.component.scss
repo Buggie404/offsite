@@ -447,7 +447,123 @@
     strong { font-weight: 600; }
   }
 
-  &__sub { font-size: 12px; line-height: 16px; color: var(--color-warm-brown); }
+  &__sub { margin: 0; font-size: 12px; line-height: 16px; color: var(--color-warm-brown); }
+
+  &__options {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px;
+  }
+
+  &__keep {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 18px;
+    cursor: pointer;
+
+    input { width: 16px; height: 16px; accent-color: var(--color-forest-green); }
+  }
+
+  &__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+}
+
+// One replacement option (radio card).
+.rb-opt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--rb-surface);
+  border: 1px solid var(--rb-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+
+  &:hover { border-color: var(--rb-border-strong); }
+  &.is-selected { border-color: var(--color-forest-green); box-shadow: 0 0 0 1px var(--color-forest-green); }
+
+  input { position: absolute; opacity: 0; pointer-events: none; }
+  &:has(input:focus-visible) { outline: 2px solid var(--color-forest-green); outline-offset: 2px; }
+
+  &__thumb {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: var(--color-cream);
+
+    img { width: 100%; height: 100%; object-fit: cover; }
+  }
+
+  &__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  &__name { font-size: 13px; font-weight: 600; line-height: 18px; overflow-wrap: anywhere; }
+  &__meta { font-size: 12px; line-height: 16px; color: var(--color-warm-brown); }
+  &__tag {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--rb-info-soft);
+    font-size: 11px;
+    color: var(--color-near-black);
+  }
+}
+
+// Price difference against the box's usual charge.
+.rb-diff {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+
+  &--same { background: var(--rb-neutral-soft); color: var(--color-near-black); }
+  &--more { background: var(--rb-warning-soft); color: var(--rb-warning-text); border: 1px solid var(--rb-warning-border); }
+  &--less { background: var(--color-sage); color: var(--color-forest-green); }
+}
+
+// Card notice: one-time replacement / switch-for-good suggestion.
+.rb-swap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px dashed var(--rb-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-cream);
+
+  &--offer { border-style: solid; border-color: var(--color-forest-green); background: var(--rb-surface); }
+
+  &__thumb {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: var(--rb-surface);
+
+    img { width: 100%; height: 100%; object-fit: cover; }
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    p { margin: 0; font-size: 13px; line-height: 18px; }
+    strong { font-weight: 600; }
+  }
+
+  &__sub { color: var(--color-warm-brown); font-size: 12px !important; }
+  &__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 }
 
 // ─── Delivery history ────────────────────────────────────────

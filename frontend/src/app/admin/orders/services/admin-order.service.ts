@@ -6,8 +6,7 @@ import {
   AdminOrderDetailResponse,
   AdminOrdersQuery,
   AdminOrdersResponse,
-  AdminOrderStatusUpdate,
-  AdminReplacementOption
+  AdminOrderStatusUpdate
 } from '../models/admin-order.model';
 
 @Injectable({
@@ -57,52 +56,20 @@ export class AdminOrderService {
     orderId: string,
     status: AdminOrderStatusUpdate,
     note?: string,
-    reason?: string
+    reason?: string,
+    reasonCode?: string
   ): Observable<{ message: string; data: AdminOrderDetail }> {
     return this.http.put<{ message: string; data: AdminOrderDetail }>(
       `${this.baseUrl}/${encodeURIComponent(orderId)}/status`,
-      { status, note, reason }
+      { status, note, reason, ...(reasonCode ? { reason_code: reasonCode } : {}) }
     );
   }
 
-  /** Lines that can't be fulfilled. Every line out of stock: the order is cancelled (refunded if paid).
-   *  Otherwise the lines are flagged and the customer is asked to swap or remove them. */
-  markOutOfStock(
-    orderId: string,
-    items: { product_id: string; variant_id: string }[],
-    reason?: string
-  ): Observable<{ message: string; data: AdminOrderDetail }> {
+  /** QR refund transferred to the customer's account (refund_status pending_payout → completed). */
+  markRefundPaid(orderId: string): Observable<{ message: string; data: AdminOrderDetail }> {
     return this.http.post<{ message: string; data: AdminOrderDetail }>(
-      `${this.baseUrl}/${encodeURIComponent(orderId)}/out-of-stock`,
-      { items, reason }
-    );
-  }
-
-  /** Items an out-of-stock line can be swapped for. */
-  listReplacements(
-    orderId: string,
-    line: { product_id: string; variant_id: string }
-  ): Observable<{ data: AdminReplacementOption[] }> {
-    return this.http.get<{ data: AdminReplacementOption[] }>(
-      `${this.baseUrl}/${encodeURIComponent(orderId)}/out-of-stock/replacements`,
-      { params: { product_id: line.product_id, variant_id: line.variant_id } }
-    );
-  }
-
-  /** Apply the customer's choice for an out-of-stock line: remove it, or swap it for a replacement. */
-  resolveOutOfStock(
-    orderId: string,
-    body: {
-      product_id: string;
-      variant_id: string;
-      action: 'remove' | 'swap';
-      replacement?: { product_id: string; variant_id: string };
-      reason?: string;
-    }
-  ): Observable<{ message: string; data: AdminOrderDetail }> {
-    return this.http.post<{ message: string; data: AdminOrderDetail }>(
-      `${this.baseUrl}/${encodeURIComponent(orderId)}/out-of-stock/resolve`,
-      body
+      `${this.baseUrl}/${encodeURIComponent(orderId)}/refunds/mark-paid`,
+      {}
     );
   }
 

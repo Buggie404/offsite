@@ -1656,6 +1656,9 @@ exports.requestHandover = async (req, res) => {
     });
     if (sendPrepared(res, prepared)) return;
     const chatSession = prepared.session;
+    // "Chat with a human" from an order page: the conversation carries that order for CSKH.
+    const contextOrderId = await ownOrderId(userId, req.body.order_id);
+    if (contextOrderId) chatSession._contextOrderId = contextOrderId;
 
     if (!isSupportOpenNow()) {
       if (note) {
@@ -1707,6 +1710,17 @@ exports.requestHandover = async (req, res) => {
 
 function callerId(req) {
   return shopperFromRequest(req);
+}
+
+// The order code if the signed-in caller owns that order; otherwise null (never trusted as given).
+async function ownOrderId(userId, orderId) {
+  const code = typeof orderId === 'string' ? orderId.trim() : '';
+  if (!code || !userId || !/^[0-9a-fA-F]{24}$/.test(String(userId))) return null;
+  const [order, user] = await Promise.all([
+    require('../models/Order').findOne({ order_id: code }, 'order_id user_id').lean(),
+    User.findById(userId, 'user_id').lean()
+  ]);
+  return order && user && order.user_id === user.user_id ? order.order_id : null;
 }
 
 function clientIp(req) {

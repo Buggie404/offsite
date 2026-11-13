@@ -34,6 +34,8 @@ export interface SalesTask {
   due_at: string;
   link: string;
   query?: Record<string, string> | null;
+  /** Button on the row itself: "Mark refunded" for a cancelled QR order waiting for its payout. */
+  action?: { type: 'mark_refund_paid'; order_id: string; enabled: boolean } | null;
 }
 
 export interface StockRow {

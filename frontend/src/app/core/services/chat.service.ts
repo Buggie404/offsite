@@ -16,6 +16,8 @@ export interface ChatConversation {
   handoff_summary?: string;
   summary?: string;
   handover_reason?: string | null;
+  /** Order the customer opened the chat from ("Chat with a human" on the order page). */
+  context_order_id?: string | null;
   ai_session_id?: string | null;
   dify_conversation_id?: string | null;
   response_warning?: 'waiting_reply' | 'overdue' | null;

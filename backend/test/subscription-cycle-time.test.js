@@ -85,7 +85,12 @@ function outOfStockJob(unit, consecutiveSkips) {
     },
     '../models/Order': { findOne: () => lean(null) },
     './notification.service': { notifySubscription: async (s, type) => notices.push(type) },
-    './subscription.service': { chargeSubscription: async () => ({ ok: false, reason: 'out_of_stock' }), applyDueTransitions: async () => {} }
+    './subscription.service': {
+      chargeSubscription: async () => ({ ok: false, reason: 'out_of_stock' }),
+      applyDueTransitions: async () => {},
+      isReservedFor: () => false,
+      releaseStaleReservation: async () => false
+    }
   }, unit);
   return { service, sub, due, notices };
 }

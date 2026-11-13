@@ -66,6 +66,11 @@
           </div>
           <div class="task__right">
             @if (timeChip(task); as chip) { <span class="chip" [ngClass]="'chip--' + chip.tone">{{ chip.text }}</span> }
+            @if (task.action?.type === 'mark_refund_paid') {
+              <button type="button" class="action action--button" [disabled]="!task.action!.enabled || payingOrderId === task.action!.order_id"
+                [title]="task.action!.enabled ? 'Mark this refund as transferred' : 'Waiting for the customer\'s bank account'"
+                (click)="markRefundPaid(task.action!.order_id)">Mark refunded</button>
+            }
             <a class="action" [routerLink]="task.link" [queryParams]="task.query">
               Open details <svg lucideArrowRight aria-hidden="true" [size]="14"></svg>
             </a>

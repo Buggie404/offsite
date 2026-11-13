@@ -30,6 +30,7 @@ const FILTERS: { key: TaskFilter; label: string }[] = [
 ];
 
 /** Sales-Ops (QLSP) dashboard: order queues, today's work and stock at risk. No revenue. */
+import { AdminOrderService } from '../../../orders/services/admin-order.service';
 @Component({
   selector: 'app-sales-dashboard',
   standalone: true,
@@ -39,6 +40,7 @@ const FILTERS: { key: TaskFilter; label: string }[] = [
 })
 export class SalesDashboardComponent implements OnInit {
   private readonly service = inject(SalesDashboardService);
+  private readonly adminOrders = inject(AdminOrderService);
   private readonly router = inject(Router);
   private readonly adminAuth = inject(AdminAuthService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -58,6 +60,22 @@ export class SalesDashboardComponent implements OnInit {
     // Queues change through the day; refresh quietly once a minute.
     const timer = setInterval(() => this.load(), REFRESH_MS);
     this.destroyRef.onDestroy(() => clearInterval(timer));
+  }
+
+  /** Order whose QR refund is being marked as paid from the to-do row. */
+  payingOrderId: string | null = null;
+
+  markRefundPaid(orderId: string): void {
+    if (this.payingOrderId) return;
+    this.payingOrderId = orderId;
+    this.adminOrders.markRefundPaid(orderId).subscribe({
+      next: () => { this.payingOrderId = null; this.load(); },
+      error: (err) => {
+        this.payingOrderId = null;
+        window.alert(err?.error?.error || 'Failed to mark the refund as paid.');
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   load(): void {

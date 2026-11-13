@@ -16,7 +16,10 @@
 // - Main code is not modified. Mismatches are reported as FAIL / NOTE, not fixed.
 //
 // Flows: one-time (COD, QR, guest), mixed (one-time + Ritual Box line, card), Ritual Box only
-// (card + renewal order), from cart to delivered, plus pending fallbacks, cancels and refunds.
+// (card + renewal order), from cart to delivered, plus pending fallbacks, cancels and refunds;
+// Ritual Box stock held 3 days before each charge (charge from the hold, out of stock → restock /
+// replacement / skipped cycle, release on skip / pause / cancel). The charge job is scoped to this
+// run's customer while it runs (see runJob).
 
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
@@ -89,7 +92,7 @@ const errorOf = (res) => `HTTP ${res.status}${res.data?.error ? `: ${res.data.er
 // ─── Test data ────────────────────────────────────────────────
 let productSeq = 0;
 const products = [];
-async function createProduct({ stock = 20, price = 20, subscribable = true } = {}) {
+async function createProduct({ stock = 20, price = 20, subscribable = true, category = 'matcha' } = {}) {
   productSeq += 1;
   const _id = new mongoose.Types.ObjectId();
   const image = { url: 'https://example.invalid/test.jpg', public_id: `${PREFIX}img` };
@@ -98,7 +101,7 @@ async function createProduct({ stock = 20, price = 20, subscribable = true } = {
     product_id: 900000000 + Math.floor(Math.random() * 90000000),
     slug: `${PREFIX.toLowerCase()}${runTag.toLowerCase()}-${productSeq}`,
     name: `${PREFIX}Matcha ${runTag}-${productSeq}`,
-    category: 'matcha',
+    category,
     is_active: true,
     is_subscribable: subscribable,
     subscribe_discount_percent: 10,
@@ -203,8 +206,8 @@ const boxesOf = (orderId) => Subscription.find({ source_order_id: orderId }).lea
 const noticeCount = (userId, type, orderId) => Notification.countDocuments({ recipient_id: userId, type, post_id: orderId });
 
 // Admin moves an order through its own transitions.
-const adminStatus = (admin, orderId, status, reason) =>
-  call('PUT', `/api/admin/orders/${orderId}/status`, { token: admin.token, body: { status, reason } });
+const adminStatus = (admin, orderId, status, reason, reasonCode) =>
+  call('PUT', `/api/admin/orders/${orderId}/status`, { token: admin.token, body: { status, reason, ...(reasonCode ? { reason_code: reasonCode } : {}) } });
 const REFUND_BODY = (order, extra = {}) => ({
   reason: 'Damaged item',
   description: 'E2E test refund',
@@ -228,7 +231,7 @@ async function cleanup() {
   const re = new RegExp(`^${PREFIX}`);
   const orderFilter = { $or: [{ user_id: re }, { session_id: re }, { 'delivery_info.recipient_name': re }] };
   const orderIds = (await Order.find(orderFilter, { order_id: 1 }).lean()).map(o => o.order_id);
-  const [orders, subs, refunds, notifs, points, pantry, carts, users, prods, vouchers] = await Promise.all([
+  const [orders, subs, refunds, notifs, points, pantry, carts, users, prods, vouchers, chats] = await Promise.all([
     Order.deleteMany(orderFilter),
     Subscription.deleteMany({ user_id: re }),
     RefundRequest.deleteMany({ order_id: { $in: orderIds } }),
@@ -238,12 +241,17 @@ async function cleanup() {
     Cart.deleteMany({ user_id: re }),
     User.collection.deleteMany({ user_id: re }),
     Product.collection.deleteMany({ name: re }),
-    Voucher.collection.deleteMany({ title: `${PREFIX}voucher` })
+    Voucher.collection.deleteMany({ title: `${PREFIX}voucher` }),
+    // Support chats opened in scenario 8 (customer ids and AI session ids carry the prefix).
+    require('../src/models/ChatConversation').deleteMany({ customer_id: re }),
+    require('../src/models/ChatMessage').deleteMany({ $or: [{ source_session_id: re }, { sender_id: re }] }),
+    require('../src/models/AiChatSession').deleteMany({ session_id: re })
   ]);
   return {
     orders: orders.deletedCount, subscriptions: subs.deletedCount, refund_requests: refunds.deletedCount,
     notifications: notifs.deletedCount, point_transactions: points.deletedCount, pantry_items: pantry.deletedCount,
-    carts: carts.deletedCount, users: users.deletedCount, products: prods.deletedCount, vouchers: vouchers.deletedCount
+    carts: carts.deletedCount, users: users.deletedCount, products: prods.deletedCount, vouchers: vouchers.deletedCount,
+    chats: chats.deletedCount
   };
 }
 
@@ -332,8 +340,10 @@ async function oneTimeQr({ customer, admin }) {
   await adminStatus(admin, order.order_id, 'shipping');
   const noReason = await adminStatus(admin, order.order_id, 'delivery_failed');
   check('2.6', 'delivery_failed without a reason is refused', noReason.status === 400, errorOf(noReason));
-  const failed = await adminStatus(admin, order.order_id, 'delivery_failed', 'Customer not at home');
+  const failed = await adminStatus(admin, order.order_id, 'delivery_failed', 'Customer not at home', 'customer_unreachable');
   check('2.7', 'delivery_failed with reason (customer notified)', failed.status === 200 && (await noticeCount(customer.userId, 'ORDER_DELIVERY_FAILED', order.order_id)) === 1, errorOf(failed));
+  // Shipped again once the customer confirmed the redelivery (see scenario 8).
+  await confirmRedelivery(customer, order.order_id);
   const { ship, receive } = await shipAndReceive(admin, order.order_id, { customer });
   check('2.8', 're-shipped and delivered', ship.status === 200 && receive.status === 200 && (await reloadOrder(order.order_id)).order_status === 'delivered', `${errorOf(ship)} / ${errorOf(receive)}`);
 
@@ -454,7 +464,7 @@ async function cancels({ customer, admin }) {
   const f = await placeOrder([{ product: p, qty: 1 }], { method: 'qr', customer });
   await call('PUT', `/api/orders/${f.order.order_id}/confirm-payment`, { token: customer.token, body: {} });
   await adminStatus(admin, f.order.order_id, 'shipping');
-  await adminStatus(admin, f.order.order_id, 'delivery_failed', 'Wrong address');
+  await adminStatus(admin, f.order.order_id, 'delivery_failed', 'Wrong address', 'wrong_address');
   const stockF = await stockOf(p);
   const cancelF = await adminStatus(admin, f.order.order_id, 'canceled', 'Customer unreachable');
   const afterF = await reloadOrder(f.order.order_id);
@@ -462,58 +472,166 @@ async function cancels({ customer, admin }) {
     cancelF.status === 200 && afterF.order_status === 'canceled' && afterF.payment_status === 'refunded' && (await stockOf(p)) === stockF + 1,
     `${errorOf(cancelF)}, ${afterF.order_status}/${afterF.payment_status}, stock ${stockF} → ${await stockOf(p)}`);
 
-  // 4g. One line of a 2-line paid order out of stock → customer asked; shipping blocked; swapped for a cheaper item.
-  const q = await createProduct({ stock: 5, price: 20 });
-  const cheaper = await createProduct({ stock: 5, price: 19 }); // near the top of the price-sorted list
-  const g = await placeOrder([{ product: p, qty: 1 }, { product: q, qty: 1 }], { method: 'qr', customer });
+  // 4g. Out of stock after ordering no longer exists for one-time / mixed orders: the stock was held
+  // at checkout, so the admin routes for it are gone and a processing order ships as it is.
+  const g = await placeOrder([{ product: p, qty: 1 }], { method: 'qr', customer });
   await call('PUT', `/api/orders/${g.order.order_id}/confirm-payment`, { token: customer.token, body: {} });
-  const qLine = { product_id: String(q._id), variant_id: skuOf(q) };
-  const oos = await call('POST', `/api/admin/orders/${g.order.order_id}/out-of-stock`, { token: admin.token, body: { items: [qLine] } });
-  let afterG = await reloadOrder(g.order.order_id);
-  check('4g.1', 'one line out of stock → order stays processing, line flagged, customer asked to choose',
-    oos.status === 200 && afterG.order_status === 'processing' && afterG.items.find(i => i.variant_id === skuOf(q))?.out_of_stock === true
-      && (await noticeCount(customer.userId, 'ORDER_ITEM_OUT_OF_STOCK', g.order.order_id)) === 1,
-    `${errorOf(oos)}, status ${afterG.order_status}`);
-  const blocked = await adminStatus(admin, g.order.order_id, 'shipping');
-  check('4g.2', 'cannot ship while a line waits for the customer', blocked.status === 409, errorOf(blocked));
-  const options = await call('GET', `/api/admin/orders/${g.order.order_id}/out-of-stock/replacements?product_id=${qLine.product_id}&variant_id=${qLine.variant_id}`, { token: admin.token });
-  const offered = (options.data?.data || []).some(o => o.variant_id === skuOf(cheaper));
-  const allCheaper = (options.data?.data || []).every(o => o.unit_price <= 20);
-  check('4g.3', 'replacement list offers the cheaper in-stock item, nothing above the line price', options.status === 200 && offered && allCheaper, errorOf(options));
-  const swap = await call('POST', `/api/admin/orders/${g.order.order_id}/out-of-stock/resolve`, {
-    token: admin.token, body: { ...qLine, action: 'swap', replacement: { product_id: String(cheaper._id), variant_id: skuOf(cheaper) } }
+  const gLine = { product_id: String(p._id), variant_id: skuOf(p) };
+  const oos = await call('POST', `/api/admin/orders/${g.order.order_id}/out-of-stock`, { token: admin.token, body: { items: [gLine] } });
+  const resolve = await call('POST', `/api/admin/orders/${g.order.order_id}/out-of-stock/resolve`, { token: admin.token, body: { ...gLine, action: 'remove' } });
+  const shipG = await adminStatus(admin, g.order.order_id, 'shipping');
+  check('4g.1', 'no "mark out of stock" / resolve routes any more; a processing order ships as it is',
+    oos.status === 404 && resolve.status === 404 && shipG.status === 200, `${errorOf(oos)} / ${errorOf(resolve)} / ${errorOf(shipG)}`);
+}
+
+// ─── Ritual Box charge job, scoped to this run's customer ────────
+// The job normally reads every box in the database; while it runs here Subscription.find is
+// narrowed to the TEST_E2E_ customer (a patch on the model in this process only), so it never
+// touches real DEV boxes even though it is called with a future `now`.
+const chargeJob = require('../src/services/subscription-charge.service');
+let scopeUser = null;
+const realSubscriptionFind = Subscription.find.bind(Subscription);
+Subscription.find = function scopedFind(filter = {}, ...rest) {
+  if (!scopeUser || (filter && filter.user_id !== undefined)) return realSubscriptionFind(filter, ...rest);
+  return realSubscriptionFind({ ...filter, user_id: scopeUser }, ...rest);
+};
+async function runJob(customer, now, opts = {}) {
+  scopeUser = customer.userId;
+  try {
+    return await chargeJob.runSubscriptionChargeJob({ now, ...opts });
+  } finally {
+    scopeUser = null;
+  }
+}
+const UNIT = chargeJob.TIME_UNIT_MS;
+const units = (n) => n * UNIT;
+const shift = (date, ms) => new Date(new Date(date).getTime() + ms);
+const boxNotices = (customer, type, subId) => Notification.countDocuments({ recipient_id: customer.userId, type, ...(subId ? { subscription_id: subId } : {}) });
+
+// A box charging at `chargeAt` (no checkout order: only the renewal job is under test here).
+async function createBox(customer, product, { qty = 1, chargeAt }) {
+  return Subscription.create({
+    user_id: customer.userId, product_id: String(product._id), variant_id: skuOf(product), quantity: qty,
+    frequency_days: 14, next_charge_at: chargeAt, status: 'active',
+    pricing_snapshot: { original_price: product.variants[0].price, subscribe_price: product.variants[0].price * 0.9, discount_percent: 10 },
+    payment_method_id: customer.cardId, delivery_info: DELIVERY, shipping_method: 'standard'
   });
-  afterG = await reloadOrder(g.order.order_id);
-  await tick();
-  const pointsG = await PointTransaction.findOne({ ref_id: g.order.order_id, type: 'purchase' }).lean();
-  check('4g.4', 'swap: cheaper item in, $1 refunded, payment still paid, total 39, out-of-stock line not restocked, points follow',
-    swap.status === 200 && afterG.order_status === 'processing' && afterG.payment_status === 'paid' && afterG.refunded_amount === 1
-      && afterG.pricing.total === 39 && (await stockOf(cheaper)) === 4 && (await stockOf(q)) === 4 && pointsG?.amount === 39
-      && (await noticeCount(customer.userId, 'ORDER_ITEMS_UPDATED', g.order.order_id)) === 1,
-    `${errorOf(swap)}, total ${afterG.pricing.total}, refunded ${afterG.refunded_amount}, stock q ${await stockOf(q)} / new ${await stockOf(cheaper)}, points ${pointsG?.amount}`);
-  const shipG = await shipAndReceive(admin, g.order.order_id, { customer });
-  check('4g.5', 'after the swap the order ships and is delivered', shipG.ship.status === 200 && shipG.receive.status === 200, `${errorOf(shipG.ship)} / ${errorOf(shipG.receive)}`);
+}
+const reloadBox = (box) => Subscription.findById(box._id).lean();
+const boxOrders = (box) => Order.find({ subscription_id: box.subscription_id }).lean();
 
-  // 4h. Out-of-stock line removed (COD): amount to collect goes down.
-  const r = await placeOrder([{ product: p, qty: 1 }, { product: q, qty: 1 }], { method: 'cod', customer });
-  await call('PUT', `/api/orders/${r.order.order_id}/confirm`, { token: customer.token, body: {} });
-  await call('POST', `/api/admin/orders/${r.order.order_id}/out-of-stock`, { token: admin.token, body: { items: [qLine] } });
-  const remove = await call('POST', `/api/admin/orders/${r.order.order_id}/out-of-stock/resolve`, { token: admin.token, body: { ...qLine, action: 'remove' } });
-  const afterR = await reloadOrder(r.order.order_id);
-  check('4h.1', 'remove on a COD order: line gone, total 20, nothing refunded, still processing',
-    remove.status === 200 && afterR.items.length === 1 && afterR.pricing.total === 20 && afterR.refunded_amount === 0 && afterR.order_status === 'processing',
-    `${errorOf(remove)}, items ${afterR.items.length}, total ${afterR.pricing.total}`);
+// 7. Ritual Box: stock held 3 days before each charge.
+async function ritualBoxStockHold({ admin }) {
+  console.log('\n[7] Ritual Box: stock held 3 days ahead, charge from the hold, out of stock → restock / replacement / skip, release on skip / pause / cancel');
+  const customer = await createCustomer('C7');
+  // A category of its own, so the replacement lookup only sees this run's products.
+  const category = `${PREFIX.toLowerCase()}${runTag.toLowerCase()}`;
+  const box = await createProduct({ stock: 10, price: 30, category });
+  const T = new Date();
 
-  // 4i. Every line out of stock → whole order canceled (refunded when paid), lines not restocked.
-  const i1 = await placeOrder([{ product: q, qty: 1 }], { method: 'qr', customer });
-  await call('PUT', `/api/orders/${i1.order.order_id}/confirm-payment`, { token: customer.token, body: {} });
-  const stockQ = await stockOf(q);
-  const all = await call('POST', `/api/admin/orders/${i1.order.order_id}/out-of-stock`, { token: admin.token, body: { items: [qLine] } });
-  const afterI = await reloadOrder(i1.order.order_id);
-  check('4i.1', 'single-item order out of stock → canceled / refunded, not restocked',
-    all.status === 200 && afterI.order_status === 'canceled' && afterI.payment_status === 'refunded' && (await stockOf(q)) === stockQ
-      && (await noticeCount(customer.userId, 'ORDER_CANCELED_BY_STORE', i1.order.order_id)) === 1,
-    `${errorOf(all)}, ${afterI.order_status}/${afterI.payment_status}`);
+  // 7a. Held 72 units before next_charge_at, once; SUBSCRIPTION_UPCOMING with it.
+  const a = await createBox(customer, box, { qty: 2, chargeAt: shift(T, units(100)) });
+  await runJob(customer, shift(a.next_charge_at, -units(73)));
+  check('7a.1', 'nothing held 73 units before the charge', (await stockOf(box)) === 10 && !(await reloadBox(a)).reserved_for);
+  await runJob(customer, shift(a.next_charge_at, -units(72)));
+  let s = await reloadBox(a);
+  check('7a.2', 'held 72 units (3 days) before: stock 10 → 8, reserved_for = next_charge_at, SUBSCRIPTION_UPCOMING sent',
+    (await stockOf(box)) === 8 && +s.reserved_for === +s.next_charge_at && s.reserved_items?.[0]?.quantity === 2
+      && (await boxNotices(customer, 'SUBSCRIPTION_UPCOMING', a.subscription_id)) === 1,
+    `stock ${await stockOf(box)}, reserved_for ${s.reserved_for}`);
+  await runJob(customer, shift(a.next_charge_at, -units(50)));
+  check('7a.3', 'next passes hold nothing more, no second notice', (await stockOf(box)) === 8
+    && (await boxNotices(customer, 'SUBSCRIPTION_UPCOMING', a.subscription_id)) === 1, `stock ${await stockOf(box)}`);
+
+  // 7b. The charge uses the hold: no second subtraction, no stock check (stock sold out meanwhile).
+  await Product.updateOne({ _id: box._id }, { $set: { 'variants.0.stock': 0 } });
+  const summary = await runJob(customer, a.next_charge_at);
+  s = await reloadBox(a);
+  const [orderA] = await boxOrders(a);
+  if (orderA) created.orderIds.add(orderA.order_id);
+  check('7b.1', 'charged from the hold although the shelf is empty: paid order × 2, stock still 0, hold cleared',
+    summary.charged === 1 && orderA?.payment_status === 'paid' && orderA.items[0].quantity === 2 && orderA.stock_reserved === true
+      && (await stockOf(box)) === 0 && !s.reserved_for && !s.reserved_items?.length,
+    `${JSON.stringify(summary)}, stock ${await stockOf(box)}`);
+  await Subscription.updateOne({ _id: a._id }, { $set: { status: 'cancelled' } }); // out of the way
+
+  // 7c. Not enough stock 3 days ahead: OUT_OF_STOCK right away, on the admin to-do; QLSP restocks → held and charged.
+  const c = await createBox(customer, box, { qty: 1, chargeAt: shift(T, units(60)) });
+  await runJob(customer, T);
+  s = await reloadBox(c);
+  check('7c.1', 'cannot hold: SUBSCRIPTION_OUT_OF_STOCK sent at once, box flagged out_of_stock, not held',
+    (await boxNotices(customer, 'SUBSCRIPTION_OUT_OF_STOCK', c.subscription_id)) === 1 && s.last_failure_reason === 'out_of_stock' && !s.reserved_for,
+    `reason ${s.last_failure_reason}`);
+  const todo = await call('GET', '/api/admin/sales-dashboard', { token: admin.token });
+  const boxTask = JSON.stringify(todo.data || {}).includes(`box-stock:${skuOf(box)}`);
+  check('7c.2', 'admin to-do lists "Ritual Box charging soon · item out of stock" for this item', todo.status === 200 && boxTask, errorOf(todo));
+  await runJob(customer, shift(T, units(5)));
+  check('7c.3', 'retried each pass, no duplicate notice', (await boxNotices(customer, 'SUBSCRIPTION_OUT_OF_STOCK', c.subscription_id)) === 1);
+  await Product.updateOne({ _id: box._id }, { $set: { 'variants.0.stock': 4 } }); // QLSP restocks
+  await runJob(customer, shift(T, units(6)));
+  s = await reloadBox(c);
+  check('7c.4', 'after the restock the next pass holds it (4 → 3), flag cleared, SUBSCRIPTION_UPCOMING sent',
+    (await stockOf(box)) === 3 && +s.reserved_for === +s.next_charge_at && !s.last_failure_reason
+      && (await boxNotices(customer, 'SUBSCRIPTION_UPCOMING', c.subscription_id)) === 1, `stock ${await stockOf(box)}`);
+  await runJob(customer, c.next_charge_at);
+  const ordersC = await boxOrders(c);
+  ordersC.forEach(o => created.orderIds.add(o.order_id));
+  check('7c.5', 'charged at the due date from the hold (stock stays 3)', ordersC.length === 1 && (await stockOf(box)) === 3, `orders ${ordersC.length}`);
+  await Subscription.updateOne({ _id: c._id }, { $set: { status: 'cancelled' } });
+
+  // 7d. Due and still not held → not charged; the customer picks the replacement → held, then charged.
+  const alt = await createProduct({ stock: 5, price: 28, category });
+  await Product.updateOne({ _id: box._id }, { $set: { 'variants.0.stock': 0 } });
+  const d = await createBox(customer, box, { qty: 1, chargeAt: shift(T, -units(1)) });
+  await runJob(customer, T);
+  check('7d.1', 'due but not held: not charged', (await boxOrders(d)).length === 0);
+  const replace = await call('PATCH', `/api/subscriptions/${d.subscription_id}`, {
+    token: customer.token,
+    body: { action: 'use_replacement', product_id: String(alt._id), variant_id: skuOf(alt) }
+  });
+  s = await reloadBox(d);
+  check('7d.2', 'use_replacement: replacement held at once for this delivery only (5 → 4), box keeps its item',
+    s.variant_id === skuOf(box) && s.cycle_replacement?.variant_id === skuOf(alt)
+      && (await stockOf(alt)) === 4 && +s.reserved_for === +s.next_charge_at,
+    `${errorOf(replace)}, variant ${s.variant_id}, replacement ${s.cycle_replacement?.variant_id}, stock ${await stockOf(alt)}`);
+  await runJob(customer, shift(T, units(1)));
+  const ordersD = await boxOrders(d);
+  ordersD.forEach(o => created.orderIds.add(o.order_id));
+  s = await reloadBox(d);
+  check('7d.3', 'next pass charges the replacement from the hold (stock stays 4); the box goes back to its item',
+    ordersD.length === 1 && ordersD[0].items[0].variant_id === skuOf(alt) && (await stockOf(alt)) === 4
+      && s.variant_id === skuOf(box) && !s.cycle_replacement && s.last_replacement?.variant_id === skuOf(alt),
+    `orders ${ordersD.length}, variant ${s.variant_id}`);
+  await Subscription.updateOne({ _id: d._id }, { $set: { status: 'cancelled' } });
+
+  // 7e. Still not held 3 days after next_charge_at → cycle skipped, not charged, nothing held.
+  await Product.updateOne({ _id: alt._id }, { $set: { 'variants.0.stock': 0 } });
+  const e = await createBox(customer, box, { qty: 1, chargeAt: shift(T, -units(10)) });
+  await runJob(customer, T);
+  await runJob(customer, shift(e.next_charge_at, units(71)));
+  check('7e.1', 'still waiting at +71 units', (await reloadBox(e)).skipped_deliveries.length === 0);
+  await runJob(customer, shift(e.next_charge_at, units(72)));
+  s = await reloadBox(e);
+  check('7e.2', 'skipped at +72 units: not charged, SUBSCRIPTION_SKIPPED, no stock held, skip limit untouched',
+    s.skipped_deliveries.length === 1 && (await boxOrders(e)).length === 0 && !s.reserved_for && s.consecutive_skips === 0
+      && (await boxNotices(customer, 'SUBSCRIPTION_SKIPPED', e.subscription_id)) === 1,
+    `skipped ${s.skipped_deliveries.length}, next ${s.next_charge_at}`);
+  await Subscription.updateOne({ _id: e._id }, { $set: { status: 'cancelled' } });
+
+  // 7f. Skip / pause / cancel by the customer put the held stock back (once).
+  await Product.updateOne({ _id: box._id }, { $set: { 'variants.0.stock': 9 } });
+  for (const [action, body] of [['skip', {}], ['pause', { pause_option: '1_month' }], ['cancel', {}]]) {
+    // Outside the 48h lock, inside the 3-day hold window: the action takes effect now.
+    const f = await createBox(customer, box, { qty: 3, chargeAt: shift(new Date(), 60 * HOUR) });
+    await runJob(customer, new Date());
+    const held = (await stockOf(box)) === 6 && !!(await reloadBox(f)).reserved_for;
+    const r = await call('PATCH', `/api/subscriptions/${f.subscription_id}`, { token: customer.token, body: { action, ...body } });
+    await runJob(customer, new Date()); // the job's cleanup must not put it back a second time
+    s = await reloadBox(f);
+    check(`7f.${action}`, `${action}: the 3 held go back once (9 → 6 → 9), hold cleared`,
+      held && r.status === 200 && (await stockOf(box)) === 9 && !s.reserved_for, `${errorOf(r)}, stock ${await stockOf(box)}, held ${held}`);
+    await Subscription.updateOne({ _id: f._id }, { $set: { status: 'cancelled' } });
+  }
 }
 
 // 5. Mixed cart (one-time + Ritual Box line) paid by card.
@@ -629,24 +747,254 @@ async function ritualBoxOnly({ customer, admin }) {
       `${errorOf(r.ship)} / ${errorOf(r.receive)}`);
   }
 
-  // Next renewal is canceled by the store (out of stock): order refunded, the cycle recorded as skipped, box stays active.
+  // Next renewal canceled while processing: refunded, its stock back once (order held it), box stays active.
   const subDoc2 = await Subscription.findById(sub._id);
   const charge2 = await subscriptionService.chargeSubscription(subDoc2, { now: new Date(subDoc2.next_charge_at) });
   if (charge2.ok) {
     await subDoc2.save();
     created.orderIds.add(charge2.order.order_id);
-    const oos = await call('POST', `/api/admin/orders/${charge2.order.order_id}/out-of-stock`, {
-      token: admin.token, body: { items: [{ product_id: String(box._id), variant_id: skuOf(box) }] }
-    });
+    const stockHeld = await stockOf(box);
+    const cancel = await call('PUT', `/api/orders/${charge2.order.order_id}/cancel`, { token: customer.token, body: {} });
+    const again = await call('PUT', `/api/orders/${charge2.order.order_id}/cancel`, { token: customer.token, body: {} });
     const after = await reloadOrder(charge2.order.order_id);
     const subAfter = await Subscription.findById(sub._id).lean();
-    check('6.9', 'renewal out of stock → canceled / refunded, cycle skipped, box still active',
-      oos.status === 200 && after.order_status === 'canceled' && after.payment_status === 'refunded'
-        && subAfter.status === 'active' && (subAfter.skipped_deliveries || []).length === 1,
-      `${errorOf(oos)}, ${after.order_status}/${after.payment_status}, box ${subAfter.status}, skipped ${(subAfter.skipped_deliveries || []).length}`);
+    check('6.9', 'renewal canceled → canceled / refunded, stock back once (+1, not +2), box still active',
+      cancel.status === 200 && again.status === 400 && after.order_status === 'canceled' && after.payment_status === 'refunded'
+        && (await stockOf(box)) === stockHeld + 1 && subAfter.status === 'active',
+      `${errorOf(cancel)}, ${after.order_status}/${after.payment_status}, stock ${stockHeld} → ${await stockOf(box)}, box ${subAfter.status}`);
   } else {
     check('6.9', 'second renewal charged', false, JSON.stringify(charge2));
   }
+}
+
+// ─── Failed delivery → redelivery confirmation ──────────────────
+const redeliveryJob = require('../src/services/redelivery.service');
+const ChatConversation = require('../src/models/ChatConversation');
+const ChatMessage = require('../src/models/ChatMessage');
+const AiChatSession = require('../src/models/AiChatSession');
+
+const REDELIVERY_ADDRESS = { recipient_name: `${PREFIX}Recipient`, city: 'Ho Chi Minh', address: '12 Le Loi, Ben Nghe' };
+const CONFIRM_BODY = { contact_phone: '0901 234 567', shipping_address: REDELIVERY_ADDRESS, note: 'Call before arriving' };
+const REFUND_TO = { bank_name: 'Vietcombank', account_number: '0123456789', account_holder: 'Test E2E' };
+const failDelivery = (admin, orderId, reasonCode, note = 'E2E: courier note') =>
+  call('PUT', `/api/admin/orders/${orderId}/status`, { token: admin.token, body: { status: 'delivery_failed', reason: note, ...(reasonCode ? { reason_code: reasonCode } : {}) } });
+const confirmRedelivery = (customer, orderId, body = CONFIRM_BODY) =>
+  call('POST', `/api/orders/${orderId}/redelivery/confirm`, { token: customer.token, body });
+const cancelRedelivery = (customer, orderId, body = {}) =>
+  call('POST', `/api/orders/${orderId}/redelivery/cancel`, { token: customer.token, body });
+
+// A paid / confirmed order already handed to the carrier.
+async function shippedOrder(customer, admin, product, method = 'cod') {
+  const { order } = await placeOrder([{ product, qty: 1 }], { method, customer });
+  const id = order.order_id;
+  if (method === 'cod') await call('PUT', `/api/orders/${id}/confirm`, { token: customer.token, body: {} });
+  else await call('PUT', `/api/orders/${id}/confirm-payment`, { token: customer.token, body: {} });
+  await adminStatus(admin, id, 'shipping');
+  return id;
+}
+
+// The redelivery job reads every failed delivery in the database; while it runs here, Order.find
+// is narrowed to this run's customer (a patch on the model in this process only).
+async function runRedeliveryJob(customer, now) {
+  const realFind = Order.find;
+  Order.find = function scopedFind(filter = {}, ...rest) { return realFind.call(this, { ...filter, user_id: customer.userId }, ...rest); };
+  try {
+    return await redeliveryJob.runRedeliveryJob(now);
+  } finally {
+    Order.find = realFind;
+  }
+}
+const historyNotes = (order, text) => (order.status_history || []).filter(h => (h.note || '').includes(text)).length;
+
+// 8. Delivery failed → the customer confirms a redelivery or cancels; staff ship again; refunds.
+async function redeliveryFlows({ admin }) {
+  console.log('\n[8] Failed delivery: customer confirms / cancels, staff ship again, reminder, expiry, QR payout, chat context');
+  const customer = await createCustomer('C8');
+  const p = await createProduct({ stock: 50, price: 20 });
+  const HOURS = 60 * 60 * 1000; // default time unit (SUB_TIME_UNIT not set)
+
+  // (a) wrong_address → awaiting_customer → customer confirms → staff ship again → shipping.
+  const a = await shippedOrder(customer, admin, p);
+  const stockA = await stockOf(p);
+  const noCode = await failDelivery(admin, a, null);
+  const failA = await failDelivery(admin, a, 'wrong_address', 'House number not found');
+  let oa = await reloadOrder(a);
+  check('8a.1', 'delivery_failed needs a reason code (400 without), then: attempts 1, waiting on the customer for 24h, stock still held',
+    noCode.status === 400 && failA.status === 200 && oa.order_status === 'delivery_failed' && oa.delivery_attempts === 1
+      && oa.delivery_failed_reason_code === 'wrong_address' && oa.delivery_failed_reason === 'House number not found'
+      && oa.redelivery?.status === 'awaiting_customer'
+      && Math.round((new Date(oa.redelivery.expires_at) - new Date(oa.redelivery.requested_at)) / HOURS) === 24
+      && (await stockOf(p)) === stockA && (await noticeCount(customer.userId, 'ORDER_DELIVERY_FAILED', a)) === 1,
+    `${errorOf(noCode)} / ${errorOf(failA)}, ${oa.redelivery?.status}, stock ${stockA} → ${await stockOf(p)}`);
+  const badPhone = await confirmRedelivery(customer, a, { ...CONFIRM_BODY, contact_phone: '12ab' });
+  const badAddress = await confirmRedelivery(customer, a, { ...CONFIRM_BODY, shipping_address: { ...REDELIVERY_ADDRESS, address: 'Le Loi' } });
+  const confirmA = await confirmRedelivery(customer, a);
+  oa = await reloadOrder(a);
+  check('8a.2', 'confirm validates like checkout (bad phone / address → 400), then saves phone, address, note; order address unchanged',
+    badPhone.status === 400 && badAddress.status === 400 && confirmA.status === 200 && oa.redelivery.status === 'confirmed'
+      && oa.redelivery.contact_phone === '0901234567' && oa.redelivery.shipping_address.address === REDELIVERY_ADDRESS.address
+      && oa.redelivery.note === 'Call before arriving' && oa.delivery_info.address === DELIVERY.address
+      && historyNotes(oa, 'Customer confirmed the redelivery') === 1,
+    `${errorOf(badPhone)} / ${errorOf(badAddress)} / ${errorOf(confirmA)}`);
+  const shipA = await adminStatus(admin, a, 'shipping');
+  oa = await reloadOrder(a);
+  check('8a.3', 'staff ship again → shipping, customer told, redelivery kept for reference',
+    shipA.status === 200 && oa.order_status === 'shipping' && oa.redelivery?.status === 'confirmed'
+      && (await noticeCount(customer.userId, 'ORDER_SHIPPING', a)) === 2, errorOf(shipA));
+
+  // (b) Ship again before the customer confirmed → 409.
+  const b = await shippedOrder(customer, admin, p);
+  await failDelivery(admin, b, 'customer_unreachable');
+  const shipB = await adminStatus(admin, b, 'shipping');
+  check('8b.1', 'ship again while waiting on the customer → 409, still delivery_failed',
+    shipB.status === 409 && (await reloadOrder(b)).order_status === 'delivery_failed', errorOf(shipB));
+  await cancelRedelivery(customer, b); // out of the way: it would otherwise expire in (e)'s job run
+
+  // (c) carrier_issue → no redelivery asked, staff ship again directly.
+  const c = await shippedOrder(customer, admin, p);
+  await failDelivery(admin, c, 'carrier_issue', 'Truck broke down');
+  const oc = await reloadOrder(c);
+  const confirmC = await confirmRedelivery(customer, c);
+  const shipC = await adminStatus(admin, c, 'shipping');
+  check('8c.1', 'carrier_issue: nothing asked of the customer (confirm → 409), staff ship again → shipping',
+    !oc.redelivery && confirmC.status === 409 && shipC.status === 200 && (await reloadOrder(c)).order_status === 'shipping',
+    `${errorOf(confirmC)} / ${errorOf(shipC)}`);
+
+  // (d) Customer cancels: COD nothing to refund; card back to the card; QR pending_payout → staff mark paid.
+  const dCod = await shippedOrder(customer, admin, p, 'cod');
+  await failDelivery(admin, dCod, 'refused');
+  const stockD = await stockOf(p);
+  const cancelCod = await cancelRedelivery(customer, dCod);
+  const oCod = await reloadOrder(dCod);
+  check('8d.1', 'COD cancel → canceled, nothing refunded (refund_status null), stock back +1',
+    cancelCod.status === 200 && oCod.order_status === 'canceled' && oCod.payment_status !== 'refunded' && !oCod.refund_status
+      && (await stockOf(p)) === stockD + 1, `${errorOf(cancelCod)}, ${oCod.payment_status}/${oCod.refund_status}`);
+
+  const dCard = await shippedOrder(customer, admin, p, 'card');
+  await failDelivery(admin, dCard, 'customer_unreachable');
+  const cancelCard = await cancelRedelivery(customer, dCard);
+  const oCard = await reloadOrder(dCard);
+  await tick();
+  const pointsCard = await PointTransaction.findOne({ ref_id: dCard, type: 'purchase' }).lean();
+  check('8d.2', 'card cancel → refunded to the card (refund_status completed), points reversed',
+    cancelCard.status === 200 && oCard.payment_status === 'refunded' && oCard.refund_status === 'completed' && pointsCard?.status === 'reversed',
+    `${errorOf(cancelCard)}, ${oCard.payment_status}/${oCard.refund_status}, points ${pointsCard?.status}`);
+
+  const dQr = await shippedOrder(customer, admin, p, 'qr');
+  await failDelivery(admin, dQr, 'customer_unreachable');
+  const qrNoDest = await cancelRedelivery(customer, dQr);
+  const qrCancel = await cancelRedelivery(customer, dQr, { refund_destination: REFUND_TO });
+  let oQr = await reloadOrder(dQr);
+  check('8d.3', 'paid QR cancel needs the refund account (400 without), then pending_payout with that account',
+    qrNoDest.status === 400 && qrCancel.status === 200 && oQr.order_status === 'canceled' && oQr.refund_status === 'pending_payout'
+      && oQr.refund_destination?.account_number === REFUND_TO.account_number,
+    `${errorOf(qrNoDest)} / ${errorOf(qrCancel)}, ${oQr.refund_status}`);
+  const todo = await call('GET', '/api/admin/sales-dashboard', { token: admin.token });
+  const payoutTask = (todo.data?.data?.tasks || todo.data?.tasks || []).find?.(t => t.key === `refund-payout:${dQr}`)
+    || JSON.stringify(todo.data || {}).includes(`refund-payout:${dQr}`);
+  const paid = await call('POST', `/api/admin/orders/${dQr}/refunds/mark-paid`, { token: admin.token, body: {} });
+  const paidAgain = await call('POST', `/api/admin/orders/${dQr}/refunds/mark-paid`, { token: admin.token, body: {} });
+  oQr = await reloadOrder(dQr);
+  check('8d.4', 'to-do lists the QR payout; staff mark it paid → completed, customer notified; again → 409',
+    !!payoutTask && paid.status === 200 && paidAgain.status === 409 && oQr.refund_status === 'completed'
+      && (await noticeCount(customer.userId, 'ORDER_REFUND_PAID', dQr)) === 1,
+    `${errorOf(paid)} / ${errorOf(paidAgain)}`);
+
+  // (e) No answer within 24h → cancelled automatically, stock back exactly once.
+  const e = await shippedOrder(customer, admin, p, 'cod');
+  await failDelivery(admin, e, 'customer_unreachable');
+  const requested = new Date((await reloadOrder(e)).redelivery.requested_at);
+  const stockE = await stockOf(p);
+  await runRedeliveryJob(customer, new Date(requested.getTime() + 23 * HOURS));
+  const early = await reloadOrder(e);
+  await runRedeliveryJob(customer, new Date(requested.getTime() + 24 * HOURS));
+  await runRedeliveryJob(customer, new Date(requested.getTime() + 25 * HOURS));
+  const oe = await reloadOrder(e);
+  check('8e.1', 'still waiting at 23h; at 24h canceled (redelivery expired), ORDER_REDELIVERY_EXPIRED, stock +1 once',
+    early.order_status === 'delivery_failed' && oe.order_status === 'canceled' && oe.redelivery?.status === 'expired'
+      && (await stockOf(p)) === stockE + 1 && (await noticeCount(customer.userId, 'ORDER_REDELIVERY_EXPIRED', e)) === 1
+      && historyNotes(oe, redeliveryJob.EXPIRED_CANCEL_NOTE) === 1,
+    `status ${oe.order_status}, stock ${stockE} → ${await stockOf(p)}`);
+  const eQr = await shippedOrder(customer, admin, p, 'qr');
+  await failDelivery(admin, eQr, 'refused');
+  const requestedQr = new Date((await reloadOrder(eQr)).redelivery.requested_at);
+  await runRedeliveryJob(customer, new Date(requestedQr.getTime() + 24 * HOURS));
+  const destLater = await call('POST', `/api/orders/${eQr}/refund-destination`, { token: customer.token, body: { refund_destination: REFUND_TO } });
+  const oeQr = await reloadOrder(eQr);
+  check('8e.2', 'paid QR auto-cancel → pending_payout; the customer adds the refund account after the cancel',
+    oeQr.order_status === 'canceled' && oeQr.refund_status === 'pending_payout' && destLater.status === 200
+      && oeQr.refund_destination?.bank_name === REFUND_TO.bank_name, `${errorOf(destLater)}, ${oeQr.refund_status}`);
+
+  // (f) Confirm or cancel twice: one write, no duplicate history, stock back once.
+  const f1 = await shippedOrder(customer, admin, p);
+  await failDelivery(admin, f1, 'wrong_address');
+  const [c1, c2] = await Promise.all([confirmRedelivery(customer, f1), confirmRedelivery(customer, f1)]);
+  const of1 = await reloadOrder(f1);
+  check('8f.1', 'confirm twice (at once) → one 200 + one 409, one history entry',
+    [c1.status, c2.status].sort().join() === '200,409' && historyNotes(of1, 'Customer confirmed the redelivery') === 1,
+    `${c1.status}/${c2.status}`);
+  const f2 = await shippedOrder(customer, admin, p);
+  await failDelivery(admin, f2, 'customer_unreachable');
+  const stockF = await stockOf(p);
+  const [k1, k2] = await Promise.all([cancelRedelivery(customer, f2), cancelRedelivery(customer, f2)]);
+  const of2 = await reloadOrder(f2);
+  check('8f.2', 'cancel twice (at once) → one cancel, stock back once, one canceled history entry',
+    [k1.status, k2.status].sort().join() === '200,409' && of2.order_status === 'canceled' && (await stockOf(p)) === stockF + 1
+      && of2.status_history.filter(h => h.status === 'canceled').length === 1,
+    `${k1.status}/${k2.status}, stock ${stockF} → ${await stockOf(p)}`);
+
+  // (g) Third failed delivery: no redelivery left — ship again 409, the customer can't confirm, staff can only cancel.
+  const g = await shippedOrder(customer, admin, p, 'card');
+  for (let i = 0; i < 2; i++) {
+    await failDelivery(admin, g, 'customer_unreachable');
+    await confirmRedelivery(customer, g);
+    await adminStatus(admin, g, 'shipping');
+  }
+  const fail3 = await failDelivery(admin, g, 'customer_unreachable');
+  const og = await reloadOrder(g);
+  const ship3 = await adminStatus(admin, g, 'shipping');
+  const confirm3 = await confirmRedelivery(customer, g);
+  const cancel3 = await adminStatus(admin, g, 'canceled', 'No redeliveries left');
+  const og2 = await reloadOrder(g);
+  const lastNotice = await Notification.findOne({ recipient_id: customer.userId, type: 'ORDER_DELIVERY_FAILED', post_id: g }).sort({ created_at: -1 }).lean();
+  check('8g.1', '3rd failure: attempts 3, no redelivery, customer told it will be cancelled & refunded',
+    fail3.status === 200 && og.delivery_attempts === 3 && !og.redelivery && /cancelled and refunded/.test(lastNotice?.comment_content || ''),
+    `attempts ${og.delivery_attempts}, notice "${lastNotice?.comment_content}"`);
+  check('8g.2', 'ship again → 409, customer confirm → 409, staff cancel → canceled / refunded to the card',
+    ship3.status === 409 && confirm3.status === 409 && cancel3.status === 200 && og2.order_status === 'canceled'
+      && og2.payment_status === 'refunded' && og2.refund_status === 'completed',
+    `${errorOf(ship3)} / ${errorOf(confirm3)} / ${errorOf(cancel3)}`);
+
+  // (h) The 12h reminder goes out once however often the job runs.
+  const h = await shippedOrder(customer, admin, p);
+  await failDelivery(admin, h, 'customer_unreachable');
+  const requestedH = new Date((await reloadOrder(h)).redelivery.requested_at);
+  await runRedeliveryJob(customer, new Date(requestedH.getTime() + 11 * HOURS));
+  const before12 = await noticeCount(customer.userId, 'ORDER_REDELIVERY_REMINDER', h);
+  for (const hour of [12, 12.5, 13, 20]) await runRedeliveryJob(customer, new Date(requestedH.getTime() + hour * HOURS));
+  const oh = await reloadOrder(h);
+  check('8h.1', 'no reminder at 11h; exactly one from 12h on (reminder_sent_at set), still waiting',
+    before12 === 0 && (await noticeCount(customer.userId, 'ORDER_REDELIVERY_REMINDER', h)) === 1 && !!oh.redelivery.reminder_sent_at
+      && oh.order_status === 'delivery_failed', `before ${before12}, after ${await noticeCount(customer.userId, 'ORDER_REDELIVERY_REMINDER', h)}`);
+
+  // (i) "Chat with a human" from the order: the support conversation carries the order code.
+  // Support hours (08:00–22:00 VN) are opened in-process for this call only.
+  const policy = require('../src/services/chat-policy');
+  const realSupportOpen = policy.supportOpen;
+  policy.supportOpen = () => true;
+  let chat;
+  try {
+    chat = await call('POST', '/api/ai-chat/handover', {
+      token: customer.token,
+      body: { session_id: `${PREFIX}${runTag}_CHAT`, reason: 'order_change', message: `Order ${h}: please call me before delivering`, order_id: h }
+    });
+  } finally {
+    policy.supportOpen = realSupportOpen;
+  }
+  const conversation = await ChatConversation.findOne({ customer_id: customer.userId }).sort({ created_at: -1 }).lean();
+  check('8i.1', 'handover from the order → ChatConversation.context_order_id is the order code',
+    chat.status === 200 && chat.data?.handover === true && conversation?.context_order_id === h,
+    `${errorOf(chat)}, context ${conversation?.context_order_id}`);
 }
 
 // ─── Main ─────────────────────────────────────────────────────
@@ -667,7 +1015,7 @@ async function main() {
     const admin = await createAdmin();
     const voucher = await createVoucher({ usageLimit: 1 });
 
-    for (const scenario of [oneTimeCod, oneTimeQr, guestCod, cancels, mixedCard, ritualBoxOnly]) {
+    for (const scenario of [oneTimeCod, oneTimeQr, guestCod, cancels, mixedCard, ritualBoxOnly, ritualBoxStockHold, redeliveryFlows]) {
       try {
         await scenario({ customer, admin, voucher });
       } catch (err) {

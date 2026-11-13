@@ -5,7 +5,7 @@ const Product = require('../models/Product');
 const mongoose = require('mongoose');
 const ChatConversation = require('../models/ChatConversation');
 const notificationService = require('./notification.service');
-const { addCycleDays } = require('../utils/subscription-time');
+const { addCycleDays, autoCancelAt, autoCancelDaysLeft } = require('../utils/subscription-time');
 const {
   SubscriptionActionError,
   FREQUENCIES,
@@ -18,7 +18,10 @@ const {
   applyDueTransitions,
   dueTransitionsQuery,
   orderHistoryStatus,
-  shapePendingChanges
+  shapePendingChanges,
+  isReservedFor,
+  releaseStaleReservation,
+  cycleItem
 } = require('./subscription.service');
 
 // Admin side of Ritual Box (screen 1.6.1 Subscriptions). Rules: "Project Planning & Prep 2" —
@@ -81,7 +84,8 @@ function permissionsFor(role, sub) {
     unpause: can('unpause') && sub.status === 'paused' && sub.paused_by === 'admin',
     cancel: can('cancel') && !closed,
     propose_frequency: can('propose') && sub.status === 'active' && !sub.admin_proposal,
-    propose_resume: can('propose') && sub.status === 'paused' && sub.paused_by !== 'admin' && !sub.admin_proposal,
+    propose_resume: can('propose') && !sub.admin_proposal
+      && ((sub.status === 'paused' && sub.paused_by !== 'admin') || NEEDS_ACTION_STATUSES.includes(sub.status)),
     withdraw_proposal: can('withdraw_proposal') && !!sub.admin_proposal,
     note: rules.actions.includes('note'),
     pause_reasons: rules.pause_reasons,
@@ -103,9 +107,12 @@ function productLabel(product, variant) {
   return [product?.name || 'Unavailable product', variant?.label].filter(Boolean).join(' ');
 }
 
-// Out of stock only matters while deliveries are still coming.
+// Out of stock only matters while deliveries are still coming. A box holding stock for its
+// coming cycle is covered (that stock is already off variants.stock).
 function isOutOfStock(sub, variant) {
-  return ['active', 'paused'].includes(sub.status) && (!variant || (variant.stock ?? 0) <= 0);
+  if (!['active', 'paused'].includes(sub.status)) return false;
+  if (sub.status === 'active' && isReservedFor(sub)) return false;
+  return !variant || (variant.stock ?? 0) < (sub.quantity || 1);
 }
 
 async function loadCustomers(userIds) {
@@ -202,7 +209,10 @@ async function listSubscriptions({ filter = 'all', search = '', page = 1, limit 
   const due = await Subscription.find(dueTransitionsQuery(now));
   for (const doc of due) await applyDueTransitions(doc, now);
 
-  const activeBoxes = await Subscription.find({ status: 'active' }, 'subscription_id product_id variant_id status').lean();
+  const activeBoxes = await Subscription.find(
+    { status: 'active' },
+    'subscription_id product_id variant_id quantity status next_charge_at reserved_for reserved_items'
+  ).lean();
   const activeProducts = await loadProducts(activeBoxes.map(s => s.product_id));
   const outOfStockIds = activeBoxes
     .filter(s => isOutOfStock(s, variantOf(activeProducts.get(String(s.product_id)), s.variant_id)))
@@ -249,6 +259,22 @@ async function listSubscriptions({ filter = 'all', search = '', page = 1, limit 
   ));
 
   return { data, stats, total, page: pageNumber, limit: pageSize };
+}
+
+async function shapeCycleReplacementForAdmin(plain) {
+  const item = cycleItem(plain);
+  if (!item.replacement) return null;
+  const product = await findProduct(item.product_id);
+  const variant = (product?.variants || []).find(v => v.sku === item.variant_id) || null;
+  return {
+    product_id: item.product_id,
+    variant_id: item.variant_id,
+    name: product?.name || 'Unavailable product',
+    variant_label: variant?.label || '',
+    image: pickImage(product, variant),
+    for_cycle: plain.cycle_replacement.for_cycle,
+    subscribe_price: item.pricing.subscribe_price
+  };
 }
 
 async function getSubscriptionDetail(subscriptionId, role = null) {
@@ -314,9 +340,16 @@ async function getSubscriptionDetail(subscriptionId, role = null) {
     pending_changes: shapePendingChanges(plain),
     failed_attempts: plain.failed_attempts || 0,
     last_failure_reason: plain.last_failure_reason,
+    last_failed_at: plain.last_failed_at || null,
+    // Suspended: since when, and the automatic cancel (SUSPENDED_AUTO_CANCEL_DAYS later).
+    suspended_at: plain.status === 'suspended' ? (plain.suspended_at || plain.last_failed_at || null) : null,
+    auto_cancel_at: plain.status === 'suspended' ? autoCancelAt(plain.suspended_at || plain.last_failed_at) : null,
+    auto_cancel_days_left: plain.status === 'suspended' ? autoCancelDaysLeft(plain.suspended_at || plain.last_failed_at) : null,
     cancelled_at: plain.cancelled_at,
     cancel_reason: plain.cancel_reason,
     replacement,
+    // Customer picked a replacement for the upcoming delivery only (the box keeps its item).
+    cycle_replacement: await shapeCycleReplacementForAdmin(plain),
     deliveries,
     // Orders already charged keep shipping after a cancel.
     open_order_ids: allOrders
@@ -426,6 +459,7 @@ async function applyAdminAction(subscriptionId, action, payload, adminId, role) 
       }
       sub.admin_proposal = null;
       log('pause', reason);
+      await releaseStaleReservation(sub); // paused now: the held stock goes back
       await sub.save();
       await notifyCustomer(sub, 'SUBSCRIPTION_PAUSED', message);
       break;
@@ -440,6 +474,7 @@ async function applyAdminAction(subscriptionId, action, payload, adminId, role) 
       sub.skipped_deliveries.push(sub.next_charge_at);
       sub.next_charge_at = addCycleDays(sub.next_charge_at, sub.frequency_days);
       log('skip', reason);
+      await releaseStaleReservation(sub); // the skipped cycle keeps no stock
       await sub.save();
       await notifyCustomer(sub, 'SUBSCRIPTION_SKIPPED', message || reason);
       break;
@@ -482,8 +517,12 @@ async function applyAdminAction(subscriptionId, action, payload, adminId, role) 
         if (days === sub.frequency_days) throw new SubscriptionActionError('The box already ships at this frequency.');
         proposal.frequency_days = days;
       } else if (type === 'resume') {
-        if (sub.status !== 'paused') throw new SubscriptionActionError('Only paused subscriptions can be resumed.');
-        if (sub.paused_by === 'admin') throw new SubscriptionActionError('Staff paused this box — resume it directly.');
+        // Paused by the customer, or payment_failed / suspended: accepting a resume of a failed box
+        // charges the card (the customer's reactivate flow); staff never charge it themselves.
+        if (sub.status !== 'paused' && !NEEDS_ACTION_STATUSES.includes(sub.status)) {
+          throw new SubscriptionActionError('Only paused, payment-failed or suspended subscriptions can be resumed.');
+        }
+        if (sub.status === 'paused' && sub.paused_by === 'admin') throw new SubscriptionActionError('Staff paused this box — resume it directly.');
       } else {
         throw new SubscriptionActionError('Unknown proposal.');
       }
@@ -530,6 +569,7 @@ async function applyAdminAction(subscriptionId, action, payload, adminId, role) 
       }
       sub.admin_proposal = null;
       log('cancel', reason);
+      await releaseStaleReservation(sub); // cancelled now: the held stock goes back
       await sub.save();
       await notifyCustomer(sub, 'SUBSCRIPTION_CANCELLED', message || reason);
       break;

@@ -40,6 +40,13 @@ export class VoucherFetchError extends Error {
   }
 }
 
+/** Bank account a refund is paid out to (QR orders cancelled after a failed delivery). */
+export interface RefundDestination {
+  bank_name: string;
+  account_number: string;
+  account_holder: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CheckoutService {
   private http = inject(HttpClient);
@@ -291,6 +298,37 @@ export class CheckoutService {
     }
     return await firstValueFrom(
       this.http.get<any>('/api/order-tracking', { params })
+    );
+  }
+
+  /** After a failed delivery: where and how to deliver again (the order's own address is unchanged). */
+  async confirmRedelivery(
+    id: string,
+    body: { contact_phone: string; shipping_address: { recipient_name: string; city: string; address: string }; note?: string },
+    sessionId?: string | null
+  ): Promise<any> {
+    return await firstValueFrom(
+      this.http.post<any>(`/api/orders/${encodeURIComponent(id)}/redelivery/confirm`, { ...body, session_id: sessionId || undefined })
+    );
+  }
+
+  /** After a failed delivery: cancel instead. A paid QR order sends the bank account for its refund. */
+  async cancelRedelivery(id: string, refundDestination: RefundDestination | null, sessionId?: string | null): Promise<any> {
+    return await firstValueFrom(
+      this.http.post<any>(`/api/orders/${encodeURIComponent(id)}/redelivery/cancel`, {
+        ...(refundDestination ? { refund_destination: refundDestination } : {}),
+        session_id: sessionId || undefined
+      })
+    );
+  }
+
+  /** Cancelled paid QR order waiting for its payout: the bank account to refund to. */
+  async setRefundDestination(id: string, refundDestination: RefundDestination, sessionId?: string | null): Promise<any> {
+    return await firstValueFrom(
+      this.http.post<any>(`/api/orders/${encodeURIComponent(id)}/refund-destination`, {
+        refund_destination: refundDestination,
+        session_id: sessionId || undefined
+      })
     );
   }
 

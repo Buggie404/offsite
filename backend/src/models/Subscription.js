@@ -56,6 +56,31 @@ const replacementOfferSchema = new mongoose.Schema({
   offered_by: { type: String, required: true }
 }, { _id: false });
 
+// Out of stock: the item the customer picked for ONE cycle (for_cycle = next_charge_at of that
+// cycle). The box keeps its own item; later cycles go back to it.
+const cycleReplacementSchema = new mongoose.Schema({
+  product_id: { type: String, required: true },
+  variant_id: { type: String, required: true },
+  for_cycle:  { type: Date, required: true },
+  pricing:    { type: pricingSnapshotSchema, required: true },
+  chosen_at:  { type: Date, default: Date.now }
+}, { _id: false });
+
+// The last cycle was charged with a replacement: the customer may switch the box to it for good.
+const lastReplacementSchema = new mongoose.Schema({
+  product_id: { type: String, required: true },
+  variant_id: { type: String, required: true },
+  order_id:   { type: String, default: null },
+  charged_at: { type: Date, default: Date.now }
+}, { _id: false });
+
+// Stock held for one cycle (inventory.service.reserveItems), same shape as its order line.
+const reservedItemSchema = new mongoose.Schema({
+  product_id: { type: String, required: true },
+  variant_id: { type: String, required: true },
+  quantity:   { type: Number, required: true, min: 1 }
+}, { _id: false });
+
 const pendingCancelSchema = new mongoose.Schema({
   reason: { type: String, required: true },
   by:     { type: String, required: true }                        // user_id của admin
@@ -113,11 +138,20 @@ const subscriptionSchema = new mongoose.Schema({
   last_failure_reason: { type: String, default: null },
   last_failed_at:      { type: Date, default: null },
   next_retry_at:       { type: Date, default: null },             // thử lại sau 24h → 48h → 72h, rồi suspended
+  // Suspended: from when (auto-cancel after SUSPENDED_AUTO_CANCEL_DAYS) and when the one reminder
+  // (after 7 days) was sent. Cleared when the box is active again.
+  suspended_at:          { type: Date, default: null },
+  suspended_reminded_at: { type: Date, default: null },
   last_charged_at:     { type: Date, default: null },
   // Charge job bookkeeping: claim lease so overlapping runs never charge twice, and the
   // next_charge_at that SUBSCRIPTION_UPCOMING was already sent for.
   charge_locked_until:   { type: Date, default: null },
   upcoming_notified_for: { type: Date, default: null },
+  // Giữ kho trước kỳ charge: 3 ngày trước next_charge_at job giữ kho cho kỳ tới (đã trừ khỏi
+  // variants.stock). reserved_for = next_charge_at của kỳ đã giữ; charge dùng đúng phần này.
+  // Nhả khi kỳ đó bị bỏ qua / box tạm dừng, huỷ, suspended / đổi món hoặc số lượng.
+  reserved_for:   { type: Date, default: null },
+  reserved_items: { type: [reservedItemSchema], default: [] },
   source_order_id:     { type: String, default: null },           // đơn checkout tạo ra subscription này
 
   // Tạm dừng: 1 tháng, 2 tháng, hoặc đến khi khách kích hoạt lại (resume_at = null).
@@ -135,6 +169,8 @@ const subscriptionSchema = new mongoose.Schema({
   admin_messages: { type: [adminMessageSchema], default: [] },
   // Admin tạm dừng vì hết hàng có thể đề nghị sản phẩm thay thế; khách chấp nhận trong Ritual Box.
   replacement_offer: { type: replacementOfferSchema, default: null },
+  cycle_replacement: { type: cycleReplacementSchema, default: null },
+  last_replacement:  { type: lastReplacementSchema, default: null },
   admin_proposal:    { type: adminProposalSchema, default: null },
   internal_note: {
     text:       { type: String, default: '' },
@@ -179,11 +215,14 @@ subscriptionSchema.pre('validate', async function(next) {
   // 2. Stamp paused_at / cancelled_at on status transitions
   if (this.isModified('status')) {
     if (this.status === 'paused' && !this.paused_at) this.paused_at = new Date();
+    if (this.status === 'suspended' && !this.suspended_at) this.suspended_at = new Date();
     if (this.status === 'active') {
       this.paused_at = null;
       this.resume_at = null;
       this.pause_option = null;
       this.paused_by = null;
+      this.suspended_at = null;
+      this.suspended_reminded_at = null;
     }
     if (['cancelled', 'cancelled_by_admin'].includes(this.status) && !this.cancelled_at) {
       this.cancelled_at = new Date();

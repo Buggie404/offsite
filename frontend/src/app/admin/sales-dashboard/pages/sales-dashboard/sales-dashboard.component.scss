@@ -533,3 +533,14 @@ button {
     }
   }
 }
+
+.action--button {
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled { opacity: 0.5; cursor: default; }
+}

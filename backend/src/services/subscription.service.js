@@ -6,7 +6,7 @@ const User = require('../models/User');
 const notificationService = require('./notification.service');
 const inventoryService = require('./inventory.service');
 const { appendInternalNote } = require('../utils/internal-notes');
-const { addCycleDays } = require('../utils/subscription-time');
+const { addCycleDays, addUnits, RESERVE_AHEAD_UNITS } = require('../utils/subscription-time');
 
 // Business rules: "Project Planning & Prep 2" — Subscription conventions.
 const FREQUENCIES = [7, 14, 30];
@@ -31,9 +31,10 @@ const shiftedChargeAt = (sub, days, now) => new Date(Math.max(
 ));
 
 class SubscriptionActionError extends Error {
-  constructor(message, status = 400) {
+  constructor(message, status = 400, code = null) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -92,8 +93,40 @@ const isLocked = (sub, now = new Date()) =>
   sub.status === 'active' && new Date(sub.next_charge_at).getTime() - now.getTime() < LOCK_WINDOW_HOURS * HOUR_MS;
 
 // Same category, subscribable, in stock — closest price wins.
-async function findReplacement(product, variant) {
-  if (!product) return null;
+const MAX_REPLACEMENT_OPTIONS = 6;
+
+// Price of a product in a box: its own Subscribe & Save discount, like a new box would get.
+function boxPricing(product, variant) {
+  const discount = product?.subscribe_discount_percent ?? DEFAULT_SUBSCRIBE_DISCOUNT_PERCENT;
+  return {
+    original_price: variant.price,
+    subscribe_price: round2(variant.price * (1 - discount / 100)),
+    discount_percent: discount
+  };
+}
+
+function shapeReplacement(product, variant, basePrice, quantity = 1, current = null) {
+  const pricing = boxPricing(product, variant);
+  const total = round2(pricing.subscribe_price * quantity);
+  return {
+    product_id: String(product._id),
+    variant_id: variant.sku,
+    name: product.name,
+    variant_label: variantLabel(variant.label),
+    image: pickImage(product, variant),
+    price: variant.price,
+    same_price: Math.abs(variant.price - basePrice) < 0.005,
+    pricing,
+    total,
+    // What this delivery costs compared with the box's usual charge (+ more, − less).
+    difference: current == null ? null : round2(total - current)
+  };
+}
+
+// Out of stock: in-stock items from the same category, closest in price first (cheaper, same
+// price or dearer: the box is billed to a card, so a higher price is simply charged).
+async function findReplacements(product, variant, { quantity = 1, currentTotal = null, limit = MAX_REPLACEMENT_OPTIONS } = {}) {
+  if (!product) return [];
   const candidates = await Product.find({
     _id: { $ne: product._id },
     category: product.category,
@@ -102,41 +135,49 @@ async function findReplacement(product, variant) {
     'variants.stock': { $gt: 0 }
   }).lean();
 
-  let best = null;
+  const basePrice = variant?.price ?? 0;
+  const options = [];
   for (const p of candidates) {
     for (const v of p.variants || []) {
-      if ((v.stock ?? 0) <= 0) continue;
-      const diff = Math.abs(v.price - variant.price);
-      if (!best || diff < best.diff) best = { product: p, variant: v, diff };
+      if ((v.stock ?? 0) < quantity) continue;
+      options.push({ product: p, variant: v, diff: Math.abs(v.price - basePrice) });
     }
   }
-  if (!best) return null;
+  options.sort((a, b) => a.diff - b.diff || a.variant.price - b.variant.price);
+  return options.slice(0, limit).map(o => shapeReplacement(o.product, o.variant, basePrice, quantity, currentTotal));
+}
 
-  return {
-    product_id: String(best.product._id),
-    variant_id: best.variant.sku,
-    name: best.product.name,
-    variant_label: variantLabel(best.variant.label),
-    image: pickImage(best.product, best.variant),
-    price: best.variant.price,
-    same_price: best.diff < 0.005
-  };
+// The closest single pick (staff offers, the out-of-stock notification).
+async function findReplacement(product, variant) {
+  const [best] = await findReplacements(product, variant, { limit: 1 });
+  return best || null;
 }
 
 // Replacement chosen by staff when pausing an out-of-stock box (admin screen 1.6.1).
-async function offeredReplacement(offer) {
+async function offeredReplacement(offer, { quantity = 1, basePrice = null, currentTotal = null } = {}) {
   const product = await findProduct(offer.product_id);
   const variant = (product?.variants || []).find(v => v.sku === offer.variant_id);
-  if (!product || !variant || (variant.stock ?? 0) <= 0) return null;
-  return {
-    product_id: String(product._id),
-    variant_id: variant.sku,
-    name: product.name,
-    variant_label: variantLabel(variant.label),
-    image: pickImage(product, variant),
-    price: variant.price,
-    same_price: false
-  };
+  if (!product || !variant || (variant.stock ?? 0) < quantity) return null;
+  return { ...shapeReplacement(product, variant, basePrice ?? variant.price, quantity, currentTotal), offered_by_staff: true };
+}
+
+// Every replacement the customer may pick for an out-of-stock box: the staff offer (if any)
+// first, then the closest in-stock items.
+async function replacementOptions(sub) {
+  const product = await findProduct(sub.product_id);
+  const variant = (product?.variants || []).find(v => v.sku === sub.variant_id)
+    || { price: sub.pricing_snapshot.original_price };
+  const quantity = sub.quantity || 1;
+  const currentTotal = round2(sub.pricing_snapshot.subscribe_price * quantity);
+  const options = await findReplacements(product, variant, { quantity, currentTotal });
+  if (sub.replacement_offer) {
+    const offered = await offeredReplacement(sub.replacement_offer, { quantity, basePrice: variant.price, currentTotal });
+    if (offered) {
+      return [offered, ...options.filter(o => !(o.product_id === offered.product_id && o.variant_id === offered.variant_id))]
+        .slice(0, MAX_REPLACEMENT_OPTIONS);
+    }
+  }
+  return options;
 }
 
 function orderHistoryStatus(order) {
@@ -157,10 +198,135 @@ async function getUser(userIdStr) {
   return User.findOne({ user_id: userIdStr }, { payment_methods: 1 }).lean();
 }
 
+// ─── Stock held for the next cycle ──────────────────────────────
+// 3 days (RESERVE_AHEAD_UNITS) before next_charge_at the charge job holds the box's stock for that
+// cycle (subtracted from variants.stock); the charge then uses exactly that stock. A hold belongs
+// to one cycle date and one item / quantity: once either changes, or the box stops being billed
+// (paused, cancelled, payment_failed, suspended), the hold is stale and goes back on the shelf.
+// A payment_failed box gets its stock held again when the customer reactivates it (charge time).
+const HOLDING_STATUSES = ['active'];
+
+// Replacement picked for the upcoming cycle only; ignored once that cycle is charged, skipped or moved.
+function activeCycleReplacement(sub) {
+  const r = sub?.cycle_replacement;
+  return r && r.product_id && sameTime(r.for_cycle, sub.next_charge_at) ? r : null;
+}
+
+// What the upcoming cycle ships and costs: the one-cycle replacement, else the box's own item.
+function cycleItem(sub) {
+  const r = activeCycleReplacement(sub);
+  return r
+    ? { product_id: String(r.product_id), variant_id: r.variant_id, pricing: r.pricing, replacement: true }
+    : { product_id: String(sub.product_id), variant_id: sub.variant_id, pricing: sub.pricing_snapshot, replacement: false };
+}
+
+const boxLines = sub => {
+  const item = cycleItem(sub);
+  return [{ product_id: item.product_id, variant_id: item.variant_id, quantity: sub.quantity }];
+};
+const plainLines = items => (items || []).map(i => ({ product_id: String(i.product_id), variant_id: i.variant_id, quantity: i.quantity }));
+const sameTime = (a, b) => !!a && !!b && new Date(a).getTime() === new Date(b).getTime();
+
+// True when the box holds stock for its upcoming cycle, for its current item and quantity.
+function isReservedFor(sub) {
+  if (!sub?.reserved_for || !sameTime(sub.reserved_for, sub.next_charge_at)) return false;
+  const [held, ...rest] = plainLines(sub.reserved_items);
+  const [line] = boxLines(sub);
+  return !!held && !rest.length && held.product_id === line.product_id
+    && held.variant_id === line.variant_id && held.quantity === sub.quantity;
+}
+
+// Puts the box's held stock back. The hold is cleared in the database first, so the stock goes
+// back once even when two paths (customer action, charge job, admin) release it together.
+async function releaseReservation(sub) {
+  const previous = await Subscription.findOneAndUpdate(
+    { _id: sub._id, reserved_for: { $ne: null } },
+    { $set: { reserved_for: null, reserved_items: [] } },
+    { new: false }
+  );
+  sub.reserved_for = null;
+  sub.reserved_items = [];
+  const lines = plainLines(previous?.reserved_items);
+  if (lines.length) await inventoryService.releaseItems(lines);
+  return lines.length > 0;
+}
+
+// Releases a hold that no longer matches the box (cycle skipped or moved, item / quantity
+// changed, box paused / cancelled / suspended). Call before saving a changed box.
+async function releaseStaleReservation(sub) {
+  if (!sub?.reserved_for) return false;
+  if (HOLDING_STATUSES.includes(sub.status) && isReservedFor(sub)) return false;
+  return releaseReservation(sub);
+}
+
+// Holds stock for the box's upcoming cycle (next_charge_at, current item and quantity).
+// Idempotent: a box already holding stock for that cycle is left as it is; a stale hold goes
+// back first. Returns { ok: true, already } or { ok: false, failed } when stock is short.
+async function reserveForCycle(sub) {
+  if (isReservedFor(sub)) return { ok: true, already: true };
+  if (sub.reserved_for) await releaseReservation(sub);
+
+  const lines = boxLines(sub);
+  const reservation = await inventoryService.reserveItems(lines);
+  if (!reservation.ok) return { ok: false, failed: reservation.failed };
+
+  const cycle = new Date(sub.next_charge_at);
+  const saved = await Subscription.updateOne(
+    { _id: sub._id, reserved_for: null },
+    { $set: { reserved_for: cycle, reserved_items: lines } }
+  );
+  if (saved.modifiedCount !== 1) {
+    // Another run held stock for this box meanwhile: keep theirs, give this stock back.
+    await inventoryService.releaseItems(lines);
+    const fresh = await Subscription.findById(sub._id, { reserved_for: 1, reserved_items: 1 }).lean();
+    sub.reserved_for = fresh?.reserved_for || null;
+    sub.reserved_items = plainLines(fresh?.reserved_items);
+    return isReservedFor(sub) ? { ok: true, already: true } : { ok: false, failed: lines[0] };
+  }
+  sub.reserved_for = cycle;
+  sub.reserved_items = lines;
+  return { ok: true, already: false };
+}
+
+// Takes the box's hold for this charge (cleared atomically so nobody can release it meanwhile).
+// Without one the stock is held now — a box reactivated by the customer, or restocked since the
+// last job pass; nothing to hold means no charge. Returns the lines taken, or null.
+async function takeStockForCharge(sub) {
+  if (isReservedFor(sub)) {
+    const claimed = await Subscription.findOneAndUpdate(
+      { _id: sub._id, reserved_for: sub.reserved_for },
+      { $set: { reserved_for: null, reserved_items: [] } },
+      { new: false }
+    );
+    if (claimed && plainLines(claimed.reserved_items).length) return plainLines(claimed.reserved_items);
+  }
+  if (sub.reserved_for) await releaseReservation(sub);
+  const lines = boxLines(sub);
+  const reservation = await inventoryService.reserveItems(lines);
+  return reservation.ok ? lines : null;
+}
+
+// A charge that failed after taking the stock keeps it held for this cycle (retries charge it).
+async function keepStockForRetry(sub, lines) {
+  const cycle = new Date(sub.next_charge_at);
+  const kept = await Subscription.updateOne(
+    { _id: sub._id, reserved_for: null },
+    { $set: { reserved_for: cycle, reserved_items: lines } }
+  );
+  if (kept.modifiedCount === 1) {
+    sub.reserved_for = cycle;
+    sub.reserved_items = lines;
+  } else {
+    await inventoryService.releaseItems(lines);
+  }
+}
+
 // ─── Charge ─────────────────────────────────────────────────────
 // One charge = one delivery: creates a paid subscription Order and moves next_charge_at
 // forward from the moment the charge succeeded. Payments are simulated (same as checkout):
 // the charge succeeds when the saved card exists and has not expired.
+// The order is built from the stock held for this cycle: no second stock check, no second
+// subtraction (the order is stock_reserved, so cancelling it puts the stock back).
 // Exported so the hourly charge job can reuse it.
 async function chargeSubscription(sub, { now = new Date() } = {}) {
   const user = await User.findOne({ user_id: sub.user_id }).lean();
@@ -170,13 +336,15 @@ async function chargeSubscription(sub, { now = new Date() } = {}) {
     return { ok: false, reason: 'card_expired', message: 'Your card has expired. Choose another card.' };
   }
 
-  const product = await findProduct(sub.product_id);
-  const variant = (product?.variants || []).find(v => v.sku === sub.variant_id);
-  if (!product || !variant || (variant.stock ?? 0) < sub.quantity) {
+  // A replacement picked for this cycle ships and is billed instead of the box's item (this cycle only).
+  const item = cycleItem(sub);
+  const product = await findProduct(item.product_id);
+  const variant = (product?.variants || []).find(v => v.sku === item.variant_id);
+  if (!product || !variant) {
     return { ok: false, reason: 'out_of_stock', message: 'This item is out of stock. Pick the replacement or skip this cycle.' };
   }
 
-  const unitPrice = sub.pricing_snapshot.subscribe_price;
+  const unitPrice = item.pricing.subscribe_price;
   const subtotal = round2(unitPrice * sub.quantity);
   const shippingCost = sub.shipping_method === 'express' ? 15 : 0;
   // The checkout order that started the box is delivery #1, so job orders count on from #2.
@@ -185,18 +353,24 @@ async function chargeSubscription(sub, { now = new Date() } = {}) {
   // Order items require a non-empty image; products normally have one.
   const image = variant.images?.[0] || product.images?.[0] || {};
 
+  const lines = await takeStockForCharge(sub);
+  if (!lines) {
+    return { ok: false, reason: 'out_of_stock', message: 'This item is out of stock. Pick the replacement or skip this cycle.' };
+  }
+  const [held] = lines;
+
   const order = new Order({
     user_id: sub.user_id,
     is_guest: false,
     items: [{
-      product_id: sub.product_id,
-      variant_id: sub.variant_id,
+      product_id: held.product_id,
+      variant_id: held.variant_id,
       product_name: product.name,
       // Order items require a variant name; unlabeled variants use 'Default' like checkout (hidden in the UI).
       variant_name: variant.label || 'Default',
       image: { url: image.url || 'none', public_id: image.public_id || 'none' },
       unit_price: unitPrice,
-      quantity: sub.quantity,
+      quantity: held.quantity,
       subtotal,
       purchase_type: 'subscription',
       subscription_frequency_days: sub.frequency_days
@@ -223,20 +397,24 @@ async function chargeSubscription(sub, { now = new Date() } = {}) {
     subscription_id: sub.subscription_id,
     subscription_cycle: cycle
   });
-  order._statusChangeNote = `Subscription ${sub.subscription_id} charged (cycle ${cycle})`;
+  order._statusChangeNote = item.replacement
+    ? `Subscription ${sub.subscription_id} charged (cycle ${cycle}) with a one-time replacement for ${sub.product_id}/${sub.variant_id}`
+    : `Subscription ${sub.subscription_id} charged (cycle ${cycle})`;
 
-  // The check above can race with checkouts; the atomic reservation is what counts.
-  const reservation = await inventoryService.reserveItems(order.items);
-  if (!reservation.ok) {
-    return { ok: false, reason: 'out_of_stock', message: 'This item is out of stock. Pick the replacement or skip this cycle.' };
-  }
   try {
     await order.save();
   } catch (saveErr) {
-    await inventoryService.releaseItems(order.items);
+    await keepStockForRetry(sub, lines);
     throw saveErr;
   }
 
+  sub.reserved_for = null;
+  sub.reserved_items = [];
+  // The replacement was for this cycle only; remember it so the customer can keep it for good.
+  sub.cycle_replacement = null;
+  sub.last_replacement = item.replacement
+    ? { product_id: item.product_id, variant_id: item.variant_id, order_id: order.order_id || null, charged_at: now }
+    : null;
   sub.last_charged_at = now;
   sub.next_charge_at = addCycleDays(now, sub.frequency_days);
   sub.failed_attempts = 0;
@@ -398,60 +576,6 @@ async function createSubscriptionsFromOrder(order, { paymentMethodId = null } = 
 // E11000 on the source-line index (not e.g. a subscription_id collision, which must surface).
 function isDuplicateSourceLine(err) {
   return err?.code === 11000 && (Boolean(err.keyPattern?.source_order_id) || /source_order_id/.test(err.message || ''));
-}
-
-// Staff cancelled a Ritual Box delivery order because its item ran out after the charge
-// (Admin Orders › mark out of stock; the order is refunded there). The charge job already moved
-// next_charge_at to the following cycle, so this only records the lost cycle on the box:
-// a skipped delivery (shown in Delivery history) plus a staff entry in admin_messages, and tells
-// the customer. Like a staff skip it does NOT count toward the customer's 2-consecutive-skips
-// limit (consecutive_skips is untouched). The box stays as it is; cancelling it is a separate,
-// deliberate action in Admin › Subscriptions.
-// Returns { sub, oldValue } for the activity log, or null when there's nothing to record.
-async function skipCycleForCanceledOrder(order, { adminId, reason, itemNames = [], refunded = false } = {}) {
-  if (!order?.subscription_id) return null;
-  const cycleDate = new Date(order.created_at || Date.now());
-  const before = await Subscription.findOne({ subscription_id: order.subscription_id }).lean();
-  if (!before) return null;
-
-  // $push in one conditional update: never overwrites what the charge job / customer changed
-  // meanwhile, and the same cycle is recorded once.
-  const sub = await Subscription.findOneAndUpdate(
-    { subscription_id: order.subscription_id, skipped_deliveries: { $ne: cycleDate } },
-    {
-      $push: {
-        skipped_deliveries: cycleDate,
-        admin_messages: {
-          action: 'skip',
-          reason: reason || null,
-          message: `Delivery order ${order.order_id} cancelled: out of stock${refunded ? ', refunded in full' : ''}.`,
-          sent_by: String(adminId || 'system'),
-          sent_at: new Date()
-        }
-      }
-    },
-    { new: true }
-  );
-  if (!sub) return null;
-
-  const items = itemNames.length ? itemNames.join(', ') : 'An item';
-  const next = sub.status === 'active' && sub.next_charge_at
-    ? ` Your next box is scheduled for ${new Date(sub.next_charge_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: 'numeric', month: 'short', year: 'numeric' })}.`
-    : '';
-  await notificationService.notifySubscription(
-    { user_id: sub.user_id, subscription_id: sub.subscription_id, order_id: order.order_id },
-    'SUBSCRIPTION_SKIPPED',
-    `${items} ran out of stock, so we cancelled this delivery (order ${order.order_id})`
-      + `${refunded ? ' and refunded your payment in full' : ''}.${next}`
-  );
-
-  const snapshot = (doc) => ({
-    status: doc.status,
-    next_charge_at: doc.next_charge_at,
-    consecutive_skips: doc.consecutive_skips,
-    skipped_deliveries: doc.skipped_deliveries
-  });
-  return { sub, oldValue: snapshot(before), newValue: { ...snapshot(sub), order_id: order.order_id } };
 }
 
 // POST /api/subscriptions/start-from-order/:orderId — the customer starts the Ritual Box of a
@@ -663,6 +787,65 @@ function shapePendingChanges(sub) {
   };
 }
 
+async function shapeCycleReplacement(sub) {
+  const r = activeCycleReplacement(sub);
+  if (!r) return null;
+  const product = await findProduct(r.product_id);
+  const variant = (product?.variants || []).find(v => v.sku === r.variant_id) || null;
+  const total = round2(r.pricing.subscribe_price * (sub.quantity || 1));
+  return {
+    product_id: String(r.product_id),
+    variant_id: r.variant_id,
+    name: product?.name || 'Unavailable product',
+    variant_label: variantLabel(variant?.label),
+    image: pickImage(product, variant),
+    for_cycle: r.for_cycle,
+    pricing: r.pricing,
+    total,
+    difference: round2(total - sub.pricing_snapshot.subscribe_price * (sub.quantity || 1))
+  };
+}
+
+async function shapeSwitchOffer(sub) {
+  const r = sub.last_replacement;
+  if (!r || CLOSED_STATUSES.includes(sub.status)) return null;
+  if (String(r.product_id) === String(sub.product_id) && r.variant_id === sub.variant_id) return null;
+  const product = await findProduct(r.product_id);
+  const variant = (product?.variants || []).find(v => v.sku === r.variant_id);
+  if (!product || !variant || product.is_active === false) return null;
+  const quantity = sub.quantity || 1;
+  const pricing = boxPricing(product, variant);
+  const total = round2(pricing.subscribe_price * quantity);
+  return {
+    product_id: String(product._id),
+    variant_id: variant.sku,
+    name: product.name,
+    variant_label: variantLabel(variant.label),
+    image: pickImage(product, variant),
+    order_id: r.order_id || null,
+    pricing,
+    total,
+    difference: round2(total - sub.pricing_snapshot.subscribe_price * quantity)
+  };
+}
+
+// Switches the box's own item for good (price = that product's Subscribe & Save price). A hold
+// for the coming cycle follows the new item; nothing in stock → the usual out-of-stock flow.
+async function switchBoxItem(sub, product, variant, now) {
+  sub.product_id = String(product._id);
+  sub.variant_id = variant.sku;
+  sub.pricing_snapshot = boxPricing(product, variant);
+  sub.cycle_replacement = null;
+  sub.last_replacement = null;
+  if (sub.status === 'active' && sub.next_charge_at <= addUnits(now, RESERVE_AHEAD_UNITS)) {
+    const held = await reserveForCycle(sub);
+    if (held.ok && sub.last_failure_reason === 'out_of_stock') {
+      sub.last_failure_reason = null;
+      sub.last_failed_at = null;
+    }
+  }
+}
+
 async function shapeSubscription(sub, paymentMethods, now) {
   const product = await findProduct(sub.product_id);
   const variant = (product?.variants || []).find(v => v.sku === sub.variant_id) || null;
@@ -670,7 +853,9 @@ async function shapeSubscription(sub, paymentMethods, now) {
   const card = paymentMethods.find(pm => pm.id === String(sub.payment_method_id)) || null;
   // Paused by staff with a replacement offer: the customer can still accept it here.
   const hasOffer = sub.status === 'paused' && !!sub.replacement_offer;
-  const outOfStock = (sub.status === 'active' || hasOffer) && !!variant && (variant.stock ?? 0) <= 0;
+  // Stock held for the coming cycle is already off variants.stock: that box is covered.
+  const outOfStock = (sub.status === 'active' || hasOffer) && !!variant && !isReservedFor(sub)
+    && (variant.stock ?? 0) < (sub.quantity || 1);
   const suggestion = sub.suggested_frequency_days
     ? {
         frequency_days: sub.suggested_frequency_days,
@@ -678,6 +863,7 @@ async function shapeSubscription(sub, paymentMethods, now) {
         expires_at: addDays(sub.suggested_at || now, SUGGESTION_TTL_DAYS)
       }
     : null;
+  const replacementChoices = outOfStock ? await replacementOptions(sub) : [];
 
   return {
     subscription_id: sub.subscription_id,
@@ -710,10 +896,15 @@ async function shapeSubscription(sub, paymentMethods, now) {
     payment_method: card,
     out_of_stock: outOfStock,
     // Chờ khách xác nhận tối đa 3 ngày; không xác nhận thì bỏ qua chu kỳ, không charge.
-    out_of_stock_deadline: outOfStock ? addDays(sub.next_charge_at, SUGGESTION_TTL_DAYS) : null,
-    replacement: outOfStock
-      ? (hasOffer ? await offeredReplacement(sub.replacement_offer) : await findReplacement(product, variant))
-      : null,
+    // Same time base as the charge job (minutes in demo mode).
+    out_of_stock_deadline: outOfStock ? addUnits(sub.next_charge_at, RESERVE_AHEAD_UNITS) : null,
+    replacement: replacementChoices[0] || null,
+    // Every item the customer may pick for this one delivery (staff offer first, then closest price).
+    replacement_options: replacementChoices,
+    // Picked for the upcoming delivery only; the box goes back to its own item afterwards.
+    cycle_replacement: await shapeCycleReplacement(sub),
+    // The last delivery was a replacement: offer to switch the box to it for good.
+    switch_offer: await shapeSwitchOffer(sub),
     suggestion,
     // Change proposed by staff; nothing happens until the customer accepts.
     admin_proposal: sub.admin_proposal
@@ -803,6 +994,53 @@ async function getRitualBox(userIdStr) {
 
 // ─── Customer actions ───────────────────────────────────────────
 
+const FAILED_STATUSES = ['payment_failed', 'suspended'];
+
+// Why a charge of a payment_failed / suspended box didn't go through, for the customer.
+const REACTIVATE_FAILURES = {
+  out_of_stock: 'Not charged: this item is out of stock right now. Try again once it is back in stock.',
+  card_expired: 'Not charged: this card has expired. Choose another card.',
+  no_card: 'Not charged: add a payment card to this subscription first.',
+  declined: 'Not charged: the card was declined. Try again or use another card.'
+};
+
+// A saved, unexpired card of this customer, or a SubscriptionActionError.
+async function savedCard(userIdStr, paymentMethodId) {
+  const user = await getUser(userIdStr);
+  const card = (user?.payment_methods || []).map(maskCard).find(m => m.id === String(paymentMethodId));
+  if (!card) throw new SubscriptionActionError('Payment card not found.');
+  if (card.is_expired) throw new SubscriptionActionError(REACTIVATE_FAILURES.card_expired, 400, 'card_expired');
+  return card;
+}
+
+// Customer charges a payment_failed / suspended box (new card or "Reactivate", also when
+// accepting a staff "resume" proposal). Success: active, retries reset, next charge counted from
+// this charge (chargeSubscription). Failure: the box stays as it was — status, failed_attempts and
+// next_retry_at untouched (no new 24h/48h/72h cycle); only the new card (if any) and the reason are
+// kept, written directly so nothing else changed in memory (e.g. an accepted proposal) is saved.
+async function reactivateFailedBox(sub, now, { newCardId = null } = {}) {
+  let result;
+  try {
+    result = await chargeSubscription(sub, { now });
+  } catch (err) {
+    console.error(`Subscription ${sub.subscription_id} reactivation charge error:`, err);
+    result = { ok: false, reason: 'declined' };
+  }
+  if (result.ok) {
+    // A change waiting for "after the next charge" (pause / cancel) may have just applied.
+    if (FAILED_STATUSES.includes(sub.status)) sub.status = 'active';
+    return result;
+  }
+
+  const reason = REACTIVATE_FAILURES[result.reason] ? result.reason : 'declined';
+  await releaseStaleReservation(sub); // a failed box never keeps stock
+  await Subscription.updateOne(
+    { _id: sub._id },
+    { $set: { ...(newCardId ? { payment_method_id: newCardId } : {}), last_failure_reason: reason, last_failed_at: now } }
+  );
+  throw new SubscriptionActionError(REACTIVATE_FAILURES[reason], 402, reason);
+}
+
 async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
   const sub = await Subscription.findOne({ user_id: userIdStr, subscription_id: subscriptionId });
   if (!sub) throw new SubscriptionActionError('Subscription not found.', 404);
@@ -826,13 +1064,14 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
       await sub.save();
       return getRitualBox(userIdStr);
     }
-    action = proposal.type === 'frequency' ? 'frequency' : 'resume';
+    // Resuming a payment_failed / suspended box means charging it: the reactivate flow.
+    action = proposal.type === 'frequency' ? 'frequency' : (FAILED_STATUSES.includes(sub.status) ? 'reactivate' : 'resume');
     payload = { frequency_days: proposal.frequency_days };
   }
 
   // A failed / suspended subscription can only get a new card (charged right away) or be cancelled.
   const FAILED_ACTIONS = ['payment_method', 'reactivate', 'cancel'];
-  if (['payment_failed', 'suspended'].includes(sub.status) && !FAILED_ACTIONS.includes(action)) {
+  if (FAILED_STATUSES.includes(sub.status) && !FAILED_ACTIONS.includes(action)) {
     throw new SubscriptionActionError('Update your card to continue, or cancel this subscription.');
   }
 
@@ -899,62 +1138,99 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
       break;
     }
 
-    // Đổi / cập nhật thẻ. Với payment_failed / suspended, khách bấm "Kích hoạt lại" sau đó.
+    // Đổi / cập nhật thẻ. Với payment_failed / suspended: thẻ mới được charge ngay để tiếp tục.
     case 'payment_method': {
-      const user = await getUser(userIdStr);
-      const card = (user?.payment_methods || []).map(maskCard).find(m => m.id === String(payload.payment_method_id));
-      if (!card) throw new SubscriptionActionError('Payment card not found.');
-      if (card.is_expired) throw new SubscriptionActionError('This card has expired. Choose another card.');
+      const card = await savedCard(userIdStr, payload.payment_method_id);
       sub.payment_method_id = card.id;
-
-      // Failed payment: the new card is charged straight away to continue the subscription.
-      if (['payment_failed', 'suspended'].includes(sub.status)) {
-        const result = await chargeSubscription(sub, { now });
-        if (!result.ok) {
-          sub.last_failure_reason = result.reason;
-          sub.last_failed_at = now;
-          await sub.save(); // keep the new card even if this charge failed
-          throw new SubscriptionActionError(result.message);
-        }
-        sub.status = 'active';
-      }
+      if (FAILED_STATUSES.includes(sub.status)) await reactivateFailedBox(sub, now, { newCardId: card.id });
       break;
     }
 
-    // Kích hoạt lại: về active, charge ngay một lần, next_charge_at tính từ lúc charge thành công.
+    // Kích hoạt lại: charge ngay một lần (thẻ đang lưu, hoặc thẻ mới gửi kèm), về active,
+    // next_charge_at tính từ lúc charge thành công. Thất bại: giữ nguyên trạng thái, báo lý do.
     case 'reactivate': {
-      if (!['payment_failed', 'suspended'].includes(sub.status)) {
+      if (!FAILED_STATUSES.includes(sub.status)) {
         throw new SubscriptionActionError('Only subscriptions with a failed payment can be reactivated.');
       }
-      const result = await chargeSubscription(sub, { now });
-      if (!result.ok) throw new SubscriptionActionError(result.message);
-      sub.status = 'active';
+      let newCardId = null;
+      if (payload.payment_method_id) {
+        newCardId = (await savedCard(userIdStr, payload.payment_method_id)).id;
+        sub.payment_method_id = newCardId;
+      }
+      await reactivateFailedBox(sub, now, { newCardId });
       break;
     }
 
     // Hết hàng: khách xác nhận dùng sản phẩm thay thế.
     case 'use_replacement': {
-      const product = await findProduct(sub.product_id);
-      const variant = (product?.variants || []).find(v => v.sku === sub.variant_id);
-      const replacement = sub.replacement_offer
-        ? await offeredReplacement(sub.replacement_offer)
-        : await findReplacement(product, variant || { price: sub.pricing_snapshot.original_price });
-      if (!replacement) throw new SubscriptionActionError('No replacement is available right now.');
-      const newProduct = await findProduct(replacement.product_id);
-      const discount = newProduct.subscribe_discount_percent ?? DEFAULT_SUBSCRIBE_DISCOUNT_PERCENT;
-      sub.product_id = replacement.product_id;
-      sub.variant_id = replacement.variant_id;
-      sub.pricing_snapshot = {
-        original_price: replacement.price,
-        subscribe_price: round2(replacement.price * (1 - discount / 100)),
-        discount_percent: discount
-      };
-      // Accepting a staff offer on a paused box resumes it with the new item.
+      // The customer picks one of the offered items (payload.product_id + variant_id; none =
+      // the first option). By default it replaces the item for the upcoming delivery only and
+      // the box keeps its own item; payload.permanent switches the box to it for good.
+      const options = await replacementOptions(sub);
+      const picked = payload.product_id
+        ? options.find(o => o.product_id === String(payload.product_id) && o.variant_id === payload.variant_id)
+        : options[0];
+      if (!picked) throw new SubscriptionActionError('This replacement is not available right now. Pick another one.');
+      const newProduct = await findProduct(picked.product_id);
+      const newVariant = (newProduct?.variants || []).find(v => v.sku === picked.variant_id);
+      if (!newProduct || !newVariant) throw new SubscriptionActionError('This replacement is not available right now. Pick another one.');
+
+      // Accepting on a box staff paused for the stock problem resumes it.
       if (sub.status === 'paused' && sub.replacement_offer) {
         sub.status = 'active';
         sub.next_charge_at = now;
+        sub.paused_by = null;
+        sub.pause_option = null;
+        sub.resume_at = null;
+      }
+
+      if (payload.permanent === true) {
+        await switchBoxItem(sub, newProduct, newVariant, now);
+      } else {
+        sub.cycle_replacement = {
+          product_id: picked.product_id,
+          variant_id: picked.variant_id,
+          for_cycle: sub.next_charge_at,
+          pricing: picked.pricing,
+          chosen_at: now
+        };
+        // Charge coming up: the replacement is held now, so the next job pass charges it.
+        if (sub.status === 'active' && sub.next_charge_at <= addUnits(now, RESERVE_AHEAD_UNITS)) {
+          const held = await reserveForCycle(sub);
+          if (!held.ok) {
+            sub.cycle_replacement = null;
+            throw new SubscriptionActionError('This replacement just ran out. Pick another one.');
+          }
+        }
+      }
+      if (sub.last_failure_reason === 'out_of_stock' && isReservedFor(sub)) {
+        sub.last_failure_reason = null;
+        sub.last_failed_at = null;
       }
       sub.replacement_offer = null;
+      break;
+    }
+
+    // After a delivery with a replacement: keep that item in the box from now on.
+    case 'switch_item': {
+      const offer = await shapeSwitchOffer(sub);
+      const current = activeCycleReplacement(sub);
+      // Also allowed for the replacement already picked for the coming delivery.
+      const target = offer || (current ? { product_id: String(current.product_id), variant_id: current.variant_id } : null);
+      if (!target) throw new SubscriptionActionError('There is no replacement to switch to.');
+      if (payload.product_id && (String(payload.product_id) !== target.product_id || payload.variant_id !== target.variant_id)) {
+        throw new SubscriptionActionError('There is no replacement to switch to.');
+      }
+      const newProduct = await findProduct(target.product_id);
+      const newVariant = (newProduct?.variants || []).find(v => v.sku === target.variant_id);
+      if (!newProduct || !newVariant) throw new SubscriptionActionError('This item is no longer available.');
+      await switchBoxItem(sub, newProduct, newVariant, now);
+      break;
+    }
+
+    // Keep the box's own item: hide the switch suggestion.
+    case 'dismiss_switch': {
+      sub.last_replacement = null;
       break;
     }
 
@@ -998,6 +1274,8 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
       throw new SubscriptionActionError('Unknown action.');
   }
 
+  // Skip / pause / cancel / new date / new item: stock held for the old cycle goes back.
+  await releaseStaleReservation(sub);
   await sub.save();
   return getRitualBox(userIdStr);
 }
@@ -1008,12 +1286,15 @@ module.exports = {
   createSubscriptionsFromOrder,
   startFromOrder,
   suggestAdjustmentsForOrder,
-  skipCycleForCanceledOrder,
   withdrawSuggestionsForOrder,
   getOrderSubscriptions,
   getOrderRitualBoxes,
   applyAction,
   chargeSubscription,
+  reserveForCycle,
+  releaseReservation,
+  releaseStaleReservation,
+  isReservedFor,
   applyDueTransitions,
   isCardExpired,
   SubscriptionActionError,
@@ -1027,6 +1308,9 @@ module.exports = {
   maskCard,
   cardBrand,
   findReplacement,
+  findReplacements,
+  replacementOptions,
+  cycleItem,
   dueTransitionsQuery,
   orderHistoryStatus,
   shapePendingChanges

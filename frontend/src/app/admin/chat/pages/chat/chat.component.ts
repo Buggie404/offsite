@@ -1,6 +1,6 @@
 import { afterNextRender, ChangeDetectorRef, Component, ElementRef, Injector, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subscription, forkJoin, catchError, of } from 'rxjs';
 import { customerKey, groupChats } from './chat-grouping';
 import { ChatAgent, ChatConversation, ChatMessage, ChatService } from '../../../../core/services/chat.service';
@@ -16,7 +16,7 @@ type StatusFilter = 'waiting' | 'mine' | 'closed' | 'all';
 @Component({
   selector: 'app-admin-chat',
   standalone: true,
-  imports: [CommonModule, DatePipe, ReportPostModalComponent, VouchersComponent],
+  imports: [CommonModule, DatePipe, RouterLink, ReportPostModalComponent, VouchersComponent],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
 })

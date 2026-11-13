@@ -26,7 +26,7 @@ async function updateSubscription(req, res) {
     return res.json(await applyAction(userIdStr, req.params.id, action, payload));
   } catch (error) {
     if (error instanceof SubscriptionActionError) {
-      return res.status(error.status).json({ error: error.message });
+      return res.status(error.status).json({ error: error.message, ...(error.code ? { code: error.code } : {}) });
     }
     return res.status(500).json({ error: error.message });
   }

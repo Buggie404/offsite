@@ -75,6 +75,7 @@ $cream: #fffdf9;
 .chat-head-avatar { width: 36px; height: 36px; }
 .chat-pane__actions { display: flex; gap: 8px; }
 .tier { font: 10px/12px var(--font-mono); text-transform: uppercase; padding: 5px 9px; border-radius: 999px; background: var(--color-wheat); color: #7a5a1e; }
+.chat-context-order { margin: 12px 20px 0; font-size: 13px; color: var(--color-warm-brown, #6b5d52); a { color: $forest; font-weight: 600; } }
 .chat-summary { margin: 16px 20px 0; padding: 16px; background: $cream; font-size: 13px; border: 1px solid $border; border-radius: 8px; }
 
 .chat-thread { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; background: #faf0eb; }

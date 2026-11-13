@@ -10,6 +10,8 @@ const subscriptionService = require('../services/subscription.service');
 const pointsService = require('../services/points.service');
 const inventoryService = require('../services/inventory.service');
 const pendingOrderExpiry = require('../services/pending-order-expiry.service');
+const redelivery = require('../services/redelivery.service');
+const { parseRedeliveryContact } = require('../utils/delivery-validation');
 const { hasAdminRole, isAdminRole, ADMIN_ORDER_VIEW_ROLES } = require('../middleware/auth.middleware');
 
 const REFUND_REASONS = ['Damaged item', 'Wrong item', 'Size/color mismatch', 'Other'];
@@ -1078,15 +1080,185 @@ async function getOrderStatus(req, res) {
       delivered_at: order.delivered_at,
       canceled_at: order.canceled_at,
       updated_at: order.updated_at,
-      // Shown to the customer while a failed delivery waits on another attempt.
+      // Shown to the customer while a failed delivery waits on another attempt (older orders kept
+      // the reason only as the delivery_failed note in status_history).
       delivery_failed_reason: order.order_status === 'delivery_failed'
-        ? [...(order.status_history || [])].reverse().find(h => h.status === 'delivery_failed')?.note || null
+        ? order.delivery_failed_reason || [...(order.status_history || [])].reverse().find(h => h.status === 'delivery_failed')?.note || null
         : null,
+      delivery_failed_reason_code: order.delivery_failed_reason_code || null,
+      delivery_attempts: order.delivery_attempts || 0,
+      max_redelivery_attempts: redelivery.MAX_REDELIVERY_ATTEMPTS,
+      redelivery_number: redelivery.redeliveryNumber(order),
+      redelivery: order.redelivery ? {
+        status: order.redelivery.status,
+        requested_at: order.redelivery.requested_at,
+        expires_at: order.redelivery.expires_at,
+        confirmed_at: order.redelivery.confirmed_at,
+        contact_phone: order.redelivery.contact_phone,
+        shipping_address: order.redelivery.shipping_address,
+        note: order.redelivery.note || ''
+      } : null,
+      refund_status: order.refund_status || null,
+      // Only whether one was given and its last digits: the customer sees their own account masked.
+      refund_destination: order.refund_destination ? {
+        bank_name: order.refund_destination.bank_name,
+        account_last4: String(order.refund_destination.account_number || '').slice(-4),
+        account_holder: order.refund_destination.account_holder
+      } : null,
       refund_request: formatRefundRequestForClient(refundRequest)
     });
   } catch (error) {
     console.error('Error fetching order status:', error);
     res.status(500).json({ error: 'Failed to retrieve order status' });
+  }
+}
+
+// ─── Redelivery after a failed delivery (customer) ─────────────────
+
+// Loads the order and checks it belongs to the caller (account or guest session).
+async function ownedOrder(req, res) {
+  const { id } = req.params;
+  const order = await Order.findOne(mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { order_id: id });
+  if (!order) {
+    res.status(404).json({ error: 'Order not found.' });
+    return null;
+  }
+  const { authorized } = await authorizeOrderAccess(req, order);
+  if (!authorized) {
+    res.status(403).json({ error: 'Access denied. You do not have permission to modify this order.' });
+    return null;
+  }
+  return order;
+}
+
+const notWaitingResponse = (res, order) => res.status(409).json({
+  error: order.order_status !== 'delivery_failed'
+    ? `This order is ${order.order_status}, not waiting for a redelivery answer.`
+    : order.redelivery?.status === 'confirmed'
+      ? 'You already confirmed the redelivery.'
+      : 'This order is no longer waiting for your answer.',
+  code: 'REDELIVERY_NOT_AWAITING',
+  order_status: order.order_status,
+  redelivery_status: order.redelivery?.status || null
+});
+
+// POST /api/orders/:id/redelivery/confirm  { contact_phone, shipping_address, note }
+// Saves where and how to deliver again; staff then ship it ("Ship again"). The order's own
+// delivery_info is not changed. One write: a repeated call gets 409 and adds no history.
+async function confirmRedelivery(req, res) {
+  try {
+    const order = await ownedOrder(req, res);
+    if (!order) return;
+    if (order.order_status !== 'delivery_failed' || order.redelivery?.status !== 'awaiting_customer') {
+      return notWaitingResponse(res, order);
+    }
+    const parsed = parseRedeliveryContact(req.body || {});
+    if (parsed.errors) {
+      return res.status(400).json({ error: Object.values(parsed.errors)[0], errors: parsed.errors });
+    }
+
+    const now = new Date();
+    const { contact_phone, shipping_address, note } = parsed.value;
+    const where = `${shipping_address.address}, ${shipping_address.city}`;
+    const confirmed = await Order.findOneAndUpdate(
+      {
+        _id: order._id,
+        order_status: 'delivery_failed',
+        'redelivery.status': 'awaiting_customer',
+        'redelivery.expires_at': { $gt: now },
+        ...redelivery.unlocked(now)
+      },
+      {
+        $set: {
+          'redelivery.status': 'confirmed',
+          'redelivery.confirmed_at': now,
+          'redelivery.contact_phone': contact_phone,
+          'redelivery.shipping_address': shipping_address,
+          'redelivery.note': note
+        },
+        $push: {
+          status_history: {
+            status: 'delivery_failed',
+            changed_at: now,
+            changed_by: order.is_guest ? 'guest' : order.user_id,
+            note: `Customer confirmed the redelivery: ${shipping_address.recipient_name}, ${contact_phone}, ${where}${note ? ` · Note: ${note}` : ''}`
+          }
+        }
+      },
+      { new: true }
+    );
+    if (!confirmed) return notWaitingResponse(res, (await Order.findById(order._id)) || order);
+
+    // Staff see it in the Sales-Ops to-do ("customer confirmed, ship again") and live in Orders.
+    socketService.emitOrderUpdated(confirmed, 'redelivery_confirmed');
+    res.json({ message: 'Redelivery confirmed', data: { order_id: confirmed.order_id, redelivery: confirmed.redelivery } });
+  } catch (error) {
+    console.error('Error confirming redelivery:', error);
+    res.status(500).json({ error: error.message || 'Failed to confirm the redelivery.' });
+  }
+}
+
+// POST /api/orders/:id/redelivery/cancel  { refund_destination? }
+// Cancels through the normal cancel (stock back once, voucher back, points reversed).
+// Paid QR orders need the bank account for the refund (pending_payout until staff pay it out);
+// card / bank_transfer are refunded to the same account; COD has nothing to refund.
+async function cancelRedelivery(req, res) {
+  try {
+    const order = await ownedOrder(req, res);
+    if (!order) return;
+    if (order.order_status !== 'delivery_failed' || order.redelivery?.status !== 'awaiting_customer') {
+      return notWaitingResponse(res, order);
+    }
+    let refundDestination = null;
+    if (redelivery.needsRefundDestination(order)) {
+      const parsed = redelivery.parseRefundDestination(req.body?.refund_destination);
+      if (parsed.error) return res.status(400).json({ error: parsed.error, code: 'REFUND_DESTINATION_REQUIRED' });
+      refundDestination = parsed.value;
+    }
+
+    const now = new Date();
+    const claimed = await redelivery.claimAwaiting(order._id, now);
+    if (!claimed) return notWaitingResponse(res, (await Order.findById(order._id)) || order);
+    const canceled = await redelivery.cancelClaimed(claimed, {
+      changedBy: order.is_guest ? 'guest' : order.user_id,
+      note: 'Order canceled by customer after the failed delivery',
+      refundDestination,
+      now
+    });
+    socketService.emitOrderUpdated(canceled, 'status_change');
+    res.json({
+      message: 'Order canceled',
+      data: { order_id: canceled.order_id, order_status: canceled.order_status, payment_status: canceled.payment_status, refund_status: canceled.refund_status }
+    });
+  } catch (error) {
+    console.error('Error canceling after a failed delivery:', error);
+    res.status(500).json({ error: error.message || 'Failed to cancel the order.' });
+  }
+}
+
+// POST /api/orders/:id/refund-destination  { refund_destination }
+// A cancelled paid QR order waiting for its payout: the customer adds (or corrects) the bank
+// account, also after the order was cancelled automatically.
+async function setRefundDestination(req, res) {
+  try {
+    const order = await ownedOrder(req, res);
+    if (!order) return;
+    if (order.refund_status !== 'pending_payout') {
+      return res.status(409).json({ error: 'This order has no refund waiting to be paid out.', code: 'NO_PENDING_PAYOUT' });
+    }
+    const parsed = redelivery.parseRefundDestination(req.body?.refund_destination);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const updated = await Order.findOneAndUpdate(
+      { _id: order._id, refund_status: 'pending_payout' },
+      { $set: { refund_destination: parsed.value } },
+      { new: true }
+    );
+    if (!updated) return res.status(409).json({ error: 'This refund was already paid out.', code: 'NO_PENDING_PAYOUT' });
+    socketService.emitOrderUpdated(updated, 'refund_destination');
+    res.json({ message: 'Refund account saved', data: { order_id: updated.order_id, refund_status: updated.refund_status } });
+  } catch (error) {
+    console.error('Error saving refund destination:', error);
+    res.status(500).json({ error: error.message || 'Failed to save the refund account.' });
   }
 }
 
@@ -1538,6 +1710,9 @@ module.exports = {
   confirmPayment,
   getOrderStatus,
   receiveOrder,
+  confirmRedelivery,
+  cancelRedelivery,
+  setRefundDestination,
   requestRefund,
   deleteOrder,
   retryPayment,

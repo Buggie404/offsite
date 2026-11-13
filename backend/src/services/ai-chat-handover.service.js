@@ -43,6 +43,8 @@ async function handoverAiSession(session) {
         conversation.summary = session.summary || '';
         conversation.handoff_summary = conversation.summary;
         conversation.handover_reason = session.handover_reason || 'user_request';
+        // Chat opened from an order page (checked against the owner by the controller).
+        if (session._contextOrderId) conversation.context_order_id = session._contextOrderId;
         conversation.dify_conversation_id = session.dify_conversation_id || null;
         const transcript = (session.messages || []).map((message, index) => ({
           conversation_id: conversation.conversation_id,

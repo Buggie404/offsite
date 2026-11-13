@@ -111,6 +111,7 @@ test.before(() => {
   require(servicePath);
   require(inventoryPath).releaseItems = async () => {}; // stock is covered by its own tests
   Product.updateOne = async () => ({});
+  Order.updateOne = async () => ({ modifiedCount: 1 }); // the cancel's stock_released claim
 });
 
 function useService(service) {

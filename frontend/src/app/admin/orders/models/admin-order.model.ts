@@ -16,6 +16,9 @@ export type AdminOrderStatusFilter =
   | 'processing'
   | 'shipping'
   | 'delivery_failed'
+  /** Failed delivery waiting on the customer's answer / confirmed, waiting to ship again. */
+  | 'redelivery_awaiting'
+  | 'redelivery_confirmed'
   | 'delivered'
   | 'refund'
   | 'pending_refund'
@@ -113,18 +116,6 @@ export interface AdminOrderRemovedItem {
   changed_at: string;
 }
 
-/** An item an out-of-stock line can be swapped for (same or lower price, enough stock). */
-export interface AdminReplacementOption {
-  product_id: string;
-  variant_id: string;
-  product_name: string;
-  variant_name: string;
-  category: string | null;
-  unit_price: number;
-  stock: number;
-  same_category: boolean;
-}
-
 export interface AdminOrderStatusHistoryEntry {
   status: string;
   changed_at: string;
@@ -204,6 +195,15 @@ export interface AdminOrderDetail {
   removed_items?: AdminOrderRemovedItem[];
   /** Money returned for out-of-stock lines removed or swapped (payment stays 'paid'). */
   refunded_amount?: number;
+  delivery_failed_reason_code?: DeliveryFailedReasonCode | null;
+  delivery_failed_reason?: string | null;
+  delivery_attempts?: number;
+  max_redelivery_attempts?: number;
+  redelivery?: AdminOrderRedelivery | null;
+  /** Server rule: redeliveries left and (customer confirmed or carrier fault). */
+  can_redeliver?: boolean;
+  refund_status?: 'pending_payout' | 'completed' | null;
+  refund_destination?: { bank_name: string; account_number: string; account_holder: string } | null;
 }
 
 export interface AdminOrderDetailResponse {
@@ -221,4 +221,18 @@ export interface AdminOrderRitualBox {
   frequency_days: number;
   next_charge_at: string | null;
   status: string;
+}
+
+export type DeliveryFailedReasonCode = 'customer_unreachable' | 'wrong_address' | 'refused' | 'carrier_issue';
+
+/** Customer's answer after a failed delivery (null on older orders). */
+export interface AdminOrderRedelivery {
+  status: 'awaiting_customer' | 'confirmed' | 'expired';
+  requested_at: string | null;
+  expires_at: string | null;
+  reminder_sent_at: string | null;
+  confirmed_at: string | null;
+  contact_phone: string | null;
+  shipping_address: { recipient_name: string | null; mobile: string | null; city: string | null; address: string | null } | null;
+  note: string;
 }

@@ -194,6 +194,9 @@
                   <svg *ngSwitchCase="'ORDER_SHIPPING'"  lucideTruck         [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_CANCELED'"  lucideX             [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_DELIVERY_FAILED'" lucideTruck   [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_REDELIVERY_REMINDER'" lucideTruck [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_REDELIVERY_EXPIRED'" lucideTruck  [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_REFUND_PAID'" lucidePackage       [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_CANCELED_BY_STORE'" lucideX     [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_ITEM_OUT_OF_STOCK'" lucidePackage [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_ITEMS_UPDATED'" lucidePackage   [size]="15"></svg>
@@ -240,7 +243,10 @@
                       <span *ngSwitchCase="'ORDER_PLACED'">Your order <strong>{{ item.post_id }}</strong> has been successfully placed.</span>
                       <span *ngSwitchCase="'ORDER_SHIPPING'">Your order <strong>{{ item.post_id }}</strong> is being shipped (estimated delivery: {{ item.comment_content }}).</span>
                       <span *ngSwitchCase="'ORDER_CANCELED'">Your order <strong>{{ item.post_id }}</strong> has been canceled (due to payment pending for more than 24h).</span>
-                      <span *ngSwitchCase="'ORDER_DELIVERY_FAILED'">We couldn't deliver your order <strong>{{ item.post_id }}</strong>{{ item.comment_content ? ': ' + item.comment_content : '' }}. We'll contact you to arrange another attempt.</span>
+                      <span *ngSwitchCase="'ORDER_DELIVERY_FAILED'">We couldn't deliver your order <strong>{{ item.post_id }}</strong>{{ item.comment_content ? ': ' + item.comment_content : '.' }}</span>
+                      <span *ngSwitchCase="'ORDER_REDELIVERY_REMINDER'">Order <strong>{{ item.post_id }}</strong> is waiting for your answer: {{ item.comment_content }}</span>
+                      <span *ngSwitchCase="'ORDER_REDELIVERY_EXPIRED'">Order <strong>{{ item.post_id }}</strong> was cancelled. {{ item.comment_content }}</span>
+                      <span *ngSwitchCase="'ORDER_REFUND_PAID'">Your refund for order <strong>{{ item.post_id }}</strong> has been sent{{ item.comment_content ? ': ' + item.comment_content : '' }}.</span>
                       <span *ngSwitchCase="'ORDER_CANCELED_BY_STORE'">Your order <strong>{{ item.post_id }}</strong> has been canceled{{ item.comment_content ? ': ' + item.comment_content : '' }}.</span>
                       <span *ngSwitchCase="'ORDER_ITEM_OUT_OF_STOCK'">Order <strong>{{ item.post_id }}</strong>: {{ item.comment_content }}</span>
                       <span *ngSwitchCase="'ORDER_ITEMS_UPDATED'">Order <strong>{{ item.post_id }}</strong> was updated: {{ item.comment_content }}</span>

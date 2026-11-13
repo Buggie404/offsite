@@ -547,6 +547,19 @@ export class SubscriptionsListingComponent implements OnInit {
     return days === 7 ? 'Weekly' : days === 14 ? '2 weeks' : days === 30 ? 'Monthly' : `${days} days`;
   }
 
+  /** last_failure_reason as stored by the charge job / reactivation. */
+  failureReasonLabel(reason: string): string {
+    const labels: Record<string, string> = {
+      card_expired: 'card expired',
+      no_card: 'no card on file',
+      declined: 'card declined',
+      card_declined: 'card declined',
+      charge_error: 'charge error',
+      out_of_stock: 'item out of stock'
+    };
+    return labels[reason] || reason;
+  }
+
   shortDate(value: string | null | undefined): string {
     if (!value) return '—';
     return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

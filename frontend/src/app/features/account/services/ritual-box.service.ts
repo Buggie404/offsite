@@ -18,6 +18,8 @@ export type SubscriptionAction =
   | 'payment_method'
   | 'reactivate'
   | 'use_replacement'
+  | 'switch_item'
+  | 'dismiss_switch'
   | 'accept_adjustment'
   | 'dismiss_adjustment'
   | 'accept_proposal'
@@ -42,6 +44,40 @@ export interface RitualReplacement {
   image: string | null;
   price: number;
   same_price: boolean;
+  /** This item's Subscribe & Save price. */
+  pricing: { original_price: number; subscribe_price: number; discount_percent: number };
+  /** What this delivery costs with it (quantity included). */
+  total: number;
+  /** total minus the box's usual charge: + costs more, − costs less, 0 same. */
+  difference: number | null;
+  /** Picked by Offsite staff for this box. */
+  offered_by_staff?: boolean;
+}
+
+/** A replacement for the upcoming delivery only; the box goes back to its own item afterwards. */
+export interface RitualCycleReplacement {
+  product_id: string;
+  variant_id: string;
+  name: string;
+  variant_label: string;
+  image: string | null;
+  for_cycle: string;
+  pricing: { original_price: number; subscribe_price: number; discount_percent: number };
+  total: number;
+  difference: number;
+}
+
+/** The last delivery was a replacement: the customer can switch the box to it for good. */
+export interface RitualSwitchOffer {
+  product_id: string;
+  variant_id: string;
+  name: string;
+  variant_label: string;
+  image: string | null;
+  order_id: string | null;
+  pricing: { original_price: number; subscribe_price: number; discount_percent: number };
+  total: number;
+  difference: number;
 }
 
 export interface RitualSubscription {
@@ -78,6 +114,10 @@ export interface RitualSubscription {
   out_of_stock: boolean;
   out_of_stock_deadline: string | null;
   replacement: RitualReplacement | null;
+  /** Items the customer may pick for this one delivery (staff offer first, then closest price). */
+  replacement_options: RitualReplacement[];
+  cycle_replacement: RitualCycleReplacement | null;
+  switch_offer: RitualSwitchOffer | null;
   /** Smart adjustment: bring the next box forward one step (30 → 14 → 7) if confirmed. */
   suggestion: { frequency_days: number; next_charge_at: string; expires_at: string } | null;
   /** Change suggested by Offsite staff; nothing happens unless the customer accepts it. */

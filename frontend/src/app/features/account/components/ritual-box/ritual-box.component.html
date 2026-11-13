@@ -141,6 +141,45 @@
           </span>
         </p>
 
+        <!-- Out of stock: a replacement picked for the upcoming delivery only -->
+        <div class="rb-swap" *ngIf="sub.cycle_replacement as rep">
+          <div class="rb-swap__thumb"><img *ngIf="rep.image" [src]="rep.image" [alt]="rep.name" loading="lazy" /></div>
+          <div class="rb-swap__text">
+            <p>
+              Your {{ shortDate(rep.for_cycle) }} delivery: <strong>{{ itemName(rep) }}</strong>
+              instead of {{ sub.product_name }} · ${{ rep.total | number: '1.2-2' }}
+              <span class="rb-diff" [ngClass]="'rb-diff--' + differenceTone(rep.difference)">{{ differenceLabel(rep.difference) }}</span>
+            </p>
+            <p class="rb-swap__sub">This delivery only. Your box goes back to {{ sub.product_name }} after it.</p>
+          </div>
+          <button type="button" class="rb-btn" [disabled]="busyId() === sub.subscription_id" (click)="run(sub, 'switch_item')">
+            Keep {{ rep.name }} in my box
+          </button>
+        </div>
+
+        <!-- The last delivery was a replacement: switch the box to it for good? -->
+        <div class="rb-swap rb-swap--offer" *ngIf="sub.switch_offer as offer">
+          <div class="rb-swap__thumb"><img *ngIf="offer.image" [src]="offer.image" [alt]="offer.name" loading="lazy" /></div>
+          <div class="rb-swap__text">
+            <p>
+              Enjoyed <strong>{{ itemName(offer) }}</strong>? Your last delivery used it in place of {{ sub.product_name }}.
+            </p>
+            <p class="rb-swap__sub">
+              Switch your box to it for future deliveries: ${{ offer.total | number: '1.2-2' }} per delivery
+              <span class="rb-diff" [ngClass]="'rb-diff--' + differenceTone(offer.difference)">{{ differenceLabel(offer.difference) }}</span>.
+              No need to cancel and start a new box.
+            </p>
+          </div>
+          <div class="rb-swap__actions">
+            <button type="button" class="rb-btn rb-btn--primary" [disabled]="busyId() === sub.subscription_id" (click)="run(sub, 'switch_item')">
+              Switch my box
+            </button>
+            <button type="button" class="rb-btn" [disabled]="busyId() === sub.subscription_id" (click)="run(sub, 'dismiss_switch')">
+              Keep {{ sub.product_name }}
+            </button>
+          </div>
+        </div>
+
         <div class="rb-card__actions">
           <!-- Active -->
           <ng-container *ngIf="sub.status === 'active'">
@@ -264,31 +303,68 @@
             {{ shortDate(sub.next_charge_at) }} delivery.
           </p>
         </div>
-        <div class="rb-oos__body">
-          <ng-container *ngIf="sub.replacement as rep; else noReplacement">
-            <div class="rb-oos__thumb">
-              <img *ngIf="rep.image" [src]="rep.image" [alt]="rep.name" loading="lazy" />
-            </div>
-            <div class="rb-oos__text">
-              <p>
-                Suggested replacement:
-                <strong>{{ rep.name }}{{ rep.variant_label ? ' ' + rep.variant_label : '' }}</strong>
-                · {{ rep.same_price ? 'similar pick, same price' : 'similar pick, $' + (rep.price | number: '1.2-2') }}
-              </p>
-              <p class="rb-oos__sub">
-                We will not charge you until you confirm. No answer by {{ shortDate(sub.out_of_stock_deadline) }}
-                and we skip this delivery for free.
-              </p>
-            </div>
-            <button type="button" class="rb-btn rb-btn--primary" (click)="run(sub, 'use_replacement')">Use replacement</button>
-          </ng-container>
-          <ng-template #noReplacement>
+        <ng-container *ngIf="sub.replacement_options.length; else noReplacement">
+          <p class="rb-oos__sub">
+            Pick a replacement for this delivery only. Your box goes back to {{ sub.product_name }} afterwards.
+            Prices are compared with your usual ${{ sub.pricing.total | number: '1.2-2' }}; any difference is charged to or saved on your card.
+          </p>
+          <div class="rb-oos__options" role="radiogroup" [attr.aria-label]="'Replacements for ' + sub.product_name">
+            <label
+              class="rb-opt"
+              *ngFor="let rep of sub.replacement_options"
+              [class.is-selected]="selectedReplacement(sub) === rep"
+            >
+              <input
+                type="radio"
+                [name]="'rep-' + sub.subscription_id"
+                [checked]="selectedReplacement(sub) === rep"
+                (change)="pickReplacement(sub, rep)"
+              />
+              <span class="rb-opt__thumb"><img *ngIf="rep.image" [src]="rep.image" [alt]="rep.name" loading="lazy" /></span>
+              <span class="rb-opt__text">
+                <span class="rb-opt__name">{{ itemName(rep) }}</span>
+                <span class="rb-opt__meta">
+                  ${{ rep.total | number: '1.2-2' }}
+                  <ng-container *ngIf="rep.pricing.discount_percent > 0"> after {{ rep.pricing.discount_percent }}% off</ng-container>
+                  <span *ngIf="rep.offered_by_staff" class="rb-opt__tag">Picked by Offsite</span>
+                </span>
+              </span>
+              <span class="rb-diff" [ngClass]="'rb-diff--' + differenceTone(rep.difference)">{{ differenceLabel(rep.difference) }}</span>
+            </label>
+          </div>
+          <label class="rb-oos__keep">
+            <input
+              type="checkbox"
+              [checked]="!!keepReplacement()[sub.subscription_id]"
+              (change)="setKeepReplacement(sub, $any($event.target).checked)"
+            />
+            <span>Also switch my box to this item for future deliveries</span>
+          </label>
+          <p class="rb-oos__sub">
+            We will not charge you until you confirm. No answer by {{ shortDate(sub.out_of_stock_deadline) }}
+            and we skip this delivery for free.
+          </p>
+          <div class="rb-oos__actions">
+            <button
+              type="button"
+              class="rb-btn rb-btn--primary"
+              [disabled]="busyId() === sub.subscription_id || !selectedReplacement(sub)"
+              (click)="confirmReplacement(sub)"
+            >{{ keepReplacement()[sub.subscription_id] ? 'Switch my box' : 'Use for this delivery' }}</button>
+            <button type="button" class="rb-btn" [disabled]="!sub.can_skip" (click)="run(sub, 'skip')">Skip this delivery</button>
+          </div>
+        </ng-container>
+        <ng-template #noReplacement>
+          <div class="rb-oos__body">
             <p class="rb-oos__text rb-oos__sub">
               We could not find a similar item right now. This delivery will be skipped without charge.
             </p>
-          </ng-template>
-          <button type="button" class="rb-btn" [disabled]="!sub.can_skip" (click)="run(sub, 'skip')">Skip this delivery</button>
-        </div>
+            <button type="button" class="rb-btn" [disabled]="!sub.can_skip" (click)="run(sub, 'skip')">Skip this delivery</button>
+          </div>
+        </ng-template>
+        <p class="rb-card__error" *ngIf="actionError()?.id === sub.subscription_id" role="alert">
+          {{ actionError()?.message }}
+        </p>
       </section>
 
     </ng-container>

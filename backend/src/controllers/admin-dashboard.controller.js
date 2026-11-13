@@ -461,7 +461,6 @@ async function getDashboard(req, res) {
 const HOUR_MS = 3_600_000;
 const PROCESSING_SLA_MS = 24 * HOUR_MS;  // processing -> shipping within a day
 const REFUND_SLA_MS = 24 * HOUR_MS;      // a refund request waiting longer than this is overdue
-const BOX_CHARGE_WINDOW_MS = 48 * HOUR_MS;
 const QUEUE_WINDOW_MS = 90 * DAY_MS;     // matches the Orders page "90 days" links
 const FORECAST_DAYS = 7;
 const SALES_AVG_DAYS = 30;
@@ -512,18 +511,34 @@ function variantLabel(product, variant) {
 // One "To do today" row per kind of work; `count` feeds the filter pills and the header total.
 async function salesTasks(now) {
   const recent = { $gte: new Date(now - QUEUE_WINDOW_MS) };
-  const [processing, failedDeliveries, refunds, dueSoon, paymentFailed, missingExpiry] = await Promise.all([
+  const [processing, allFailedDeliveries, refunds, dueSoon, paymentFailed, missingExpiry, payouts] = await Promise.all([
     Order.find({ order_status: 'processing', created_at: recent }, 'order_id created_at status_history').lean(),
-    Order.find({ order_status: 'delivery_failed', created_at: recent }, 'order_id created_at status_history').lean(),
+    Order.find({ order_status: 'delivery_failed', created_at: recent },
+      'order_id created_at status_history redelivery delivery_failed_reason_code delivery_attempts').lean(),
     Order.find({ order_status: 'pending_refund', created_at: recent }, 'order_id pricing.total refund_request delivered_at created_at').lean(),
+    // Ritual Box charging soon whose stock couldn't be held (the charge job marks them
+    // out_of_stock 3 days ahead and clears it once a restock lets it hold the stock).
     Subscription.aggregate([
-      { $match: { status: 'active', next_charge_at: { $lte: new Date(now + BOX_CHARGE_WINDOW_MS) } } },
+      { $match: { status: 'active', last_failure_reason: 'out_of_stock' } },
       { $group: { _id: { product: '$product_id', variant: '$variant_id' }, boxes: { $sum: 1 }, quantity: { $sum: '$quantity' }, first_charge: { $min: '$next_charge_at' } } }
     ]),
     Subscription.find({ status: 'payment_failed' }, 'last_failed_at next_retry_at').sort({ last_failed_at: 1 }).lean(),
-    Product.find({ is_active: true, category: { $in: Object.keys(PANTRY_DEFAULT_DAYS) }, batch_expiry_date: null }, 'name category').sort({ name: 1 }).lean()
+    Product.find({ is_active: true, category: { $in: Object.keys(PANTRY_DEFAULT_DAYS) }, batch_expiry_date: null }, 'name category').sort({ name: 1 }).lean(),
+    // Cancelled paid QR orders whose refund staff still have to transfer by hand.
+    Order.find({ order_status: 'canceled', refund_status: 'pending_payout' }, 'order_id pricing.total refund_destination canceled_at created_at').sort({ canceled_at: 1 }).lean()
   ]);
   const tasks = [];
+
+  // A failed delivery is staff's to act on once the customer confirmed the redelivery, or was
+  // reminded at 12h and still hasn't answered; also when nothing is asked of the customer
+  // (carrier_issue, no redeliveries left, orders failed before redelivery confirmation existed).
+  const failedDeliveries = allFailedDeliveries.filter((order) => {
+    const r = order.redelivery;
+    if (!r) return true;
+    return r.status === 'confirmed' || (r.status === 'awaiting_customer' && !!r.reminder_sent_at);
+  });
+  const confirmedCount = failedDeliveries.filter((order) => order.redelivery?.status === 'confirmed').length;
+  const remindedCount = failedDeliveries.filter((order) => order.redelivery?.status === 'awaiting_customer').length;
 
   const late = processing
     .map((order) => ({ order, since: statusSince(order, 'processing') }))
@@ -563,12 +578,13 @@ async function salesTasks(now) {
     for (const row of dueSoon) {
       const product = products.get(String(row._id.product));
       const variant = product?.variants?.find((item) => item.sku === row._id.variant);
-      if (!product || (variant?.stock ?? 0) >= row.quantity) continue;
+      if (!product) continue;
       const label = variantLabel(product, variant);
+      const stock = variant?.stock ?? 0;
       tasks.push({
         key: `box-stock:${row._id.variant}`, type: 'ritual_box', icon: 'box', tone: 'warning', count: 1,
-        title: `${row.boxes} Ritual Box${row.boxes === 1 ? '' : 'es'} charge in 48h · ${(variant?.stock ?? 0) > 0 ? 'not enough stock' : 'item out of stock'}`,
-        detail: `${label} · customers get a replacement offer or the cycle is skipped`,
+        title: `${row.boxes} Ritual Box${row.boxes === 1 ? '' : 'es'} charging soon · ${stock > 0 ? 'not enough stock' : 'item out of stock'}`,
+        detail: `${label} · ${row.quantity} needed, ${stock} in stock · restock to charge, else a replacement or the cycle is skipped`,
         chip: 'due', due_at: row.first_charge,
         link: '/admin/subscriptions', query: { search: product.name }
       });
@@ -590,10 +606,31 @@ async function salesTasks(now) {
     tasks.push({
       key: 'delivery-failed', type: 'orders', icon: 'truck', tone: 'info', count: failedDeliveries.length,
       title: `${failedDeliveries.length} deliver${failedDeliveries.length === 1 ? 'y' : 'ies'} failed`,
-      detail: `${orderList(failedDeliveries)} · ship again or cancel`,
+      detail: [
+        orderList(failedDeliveries),
+        confirmedCount ? `${confirmedCount} confirmed by the customer, ship again` : null,
+        remindedCount ? `${remindedCount} reminded, no reply yet` : null,
+        failedDeliveries.length - confirmedCount - remindedCount ? 'ship again or cancel' : null
+      ].filter(Boolean).join(' · '),
       chip: 'today', since, due_at: new Date(new Date(since).getTime() + DAY_MS),
       link: failedDeliveries.length === 1 ? `/admin/orders/${failedDeliveries[0].order_id}` : '/admin/orders',
       query: failedDeliveries.length === 1 ? null : { status: 'delivery_failed', date: '90' }
+    });
+  }
+
+  for (const order of payouts) {
+    const dest = order.refund_destination;
+    const since = order.canceled_at || order.created_at;
+    tasks.push({
+      key: `refund-payout:${order.order_id}`, type: 'refunds', icon: 'refund', tone: 'warning', count: 1, urgent: true,
+      title: `Cancelled QR order #${order.order_id} · refund $${(order.pricing?.total || 0).toFixed(2)} waiting`,
+      detail: dest
+        ? `Transfer to ${dest.bank_name} ${dest.account_number} (${dest.account_holder}), then mark it refunded`
+        : "Waiting for the customer's bank account",
+      chip: 'waiting', since, due_at: new Date(new Date(since).getTime() + REFUND_SLA_MS),
+      link: `/admin/orders/${order.order_id}`,
+      // "Mark refunded" on the row (POST /api/admin/orders/:id/refunds/mark-paid).
+      action: { type: 'mark_refund_paid', order_id: order.order_id, enabled: !!dest }
     });
   }
 

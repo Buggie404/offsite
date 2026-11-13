@@ -19,6 +19,9 @@ const chatConversationSchema = new mongoose.Schema({
   handoff_summary: { type: String, default: '' },
   summary: { type: String, default: '' },
   handover_reason: { type: String, default: null },
+  // Order the customer opened this chat from (e.g. "Chat with a human" on a failed delivery), so
+  // CSKH see it without asking. Set only for the order's owner.
+  context_order_id: { type: String, default: null },
   ai_session_id: { type: String, default: null },
   archived_ai_session_id: { type: String, default: null },
   last_message_preview: { type: String, default: '' },

@@ -28,6 +28,8 @@ export class AiChatService {
   readonly canReopenSupport = signal(false);
   readonly humanHandoverPending = signal(false);
   private pendingHandoverReason = 'user_request';
+  /** Order the customer opened the human chat from; sent with the handover (context_order_id). */
+  private pendingHandoverOrderId: string | null = null;
   readonly sessionId = signal<string>('');
   readonly interaction = signal<ChatInteraction>('ready');
   readonly historyOpen = signal(false);
@@ -538,6 +540,21 @@ export class AiChatService {
     });
   }
 
+  /**
+   * "Chat with a human" from an order page: opens the drawer ready to join the support queue,
+   * with the order code already in the composer. The handover carries the order, so CSKH see it
+   * on the conversation without asking.
+   */
+  openHumanChatForOrder(orderId: string): void {
+    this.open();
+    this.pendingHandoverOrderId = orderId;
+    this.setDraft(`Order ${orderId}: `);
+    if (!this.humanChatActive()) {
+      this.pendingHandoverReason = 'order_change';
+      this.humanHandoverPending.set(true);
+    }
+  }
+
   open(): void {
     this.isOpen.set(true);
     this.fetchInitParams();
@@ -750,7 +767,8 @@ export class AiChatService {
       reason,
       message,
       session_id: this.sessionId(),
-      conversation_id: this.conversationId()
+      conversation_id: this.conversationId(),
+      ...(this.pendingHandoverOrderId ? { order_id: this.pendingHandoverOrderId } : {})
     }).subscribe({
       next: (res) => {
         if (epoch !== this.requestEpoch || view !== this.viewToken) return;
@@ -774,6 +792,7 @@ export class AiChatService {
           return;
         }
         if (!res?.handover) return;
+        this.pendingHandoverOrderId = null;
         this.humanHandoverPending.set(false);
         if (hooks?.userMessageId) this.messages.update(msgs => msgs.map(msg => msg.id === hooks.userMessageId ? { ...msg, deliveryStatus: 'sent' } : msg));
         this.pushHandoffBanner();

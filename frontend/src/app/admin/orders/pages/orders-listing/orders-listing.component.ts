@@ -97,6 +97,8 @@ export class OrdersListingComponent implements OnInit {
     { value: 'processing', label: 'Processing' },
     { value: 'shipping', label: 'Shipping' },
     { value: 'delivery_failed', label: 'Delivery Failed' },
+    { value: 'redelivery_awaiting', label: 'Waiting for customer to confirm' },
+    { value: 'redelivery_confirmed', label: 'Customer confirmed, ship again' },
     { value: 'delivered', label: 'Delivered' },
     { value: 'pending_refund', label: 'Pending Refund' },
     { value: 'refund', label: 'Refund' },

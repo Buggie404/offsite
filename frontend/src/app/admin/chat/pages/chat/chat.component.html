@@ -95,6 +95,9 @@
         </details>
       }
 
+      @if (active.context_order_id) {
+        <p class="chat-context-order">Opened from order <a [routerLink]="['/admin/orders', active.context_order_id]">#{{ active.context_order_id }}</a></p>
+      }
       @if (active.summary || active.handoff_summary) {
         <details class="chat-summary" [open]="canClaim"><summary>AI handover · {{ (active.handover_reason || 'Customer request').replaceAll('_', ' ') }} · Show summary</summary><p>{{ active.summary || active.handoff_summary }}</p></details>
       }

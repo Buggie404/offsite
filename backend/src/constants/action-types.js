@@ -18,6 +18,7 @@ const ACTION_TYPES = [
   { value: 'ritual-dna.quiz-delete-draft', label: 'Ritual DNA quiz draft deleted', group: 'Ritual DNA' },
   { value: 'order.update-status', label: 'Order status changed', group: 'Orders' },
   { value: 'order.add-internal-note', label: 'Internal note added', group: 'Orders' },
+  { value: 'order.refund-mark-paid', label: 'QR refund marked as paid', group: 'Orders' },
   { value: 'order.mark-out-of-stock', label: 'Marked out of stock', group: 'Orders' },
   { value: 'order.resolve-out-of-stock', label: 'Out-of-stock line swapped or removed', group: 'Orders' },
   { value: 'refund.approve', label: 'Refund approved', group: 'Orders' },

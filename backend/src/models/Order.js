@@ -17,14 +17,12 @@ const orderItemSchema = new mongoose.Schema({
   // Subscribe & Save: a 'subscription' line starts a Ritual Box once the card payment succeeds.
   purchase_type:               { type: String, enum: ['one_time', 'subscription'], default: 'one_time' },
   subscription_frequency_days: { type: Number, enum: [7, 14, 30, null], default: null },
-  // Marked by QLSP / Admin CC when the line can't be fulfilled after the order was placed.
-  // The order is then cancelled (and refunded if paid); this line's stock isn't put back.
-  // Marked by staff while processing: out of stock after ordering, waiting for the customer to
-  // choose a replacement or agree to remove it. Never put back in stock.
+  // Legacy (read only): set by the removed "out of stock after ordering" flow. Stock is now held
+  // at checkout, so nothing writes it any more; old lines marked true are not put back in stock.
   out_of_stock: { type: Boolean, default: false }
 }, { _id: false });
 
-// A line taken off a processing order (out of stock): removed, or swapped for another item.
+// Legacy (read only): a line taken off a processing order by the removed out-of-stock flow.
 const removedItemSchema = new mongoose.Schema({
   item:           { type: orderItemSchema, required: true },
   action:         { type: String, enum: ['removed', 'swapped'], required: true },
@@ -42,6 +40,37 @@ const deliveryInfoSchema = new mongoose.Schema({
   city:           { type: String, required: true },
   address:        { type: String, required: true }, // street, ward, district
   note:           { type: String, default: "" }
+}, { _id: false });
+
+// Address the customer gave when confirming a redelivery: same shape as delivery_info, none
+// required (the order's own delivery_info is never changed).
+const redeliveryAddressSchema = new mongoose.Schema({
+  recipient_name: { type: String, default: null },
+  mobile:         { type: String, default: null },
+  email:          { type: String, default: null },
+  city:           { type: String, default: null },
+  address:        { type: String, default: null },
+  note:           { type: String, default: "" }
+}, { _id: false });
+
+// After a failed delivery (reason other than carrier_issue, attempts left) the customer has
+// REDELIVERY_CONFIRM_HOURS to confirm a new attempt (phone / address / note) or cancel.
+const redeliverySchema = new mongoose.Schema({
+  status:           { type: String, enum: ["awaiting_customer", "confirmed", "expired"], required: true },
+  requested_at:     { type: Date, default: null },
+  expires_at:       { type: Date, default: null },
+  reminder_sent_at: { type: Date, default: null },
+  confirmed_at:     { type: Date, default: null },
+  contact_phone:    { type: String, default: null },
+  shipping_address: { type: redeliveryAddressSchema, default: null },
+  note:             { type: String, default: "" }
+}, { _id: false });
+
+// Where a paid QR order cancelled after a failed delivery is refunded (staff pay it out by hand).
+const refundDestinationSchema = new mongoose.Schema({
+  bank_name:      { type: String, required: true },
+  account_number: { type: String, required: true },
+  account_holder: { type: String, required: true }
 }, { _id: false });
 
 const shippingSchema = new mongoose.Schema({
@@ -147,6 +176,28 @@ const orderSchema = new mongoose.Schema({
     index: true
   },
 
+  // ─── Failed delivery / redelivery ────────────────────────
+  // Set by staff when moving the order to delivery_failed. Older orders have none of these
+  // (their reason is the delivery_failed note in status_history).
+  delivery_failed_reason_code: {
+    type: String,
+    enum: ["customer_unreachable", "wrong_address", "refused", "carrier_issue", null],
+    default: null
+  },
+  delivery_failed_reason: { type: String, default: null },   // staff note for the last failure
+  delivery_attempts:      { type: Number, default: 0, min: 0 }, // failed deliveries so far
+  redelivery:             { type: redeliverySchema, default: null },
+  // Short lock while one caller (customer, expiry job, staff) cancels a failed delivery, so a racing
+  // cancel can't release stock / voucher / points twice. Cleared by the cancel; a crash frees it.
+  cancel_lock_until:      { type: Date, default: null },
+
+  // ─── Refund payout (cancelled after a failed delivery) ──
+  // pending_payout: QR order, staff still have to transfer the money to refund_destination;
+  // completed: refunded (card / bank_transfer back to the same account, or QR paid out).
+  // null: nothing to refund (COD, unpaid) or an order from before this was tracked.
+  refund_status:      { type: String, enum: ["pending_payout", "completed", null], default: null },
+  refund_destination: { type: refundDestinationSchema, default: null },
+
   // ─── Status history ──────────────────────────────────────
   status_history: { type: [statusHistorySchema], default: [] },
 
@@ -165,11 +216,14 @@ const orderSchema = new mongoose.Schema({
   // true: stock was reserved when the order was placed (inventory.service), so the
   // status hooks below don't subtract it again and put it back on any cancel.
   stock_reserved: { type: Boolean, default: false },
+  // Set (atomically) the first time a cancel puts the reserved stock back, so a second cancel
+  // racing the first (customer + expiry job, two tabs, …) can never release it twice.
+  stock_released: { type: Boolean, default: false },
 
-  // ─── Out-of-stock changes (partial) ──────────────────────
-  // Lines removed or swapped while processing; items[] and pricing already reflect them.
+  // ─── Out-of-stock changes (legacy, read only) ────────────
+  // Written by the removed "out of stock after ordering" flow; kept so old orders still read
+  // correctly (items[] and pricing already reflect them). Nothing writes them any more.
   removed_items: { type: [removedItemSchema], default: [] },
-  // Money returned to the customer for those changes. payment_status stays 'paid' (partial refund).
   refunded_amount: { type: Number, default: 0 },
 
   // ─── Admin internal notes ─────────────────────────────────
@@ -284,7 +338,7 @@ orderSchema.pre('save', async function(next) {
 
     // Transition from confirmed/processing/shipping/delivered/etc. (statuses where stock was subtracted) to canceled -> add back stock
     const wasStockSubtracted = (status) => ['processing', 'shipping', 'delivery_failed', 'delivered', 'pending_refund', 'refund_rejected'].includes(status);
-    // Lines marked out of stock after ordering aren't on the shelf, so they aren't put back.
+    // Legacy lines marked out of stock after ordering aren't on the shelf, so they aren't put back.
     const restockable = this.items.filter(item => !item.out_of_stock);
     const isCanceled = (newStatus === 'canceled') && (this.stock_reserved
       ? !this.isNew && !['canceled', 'refund'].includes(originalStatus) // refund approval restocks on its own
@@ -305,7 +359,17 @@ orderSchema.pre('save', async function(next) {
         );
       }
     } else if (isCanceled && this.stock_reserved) {
-      await require('../services/inventory.service').releaseItems(restockable);
+      // Claim the release in the database first: only the save that flips stock_released
+      // puts the stock back, however many cancels race on the same order.
+      const claim = await this.constructor.updateOne(
+        { _id: this._id, stock_released: { $ne: true } },
+        { $set: { stock_released: true } },
+        { session: this.$session() }
+      );
+      this.stock_released = true;
+      if (claim.modifiedCount === 1) {
+        await require('../services/inventory.service').releaseItems(restockable, this.$session());
+      }
     } else if (isCanceled) {
       for (const item of restockable) {
         await Product.updateOne(
@@ -351,7 +415,7 @@ orderSchema.pre('save', async function(next) {
       this.$locals.pantryEvent = 'refund';
       this.$locals.ritualDnaEvent = 'refund';
     }
-    // A paid order that is canceled (by the customer, the store, out of stock or expiry) is
+    // A paid order that is canceled (by the customer, the store or expiry) is
     // refunded in full.
     if (newStatus === 'canceled' && this.payment_status === 'paid') {
       this.payment_status = 'refunded';

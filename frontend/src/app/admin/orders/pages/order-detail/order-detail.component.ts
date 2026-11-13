@@ -34,8 +34,7 @@ import {
   AdminOrderStatus,
   AdminOrderStatusHistoryEntry,
   AdminOrderRitualBox,
-  AdminOrderStatusUpdate,
-  AdminReplacementOption
+  AdminOrderStatusUpdate
 } from '../../models/admin-order.model';
 import { isMeaningfulVariantLabel } from '../../../../shared/utils/variant-label';
 
@@ -46,7 +45,16 @@ interface StatusOption {
   /** Asks for a reason first; it goes to the order history, the customer and the activity log. */
   requiresReason?: boolean;
   danger?: boolean;
+  /** Shown but not clickable, with why (e.g. "Ship again" before the customer confirmed). */
+  disabledReason?: string | null;
 }
+
+const DELIVERY_FAILED_REASON_OPTIONS: { value: string; label: string }[] = [
+  { value: 'customer_unreachable', label: 'Customer unreachable' },
+  { value: 'wrong_address', label: 'Wrong or incomplete address' },
+  { value: 'refused', label: 'Customer refused the package' },
+  { value: 'carrier_issue', label: 'Carrier issue (our side)' }
+];
 
 interface TimelineStep {
   label: string;
@@ -144,24 +152,12 @@ export class OrderDetailComponent implements OnInit {
 
   /** Status change waiting on a reason (delivery failed / cancel a failed delivery). */
   reasonStatusOption: StatusOption | null = null;
+  readonly deliveryFailedReasons = DELIVERY_FAILED_REASON_OPTIONS;
+  statusReasonCode = '';
+  refundPaying = false;
   statusReason = '';
   statusReasonError: string | null = null;
 
-  showOutOfStockModal = false;
-  outOfStockSelection = new Set<string>();
-  outOfStockReason = '';
-  outOfStockError: string | null = null;
-  outOfStockSaving = false;
-
-  /** Applying the customer's choice for one out-of-stock line (remove / swap). */
-  resolveLine: AdminOrderLineItem | null = null;
-  resolveAction: 'remove' | 'swap' = 'swap';
-  replacementOptions: AdminReplacementOption[] = [];
-  replacementsLoading = false;
-  selectedReplacementKey = '';
-  resolveReason = '';
-  resolveError: string | null = null;
-  resolveSaving = false;
   private statusMessageTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit(): void {
@@ -226,7 +222,9 @@ export class OrderDetailComponent implements OnInit {
         return [{
           value: 'delivery_failed',
           label: 'Delivery failed',
-          hint: 'The carrier could not deliver. The customer is notified with your reason.',
+          hint: (this.order.delivery_attempts || 0) >= (this.order.max_redelivery_attempts ?? 2)
+            ? 'The carrier could not deliver. No redeliveries are left after this one: the order can only be cancelled.'
+            : 'The carrier could not deliver. Unless it was the carrier\'s fault, the customer is asked to confirm a redelivery.',
           requiresReason: true
         }];
       case 'delivery_failed':
@@ -234,7 +232,10 @@ export class OrderDetailComponent implements OnInit {
           {
             value: 'shipping',
             label: 'Ship again',
-            hint: 'Send the order out for another delivery attempt.'
+            hint: this.order.redelivery?.status === 'confirmed'
+              ? 'The customer confirmed: send it out again (use their redelivery details below).'
+              : 'Send the order out for another delivery attempt.',
+            disabledReason: this.order.can_redeliver === false ? this.redeliverBlockedReason : null
           },
           {
             value: 'canceled',
@@ -249,6 +250,54 @@ export class OrderDetailComponent implements OnInit {
       default:
         return [];
     }
+  }
+
+  /** Why "Ship again" is off (mirrors the server's 409). */
+  get redeliverBlockedReason(): string {
+    const o = this.order;
+    if (!o) return '';
+    if ((o.delivery_attempts || 0) > (o.max_redelivery_attempts ?? 2)) return 'No redeliveries left. Cancel the order.';
+    if (o.redelivery?.status === 'awaiting_customer') return 'Waiting for the customer to confirm the redelivery.';
+    if (o.redelivery?.status === 'expired') return 'The customer did not answer in time.';
+    return 'Ship again needs the customer\'s confirmation.';
+  }
+
+  deliveryFailedReasonLabel(code: string | null | undefined): string {
+    return DELIVERY_FAILED_REASON_OPTIONS.find((r) => r.value === code)?.label || '';
+  }
+
+  redeliveryStatusLabel(status: string | undefined): string {
+    return ({ awaiting_customer: 'Waiting for the customer', confirmed: 'Confirmed by the customer', expired: 'No answer (expired)' } as Record<string, string>)[status || ''] || '—';
+  }
+
+  /** "18h 20m left" until the customer's answer is due. */
+  timeLeft(until: string | null | undefined): string {
+    if (!until) return '';
+    const ms = new Date(until).getTime() - Date.now();
+    if (ms <= 0) return 'time is up';
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    return h ? `${h}h ${m}m left` : `${Math.max(1, m)}m left`;
+  }
+
+  markRefundPaid(): void {
+    if (!this.order || this.refundPaying || !this.canManageOrders) return;
+    this.refundPaying = true;
+    this.actionError = null;
+    this.adminOrderService.markRefundPaid(this.order.order_id).subscribe({
+      next: (response) => {
+        this.order = response.data;
+        this.refundPaying = false;
+        this.showTransientStatusMessage('Refund marked as paid. The customer has been notified.');
+        this.adminRefresh.refreshNotifications();
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.actionError = err.error?.error || 'Failed to mark the refund as paid.';
+        this.refundPaying = false;
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   get canManageOrders(): boolean {
@@ -362,26 +411,6 @@ export class OrderDetailComponent implements OnInit {
     return entry?.note || null;
   }
 
-  get outOfStockItems(): AdminOrderLineItem[] {
-    return (this.order?.items || []).filter((item) => item.out_of_stock);
-  }
-
-  get canReportOutOfStock(): boolean {
-    return this.canManageOrders && this.order?.order_status === 'processing'
-      && (this.order?.items || []).some((item) => !item.out_of_stock);
-  }
-
-  /** Out-of-stock lines waiting on the customer's choice (processing orders only). */
-  get canResolveOutOfStock(): boolean {
-    return this.canManageOrders && this.order?.order_status === 'processing';
-  }
-
-  /** The selection (with lines already flagged) covers every line: the order will be cancelled. */
-  get outOfStockCancelsOrder(): boolean {
-    const items = this.order?.items || [];
-    return items.length > 0 && items.every((item) => item.out_of_stock || this.outOfStockSelection.has(this.lineKey(item)));
-  }
-
   get showRefundProcessing(): boolean {
     const refundStatus = this.order?.refund_request?.status;
     return refundStatus === 'pending' || refundStatus === 'approved' || refundStatus === 'rejected';
@@ -447,9 +476,10 @@ export class OrderDetailComponent implements OnInit {
   }
 
   chooseStatus(option: StatusOption): void {
-    if (!this.canManageOrders || !this.order || this.statusSaving) return;
+    if (!this.canManageOrders || !this.order || this.statusSaving || option.disabledReason) return;
     if (option.requiresReason) {
       this.reasonStatusOption = option;
+      this.statusReasonCode = '';
       this.statusReason = '';
       this.statusReasonError = null;
       return;
@@ -467,8 +497,12 @@ export class OrderDetailComponent implements OnInit {
     const option = this.reasonStatusOption;
     if (!option) return;
     const reason = this.statusReason.trim();
+    if (option.value === 'delivery_failed' && !this.statusReasonCode) {
+      this.statusReasonError = 'Choose why the delivery failed.';
+      return;
+    }
     if (!reason) {
-      this.statusReasonError = 'Please enter a reason.';
+      this.statusReasonError = option.value === 'delivery_failed' ? 'Add a note for the customer and the team.' : 'Please enter a reason.';
       return;
     }
     this.saveStatus(option, reason);
@@ -482,7 +516,8 @@ export class OrderDetailComponent implements OnInit {
     this.statusMessage = null;
 
     this.adminOrderService
-      .updateOrderStatus(this.order.order_id, option.value, 'Status updated by admin', reason)
+      .updateOrderStatus(this.order.order_id, option.value, 'Status updated by admin', reason,
+        option.value === 'delivery_failed' ? this.statusReasonCode : undefined)
       .subscribe({
         next: (response) => {
           this.order = response.data;
@@ -501,142 +536,6 @@ export class OrderDetailComponent implements OnInit {
             this.actionError = message;
           }
           this.statusSaving = false;
-          this.cdr.markForCheck();
-        }
-      });
-  }
-
-  lineKey(item: { product_id: string; variant_id: string }): string {
-    return `${item.product_id}:${item.variant_id}`;
-  }
-
-  openOutOfStockModal(): void {
-    if (!this.canReportOutOfStock) return;
-    this.outOfStockSelection = new Set();
-    this.outOfStockReason = '';
-    this.outOfStockError = null;
-    this.showOutOfStockModal = true;
-  }
-
-  closeOutOfStockModal(): void {
-    this.showOutOfStockModal = false;
-    this.outOfStockError = null;
-  }
-
-  toggleOutOfStockLine(item: AdminOrderLineItem, checked: boolean): void {
-    const key = this.lineKey(item);
-    if (checked) this.outOfStockSelection.add(key);
-    else this.outOfStockSelection.delete(key);
-    this.outOfStockError = null;
-  }
-
-  submitOutOfStock(): void {
-    if (!this.order || this.outOfStockSaving) return;
-    const items = this.order.items
-      .filter((item) => this.outOfStockSelection.has(this.lineKey(item)))
-      .map((item) => ({ product_id: item.product_id, variant_id: item.variant_id }));
-    if (!items.length) {
-      this.outOfStockError = 'Select at least one line that is out of stock.';
-      return;
-    }
-
-    this.outOfStockSaving = true;
-    this.adminOrderService
-      .markOutOfStock(this.order.order_id, items, this.outOfStockReason.trim() || undefined)
-      .subscribe({
-        next: (response) => {
-          this.order = response.data;
-          this.outOfStockSaving = false;
-          this.showOutOfStockModal = false;
-          this.showTransientStatusMessage(response.data.order_status === 'canceled'
-            ? 'Order cancelled: items out of stock. The customer has been notified.'
-            : 'Customer asked to swap or remove the out-of-stock items. Apply their choice from the line items.');
-          this.adminRefresh.refreshNotifications();
-          this.cdr.markForCheck();
-        },
-        error: (err) => {
-          this.outOfStockError = err.error?.error || 'Failed to update the order.';
-          this.outOfStockSaving = false;
-          this.cdr.markForCheck();
-        }
-      });
-  }
-
-  openResolveModal(item: AdminOrderLineItem, action: 'remove' | 'swap'): void {
-    if (!this.order || !this.canResolveOutOfStock) return;
-    this.resolveLine = item;
-    this.resolveAction = item.purchase_type === 'subscription' ? 'remove' : action;
-    this.replacementOptions = [];
-    this.selectedReplacementKey = '';
-    this.resolveReason = '';
-    this.resolveError = null;
-    if (this.resolveAction === 'swap') this.loadReplacements();
-  }
-
-  setResolveAction(action: 'remove' | 'swap'): void {
-    if (!this.resolveLine || (action === 'swap' && this.resolveLine.purchase_type === 'subscription')) return;
-    this.resolveAction = action;
-    this.resolveError = null;
-    if (action === 'swap' && !this.replacementOptions.length && !this.replacementsLoading) this.loadReplacements();
-  }
-
-  private loadReplacements(): void {
-    if (!this.order || !this.resolveLine) return;
-    this.replacementsLoading = true;
-    this.adminOrderService.listReplacements(this.order.order_id, this.resolveLine).subscribe({
-      next: (response) => {
-        this.replacementOptions = response.data || [];
-        this.replacementsLoading = false;
-        this.cdr.markForCheck();
-      },
-      error: (err) => {
-        this.resolveError = err.error?.error || 'Failed to load replacement items.';
-        this.replacementsLoading = false;
-        this.cdr.markForCheck();
-      }
-    });
-  }
-
-  closeResolveModal(): void {
-    this.resolveLine = null;
-    this.resolveError = null;
-  }
-
-  /** Removing the last line left cancels the order. */
-  get resolveCancelsOrder(): boolean {
-    return this.resolveAction === 'remove' && (this.order?.items.length || 0) <= 1;
-  }
-
-  submitResolve(): void {
-    if (!this.order || !this.resolveLine || this.resolveSaving) return;
-    const replacement = this.replacementOptions.find((o) => this.lineKey(o) === this.selectedReplacementKey);
-    if (this.resolveAction === 'swap' && !replacement) {
-      this.resolveError = 'Choose the item the customer picked.';
-      return;
-    }
-    this.resolveSaving = true;
-    this.adminOrderService
-      .resolveOutOfStock(this.order.order_id, {
-        product_id: this.resolveLine.product_id,
-        variant_id: this.resolveLine.variant_id,
-        action: this.resolveAction,
-        replacement: replacement ? { product_id: replacement.product_id, variant_id: replacement.variant_id } : undefined,
-        reason: this.resolveReason.trim() || undefined
-      })
-      .subscribe({
-        next: (response) => {
-          this.order = response.data;
-          this.resolveSaving = false;
-          this.resolveLine = null;
-          this.showTransientStatusMessage(response.data.order_status === 'canceled'
-            ? 'Order cancelled: no items left. The customer has been notified.'
-            : `${response.message}. The customer has been notified.`);
-          this.adminRefresh.refreshNotifications();
-          this.cdr.markForCheck();
-        },
-        error: (err) => {
-          this.resolveError = err.error?.error || 'Failed to update the order.';
-          this.resolveSaving = false;
           this.cdr.markForCheck();
         }
       });
@@ -672,10 +571,6 @@ export class OrderDetailComponent implements OnInit {
   onEscapeKey(): void {
     if (this.reasonStatusOption) {
       this.closeStatusReasonModal();
-      return;
-    }
-    if (this.showOutOfStockModal) {
-      this.closeOutOfStockModal();
       return;
     }
     if (this.showApproveConfirmModal) {

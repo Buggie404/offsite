@@ -208,6 +208,10 @@ async function scenarioB() {
   for (let i = 0; i < 3; i += 1) {
     await runJob(user.userId, now, { charge: failingCharge });
     const s = await reload(sub);
+    if (i === 0) {
+      check('b0', 'stock held for the cycle before the first attempt (10 → 9)',
+        (await stockOf(product)) === 9 && +s.reserved_for === +s.next_charge_at, `stock ${await stockOf(product)}`);
+    }
     timeline.push(`attempt ${attempts} at ${fmt(now)} → failed_attempts=${s.failed_attempts}, next_retry_at=${fmt(s.next_retry_at)}, status=${s.status}`);
     check(`b${i + 1}`, `after failure ${i + 1}: failed_attempts=${i + 1}, retry +${expectedDelays[i]} units`,
       s.failed_attempts === i + 1 && s.next_retry_at && +s.next_retry_at === +at(now, units(expectedDelays[i])) && s.status === 'active',
@@ -228,8 +232,13 @@ async function scenarioB() {
   await runJob(user.userId, at(now, units(500)), { charge: failingCharge });
   s = await reload(sub);
   check('b5', 'suspended box is not charged again', attempts === 4, `attempts=${attempts}`);
-  check('b6', 'SUBSCRIPTION_SUSPENDED sent once', (await noticesOf(user, 'SUBSCRIPTION_SUSPENDED')) === 1);
+  // +500 units ≈ 21 cycle days after suspending: the suspension notice plus the one 7-day reminder.
+  check('b6', 'SUBSCRIPTION_SUSPENDED: once on suspension + one reminder after 7 days (2 in total)',
+    (await noticesOf(user, 'SUBSCRIPTION_SUSPENDED')) === 2, `count=${await noticesOf(user, 'SUBSCRIPTION_SUSPENDED')}`);
   check('b7', 'no order created', (await ordersOf(sub)) === 0);
+  // The stock held for the cycle stayed held through the retries and went back on suspension.
+  check('b8', 'held stock kept during retries, put back once when suspended (10 → 9 → 10)',
+    (await stockOf(product)) === 10 && !s.reserved_for, `stock ${await stockOf(product)}, reserved_for ${fmt(s.reserved_for)}`);
   console.log('    timeline:');
   timeline.forEach((line) => console.log(`      ${line}`));
   note(`[b] Real charge attempts before suspension: ${attempts} (1 at the due date + 3 retries at +24/+48/+72 units). Compare with the plan.`);
@@ -245,7 +254,9 @@ async function scenarioC() {
   await runJob(user.userId, T0);
   const s = await reload(sub);
   check('c1', 'status = payment_failed', s.status === 'payment_failed', `status=${s.status}, reason=${s.last_failure_reason}`);
-  check('c2', 'no order, stock untouched', (await ordersOf(sub)) === 0 && (await stockOf(product)) === 10);
+  // The stock held 3 days ahead goes back when the box moves to payment_failed (held again on reactivation).
+  check('c2', 'no order; the cycle stock held 3 days ahead went back (10 → 9 → 10)',
+    (await ordersOf(sub)) === 0 && (await stockOf(product)) === 10 && !s.reserved_for, `stock ${await stockOf(product)}`);
   check('c3', 'SUBSCRIPTION_PAYMENT_FAILED sent', (await noticesOf(user, 'SUBSCRIPTION_PAYMENT_FAILED')) === 1);
   check('c4', 'no retry scheduled', !s.next_retry_at && (s.failed_attempts || 0) === 0);
 }
@@ -380,6 +391,125 @@ async function scenarioG() {
   check('g4', 'and the following charge is 14 cycle days later', +s.next_charge_at === +at(chargeNow, cycleDays(14)));
 }
 
+// ─── Suspended boxes ───────────────────────────────────────────
+const adminSubscriptionService = require('../src/services/admin-subscription.service');
+const { SUSPENDED_AUTO_CANCEL_DAYS } = require('../src/utils/subscription-time');
+
+// A box suspended at `since` after repeated declines (as the charge job leaves it).
+async function suspendedBox(user, product, since) {
+  const sub = await createSubscription(user, product, { nextChargeAt: at(since, -units(200)) });
+  await Subscription.updateOne({ _id: sub._id }, {
+    $set: { status: 'suspended', suspended_at: since, failed_attempts: 4, next_retry_at: null, last_failure_reason: 'card_declined', last_failed_at: since }
+  });
+  return sub;
+}
+async function addCard(user, expireDate = '12/40') {
+  const cardId = new mongoose.Types.ObjectId();
+  await User.collection.updateOne({ user_id: user.userId }, {
+    $push: { payment_methods: { _id: cardId, card_type: 'VISA', card_number: '4111111111119999', cardholder_name: 'TEST E2E', expire_date: expireDate } }
+  });
+  return String(cardId);
+}
+async function actionError(promise) {
+  try { await promise; return null; } catch (err) { return err; }
+}
+
+// h. Suspended → reactivate fails (expired card) → still suspended; new card + reactivate → active.
+async function scenarioH() {
+  console.log('\n[h] Suspended: reactivate fails → still suspended; new card + reactivate → active');
+  const user = await createUser('H', { cardExpiry: '01/20' });
+  const product = await createProduct({ stock: 10 });
+  const sub = await suspendedBox(user, product, T0);
+
+  const failed = await actionError(subscriptionService.applyAction(user.userId, sub.subscription_id, 'reactivate'));
+  let s = await reload(sub);
+  check('h1', 'reactivate with the expired card on file → clear error (card_expired), not charged',
+    failed?.code === 'card_expired' && /expired/i.test(failed.message) && (await ordersOf(sub)) === 0 && (await stockOf(product)) === 10,
+    failed ? `${failed.status} ${failed.code}: ${failed.message}` : 'no error');
+  check('h2', 'still suspended; failed_attempts / next_retry_at untouched (no new 24/48/72 cycle)',
+    s.status === 'suspended' && s.failed_attempts === 4 && !s.next_retry_at && +s.suspended_at === +T0,
+    `status=${s.status}, failed_attempts=${s.failed_attempts}, next_retry_at=${fmt(s.next_retry_at)}`);
+
+  const declined = await actionError(subscriptionService.applyAction(user.userId, sub.subscription_id, 'skip'));
+  check('h3', 'only payment_method / reactivate / cancel are allowed on a suspended box', !!declined && (await reload(sub)).status === 'suspended',
+    declined?.message);
+
+  const newCard = await addCard(user);
+  const before = new Date();
+  await subscriptionService.applyAction(user.userId, sub.subscription_id, 'reactivate', { payment_method_id: newCard });
+  s = await reload(sub);
+  check('h4', 'new card + reactivate → charged once, active',
+    s.status === 'active' && (await ordersOf(sub)) === 1 && (await stockOf(product)) === 9 && s.payment_method_id === newCard,
+    `status=${s.status}, orders=${await ordersOf(sub)}, stock=${await stockOf(product)}`);
+  check('h5', 'failed_attempts 0, next_retry_at / last_failure_reason / suspended_at cleared',
+    s.failed_attempts === 0 && !s.next_retry_at && !s.last_failure_reason && !s.suspended_at && !s.suspended_reminded_at);
+  check('h6', 'next_charge_at counted from the successful charge (last_charged_at + 14 cycle days)',
+    s.last_charged_at >= before && +s.next_charge_at === +at(s.last_charged_at, cycleDays(14)),
+    `charged ${fmt(s.last_charged_at)}, next ${fmt(s.next_charge_at)}`);
+}
+
+// i. Suspended: one reminder after 7 days, cancelled_by_admin after SUSPENDED_AUTO_CANCEL_DAYS.
+async function scenarioI() {
+  console.log(`\n[i] Suspended: reminder after 7 days, auto-cancel after ${SUSPENDED_AUTO_CANCEL_DAYS} days (cycle days = 24 units)`);
+  const user = await createUser('I');
+  const product = await createProduct({ stock: 10 });
+  const sub = await suspendedBox(user, product, T0);
+
+  await runJob(user.userId, at(T0, cycleDays(7) - 60 * 1000));
+  check('i1', 'no reminder before 7 days', (await noticesOf(user, 'SUBSCRIPTION_SUSPENDED')) === 0);
+  await runJob(user.userId, at(T0, cycleDays(7)));
+  await runJob(user.userId, at(T0, cycleDays(8)));
+  let s = await reload(sub);
+  check('i2', 'SUBSCRIPTION_SUSPENDED reminder sent once at 7 days (suspended_reminded_at set)',
+    (await noticesOf(user, 'SUBSCRIPTION_SUSPENDED')) === 1 && !!s.suspended_reminded_at,
+    `notices=${await noticesOf(user, 'SUBSCRIPTION_SUSPENDED')}`);
+
+  await runJob(user.userId, at(T0, cycleDays(SUSPENDED_AUTO_CANCEL_DAYS) - 60 * 1000));
+  check('i3', 'still suspended just before the limit', (await reload(sub)).status === 'suspended');
+  const summary = await runJob(user.userId, at(T0, cycleDays(SUSPENDED_AUTO_CANCEL_DAYS)));
+  await runJob(user.userId, at(T0, cycleDays(SUSPENDED_AUTO_CANCEL_DAYS + 1)));
+  s = await reload(sub);
+  const last = (s.admin_messages || []).at(-1);
+  check('i4', `after ${SUSPENDED_AUTO_CANCEL_DAYS} days → cancelled_by_admin, 'Repeated payment failure'`,
+    s.status === 'cancelled_by_admin' && s.cancel_reason === 'Repeated payment failure' && s.cancelled_by === 'system' && !!s.cancelled_at,
+    `${JSON.stringify(summary)}, status=${s.status}`);
+  check('i5', 'recorded in the box history and SUBSCRIPTION_CANCELLED sent once, never charged',
+    last?.action === 'cancel' && last?.sent_by === 'system' && (await noticesOf(user, 'SUBSCRIPTION_CANCELLED')) === 1 && (await ordersOf(sub)) === 0,
+    `last message ${last?.action}/${last?.sent_by}`);
+
+  // A box suspended by the job itself gets suspended_at from the job's clock.
+  const b = await createSubscription(user, product, { nextChargeAt: at(T0, -units(1)) });
+  await Subscription.updateOne({ _id: b._id }, { $set: { failed_attempts: 3 } });
+  await runJob(user.userId, T0, { charge: async () => ({ ok: false, reason: 'card_declined' }) });
+  const sb = await reload(b);
+  check('i6', 'charge job suspending a box sets suspended_at = now', sb.status === 'suspended' && +sb.suspended_at === +T0, fmt(sb.suspended_at));
+}
+
+// j. Admin CC proposes resuming a failed box; accepting goes through the reactivate charge.
+async function scenarioJ() {
+  console.log('\n[j] Resume proposal on a suspended box: accept = reactivate (charge), error when the card is not valid');
+  const product = await createProduct({ stock: 10 });
+
+  const expired = await createUser('J1', { cardExpiry: '01/20' });
+  const s1 = await suspendedBox(expired, product, T0);
+  await adminSubscriptionService.applyAdminAction(s1.subscription_id, 'propose', { type: 'resume', message: 'E2E' }, `${PREFIX}ADMIN`, 'admin_cc');
+  const err = await actionError(subscriptionService.applyAction(expired.userId, s1.subscription_id, 'accept_proposal'));
+  let s = await reload(s1);
+  check('j1', 'accept with an expired card → card_expired error, still suspended, proposal still open, not charged',
+    err?.code === 'card_expired' && s.status === 'suspended' && !!s.admin_proposal && (await ordersOf(s1)) === 0,
+    err ? `${err.code}: ${err.message}` : 'no error');
+
+  const valid = await createUser('J2');
+  const s2 = await suspendedBox(valid, product, T0);
+  await adminSubscriptionService.applyAdminAction(s2.subscription_id, 'propose', { type: 'resume', message: 'E2E' }, `${PREFIX}ADMIN`, 'admin_cc');
+  await subscriptionService.applyAction(valid.userId, s2.subscription_id, 'accept_proposal');
+  s = await reload(s2);
+  check('j2', 'accept with a valid card → charged (reactivate), active, failed_attempts 0, proposal closed',
+    s.status === 'active' && (await ordersOf(s2)) === 1 && s.failed_attempts === 0 && !s.admin_proposal
+      && (s.admin_messages || []).some(m => m.action === 'proposal_accepted'),
+    `status=${s.status}, orders=${await ordersOf(s2)}`);
+}
+
 // ─── Main ─────────────────────────────────────────────────────
 async function main() {
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
@@ -393,7 +523,7 @@ async function main() {
   const leftovers = await cleanup();
   if (Object.values(leftovers).some(Boolean)) console.log('Removed leftovers of an earlier run:', leftovers);
 
-  const scenarios = [scenarioA, scenarioB, scenarioC, scenarioD, scenarioE, scenarioF, scenarioG];
+  const scenarios = [scenarioA, scenarioB, scenarioC, scenarioD, scenarioE, scenarioF, scenarioG, scenarioH, scenarioI, scenarioJ];
   try {
     for (const scenario of scenarios) {
       try {

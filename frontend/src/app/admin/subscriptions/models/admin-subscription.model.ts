@@ -110,9 +110,24 @@ export interface AdminSubscriptionDetail extends AdminSubscriptionRow {
   } | null;
   failed_attempts: number;
   last_failure_reason: string | null;
+  last_failed_at: string | null;
+  /** Suspended boxes only: since when, and when they are cancelled automatically. */
+  suspended_at: string | null;
+  auto_cancel_at: string | null;
+  auto_cancel_days_left: number | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
   replacement: AdminSubscriptionReplacement | null;
+  /** The customer picked a replacement for the upcoming delivery only; the box keeps its item. */
+  cycle_replacement: {
+    product_id: string;
+    variant_id: string;
+    name: string;
+    variant_label: string;
+    image: string | null;
+    for_cycle: string;
+    subscribe_price: number;
+  } | null;
   deliveries: AdminSubscriptionDelivery[];
   open_order_ids: string[];
   messages: AdminSubscriptionMessage[];

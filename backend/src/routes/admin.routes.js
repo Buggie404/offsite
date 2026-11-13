@@ -86,10 +86,9 @@ router.get('/orders/:id', authMiddleware, requireRole(...ADMIN_ORDER_VIEW_ROLES)
 router.put('/orders/:id/status', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog({ requireReasonWhen: adminController.statusChangeRequiresReason }), adminController.updateOrderStatus);
 router.post('/orders/:id/refund/approve', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.approveRefundRequest);
 router.post('/orders/:id/refund/reject', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog({ requireReason: true }), adminController.rejectRefundRequest);
-router.post('/orders/:id/out-of-stock', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.markItemsOutOfStock);
-router.get('/orders/:id/out-of-stock/replacements', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminController.listOutOfStockReplacements);
-router.post('/orders/:id/out-of-stock/resolve', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.resolveOutOfStockLine);
 router.post('/orders/:id/notes', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.addInternalNote);
+// QR refund paid out by hand after a cancel (QLSP / Admin CC).
+router.post('/orders/:id/refunds/mark-paid', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminController.markRefundPaid);
 
 router.get('/products', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.listProducts);
 router.get('/products/composition-options', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.searchCompositionProducts);

@@ -27,6 +27,7 @@ import {
   RitualBoxService,
   RitualCard,
   RitualHistoryRow,
+  RitualReplacement,
   RitualSubscription,
   SubscriptionAction,
 } from '../../services/ritual-box.service';
@@ -97,6 +98,9 @@ export class RitualBoxComponent implements OnInit {
   readonly actionError = signal<{ id: string; message: string } | null>(null);
   readonly actionNotice = signal<{ id: string; message: string } | null>(null);
   readonly cancelTarget = signal<RitualSubscription | null>(null);
+  /** Out of stock: the replacement picked per box (product_id|variant_id) and "keep it for good". */
+  readonly pickedReplacement = signal<Record<string, string>>({});
+  readonly keepReplacement = signal<Record<string, boolean>>({});
   cancelReason = '';
 
   /** ?sub=SUB0003 (links from Order detail): highlight that box and scroll to it once loaded. */
@@ -194,6 +198,55 @@ export class RitualBoxComponent implements OnInit {
       return;
     }
     this.run(sub, 'payment_method', { payment_method_id: card.id });
+  }
+
+  // ─── Out of stock: replacement for one delivery ──────────────
+
+  replacementKey(rep: { product_id: string; variant_id: string }): string {
+    return `${rep.product_id}|${rep.variant_id}`;
+  }
+
+  /** The option ticked for this box (the first one until the customer picks). */
+  selectedReplacement(sub: RitualSubscription): RitualReplacement | null {
+    const key = this.pickedReplacement()[sub.subscription_id];
+    return sub.replacement_options.find(o => this.replacementKey(o) === key) ?? sub.replacement_options[0] ?? null;
+  }
+
+  pickReplacement(sub: RitualSubscription, rep: RitualReplacement): void {
+    this.pickedReplacement.update(m => ({ ...m, [sub.subscription_id]: this.replacementKey(rep) }));
+  }
+
+  setKeepReplacement(sub: RitualSubscription, keep: boolean): void {
+    this.keepReplacement.update(m => ({ ...m, [sub.subscription_id]: keep }));
+  }
+
+  confirmReplacement(sub: RitualSubscription): void {
+    const rep = this.selectedReplacement(sub);
+    if (!rep) return;
+    this.run(sub, 'use_replacement', {
+      product_id: rep.product_id,
+      variant_id: rep.variant_id,
+      permanent: !!this.keepReplacement()[sub.subscription_id],
+    });
+  }
+
+  /** "Same price", "+$2.30", "-$1.10" compared with the box's usual charge. */
+  differenceLabel(diff: number | null | undefined): string {
+    if (diff == null || Math.abs(diff) < 0.005) return 'Same price';
+    return `${diff > 0 ? '+' : '-'}$${Math.abs(diff).toFixed(2)}`;
+  }
+
+  differenceTone(diff: number | null | undefined): string {
+    if (diff == null || Math.abs(diff) < 0.005) return 'same';
+    return diff > 0 ? 'more' : 'less';
+  }
+
+  itemName(rep: { name: string; variant_label: string }): string {
+    return rep.variant_label ? `${rep.name} ${rep.variant_label}` : rep.name;
+  }
+
+  switchOfferSubs(): RitualSubscription[] {
+    return (this.box.data()?.subscriptions ?? []).filter(s => !!s.switch_offer);
   }
 
   openCancel(sub: RitualSubscription): void {

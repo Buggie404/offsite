@@ -116,13 +116,34 @@
               </p>
             </div>
           }
+          @if (detail.cycle_replacement; as rep) {
+            <div class="alert" role="status">
+              <p>
+                <strong>One-time replacement:</strong> the {{ shortDate(rep.for_cycle) }} delivery ships
+                {{ rep.name }}{{ rep.variant_label ? ' ' + rep.variant_label : '' }} (${{ rep.subscribe_price | number: '1.2-2' }} each)
+                instead of {{ detail.box }}. Later deliveries go back to {{ detail.box }}.
+              </p>
+            </div>
+          }
           @if (detail.status === 'payment_failed' || detail.status === 'suspended') {
             <div class="alert alert--danger" role="status">
               <svg lucideAlertTriangle class="alert__icon" aria-hidden="true" [size]="16"></svg>
               <p>
-                <strong>Payment failed</strong>
-                {{ detail.failed_attempts ? '(' + detail.failed_attempts + ' attempts)' : '' }}.
-                Reactivate charges the card on file now.
+                @if (detail.status === 'suspended') {
+                  <strong>Suspended since {{ shortDate(detail.suspended_at) }}</strong>
+                  @if (detail.auto_cancel_days_left !== null) {
+                    · cancelled automatically
+                    {{ detail.auto_cancel_days_left === 0 ? 'on the next job run' : 'in ' + detail.auto_cancel_days_left + ' day' + (detail.auto_cancel_days_left === 1 ? '' : 's') }}
+                    ({{ shortDate(detail.auto_cancel_at) }}) unless the customer reactivates it.
+                  }
+                } @else {
+                  <strong>Payment failed</strong>.
+                }
+                @if (detail.last_failure_reason) {
+                  <br />Last failure: {{ failureReasonLabel(detail.last_failure_reason) }}{{ detail.last_failed_at ? ' · ' + shortDate(detail.last_failed_at) : '' }}
+                  {{ detail.failed_attempts ? '(' + detail.failed_attempts + ' attempts)' : '' }}.
+                }
+                The customer reactivates it from Ritual Box (a resume proposal charges the card when they accept).
               </p>
             </div>
           }

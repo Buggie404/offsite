@@ -178,6 +178,127 @@
       <p class="ritual-start-box__error" *ngIf="ritualBoxError()">{{ ritualBoxError() }}</p>
     </div>
 
+    <!-- ================= REDELIVERY AFTER A FAILED DELIVERY ================= -->
+    <ng-container *ngIf="redeliveryState() as rstate">
+    <div class="ritual-start-box ritual-start-box--delivery" role="region" aria-labelledby="redelivery-title" *ngIf="prepareRedelivery()">
+      <div class="ritual-start-box__text">
+        <ng-container [ngSwitch]="rstate">
+          <ng-container *ngSwitchCase="'awaiting'">
+            <p class="ritual-start-box__title" id="redelivery-title">Confirm the redelivery</p>
+            <p class="ritual-start-box__desc">
+              {{ deliveryFailedReasonLabel() || 'The delivery failed' }}{{ deliveryFailedReason() ? ': ' + deliveryFailedReason() : '' }}.
+              Check how to reach you and where to deliver, and we'll send it again.
+            </p>
+            <p class="redelivery__meta">
+              <span class="redelivery__chip">{{ redeliveryNumberLabel() }}</span>
+              <span class="redelivery__chip redelivery__chip--time" *ngIf="redeliveryCountdown() as left">{{ left }}</span>
+            </p>
+          </ng-container>
+          <ng-container *ngSwitchCase="'confirmed'">
+            <p class="ritual-start-box__title" id="redelivery-title">Confirmed, waiting for redelivery</p>
+            <p class="ritual-start-box__desc">
+              We'll deliver to {{ order().redelivery?.shipping_address?.recipient_name }}, {{ order().redelivery?.contact_phone }},
+              {{ order().redelivery?.shipping_address?.address }}, {{ order().redelivery?.shipping_address?.city }}.
+              <ng-container *ngIf="order().redelivery?.note"> Note for the courier: {{ order().redelivery?.note }}</ng-container>
+            </p>
+          </ng-container>
+          <ng-container *ngSwitchCase="'carrier'">
+            <p class="ritual-start-box__title" id="redelivery-title">We'll deliver it again</p>
+            <p class="ritual-start-box__desc">The delivery failed on the carrier's side. There's nothing you need to do: we'll send it out again.</p>
+          </ng-container>
+          <ng-container *ngSwitchCase="'exhausted'">
+            <p class="ritual-start-box__title" id="redelivery-title">This order will be cancelled</p>
+            <p class="ritual-start-box__desc">
+              We tried to deliver it {{ order().delivery_attempts }} times. There are no redeliveries left, so the order will be cancelled
+              {{ order().payment_status === 'paid' ? 'and refunded' : '' }}.
+            </p>
+          </ng-container>
+          <ng-container *ngSwitchCase="'payout'">
+            <p class="ritual-start-box__title" id="redelivery-title">Refund pending</p>
+            <p class="ritual-start-box__desc" *ngIf="order().refund_destination as dest">
+              We'll transfer ${{ (order().pricing?.total || 0) | number:'1.2-2' }} to {{ dest.bank_name }} ····{{ dest.account_last4 }} ({{ dest.account_holder }}).
+            </p>
+            <p class="ritual-start-box__desc" *ngIf="!order().refund_destination">
+              Add the bank account to refund your QR payment to.
+            </p>
+          </ng-container>
+        </ng-container>
+      </div>
+
+      <!-- Form: where and how to deliver again -->
+      <form class="redelivery__form" *ngIf="rstate === 'awaiting'" (ngSubmit)="confirmRedelivery()" novalidate>
+        <label class="redelivery__field redelivery__field--wide" *ngIf="redeliveryAddresses().length">
+          <span>Address</span>
+          <select [value]="redeliveryAddressId()" (change)="selectRedeliveryAddress($any($event.target).value)">
+            <option value="new">Enter a new address</option>
+            <option *ngFor="let a of redeliveryAddresses()" [value]="a._id">{{ a.recipient_name }} · {{ a.detail_address }}, {{ a.city }}</option>
+          </select>
+        </label>
+        <label class="redelivery__field">
+          <span>Name</span>
+          <input type="text" name="rd-name" [(ngModel)]="redeliveryForm.recipient_name" autocomplete="name" />
+          <small *ngIf="redeliveryErrors()['recipient_name']">{{ redeliveryErrors()['recipient_name'] }}</small>
+        </label>
+        <label class="redelivery__field">
+          <span>Mobile</span>
+          <input type="tel" name="rd-phone" [(ngModel)]="redeliveryForm.phone" autocomplete="tel" inputmode="tel" />
+          <small *ngIf="redeliveryErrors()['contact_phone']">{{ redeliveryErrors()['contact_phone'] }}</small>
+        </label>
+        <label class="redelivery__field redelivery__field--wide">
+          <span>Address</span>
+          <input type="text" name="rd-address" [(ngModel)]="redeliveryForm.address" placeholder="House number street, ward, district" autocomplete="street-address" />
+          <small *ngIf="redeliveryErrors()['address']">{{ redeliveryErrors()['address'] }}</small>
+        </label>
+        <label class="redelivery__field">
+          <span>City</span>
+          <input type="text" name="rd-city" [(ngModel)]="redeliveryForm.city" autocomplete="address-level1" />
+          <small *ngIf="redeliveryErrors()['city']">{{ redeliveryErrors()['city'] }}</small>
+        </label>
+        <label class="redelivery__field">
+          <span>Note for the courier (optional)</span>
+          <input type="text" name="rd-note" [(ngModel)]="redeliveryForm.note" maxlength="500" placeholder="e.g. Call before arriving" />
+        </label>
+        <div class="redelivery__actions">
+          <button type="submit" class="ritual-start-box__btn" [disabled]="redeliveryBusy()">{{ redeliveryBusy() ? 'Saving…' : 'Deliver again' }}</button>
+          <button type="button" class="redelivery__btn-secondary" [disabled]="redeliveryBusy()" (click)="openRedeliveryCancel()">Cancel order</button>
+          <button type="button" class="redelivery__btn-link" (click)="chatAboutOrder()">Chat with a human</button>
+        </div>
+        <p class="ritual-start-box__error" *ngIf="redeliveryError()">{{ redeliveryError() }}</p>
+      </form>
+
+      <div class="redelivery__actions" *ngIf="rstate === 'confirmed' || rstate === 'carrier' || rstate === 'exhausted'">
+        <button type="button" class="redelivery__btn-link" (click)="chatAboutOrder()">Chat with a human</button>
+      </div>
+
+      <!-- QR refund: bank account, also after the order was cancelled -->
+      <form class="redelivery__form" *ngIf="rstate === 'payout' && !order().refund_destination" (ngSubmit)="submitRefundDestination()" novalidate>
+        <ng-container *ngTemplateOutlet="refundFields"></ng-container>
+        <div class="redelivery__actions">
+          <button type="submit" class="ritual-start-box__btn" [disabled]="redeliveryBusy()">Save account</button>
+        </div>
+        <p class="ritual-start-box__error" *ngIf="refundError()">{{ refundError() }}</p>
+      </form>
+    </div>
+    </ng-container>
+
+    <ng-template #refundFields>
+      <label class="redelivery__field">
+        <span>Bank</span>
+        <select name="rf-bank" [(ngModel)]="refundForm.bank_name">
+          <option value="">Choose a bank</option>
+          <option *ngFor="let b of refundBanks" [value]="b">{{ b }}</option>
+        </select>
+      </label>
+      <label class="redelivery__field">
+        <span>Account number</span>
+        <input type="text" name="rf-number" [(ngModel)]="refundForm.account_number" inputmode="numeric" autocomplete="off" />
+      </label>
+      <label class="redelivery__field redelivery__field--wide">
+        <span>Account holder</span>
+        <input type="text" name="rf-holder" [(ngModel)]="refundForm.account_holder" autocomplete="name" />
+      </label>
+    </ng-template>
+
     <!-- ================= CONTENT GRID ================= -->
     <div class="content-grid">
       <!-- Left Column -->
@@ -719,6 +840,26 @@
   </div>
 
   <!-- Confirmation Modal -->
+  <!-- Cancel after a failed delivery: bottom sheet on mobile -->
+  <div class="redelivery-modal" *ngIf="showRedeliveryCancel()" (click)="closeRedeliveryCancel()">
+    <div class="redelivery-modal__card" role="dialog" aria-modal="true" aria-labelledby="rd-cancel-title" (click)="$event.stopPropagation()">
+      <h2 class="redelivery-modal__title" id="rd-cancel-title">Cancel this order?</h2>
+      <p class="redelivery-modal__desc" *ngIf="order().payment?.method === 'cod'">We won't try to deliver it again. You haven't paid anything, so there's nothing to refund.</p>
+      <p class="redelivery-modal__desc" *ngIf="order().payment?.method !== 'cod' && !needsRefundDestination()">We won't try to deliver it again{{ order().payment_status === 'paid' ? ' and refund the full amount to the card you paid with' : '' }}.</p>
+      <ng-container *ngIf="needsRefundDestination()">
+        <p class="redelivery-modal__desc">We won't try to deliver it again. Tell us where to refund your QR payment of ${{ (order().pricing?.total || 0) | number:'1.2-2' }}.</p>
+        <form class="redelivery__form" (ngSubmit)="submitRedeliveryCancel()" novalidate>
+          <ng-container *ngTemplateOutlet="refundFields"></ng-container>
+        </form>
+      </ng-container>
+      <p class="ritual-start-box__error" *ngIf="refundError()">{{ refundError() }}</p>
+      <div class="redelivery-modal__actions">
+        <button type="button" class="redelivery__btn-secondary" (click)="closeRedeliveryCancel()">Keep my order</button>
+        <button type="button" class="ritual-start-box__btn" [disabled]="redeliveryBusy()" (click)="submitRedeliveryCancel()">{{ redeliveryBusy() ? 'Cancelling…' : 'Cancel order' }}</button>
+      </div>
+    </div>
+  </div>
+
   <app-confirmation-modal
     [isOpen]="isConfirmModalOpen"
     [title]="confirmModalTitle"
