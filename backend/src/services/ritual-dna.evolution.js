@@ -12,14 +12,16 @@ function distance(radar, target) {
 function recalculate(dna, events, archetypes, now = new Date()) {
   const baseline = dna.quiz_baseline;
   const quizTime = new Date(dna.quiz_taken_at || 0).getTime();
-  const active = events.filter(event => !event.reversed_at && new Date(event.at).getTime() >= quizTime);
+  let active = events.filter(event => !event.reversed_at && (dna.quiz_mode === 'confirmation' || new Date(event.at).getTime() >= quizTime));
+  if (dna.quiz_mode === 'confirmation') active = active.slice(-20).map(event => ({ ...event,
+    weight: ({ order: 1, product_saved: .4, recipe_saved: .6 })[event.source] ?? event.weight }));
   const radar = {};
   for (const axis of AXES) {
     const signals = active.filter(event => event.target_profile?.[axis] != null);
     const weight = signals.reduce((sum, event) => sum + Number(event.weight || 0), 0);
-    if (!weight) { radar[axis] = baseline[axis]; continue; }
+    if (!weight) { radar[axis] = dna.quiz_mode === 'confirmation' ? Math.round(.6 * baseline[axis] + .4 * 50) : baseline[axis]; continue; }
     const average = signals.reduce((sum, event) => sum + event.target_profile[axis] * event.weight, 0) / weight;
-    const share = MAX_BEHAVIOR_SHARE * Math.min(weight / EVIDENCE_TARGET, 1);
+    const share = dna.quiz_mode === 'confirmation' ? .4 : MAX_BEHAVIOR_SHARE * Math.min(weight / EVIDENCE_TARGET, 1);
     radar[axis] = Math.round(Math.max(0, Math.min(100, baseline[axis] * (1 - share) + average * share)));
   }
 

@@ -6,6 +6,8 @@ const Product = require('../models/Product');
 const { scoreQuiz } = require('../services/ritual-dna.scoring');
 const { awardRitualDnaQuizPoints } = require('../services/loyalty.service');
 const { recommendationsFor, recommendationsForProduct, fitsFor } = require('../services/ritual-dna.recommendations');
+const { estimateFor, nearest } = require('../services/ritual-dna.estimated');
+const CONFIRM_CODES = new Set(['D2', 'D4', 'D6']);
 
 function userQuery(jwtId) {
   return mongoose.isValidObjectId(jwtId) ? { _id: jwtId } : { user_id: jwtId };
@@ -16,7 +18,12 @@ async function questions(req, res) {
     const release = await activeQuiz();
     const rows = release?.questions || [];
     if (rows.length !== 7) return res.status(503).json({ error: 'Ritual DNA quiz is not ready.' });
-    res.json({ quiz_version: String(release.version), questions: rows.map(row => ({
+    const confirmation = req.query.mode === 'confirmation';
+    if (confirmation) {
+      const user = await User.findOne(userQuery(req.user.user_id)).lean();
+      if (!user || !await estimateFor(user, await activeArchetypes())) return res.status(409).json({ error: 'Three delivered orders and no completed quiz are required.' });
+    }
+    res.json({ mode: confirmation ? 'confirmation' : 'full', quiz_version: String(release.version), questions: rows.filter(row => !confirmation || CONFIRM_CODES.has(row.code)).map(row => ({
       question_id: row.question_id, code: row.code, question: row.question,
       order: row.order, selection_limit: row.selection_limit || 1,
       options: row.options.map(option => ({ option_id: option.option_id, text: option.text, hint: option.hint, icon: option.icon }))
@@ -26,11 +33,23 @@ async function questions(req, res) {
 
 async function profile(req, res) {
   try {
-    const user = await User.findOne(userQuery(req.user.user_id)).select('ritual_dna').lean();
+    const user = await User.findOne(userQuery(req.user.user_id)).select('user_id ritual_dna').lean();
     if (!user) return res.status(404).json({ error: 'User not found.' });
+    if (!user.ritual_dna?.quiz_taken_at) {
+      const previous = user.ritual_dna;
+      const estimate = await estimateFor(user, await activeArchetypes());
+      const signature = dna => dna ? JSON.stringify([dna.archetype_id, dna.archetype_profile_version,
+        dna.taste_radar, dna.drink_lean, dna.equipment_level, dna.intensity_preference,
+        dna.behavior_events?.map(event => event.event_id)]) : null;
+      if (signature(previous) !== signature(estimate)) {
+      const filter = { _id: user._id, ...(previous?.updated_at ? { 'ritual_dna.updated_at': previous.updated_at } : { ritual_dna: null }) };
+      const saved = await User.updateOne(filter, { $set: { ritual_dna: estimate } }, { runValidators: true });
+      user.ritual_dna = saved.modifiedCount === 1 ? estimate : (await User.findById(user._id).select('ritual_dna').lean())?.ritual_dna;
+      }
+    }
     if (!user.ritual_dna) return res.json({ result: null });
     const archetype = await archetypeForProfile(user.ritual_dna.archetype_id, user.ritual_dna.archetype_profile_version);
-    res.json({ result: { radar: user.ritual_dna.taste_radar, baseline: user.ritual_dna.quiz_baseline, archetype: publicArchetype(archetype), drink_lean: user.ritual_dna.drink_lean, lean_confirmed: user.ritual_dna.lean_confirmed, equipment_level: user.ritual_dna.equipment_level, flavor_tags: user.ritual_dna.flavor_tags, intensity_preference: user.ritual_dna.intensity_preference, servings: user.ritual_dna.servings, occasions: user.ritual_dna.occasions, quiz_taken_at: user.ritual_dna.quiz_taken_at, updated_at: user.ritual_dna.updated_at, history: (user.ritual_dna.evolution_logs || []).slice(-20).reverse().map(log => ({ at: log.at, source: log.source, delta: log.delta, radar_after: log.radar_after, archetype_id: log.archetype_id })) } });
+    res.json({ result: { is_estimated: Boolean(user.ritual_dna.is_estimated), confirmation_eligible: Boolean(user.ritual_dna.is_estimated), radar: user.ritual_dna.taste_radar, baseline: user.ritual_dna.quiz_baseline, archetype: publicArchetype(archetype), drink_lean: user.ritual_dna.drink_lean, lean_confirmed: user.ritual_dna.lean_confirmed, equipment_level: user.ritual_dna.equipment_level, flavor_tags: user.ritual_dna.flavor_tags, intensity_preference: user.ritual_dna.intensity_preference, servings: user.ritual_dna.servings, occasions: user.ritual_dna.occasions, quiz_taken_at: user.ritual_dna.quiz_taken_at, updated_at: user.ritual_dna.updated_at, history: (user.ritual_dna.evolution_logs || []).slice(-20).reverse().map(log => ({ at: log.at, source: log.source, delta: log.delta, radar_after: log.radar_after, archetype_id: log.archetype_id })) } });
   } catch (error) { res.status(500).json({ error: 'Could not load Ritual DNA.' }); }
 }
 
@@ -97,10 +116,21 @@ async function submit(req, res) {
       User.findOne(userQuery(req.user.user_id))
     ]);
     if (!user) return res.status(404).json({ error: 'User not found.' });
-    const questions = quizRelease?.questions || [];
-    if (questions.length !== 7 || archetypes.length !== 4) return res.status(503).json({ error: 'Ritual DNA configuration is incomplete.' });
+    const allQuestions = quizRelease?.questions || [];
+    if (allQuestions.length !== 7 || archetypes.length !== 4) return res.status(503).json({ error: 'Ritual DNA configuration is incomplete.' });
     if (req.body.quiz_version !== String(quizRelease.version)) return res.status(409).json({ error: 'Quiz changed. Please reload and try again.' });
-    const result = scoreQuiz(questions, req.body.answers, archetypes);
+    const confirmation = req.body.mode === 'confirmation';
+    const estimate = confirmation ? await estimateFor(user, archetypes) : null;
+    if (confirmation && !estimate) return res.status(409).json({ error: 'You are not eligible for the three-question confirmation. Please take the full quiz.' });
+    const questions = allQuestions.filter(question => !confirmation || CONFIRM_CODES.has(question.code));
+    const result = scoreQuiz(questions, req.body.answers, archetypes, confirmation);
+    const baseline = { ...result.radar };
+    if (confirmation) {
+      result.radar = Object.fromEntries(Object.keys(baseline).map(axis => [axis, Math.round(.6 * baseline[axis] + .4 * estimate.taste_radar[axis])]));
+      result.archetype = nearest(result.radar, archetypes);
+      Object.assign(result.attributes, { drink_lean: estimate.drink_lean, lean_confirmed: estimate.lean_confirmed,
+        equipment_level: estimate.equipment_level, intensity_preference: estimate.intensity_preference, occasions: estimate.occasions });
+    }
     const previous = user.ritual_dna;
     const now = new Date();
     const delta = Object.fromEntries(Object.keys(result.radar).map(axis => [axis, result.radar[axis] - (previous?.taste_radar?.[axis] ?? result.radar[axis])]));
@@ -111,9 +141,9 @@ async function submit(req, res) {
       archetype_id: result.archetype.archetype_id });
     const ritualDna = {
       archetype_id: result.archetype.archetype_id, archetype_profile_version: result.archetype.profile_version,
-      taste_radar: result.radar, quiz_baseline: result.radar, quiz_version: String(quizRelease.version),
+      taste_radar: result.radar, quiz_baseline: baseline, quiz_version: String(quizRelease.version), quiz_mode: confirmation ? 'confirmation' : 'full',
       quiz_taken_at: now, evolution_logs: evolutionLogs,
-      behavior_events: previous?.behavior_events?.map(event => event.toObject?.() || event) || [],
+      behavior_events: confirmation ? estimate.behavior_events : previous?.behavior_events?.map(event => event.toObject?.() || event) || [],
       is_estimated: false, updated_at: now, last_archetype_change_at: now,
       drink_lean: result.attributes.drink_lean, lean_confirmed: result.attributes.lean_confirmed,
       equipment_level: result.attributes.equipment_level, flavor_tags: result.attributes.flavor_tags,

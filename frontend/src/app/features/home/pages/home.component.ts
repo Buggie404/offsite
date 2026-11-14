@@ -85,6 +85,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       if (!response.result) return;
       const profile = response.result;
       this.ritualProfile.set(profile);
+      if (profile.is_estimated) return;
       const { data } = await this.http.get('/ritual-dna/recommendations?surface=home') as { data: HomePicks };
       if (revision !== this.personalizationRevision) return;
       const [catalogResult, recipeResult, recipeFallbackResult] = await Promise.allSettled([

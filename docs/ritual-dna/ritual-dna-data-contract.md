@@ -1,13 +1,13 @@
 # Ritual DNA — Data contract v0.1
 
-Ngày đối chiếu: 30/10/2026. Schema, API và cấu hình quiz đã được đưa vào code; seed thật đã tạo 7 câu Ritual DNA và 4 archetype trong MongoDB. Hồ sơ `Users.ritual_dna` chỉ được tạo khi chính user đăng nhập hoàn thành quiz.
+Ngày cập nhật: 11/11/2026. Schema, API và cấu hình quiz đã được đưa vào code; seed thật đã tạo 7 câu Ritual DNA và 4 archetype trong MongoDB. Theo yêu cầu mới, user chưa làm quiz có từ 3 đơn delivered được tạo DNA ước tính khi mở hồ sơ. D2/D4/D6 xác nhận hồ sơ này; quiz đầy đủ vẫn gồm 7 câu.
 
 ## 1. Nguồn và quyết định ưu tiên
 
 - **Quyết định của product owner:** Ritual DNA chỉ dành cho user đăng nhập; radar có năm trục `brightness`, `boldness`, `sweetness`, `skill`, `tempo`. Tài liệu [business rules](ritual-dna-business-rules.md) là bản làm việc cho rule scoring/evolution.
 - **Tài liệu lead:** `Project Planning & Prep 2.md`, phần A4, B1 và mục Nhóm 1 — Sản phẩm và Ritual DNA. Tài liệu quy định collection dùng chung, nơi lưu kết quả, phạm vi chỉnh sửa của nhóm.
 - **Code hiện có:** Mongoose models trong `backend/src/models`. Cấu trúc hiện tại của Starter Quiz phải được giữ tương thích.
-- Nếu tài liệu lead có các phương án mâu thuẫn, quyết định mới hơn của product owner ở trên được áp dụng cho Ritual DNA. Ví dụ: mục MVP lead ghi bốn trục; bản này dùng năm trục. Mục DNA-5 cho guest/estimated DNA chưa áp dụng trong v1.
+- Nếu tài liệu lead có các phương án mâu thuẫn, quyết định mới hơn của product owner được áp dụng. DNA-5 đã được bật theo yêu cầu ngày 11/11/2026, đối chiếu `Project Planning & Prep 2 (2).md`: từ 3 đơn delivered, xác nhận D2/D4/D6, chuẩn hóa trên 3 câu, pha 60% quiz với 40% hành vi. Guest vẫn phải đăng nhập.
 
 ## 2. Kết quả đọc MongoDB thật
 
@@ -51,7 +51,9 @@ Nếu sau này thay đổi collection so với plan, tài liệu lead yêu cầu
 
 ## 4. User.ritual_dna
 
-V1 dùng **một object hoặc `null`**. `null` nghĩa là user chưa submit quiz; không suy đoán DNA từ lịch sử mua hàng ở phiên bản này.
+Dùng **một object hoặc `null`**. User chưa quiz và chưa đủ 3 đơn delivered nhận `null`. Hồ sơ ước tính có `is_estimated=true`, `quiz_taken_at=null`, `quiz_mode=estimated`. Xác nhận 3 câu đổi sang `quiz_mode=confirmation`, `is_estimated=false` và ghi `quiz_taken_at`; làm đầy đủ ghi `quiz_mode=full`.
+
+Ước tính dùng tối đa 20 đơn delivered gần nhất. Trục không có metadata được để trung tính 50; loại dụng cụ và độ đậm chỉ được suy ra khi có metadata tương ứng. Không suy ra giờ uống từ giờ đặt hàng: `occasions=[]` đến khi có dữ liệu thích hợp hoặc làm quiz đầy đủ. Entry points: banner homepage, tab Account/Ritual DNA và menu Find your Ritual DNA. Luôn có tùy chọn làm đủ 7 câu.
 
 ```ts
 type Radar = {
@@ -69,7 +71,8 @@ type RitualDna = {
   quiz_baseline: Radar;           // most recent quiz result before evidence
   quiz_version: string | null;
   quiz_taken_at: Date | null;
-  is_estimated: false;            // reserved for future feature
+  is_estimated: boolean;
+  quiz_mode: 'estimated' | 'confirmation' | 'full';
   updated_at: Date;
   last_archetype_change_at: Date | null;
   drink_lean: number | null;      // D1; 0=coffee, 100=matcha

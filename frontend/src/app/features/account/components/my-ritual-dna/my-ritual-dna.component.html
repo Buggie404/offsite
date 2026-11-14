@@ -7,7 +7,15 @@
       <button type="button" (click)="load()">TRY AGAIN</button>
     </div>
   } @else if (profile(); as dna) {
-    <p class="ritual-intro">Your living taste profile, created from your answers and saved to your account.</p>
+    @if (dna.is_estimated) {
+      <section class="estimated-dna-invite" aria-label="Confirm your estimated Ritual DNA">
+        <span>ESTIMATED DNA</span><h2>Based on your orders, not a quiz.</h2>
+        <p>Answer 3 quick questions to confirm your archetype.</p>
+        <a routerLink="/ritual-dna">CONFIRM IN 3 QUESTIONS →</a>
+        <a class="estimated-dna-invite__full" routerLink="/ritual-dna" [queryParams]="{ full: '1', retake: '1' }">Take the full 7-question quiz</a>
+      </section>
+    }
+    <p class="ritual-intro">{{ dna.is_estimated ? 'An estimated profile based on your delivered orders. Confirm it to make it yours.' : 'Your living taste profile, created from your answers and saved to your account.' }}</p>
 
     <div class="ritual-top-grid" [attr.data-archetype]="dna.archetype?.id">
         <article class="dna-card" [attr.data-archetype]="dna.archetype?.id">
@@ -50,12 +58,13 @@
           @for (serving of dna.servings; track serving) { <span>{{ readableTag(serving) | titlecase }} serving</span> }
         </div>
         <div class="ritual-actions">
-          <a routerLink="/ritual-dna" [queryParams]="{ retake: '1' }">RETAKE QUIZ <span aria-hidden="true"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span></a>
+          <a routerLink="/ritual-dna" [queryParams]="{ retake: '1' }">{{ dna.is_estimated ? 'CONFIRM IN 3 QUESTIONS' : 'RETAKE QUIZ' }} <span aria-hidden="true"><svg lucideArrowRight class="inline-icon" aria-hidden="true"></svg></span></a>
           <span>Last updated {{ dna.updated_at | date:'mediumDate' }}</span>
         </div>
       </div>
     </div>
 
+    @if (!dna.is_estimated) {
     <section class="ritual-history" [attr.data-archetype]="dna.archetype?.id" aria-labelledby="ritual-history-title">
       <div class="ritual-history__heading">
         <div><span>YOUR STORY</span><h2 id="ritual-history-title">How your taste evolves</h2></div>
@@ -121,6 +130,7 @@
         }
       }
     </section>
+    }
   } @else {
     <div class="ritual-state ritual-state--empty">
       <span class="ritual-state__mark" aria-hidden="true"><svg lucideSparkle class="inline-icon" [attr.fill]="'currentColor'" aria-hidden="true"></svg></span>

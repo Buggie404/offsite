@@ -11,9 +11,9 @@ function invalid(message) {
   throw error;
 }
 
-function scoreQuiz(questions, answers, archetypes) {
-  if (!Array.isArray(questions) || questions.length !== 7) invalid('Ritual DNA quiz is not configured.');
-  if (!Array.isArray(answers) || answers.length !== questions.length) invalid('Answer all seven questions.');
+function scoreQuiz(questions, answers, archetypes, partial = false) {
+  if (!Array.isArray(questions) || questions.length !== (partial ? 3 : 7)) invalid('Ritual DNA quiz is not configured.');
+  if (!Array.isArray(answers) || answers.length !== questions.length) invalid(partial ? 'Answer all three questions.' : 'Answer all seven questions.');
   if (!Array.isArray(archetypes) || !archetypes.length) invalid('Ritual DNA archetypes are not configured.');
 
   const byQuestion = new Map();
@@ -50,7 +50,11 @@ function scoreQuiz(questions, answers, archetypes) {
   }
 
   const radar = Object.fromEntries(AXES.map(axis => {
-    const [min, max] = RAW_LIMITS[axis];
+    const [min, max] = partial ? questions.reduce(([lo, hi], question) => {
+      const weights = question.options.map(option => Number(option.score_weights?.[axis] || 0));
+      return [lo + Math.min(...weights), hi + Math.max(...weights)];
+    }, [0, 0]) : RAW_LIMITS[axis];
+    if (max === min) return [axis, 50];
     return [axis, Math.round(Math.max(0, Math.min(100, (raw[axis] - min) * 100 / (max - min))))];
   }));
   const distance = profile => Math.sqrt(AXES.reduce((sum, axis) => sum + (radar[axis] - profile[axis]) ** 2, 0));

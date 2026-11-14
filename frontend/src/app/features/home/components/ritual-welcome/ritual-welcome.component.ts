@@ -5,6 +5,7 @@ import { LucideArrowDown, LucideArrowRight, LucideAsterisk, LucideCoffee, Lucide
 import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 
 export interface HomeRitualProfile {
+  is_estimated?: boolean;
   archetype: { id: string; name: string; tagline: string } | null;
   radar: Record<string, number>;
 }

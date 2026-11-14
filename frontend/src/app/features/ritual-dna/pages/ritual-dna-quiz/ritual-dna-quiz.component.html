@@ -19,7 +19,8 @@
         <div class="story-mark"><svg lucideSparkles [size]="22" aria-hidden="true"></svg></div>
         <p class="micro-label">Offsite · RITUAL DNA</p>
         <h1>Find your cup.<br>Make it yours.</h1>
-        <p class="story-copy">Seven small choices reveal the flavours and rhythms that feel like you.</p>
+        <p class="story-copy">{{ confirmationMode ? 'Your orders gave us a starting point. Three quick answers will help confirm your ritual.' : 'Seven small choices reveal the flavours and rhythms that feel like you.' }}</p>
+        @if (confirmationMode) { <button class="full-quiz-option" type="button" [disabled]="saving" (click)="restart()">Prefer to start fresh? Take all 7 questions →</button> }
         <div class="axis-list" aria-label="Five Ritual DNA axes">
           <span>BRIGHTNESS</span><span>BOLDNESS</span><span>SWEETNESS</span><span>SKILL</span><span>TEMPO</span>
         </div>
@@ -44,7 +45,7 @@
       <section #quizQuestionStart class="quiz-card">
         <header class="quiz-card__header">
           <div>
-            <p class="micro-label">RITUAL DNA QUIZ</p>
+            <p class="micro-label">{{ confirmationMode ? 'CONFIRM YOUR ESTIMATED DNA' : 'RITUAL DNA QUIZ' }}</p>
             <p class="question-code">{{ question?.code }} · YOUR RITUAL</p>
           </div>
           <p class="step-count"><strong>{{ currentIndex + 1 }}</strong><span>/</span>{{ questions.length }}</p>

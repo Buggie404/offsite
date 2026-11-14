@@ -15,6 +15,11 @@
       @if (loading) {
         <h2 id="home-ritual-title">Finding<br><span>your rhythm.</span></h2>
         <p class="intro" role="status">Bringing your Ritual DNA into focus…</p>
+      } @else if (profile?.is_estimated) {
+        <p class="intro">ESTIMATED DNA · BASED ON YOUR ORDERS</p>
+        <h2 id="home-ritual-title">Your orders tell a story.<br><span>Make it yours.</span></h2>
+        <p class="description">We have a first glimpse of your taste. Answer 3 quick questions to confirm your Ritual DNA.</p>
+        <div class="actions"><button type="button" class="primary-link" (click)="openQuiz()">CONFIRM IN 3 QUESTIONS <svg lucideArrowRight [size]="18" aria-hidden="true"></svg></button></div>
       } @else if (profile) {
         <h2 id="home-ritual-title" class="greeting" [attr.aria-label]="greeting() + ', ' + userName + '.'"><span aria-hidden="true">{{ greeting() }}, <span class="greeting__name" [attr.title]="userName">{{ headlineName }}.</span></span></h2>
         <p class="description">A little more you, in every cup. Explore the drinks and recipes picked for your taste.</p>

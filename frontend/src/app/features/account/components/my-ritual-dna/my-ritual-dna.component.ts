@@ -16,6 +16,7 @@ interface RitualHistory {
 }
 
 interface RitualProfile {
+  is_estimated?: boolean;
   radar: Radar;
   baseline: Radar;
   archetype: { id: string; name: string; tagline: string; description: string; profile_version?: number } | null;
@@ -80,7 +81,7 @@ export class MyRitualDnaComponent implements OnInit {
     try {
       const response = await this.http.get('/ritual-dna/me') as { result: RitualProfile | null };
       this.profile.set(response.result);
-      if (response.result) void this.loadRecommendations();
+      if (response.result && !response.result.is_estimated) void this.loadRecommendations();
     } catch (error: any) {
       this.error.set(error?.error || error?.message || 'Could not load your Ritual DNA.');
     } finally {

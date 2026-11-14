@@ -216,3 +216,15 @@
 .evolution-chart__axis--second .evolution-chart__swatch { border-color: #d39b83; border-top-style: dashed; }
 .ritual-history__hint { margin: 16px 0 0; color: #81776e; font-size: 11px; line-height: 1.5; }
 @media (max-width: 640px) { .ritual-history__heading .ritual-history__period { display: block; margin-top: 9px; } .evolution-chart { padding-inline: 10px; } .evolution-chart svg { height: 130px; } }
+.estimated-dna-invite {
+  margin-bottom: 24px;
+  padding: 24px;
+  border: 1px solid #c8d9b3;
+  border-radius: 12px;
+  background: linear-gradient(115deg, #fffdf7, #edf3df);
+  > span { display: inline-block; padding: 5px 9px; border-radius: 20px; background: #fff0b8; color: #78622a; font: 11px var(--font-mono); letter-spacing: .07em; }
+  h2 { margin: 12px 0 8px; font-size: 22px; }
+  p { margin: 0 0 20px; color: #626a59; }
+  a { display: inline-block; padding: 12px 16px; border-radius: 6px; background: #375534; color: #fff; font-size: 12px; text-decoration: none; }
+  a.estimated-dna-invite__full { background: transparent; color: #375534; text-decoration: underline; }
+}

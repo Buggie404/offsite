@@ -36,6 +36,8 @@ interface RitualQuestion {
 }
 
 interface RitualResult {
+  is_estimated?: boolean;
+  quiz_taken_at?: string | null;
   radar: Radar;
   archetype: { id: string; name: string; tagline: string; description: string; profile_version?: number };
   drink_lean: number;
@@ -69,6 +71,7 @@ export class RitualDnaQuizComponent implements OnInit {
   shareCardFile: File | null = null;
   sharing = false;
   quizVersion = '';
+  confirmationMode = false;
   result: RitualResult | null = null;
   loading = true;
   saving = false;
@@ -84,14 +87,13 @@ export class RitualDnaQuizComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     const retakeRequested = this.route.snapshot.queryParamMap.get('retake') === '1';
     try {
-      const [quiz, profile] = await Promise.all([
-        this.http.get('/ritual-dna/questions') as Promise<{ quiz_version: string; questions: RitualQuestion[] }>,
-        this.http.get('/ritual-dna/me') as Promise<{ result: RitualResult | null }>
-      ]);
+      const profile = await this.http.get('/ritual-dna/me') as { result: RitualResult | null };
+      this.confirmationMode = !!profile.result?.is_estimated && this.route.snapshot.queryParamMap.get('full') !== '1';
+      const quiz = await this.http.get('/ritual-dna/questions' + (this.confirmationMode ? '?mode=confirmation' : '')) as { quiz_version: string; questions: RitualQuestion[] };
       this.questions = quiz.questions;
       this.quizVersion = quiz.quiz_version;
       this.result = profile.result;
-      this.completed = Boolean(profile.result) && !retakeRequested;
+      this.completed = Boolean(profile.result?.quiz_taken_at) && !retakeRequested;
     } catch (error: any) {
       this.errorMessage = error?.error || error?.message || 'Could not load Ritual DNA. Please try again.';
     } finally {
@@ -183,7 +185,7 @@ export class RitualDnaQuizComponent implements OnInit {
     this.saving = true;
     try {
       const response = await this.http.post('/ritual-dna/quiz', {
-        quiz_version: this.quizVersion, answers
+        quiz_version: this.quizVersion, mode: this.confirmationMode ? 'confirmation' : 'full', answers
       }) as { result: RitualResult };
       this.result = response.result;
       this.ritualInvite.quizCompleted();
@@ -203,7 +205,17 @@ export class RitualDnaQuizComponent implements OnInit {
     }
   }
 
-  restart(): void {
+  async restart(): Promise<void> {
+    if (this.confirmationMode) {
+      this.loading = true;
+      try {
+        const quiz = await this.http.get('/ritual-dna/questions') as { quiz_version: string; questions: RitualQuestion[] };
+        this.questions = quiz.questions;
+        this.quizVersion = quiz.quiz_version;
+        this.confirmationMode = false;
+      } catch { this.errorMessage = 'Could not load the full quiz. Please try again.'; return; }
+      finally { this.loading = false; this.cdr.markForCheck(); }
+    }
     this.answers.clear();
     this.currentIndex = 0;
     this.furthestAnsweredIndex = -1;

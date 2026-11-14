@@ -52,6 +52,7 @@ const ritualDnaSchema = new mongoose.Schema({
   taste_radar: { type: radarSchema, required: true },
   quiz_baseline: { type: radarSchema, required: true },
   quiz_version: { type: String, default: null },
+  quiz_mode: { type: String, enum: ['full', 'confirmation', 'estimated'], default: 'full' },
   quiz_taken_at: { type: Date, default: null },
   evolution_logs: { type: [evolutionLogSchema], default: [] },
   behavior_events: { type: [behaviorEventSchema], default: [] },
