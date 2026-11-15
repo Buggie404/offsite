@@ -1,211 +1,151 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, forkJoin, map, catchError, of } from 'rxjs';
-import { AdminOrderService } from '../../orders/services/admin-order.service';
-import { AdminOrderListItem } from '../../orders/models/admin-order.model';
+import { HttpClient } from '@angular/common/http';
+import { Observable, catchError, map, of } from 'rxjs';
+import { AdminAuthService } from '../../auth/services/admin-auth.service';
+import { AdminRole } from '../../../shared/models/admin-role.model';
 
+/**
+ * Notice types sent by GET /api/admin/notifications. Which role receives which type is decided
+ * on the server (NOTIFICATION_REGISTRY in admin-notifications.controller.js); ADMIN_NOTIFICATION_ROLES
+ * below mirrors it for the UI only.
+ */
 export type AdminNotificationType =
-  | 'refund_pending'
+  | 'refund_requested'
+  | 'refund_payout'
+  | 'processing_late'
   | 'ready_to_ship'
-  | 'urgent_processing';
+  | 'delivery_failed'
+  | 'box_not_started'
+  | 'box_payment_failed'
+  | 'box_suspended'
+  | 'box_out_of_stock'
+  | 'stock_out'
+  | 'stock_low'
+  | 'expiry_missing'
+  | 'report_pending'
+  | 'recipe_resubmitted'
+  | 'chat_waiting'
+  | 'chat_needs_reply'
+  | 'contact_new';
+
+export type AdminNotificationCategory = 'orders' | 'ritual_box' | 'products' | 'community' | 'support';
+export type AdminNotificationTab = 'all' | AdminNotificationCategory;
+export type AdminNotificationTone = 'danger' | 'warning' | 'info' | 'neutral';
 
 export interface AdminNotification {
   id: string;
   type: AdminNotificationType;
-  orderId: string;
+  category: AdminNotificationCategory;
+  tone: AdminNotificationTone;
+  overdue: boolean;
   title: string;
   message: string;
-  createdAt: string;
+  /** null for ongoing states with no event time (e.g. stock levels) */
+  created_at: string | null;
+  link: string;
+  query: Record<string, string> | null;
+  mailto?: string;
 }
 
-/** How many days a processing order must be open to trigger the urgent alert */
-const URGENT_PROCESSING_DAYS = 3;
+export interface AdminNotificationsResponse {
+  data: AdminNotification[];
+  categories: AdminNotificationCategory[];
+  counts: Partial<Record<AdminNotificationCategory, number>>;
+  updated_at: string;
+}
+
+export const ADMIN_NOTIFICATION_TAB_LABELS: Record<AdminNotificationTab, string> = {
+  all: 'All',
+  orders: 'Orders',
+  ritual_box: 'Ritual Box',
+  products: 'Products',
+  community: 'Community',
+  support: 'Support'
+};
+
+/** Fallback tabs per role, used until the first response arrives (server sends `categories`). */
+export const ADMIN_NOTIFICATION_CATEGORIES: Record<AdminRole, readonly AdminNotificationCategory[]> = {
+  admin_cc: ['orders', 'ritual_box', 'products', 'community', 'support'],
+  qlsp: ['orders', 'ritual_box', 'products'],
+  cskh: ['orders', 'community', 'support']
+};
+
+/** "View all" target per tab. */
+export const ADMIN_NOTIFICATION_VIEW_ALL: Record<AdminNotificationCategory, { label: string; link: string; query?: Record<string, string> }> = {
+  orders: { label: 'Open orders that need attention', link: '/admin/orders', query: { attention: 'needs_attention', date: '90' } },
+  ritual_box: { label: 'Open Ritual Boxes that need action', link: '/admin/subscriptions', query: { status: 'needs_action' } },
+  products: { label: 'Open low-stock products', link: '/admin/products', query: { stock: 'low' } },
+  community: { label: 'Open community reports', link: '/admin/community-reports' },
+  support: { label: 'Open support chat', link: '/admin/chat' }
+};
 
 @Injectable({
   providedIn: 'root'
 })
 export class AdminNotificationService {
-  private readonly adminOrderService = inject(AdminOrderService);
-  private readonly readStorageKey = 'admin_notifications_read';
+  private readonly http = inject(HttpClient);
+  private readonly adminAuth = inject(AdminAuthService);
+  private readonly apiUrl = '/api/admin/notifications';
+  private readonly readStoragePrefix = 'admin_notifications_read';
 
-  /**
-   * Key → value: ISO date string (YYYY-MM-DD) of when the urgent notification
-   * was last shown for each orderId.  Stored in localStorage so it persists
-   * across page reloads within the same calendar day.
-   */
-  private readonly urgentShownKey = 'admin_urgent_shown';
-
-  loadNotifications(): Observable<AdminNotification[]> {
-    return forkJoin({
-      refunds: this.adminOrderService
-        .getOrders({ order_status: 'pending_refund', date_range: '90', limit: 20 })
-        .pipe(
-          map((response) => response.data),
-          catchError(() => of([] as AdminOrderListItem[]))
-        ),
-      processing: this.adminOrderService
-        .getOrders({ order_status: 'processing', date_range: '90', limit: 50 })
-        .pipe(
-          map((response) => response.data),
-          catchError(() => of([] as AdminOrderListItem[]))
-        )
-    }).pipe(
-      map(({ refunds, processing }) => {
-        const refundItems = refunds.map((order) =>
-          this.toNotification(order, 'refund_pending')
-        );
-
-        // Ready-to-ship = all processing orders (existing behaviour)
-        const shipItems = processing.map((order) =>
-          this.toNotification(order, 'ready_to_ship')
-        );
-
-        // Urgent = processing orders that have been open ≥ URGENT_PROCESSING_DAYS
-        const urgentItems = processing
-          .filter((order) => this.isOrderOverdue(order))
-          .map((order) => this.toNotification(order, 'urgent_processing'));
-
-        return [...refundItems, ...shipItems, ...urgentItems].sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-      })
+  loadNotifications(): Observable<AdminNotificationsResponse | null> {
+    return this.http.get<AdminNotificationsResponse>(this.apiUrl).pipe(
+      map((response) => ({
+        data: response?.data || [],
+        categories: response?.categories || this.fallbackCategories(),
+        counts: response?.counts || {},
+        updated_at: response?.updated_at || new Date().toISOString()
+      })),
+      // Keep the last list on a failed poll (the caller ignores null).
+      catchError(() => of(null))
     );
+  }
+
+  fallbackCategories(): AdminNotificationCategory[] {
+    const role = this.adminAuth.getAdminRole();
+    return role ? [...ADMIN_NOTIFICATION_CATEGORIES[role]] : [];
+  }
+
+  isRead(item: AdminNotification): boolean {
+    return this.getReadIds().has(item.id);
   }
 
   getUnreadCount(notifications: AdminNotification[]): number {
     const readIds = this.getReadIds();
-    return notifications.filter((item) => {
-      if (item.type === 'urgent_processing') {
-        return this.shouldShowUrgentToday(item.orderId) && !readIds.has(item.id);
-      }
-      return !readIds.has(item.id);
-    }).length;
+    return notifications.filter((item) => !readIds.has(item.id)).length;
   }
 
   markAsRead(notificationId: string): void {
     const readIds = this.getReadIds();
     readIds.add(notificationId);
     this.persistReadIds(readIds);
-
-    // If it's an urgent notification, record that we've shown it today
-    if (notificationId.startsWith('urgent_processing:')) {
-      const orderId = notificationId.replace('urgent_processing:', '');
-      this.recordUrgentShown(orderId);
-    }
   }
 
   markAllAsRead(notifications: AdminNotification[]): void {
     const readIds = this.getReadIds();
-    notifications.forEach((item) => {
-      readIds.add(item.id);
-      if (item.type === 'urgent_processing') {
-        this.recordUrgentShown(item.orderId);
-      }
-    });
+    notifications.forEach((item) => readIds.add(item.id));
     this.persistReadIds(readIds);
   }
 
-  // ── Private helpers ────────────────────────────────────────────────────────
-
-  private toNotification(
-    order: AdminOrderListItem,
-    type: AdminNotificationType
-  ): AdminNotification {
-    if (type === 'refund_pending') {
-      return {
-        id: `refund_pending:${order.order_id}`,
-        type,
-        orderId: order.order_id,
-        title: `Refund request · #${order.order_id}`,
-        message: `${order.customer_name} requested a refund`,
-        createdAt: order.created_at
-      };
-    }
-
-    if (type === 'urgent_processing') {
-      const days = this.daysSince(order.created_at);
-      return {
-        id: `urgent_processing:${order.order_id}`,
-        type,
-        orderId: order.order_id,
-        title: `Order needs urgent preparation · #${order.order_id}`,
-        message: `${order.customer_name} — processing for ${days} day${days !== 1 ? 's' : ''}`,
-        createdAt: order.created_at
-      };
-    }
-
-    // ready_to_ship
-    return {
-      id: `ready_to_ship:${order.order_id}`,
-      type,
-      orderId: order.order_id,
-      title: `Ready to ship · #${order.order_id}`,
-      message: `${order.customer_name} — mark as Shipping`,
-      createdAt: order.created_at
-    };
+  /** Forget read marks for notices that are gone, so storage doesn't grow forever. */
+  pruneReadIds(notifications: AdminNotification[]): void {
+    const current = new Set(notifications.map((item) => item.id));
+    const readIds = this.getReadIds();
+    const kept = new Set([...readIds].filter((id) => current.has(id)));
+    if (kept.size !== readIds.size) this.persistReadIds(kept);
   }
 
-  /** Returns true if the order has been in "processing" for ≥ URGENT_PROCESSING_DAYS. */
-  private isOrderOverdue(order: AdminOrderListItem): boolean {
-    return this.daysSince(order.created_at) >= URGENT_PROCESSING_DAYS;
-  }
+  // ── Read state: localStorage, one key per admin account ──────────────────
 
-  /** Returns the number of whole calendar days since `isoDate`. */
-  private daysSince(isoDate: string): number {
-    const created = new Date(isoDate).getTime();
-    if (Number.isNaN(created)) return 0;
-    const now = Date.now();
-    return Math.floor((now - created) / (1_000 * 60 * 60 * 24));
+  private get readStorageKey(): string {
+    const user = this.adminAuth.getUser();
+    return `${this.readStoragePrefix}:${user?.user_id || user?._id || 'anonymous'}`;
   }
-
-  /**
-   * Returns true if we haven't shown the urgent notification for this order today.
-   * Uses today's YYYY-MM-DD string as the "shown" marker stored in localStorage.
-   */
-  private shouldShowUrgentToday(orderId: string): boolean {
-    const shownMap = this.getUrgentShownMap();
-    const today = this.todayString();
-    return shownMap[orderId] !== today;
-  }
-
-  /** Record that we showed the urgent notification for this order today. */
-  private recordUrgentShown(orderId: string): void {
-    const shownMap = this.getUrgentShownMap();
-    shownMap[orderId] = this.todayString();
-    this.persistUrgentShownMap(shownMap);
-  }
-
-  private todayString(): string {
-    return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  }
-
-  private getUrgentShownMap(): Record<string, string> {
-    if (typeof localStorage === 'undefined') return {};
-    try {
-      const raw = localStorage.getItem(this.urgentShownKey);
-      return raw ? (JSON.parse(raw) as Record<string, string>) : {};
-    } catch {
-      return {};
-    }
-  }
-
-  private persistUrgentShownMap(map: Record<string, string>): void {
-    if (typeof localStorage === 'undefined') return;
-    try {
-      localStorage.setItem(this.urgentShownKey, JSON.stringify(map));
-    } catch {
-      // Ignore storage errors
-    }
-  }
-
-  // ── Read-state helpers (sessionStorage) ───────────────────────────────────
 
   private getReadIds(): Set<string> {
-    if (typeof sessionStorage === 'undefined') {
-      return new Set();
-    }
-
+    if (typeof localStorage === 'undefined') return new Set();
     try {
-      const raw = sessionStorage.getItem(this.readStorageKey);
+      const raw = localStorage.getItem(this.readStorageKey);
       return new Set(raw ? (JSON.parse(raw) as string[]) : []);
     } catch {
       return new Set();
@@ -213,10 +153,11 @@ export class AdminNotificationService {
   }
 
   private persistReadIds(readIds: Set<string>): void {
-    if (typeof sessionStorage === 'undefined') {
-      return;
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(this.readStorageKey, JSON.stringify([...readIds]));
+    } catch {
+      // Ignore storage errors (quota, private mode).
     }
-
-    sessionStorage.setItem(this.readStorageKey, JSON.stringify([...readIds]));
   }
 }

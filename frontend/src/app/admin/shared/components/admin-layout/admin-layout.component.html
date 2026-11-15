@@ -110,7 +110,7 @@
 
       <!-- Actions: notification bell (always rightmost) -->
       <div class="header-actions">
-        <div class="header-notifications" #notificationsRoot *ngIf="canViewOrderNotifications">
+        <div class="header-notifications" #notificationsRoot *ngIf="canViewNotifications">
           <button
             type="button"
             class="btn btn-ghost header-notifications__trigger"
@@ -131,124 +131,117 @@
           @if (showNotifications) {
             <div class="header-notifications__panel" role="region" aria-label="Admin notifications">
               <div class="header-notifications__panel-header">
-                <p class="header-notifications__title">Notifications</p>
-                <p class="header-notifications__subtitle">Action required</p>
+                <div class="header-notifications__panel-heading">
+                  <p class="header-notifications__title">Notifications</p>
+                  <p class="header-notifications__subtitle">Action required · {{ adminRoleLabel }}</p>
+                </div>
+                @if (tabUnreadCount(activeNotificationTab) > 0) {
+                  <button type="button" class="header-notifications__read-all" (click)="markAllNotificationsRead($event)">
+                    <svg lucideCheckCheck aria-hidden="true" [size]="14"></svg>
+                    Read all
+                  </button>
+                }
+              </div>
+
+              <!-- Tabs: ALL + one tab per area this role is notified about -->
+              <div
+                class="header-notifications__tabs"
+                role="tablist"
+                aria-label="Notification categories"
+                [style.--tab-cols]="notificationTabColumns"
+              >
+                @for (tab of notificationTabs; track tab) {
+                  <button
+                    type="button"
+                    role="tab"
+                    class="header-notifications__tab"
+                    [class.header-notifications__tab--active]="activeNotificationTab === tab"
+                    [attr.aria-selected]="activeNotificationTab === tab"
+                    (click)="setNotificationTab(tab, $event)"
+                  >
+                    {{ notificationTabLabels[tab] }}
+                    @if (tabUnreadCount(tab) > 0) {
+                      <span class="header-notifications__tab-count">{{ tabUnreadCount(tab) > 99 ? '99+' : tabUnreadCount(tab) }}</span>
+                    }
+                  </button>
+                }
               </div>
 
               @if (notificationsLoading) {
                 <p class="header-notifications__empty">Loading…</p>
-              } @else if (!notifications.length) {
-                <p class="header-notifications__empty">No new notifications</p>
+              } @else if (!filteredNotifications.length) {
+                <div class="header-notifications__empty">
+                  <svg lucideBell aria-hidden="true" [size]="28" class="header-notifications__empty-icon"></svg>
+                  <span>Nothing needs your attention here.</span>
+                </div>
               } @else {
                 <div class="header-notifications__body">
-
-                  <!-- ── Section 1: Refund Requests ─────────────────── -->
-                  @if (hasRefundNotifications) {
-                    <div class="notif-section">
-                      <div class="notif-section__head notif-section__head--refund">
-                        <svg lucideUndo2 aria-hidden="true" [size]="13"></svg>
-                        <span>Refund Requests</span>
-                      </div>
-                      <ul class="header-notifications__list">
-                        @for (item of refundNotifications; track item.id) {
-                          <li>
-                            <button
-                              type="button"
-                              class="header-notifications__item"
-                              (click)="openNotification(item, $event)"
-                            >
-                              <span class="header-notifications__item-icon header-notifications__item-icon--refund" aria-hidden="true">
-                                <svg lucideUndo2 [size]="15"></svg>
-                              </span>
-                              <span class="header-notifications__item-body">
-                                <span class="header-notifications__item-title">{{ item.title }}</span>
-                                <span class="header-notifications__item-message">{{ item.message }}</span>
-                                <span class="header-notifications__item-time">{{ formatNotificationTime(item.createdAt) }}</span>
-                              </span>
-                            </button>
-                          </li>
-                        }
-                      </ul>
-                      <button type="button" class="notif-section__view-btn notif-section__view-btn--refund" (click)="viewAllRefunds($event)">
-                        <svg lucideArrowRight aria-hidden="true" [size]="13"></svg>
-                        View all refund requests
-                      </button>
-                    </div>
-                  }
-
-                  <!-- ── Section 2: Orders to Ship ──────────────────── -->
-                  @if (hasShipNotifications) {
-                    <div class="notif-section">
-                      <div class="notif-section__head notif-section__head--ship">
-                        <svg lucideTruck aria-hidden="true" [size]="13"></svg>
-                        <span>Orders to Ship</span>
-                      </div>
-                      <ul class="header-notifications__list">
-                        @for (item of shipNotifications; track item.id) {
-                          <li>
-                            <button
-                              type="button"
-                              class="header-notifications__item"
-                              (click)="openNotification(item, $event)"
-                            >
-                              <span class="header-notifications__item-icon header-notifications__item-icon--ship" aria-hidden="true">
-                                <svg lucideTruck [size]="15"></svg>
-                              </span>
-                              <span class="header-notifications__item-body">
-                                <span class="header-notifications__item-title">{{ item.title }}</span>
-                                <span class="header-notifications__item-message">{{ item.message }}</span>
-                                <span class="header-notifications__item-time">{{ formatNotificationTime(item.createdAt) }}</span>
-                              </span>
-                            </button>
-                          </li>
-                        }
-                      </ul>
-                      <button type="button" class="notif-section__view-btn notif-section__view-btn--ship" (click)="viewAllToShip($event)">
-                        <svg lucideArrowRight aria-hidden="true" [size]="13"></svg>
-                        View orders to ship
-                      </button>
-                    </div>
-                  }
-
-                  <!-- ── Section 3: Urgent Processing ───────────────── -->
-                  @if (hasUrgentNotifications) {
-                    <div class="notif-section">
-                      <div class="notif-section__head notif-section__head--urgent">
-                        <svg lucideAlertTriangle aria-hidden="true" [size]="13"></svg>
-                        <span>Urgent Preparation Needed</span>
-                      </div>
-                      <ul class="header-notifications__list">
-                        @for (item of urgentNotifications; track item.id) {
-                          <li>
-                            <button
-                              type="button"
-                              class="header-notifications__item"
-                              (click)="openNotification(item, $event)"
-                            >
-                              <span class="header-notifications__item-icon header-notifications__item-icon--urgent" aria-hidden="true">
-                                <svg lucideAlertTriangle [size]="15"></svg>
-                              </span>
-                              <span class="header-notifications__item-body">
-                                <span class="header-notifications__item-title">{{ item.title }}</span>
-                                <span class="header-notifications__item-message">{{ item.message }}</span>
-                                <span class="header-notifications__item-time">{{ formatNotificationTime(item.createdAt) }}</span>
-                              </span>
-                            </button>
-                          </li>
-                        }
-                      </ul>
-                      <button type="button" class="notif-section__view-btn notif-section__view-btn--urgent" (click)="viewAllUrgent($event)">
-                        <svg lucideArrowRight aria-hidden="true" [size]="13"></svg>
-                        View overdue processing orders
-                      </button>
-                    </div>
-                  }
-
+                  <ul class="header-notifications__list">
+                    @for (item of filteredNotifications; track item.id) {
+                      <li>
+                        <button
+                          type="button"
+                          class="header-notifications__item"
+                          [class.header-notifications__item--unread]="!isNotificationRead(item)"
+                          (click)="openNotification(item, $event)"
+                        >
+                          <span
+                            class="header-notifications__item-icon"
+                            [ngClass]="'header-notifications__item-icon--' + item.tone"
+                            aria-hidden="true"
+                          >
+                            @switch (item.type) {
+                              @case ('refund_requested') { <svg lucideUndo2 [size]="15"></svg> }
+                              @case ('refund_payout') { <svg lucideBanknote [size]="15"></svg> }
+                              @case ('processing_late') { <svg lucideAlertTriangle [size]="15"></svg> }
+                              @case ('ready_to_ship') { <svg lucideTruck [size]="15"></svg> }
+                              @case ('delivery_failed') { <svg lucideTruck [size]="15"></svg> }
+                              @case ('box_not_started') { <svg lucideRepeat [size]="15"></svg> }
+                              @case ('box_payment_failed') { <svg lucideCreditCard [size]="15"></svg> }
+                              @case ('box_suspended') { <svg lucideCreditCard [size]="15"></svg> }
+                              @case ('box_out_of_stock') { <svg lucideBoxes [size]="15"></svg> }
+                              @case ('stock_out') { <svg lucideBoxes [size]="15"></svg> }
+                              @case ('stock_low') { <svg lucideBoxes [size]="15"></svg> }
+                              @case ('expiry_missing') { <svg lucideCalendarClock [size]="15"></svg> }
+                              @case ('report_pending') { <svg lucideFlag [size]="15"></svg> }
+                              @case ('recipe_resubmitted') { <svg lucideChefHat [size]="15"></svg> }
+                              @case ('chat_waiting') { <svg lucideMessageCircle [size]="15"></svg> }
+                              @case ('chat_needs_reply') { <svg lucideMessageCircle [size]="15"></svg> }
+                              @case ('contact_new') { <svg lucideMail [size]="15"></svg> }
+                              @default { <svg lucideBell [size]="15"></svg> }
+                            }
+                          </span>
+                          <span class="header-notifications__item-body">
+                            <span class="header-notifications__item-title">{{ item.title }}</span>
+                            <span class="header-notifications__item-message">{{ item.message }}</span>
+                            <span class="header-notifications__item-meta">
+                              @if (activeNotificationTab === 'all') {
+                                <span class="header-notifications__item-tag">{{ notificationCategoryLabel(item) }}</span>
+                              }
+                              @if (item.overdue) {
+                                <span class="header-notifications__item-tag header-notifications__item-tag--overdue">Overdue</span>
+                              }
+                              @if (item.created_at) {
+                                <span class="header-notifications__item-time">{{ formatNotificationTime(item.created_at) }}</span>
+                              }
+                            </span>
+                          </span>
+                          @if (!isNotificationRead(item)) {
+                            <span class="header-notifications__unread-dot" aria-label="Unread"></span>
+                          }
+                        </button>
+                      </li>
+                    }
+                  </ul>
                 </div>
               }
 
-
-
+              @if (activeViewAll; as viewAll) {
+                <button type="button" class="notif-section__view-btn" (click)="viewAllNotifications($event)">
+                  <svg lucideArrowRight aria-hidden="true" [size]="13"></svg>
+                  {{ viewAll.label }}
+                </button>
+              }
             </div>
           }
         </div>

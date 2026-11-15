@@ -244,7 +244,7 @@ async function listProducts(req, res) {
     // Keep the list response small; the editor loads the complete document by product_id.
     const products = await Product.find({}, {
       _id: 0, product_id: 1, name: 1, slug: 1, category: 1, product_tag: 1,
-      is_active: 1, is_best_seller: 1, is_new_arrival: 1,
+      is_active: 1, is_best_seller: 1, is_new_arrival: 1, batch_expiry_date: 1,
       'images.url': 1, 'images.sort_order': 1, 'images.alt_text': 1,
       'variants.sku': 1, 'variants.price': 1, 'variants.stock': 1, 'variants.is_default': 1, 'variants.low_stock_threshold': 1
     }).sort({ product_id: 1 }).lean();

@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, Injector, OnInit, afterNextRender, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -49,6 +49,7 @@ export class ProductFormComponent implements OnInit {
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   private cdr = inject(ChangeDetectorRef);
+  private injector = inject(Injector);
   private auth = inject(AdminAuthService);
   private cloudinary = inject(CloudinaryService);
   uploadingImages = false;
@@ -57,6 +58,22 @@ export class ProductFormComponent implements OnInit {
   imagePendingDelete: AdminProductImage | null = null;
   variantPendingDelete: VariantForm | null = null;
   variantPendingImageClear: VariantForm | null = null;
+  /** ?focus=batch-expiry (bell notice "Batch expiry missing"): scroll to the field and highlight it. */
+  focusBatchExpiry = false;
+  /** Matcha and coffee need a Pantry date; other categories have no shelf life. */
+  get batchExpiryMissing(): boolean {
+    return (this.form.category === 'matcha' || this.form.category === 'coffee') && !this.form.batch_expiry_date;
+  }
+  private scrollToBatchExpiry(): void {
+    if (this.route.snapshot.queryParamMap?.get('focus') !== 'batch-expiry') return;
+    this.focusBatchExpiry = true;
+    afterNextRender(() => {
+      const target = document.getElementById('batch-expiry');
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target?.querySelector<HTMLElement>('input, button')?.focus({ preventScroll: true });
+    }, { injector: this.injector });
+    setTimeout(() => { this.focusBatchExpiry = false; this.cdr.markForCheck(); }, 2500);
+  }
   get canViewHistory(): boolean { return this.auth.getAdminRole() === 'admin_cc'; }
   batches: ProductBatch[] = [];
   private publishedBatches: ProductBatch[] = [];
@@ -163,7 +180,7 @@ export class ProductFormComponent implements OnInit {
     this.productsApi.get(productId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ data }) => { this.product = data; this.form = this.toForm(data); this.hydrateTextFields(); this.loading = false;
         if (this.route.snapshot.queryParamMap?.get('draftSaved') === '1') this.notice = 'Draft saved. You can continue editing or publish this product.';
-        this.loadRelated(data.product_id); this.cdr.markForCheck(); },
+        this.loadRelated(data.product_id); this.cdr.markForCheck(); this.scrollToBatchExpiry(); },
       error: (err) => { this.loadFailed = true; this.error = err?.error?.error || 'Could not load this product.'; this.loading = false; this.cdr.markForCheck(); }
     });
   }

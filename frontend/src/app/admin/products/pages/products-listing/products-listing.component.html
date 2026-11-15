@@ -36,6 +36,9 @@
     <button type="button" class="low-stock-filter out-stock-filter" [class.is-active]="stockFilter === 'out'" [attr.aria-pressed]="stockFilter === 'out'" (click)="toggleStockFilter('out')">
       <svg lucideAlertTriangle [size]="14"></svg> Out of stock ({{ outOfStockCount }})
     </button>
+    <button type="button" class="low-stock-filter expiry-filter" *ngIf="expiryMissingCount || expiryMissingFilter" [class.is-active]="expiryMissingFilter" [attr.aria-pressed]="expiryMissingFilter" (click)="toggleExpiryMissingFilter()">
+      <svg lucideCalendarClock [size]="14"></svg> Missing batch expiry ({{ expiryMissingCount }})
+    </button>
     <button type="button" class="low-stock-filter drafts-filter" [class.is-active]="viewingDrafts" [attr.aria-pressed]="viewingDrafts" (click)="toggleDrafts()">Drafts ({{ draftsLoading ? '…' : draftRows.length }})</button>
   </div>
 

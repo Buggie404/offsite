@@ -37,13 +37,24 @@ import {
   LucideActivity,
   LucideChevronDown,
   LucideStar,
-  LucideListChecks
+  LucideListChecks,
+  LucideCheckCheck,
+  LucideCreditCard,
+  LucideBoxes,
+  LucideCalendarClock,
+  LucideMail,
+  LucideBanknote
 } from '@lucide/angular';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { AdminRefreshService } from '../../services/admin-refresh.service';
 import {
+  ADMIN_NOTIFICATION_TAB_LABELS,
+  ADMIN_NOTIFICATION_VIEW_ALL,
   AdminNotification,
-  AdminNotificationService
+  AdminNotificationCategory,
+  AdminNotificationService,
+  AdminNotificationTab,
+  AdminNotificationsResponse
 } from '../../services/admin-notification.service';
 import { ADMIN_NAV_GROUPS, AdminNavGroup, AdminNavItem } from '../../../admin-navigation.config';
 import { ADMIN_ROLE_LABELS } from '../../../../shared/models/admin-role.model';
@@ -114,7 +125,13 @@ export function headerSearchFor(path: string): HeaderSearchSection | null {
     LucideActivity,
     LucideChevronDown,
     LucideStar,
-    LucideListChecks
+    LucideListChecks,
+    LucideCheckCheck,
+    LucideCreditCard,
+    LucideBoxes,
+    LucideCalendarClock,
+    LucideMail,
+    LucideBanknote
   ],
   templateUrl: './admin-layout.component.html',
   styleUrl: './admin-layout.component.scss'
@@ -138,7 +155,10 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   showAdminUserMenu = false;
   notificationsLoading = false;
   notifications: AdminNotification[] = [];
+  notificationCategories: AdminNotificationCategory[] = [];
+  activeNotificationTab: AdminNotificationTab = 'all';
   unreadCount = 0;
+  readonly notificationTabLabels = ADMIN_NOTIFICATION_TAB_LABELS;
 
   /** Whether the mobile/tablet slide-in sidebar is visible */
   sidebarOpen = false;
@@ -189,9 +209,9 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     return this.searchPlaceholder.replace(/(\.\.\.|…)$/, '');
   }
 
-  get canViewOrderNotifications(): boolean {
-    const role = this.adminAuth.getAdminRole();
-    return role === 'admin_cc' || role === 'cskh' || role === 'qlsp';
+  /** Every admin role has a bell; what each role receives is filtered on the server. */
+  get canViewNotifications(): boolean {
+    return !!this.adminAuth.getAdminRole();
   }
 
   @HostListener('document:keydown.escape')
@@ -248,28 +268,31 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
 
     this.warmRecipesPage();
 
-    if (this.canViewOrderNotifications) {
+    if (this.canViewNotifications) {
+      this.notificationCategories = this.adminNotifications.fallbackCategories();
+
       interval(this.pollIntervalMs)
         .pipe(
           startWith(0),
           switchMap(() => this.adminNotifications.loadNotifications()),
           takeUntilDestroyed(this.destroyRef)
         )
-        .subscribe((items) => this.applyNotifications(items, false));
+        .subscribe((response) => this.applyNotifications(response));
 
+      // Order actions (refund decided, status changed...) refresh the bell right away.
       this.adminRefresh.onNotificationsRefresh$
         .pipe(
           switchMap(() => this.adminNotifications.loadNotifications()),
           takeUntilDestroyed(this.destroyRef)
         )
-        .subscribe((items) => this.applyNotifications(items, false));
+        .subscribe((response) => this.applyNotifications(response));
 
       this.adminRefresh.onOrdersListRefresh$
         .pipe(
           switchMap(() => this.adminNotifications.loadNotifications()),
           takeUntilDestroyed(this.destroyRef)
         )
-        .subscribe((items) => this.applyNotifications(items, false));
+        .subscribe((response) => this.applyNotifications(response));
     }
   }
 
@@ -291,39 +314,66 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     void this.router.navigateByUrl(this.adminAuth.getDefaultRoute(), { replaceUrl: true });
   }
 
-  private applyNotifications(items: AdminNotification[], markRead: boolean): void {
-    this.notifications = items;
-    if (markRead) {
-      this.adminNotifications.markAllAsRead(items);
-    }
-    this.unreadCount = this.adminNotifications.getUnreadCount(items);
+  private applyNotifications(response: AdminNotificationsResponse | null): void {
     this.notificationsLoading = false;
+    if (response) {
+      this.notifications = response.data;
+      this.notificationCategories = response.categories;
+      if (this.activeNotificationTab !== 'all' && !this.notificationCategories.includes(this.activeNotificationTab)) {
+        this.activeNotificationTab = 'all';
+      }
+      this.adminNotifications.pruneReadIds(response.data);
+    }
+    this.unreadCount = this.adminNotifications.getUnreadCount(this.notifications);
     this.cdr.markForCheck();
   }
 
-  get hasRefundNotifications(): boolean {
-    return this.notifications.some((item) => item.type === 'refund_pending');
+  // ── Notification tabs (same idea as the customer bell: ALL + one tab per area) ──
+
+  get notificationTabs(): AdminNotificationTab[] {
+    return ['all', ...this.notificationCategories];
   }
 
-  get hasShipNotifications(): boolean {
-    return this.notifications.some((item) => item.type === 'ready_to_ship');
+  /** Columns so every row is full: 6 tabs → 3 per row, 4 tabs → 2 per row. */
+  get notificationTabColumns(): number {
+    const count = this.notificationTabs.length;
+    if (count <= 3) return count;
+    return count % 3 === 0 ? 3 : count % 2 === 0 ? 2 : 3;
   }
 
-  get hasUrgentNotifications(): boolean {
-    return this.notifications.some((item) => item.type === 'urgent_processing');
+  get filteredNotifications(): AdminNotification[] {
+    if (this.activeNotificationTab === 'all') return this.notifications;
+    return this.notifications.filter((item) => item.category === this.activeNotificationTab);
   }
 
-  /** Notifications filtered by type — used by the sectioned panel UI */
-  get refundNotifications(): AdminNotification[] {
-    return this.notifications.filter((item) => item.type === 'refund_pending');
+  get activeViewAll(): { label: string; link: string; query?: Record<string, string> } | null {
+    return this.activeNotificationTab === 'all' ? null : ADMIN_NOTIFICATION_VIEW_ALL[this.activeNotificationTab];
   }
 
-  get shipNotifications(): AdminNotification[] {
-    return this.notifications.filter((item) => item.type === 'ready_to_ship');
+  setNotificationTab(tab: AdminNotificationTab, event: MouseEvent): void {
+    event.stopPropagation();
+    this.activeNotificationTab = tab;
+    this.cdr.markForCheck();
   }
 
-  get urgentNotifications(): AdminNotification[] {
-    return this.notifications.filter((item) => item.type === 'urgent_processing');
+  tabUnreadCount(tab: AdminNotificationTab): number {
+    const items = tab === 'all' ? this.notifications : this.notifications.filter((item) => item.category === tab);
+    return this.adminNotifications.getUnreadCount(items);
+  }
+
+  isNotificationRead(item: AdminNotification): boolean {
+    return this.adminNotifications.isRead(item);
+  }
+
+  markAllNotificationsRead(event: MouseEvent): void {
+    event.stopPropagation();
+    this.adminNotifications.markAllAsRead(this.filteredNotifications);
+    this.unreadCount = this.adminNotifications.getUnreadCount(this.notifications);
+    this.cdr.markForCheck();
+  }
+
+  notificationCategoryLabel(item: AdminNotification): string {
+    return ADMIN_NOTIFICATION_TAB_LABELS[item.category];
   }
 
   /** On a list page the box mirrors its parameter; elsewhere it starts empty. */
@@ -392,16 +442,11 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     }
 
     this.showNotifications = true;
-    this.notificationsLoading = true;
     this.cdr.markForCheck();
 
-    this.adminNotifications.loadNotifications().subscribe({
-      next: (items) => this.applyNotifications(items, true),
-      error: () => {
-        this.notificationsLoading = false;
-        this.cdr.markForCheck();
-      }
-    });
+    // Show the cached list at once; refresh in the background.
+    this.notificationsLoading = !this.notifications.length;
+    this.adminNotifications.loadNotifications().subscribe((response) => this.applyNotifications(response));
   }
 
   closeNotifications(): void {
@@ -421,28 +466,19 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     this.adminNotifications.markAsRead(item.id);
     this.unreadCount = this.adminNotifications.getUnreadCount(this.notifications);
     this.closeNotifications();
-    void this.router.navigate(['/admin/orders', item.orderId]);
+    void this.router.navigate([item.link], item.query ? { queryParams: item.query } : {});
   }
 
-  viewAllRefunds(event: MouseEvent): void {
+  viewAllNotifications(event: MouseEvent): void {
     event.stopPropagation();
+    const target = this.activeViewAll;
+    if (!target) return;
     this.closeNotifications();
-    void this.router.navigate(['/admin/orders'], { queryParams: { status: 'pending_refund' } });
+    void this.router.navigate([target.link], target.query ? { queryParams: target.query } : {});
   }
 
-  viewAllToShip(event: MouseEvent): void {
-    event.stopPropagation();
-    this.closeNotifications();
-    void this.router.navigate(['/admin/orders'], { queryParams: { status: 'processing' } });
-  }
-
-  viewAllUrgent(event: MouseEvent): void {
-    event.stopPropagation();
-    this.closeNotifications();
-    void this.router.navigate(['/admin/orders'], { queryParams: { status: 'processing' } });
-  }
-
-  formatNotificationTime(value: string): string {
+  formatNotificationTime(value: string | null): string {
+    if (!value) return '';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
 

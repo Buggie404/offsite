@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink, Scroll } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, takeUntil, timer } from 'rxjs';
-import { LucideAlertTriangle, LucideChevronDown, LucideChevronLeft, LucideChevronRight, LucideDownload, LucideMoreHorizontal, LucidePlus } from '@lucide/angular';
+import { LucideAlertTriangle, LucideCalendarClock, LucideChevronDown, LucideChevronLeft, LucideChevronRight, LucideDownload, LucideMoreHorizontal, LucidePlus } from '@lucide/angular';
 import { AdminProductRow, AdminProductService, ProductCategory } from '../../services/admin-product.service';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ProductPublishFeedbackService } from '../../services/product-publish-feedback.service';
@@ -14,7 +14,7 @@ type TagFilter = 'all' | 'new_arrival' | 'best_seller';
 
 @Component({
   selector: 'app-admin-products', standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LucidePlus, LucideDownload, LucideAlertTriangle, LucideMoreHorizontal, LucideChevronDown, LucideChevronLeft, LucideChevronRight, ConfirmationModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LucidePlus, LucideDownload, LucideAlertTriangle, LucideCalendarClock, LucideMoreHorizontal, LucideChevronDown, LucideChevronLeft, LucideChevronRight, ConfirmationModalComponent],
   templateUrl: './products-listing.component.html', styleUrl: './products-listing.component.scss'
 })
 export class ProductsListingComponent implements OnInit, OnDestroy {
@@ -57,6 +57,8 @@ export class ProductsListingComponent implements OnInit, OnDestroy {
   status: StatusFilter = 'all';
   tag: TagFilter = 'all';
   stockFilter: 'all' | 'low' | 'out' = 'all';
+  /** ?expiry=missing — active matcha / coffee without a "Current batch expiry" (bell notice link) */
+  expiryMissingFilter = false;
   rows: AdminProductRow[] = [];
   draftRows: AdminProductRow[] = [];
   viewingDrafts = false;
@@ -93,6 +95,7 @@ export class ProductsListingComponent implements OnInit, OnDestroy {
       this.status = this.statuses.find(item => item.value === params['status'])?.value || 'all';
       this.tag = this.tags.find(item => item.value === params['tag'])?.value || 'all';
       this.stockFilter = !this.viewingDrafts && (params['stock'] === 'low' || params['stock'] === 'out') ? params['stock'] : 'all';
+      this.expiryMissingFilter = !this.viewingDrafts && params['expiry'] === 'missing';
       const page = Number(params['page']);
       this.page = Number.isSafeInteger(page) && page > 0 ? page : 1;
       const scroll = Number(params['scroll']);
@@ -150,6 +153,7 @@ export class ProductsListingComponent implements OnInit, OnDestroy {
       if (this.tag === 'best_seller' && !row.is_best_seller) return false;
       if (this.stockFilter === 'low' && !this.isLowStock(row)) return false;
       if (this.stockFilter === 'out' && !this.isOutOfStock(row)) return false;
+      if (this.expiryMissingFilter && !this.isMissingBatchExpiry(row)) return false;
       return true;
     }).sort((a, b) => a.product_id - b.product_id);
     if (resetPage) this.page = 1;
@@ -173,7 +177,8 @@ export class ProductsListingComponent implements OnInit, OnDestroy {
     return { view: this.viewingDrafts ? 'drafts' : null, search: this.search || null,
       category: this.category || null, status: this.status === 'all' ? null : this.status,
       tag: this.tag === 'all' ? null : this.tag,
-      stock: this.stockFilter === 'all' ? null : this.stockFilter, page: this.page > 1 ? this.page : null };
+      stock: this.stockFilter === 'all' ? null : this.stockFilter,
+      expiry: this.expiryMissingFilter ? 'missing' : null, page: this.page > 1 ? this.page : null };
   }
 
   toggleStockFilter(filter: 'low' | 'out'): void {
@@ -183,9 +188,17 @@ export class ProductsListingComponent implements OnInit, OnDestroy {
     this.setViewQuery();
   }
 
+  toggleExpiryMissingFilter(): void {
+    this.viewingDrafts = false;
+    this.expiryMissingFilter = !this.expiryMissingFilter;
+    this.applyFilters();
+    this.setViewQuery();
+  }
+
   toggleDrafts(): void {
     this.viewingDrafts = !this.viewingDrafts;
     this.stockFilter = 'all';
+    this.expiryMissingFilter = false;
     this.applyFilters();
     this.setViewQuery();
   }
@@ -226,6 +239,11 @@ export class ProductsListingComponent implements OnInit, OnDestroy {
 
   get pageCount(): number { return Math.max(1, Math.ceil(this.filteredRows.length / this.pageSize)); }
   get pages(): number[] { return Array.from({ length: this.pageCount }, (_, index) => index + 1).filter((value) => value <= 3 || value === this.pageCount || Math.abs(value - this.page) <= 1); }
+  get expiryMissingCount(): number { return this.rows.filter((row) => this.isMissingBatchExpiry(row)).length; }
+  /** Same rule as the bell notice and My Pantry: only matcha and coffee need the date. */
+  isMissingBatchExpiry(row: AdminProductRow): boolean {
+    return row.is_active && (row.category === 'matcha' || row.category === 'coffee') && !row.batch_expiry_date;
+  }
   get lowStockCount(): number { return this.rows.filter((row) => this.isLowStock(row)).length; }
   get outOfStockCount(): number { return this.rows.filter((row) => this.isOutOfStock(row)).length; }
   get shownStart(): number { return this.filteredRows.length ? (this.page - 1) * this.pageSize + 1 : 0; }

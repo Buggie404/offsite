@@ -89,6 +89,8 @@ export interface ProductHistoryEntry {
 
 export type AdminProductRow = Pick<AdminProduct,
   'product_id' | 'name' | 'slug' | 'category' | 'product_tag' | 'is_active' | 'is_best_seller' | 'is_new_arrival' | 'has_draft' | 'draft_saved_at' | 'is_new_product'> & {
+    /** My Pantry date (matcha / coffee); null = Pantry falls back to the default shelf life */
+    batch_expiry_date?: string | null;
     images: Pick<AdminProductImage, 'url' | 'sort_order' | 'alt_text'>[];
     variants: Pick<AdminProductVariant, 'sku' | 'price' | 'stock' | 'is_default' | 'low_stock_threshold'>[];
   };

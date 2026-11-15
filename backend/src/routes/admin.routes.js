@@ -6,6 +6,7 @@ const adminProductsController = require('../controllers/admin-products.controlle
 const authController = require('../controllers/auth.controller');
 const adminCommunityController = require('../controllers/admin-community.controller');
 const adminDashboardController = require('../controllers/admin-dashboard.controller');
+const adminNotificationsController = require('../controllers/admin-notifications.controller');
 const contactMessagesController = require('../controllers/contact-messages.controller');
 const adminStaffController = require('../controllers/admin-staff.controller');
 const adminActivityLogController = require('../controllers/admin-activity-log.controller');
@@ -67,6 +68,8 @@ router.patch('/vouchers/:id', authMiddleware, requireRole(...VOUCHER_MANAGE_ROLE
 // Activity log (Admin CC only, read-only): filter by role, action, time; CSV export.
 router.get('/activity-logs', authMiddleware, requireRole('admin_cc'), adminActivityLogController.listActivityLogs);
 router.get('/activity-logs/export', authMiddleware, requireRole('admin_cc'), adminActivityLogController.exportActivityLogs);
+// Header bell: action-required notices filtered by role (see NOTIFICATION_REGISTRY in the controller).
+router.get('/notifications', authMiddleware, requireRole('admin_cc', 'cskh', 'qlsp'), adminNotificationsController.getNotifications);
 router.get('/dashboard', authMiddleware, requireRole('admin_cc'), adminDashboardController.getDashboard);
 router.get('/sales-dashboard', authMiddleware, requireRole('admin_cc', 'qlsp'), adminDashboardController.getSalesDashboard);
 router.get('/services-dashboard', authMiddleware, requireRole('admin_cc', 'cskh'), adminDashboardController.getServicesDashboard);

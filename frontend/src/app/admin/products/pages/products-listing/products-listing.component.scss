@@ -14,6 +14,7 @@
 .low-stock-filter { height: 40px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(198,154,0,.5); background: #fbf3d5; color: #8a6a00; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; cursor: pointer; }
 .low-stock-filter.is-active { box-shadow: 0 0 0 2px rgba(198,154,0,.22); }
 .out-stock-filter { border-color: rgba(192,57,43,.35); background: #fbe4e1; color: #c0392b; }.out-stock-filter.is-active { box-shadow: 0 0 0 2px rgba(192,57,43,.18); }
+.expiry-filter { border-color: rgba(84,74,64,.28); background: #f3eee8; color: #544a40; }.expiry-filter.is-active { box-shadow: 0 0 0 2px rgba(84,74,64,.16); }
 .drafts-filter { border-color: rgba(55,85,52,.3); background: #edf2e8; color: #375534; }.drafts-filter.is-active { box-shadow: 0 0 0 2px rgba(55,85,52,.18); }
 .table-card { border: 1px solid rgba(84,74,64,.18); border-radius: 8px; background: #fffdf9; box-shadow: 0 2px 10px rgba(84,74,64,.07); overflow: visible; }
 .table-scroll { overflow-x: auto; border-radius: 8px 8px 0 0; }

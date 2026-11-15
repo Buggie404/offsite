@@ -135,6 +135,26 @@
 
       <section class="card batches-card">
         <h2>Batches and best-before dates</h2>
+        <!-- The one date My Pantry reads. Kept here, next to the batch table, so it isn't confused with Best before. -->
+        <div
+          id="batch-expiry"
+          class="pantry-expiry"
+          [class.pantry-expiry--missing]="batchExpiryMissing"
+          [class.pantry-expiry--focus]="focusBatchExpiry"
+        >
+          <label class="field">
+            <span>Current batch expiry · used by My Pantry</span>
+            <app-product-date-input [(value)]="form.batch_expiry_date" label="Current batch expiry"></app-product-date-input>
+          </label>
+          <p class="pantry-expiry__note">
+            @if (batchExpiryMissing) {
+              <strong>Not set.</strong> My Pantry is using the {{ form.category === 'matcha' ? 180 : 90 }}-day default for orders of this product.
+            } @else {
+              Applies to orders delivered after the day you publish it.
+            }
+            Best before in the table below is for stock records only; My Pantry does not read it.
+          </p>
+        </div>
         <p class="batch-stage-note">Confirming a row only updates this form. Save draft to keep it as a draft; Publish to apply batch changes.</p>
         <p class="batch-stage-note" *ngIf="batchesLoading" role="status">Loading batches…</p>
         <div class="variant-table-wrap"><table class="batch-table"><thead><tr><th>Batch</th><th>SKU</th><th>Received</th><th>Best before</th><th>Added by</th><th>Qty</th><th aria-label="Batch actions"></th></tr></thead><tbody>
@@ -159,7 +179,6 @@
       <section class="card">
         <h2>Inventory & availability</h2>
         <div class="card-body fields-grid">
-          <label class="field"><span>Current batch expiry</span><app-product-date-input [(value)]="form.batch_expiry_date" label="Current batch expiry"></app-product-date-input><small>Used by Pantry for future delivered orders.</small></label>
           <label class="field"><span>Subscription discount (%)</span><input type="number" min="5" max="15" step="1" [(ngModel)]="form.subscribe_discount_percent" [disabled]="!form.is_subscribable" /><small>Leave empty to use the shop default.</small></label>
           <label class="check-field"><input type="checkbox" [(ngModel)]="form.is_subscribable" /><span>Can be subscribed to</span></label>
           <label class="check-field"><input type="checkbox" [(ngModel)]="form.is_best_seller" /><span>Best seller</span></label>
