@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { LucideArrowLeft, LucideArrowRight, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideLock, LucideLockOpen } from '@lucide/angular';
+import { LucideArrowLeft, LucideArrowRight, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideLock, LucideLockOpen, LucideMessageSquare, LucideMessagesSquare, LucideStickyNote } from '@lucide/angular';
 import { ADMIN_ROLE_LABELS, AdminRole } from '../../../../shared/models/admin-role.model';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ToastService } from '../../../../shared/services/toast.service';
@@ -11,9 +11,10 @@ import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { AdminCustomersService, CustomerDetail, CustomerOrder } from '../../services/admin-customers.service';
 import { pageCount, pageList } from '../../pagination';
 import { CustomerConversation } from '../../services/admin-customers.service';
-import { ChatMessage, ChatService } from '../../../../core/services/chat.service';
+import { ChatMessage } from '../../../../core/services/chat.service';
 import { VouchersComponent } from '../../../vouchers/pages/vouchers/vouchers.component';
 import { AdminVoucher } from '../../../vouchers/services/admin-vouchers.service';
+import { AdminModerationService } from '../../../community-reports/services/admin-moderation.service';
 import { ReportPayload, ReportPostModalComponent } from '../../../../features/community/components/report-post-modal/report-post-modal.component';
 
 type Tab = 'conversations' | 'orders' | 'notes' | 'vouchers' | 'violations';
@@ -28,7 +29,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-admin-customer-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, ConfirmationModalComponent, LucideArrowLeft, LucideArrowRight, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideLock, LucideLockOpen, VouchersComponent, ReportPostModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, ConfirmationModalComponent, LucideArrowLeft, LucideArrowRight, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideLock, LucideLockOpen, LucideMessageSquare, LucideMessagesSquare, LucideStickyNote, VouchersComponent, ReportPostModalComponent],
   templateUrl: './customer-detail.component.html',
   styleUrl: './customer-detail.component.scss'
 })
@@ -40,7 +41,7 @@ export class CustomerDetailComponent implements OnInit {
   private adminAuth = inject(AdminAuthService);
   get isSenior(): boolean { return this.adminAuth.getAdminRole() === 'admin_cc'; }
   private cdr = inject(ChangeDetectorRef);
-  private chatService = inject(ChatService);
+  private moderation = inject(AdminModerationService);
   conversations: CustomerConversation[] = [];
   selectedConversation: CustomerConversation | null = null;
   conversationMessages: ChatMessage[] = [];
@@ -150,8 +151,9 @@ export class CustomerDetailComponent implements OnInit {
   reportCustomer(payload: ReportPayload): void {
     if (!this.customer || this.reportPending) return;
     this.reportPending = true; this.reportError = '';
-    this.chatService.reportCustomer(this.customer.user_id, payload.reason, payload.note).subscribe({
-      next: () => { this.reportPending = false; this.reportOpen = false; this.toast.success('Account report submitted for review.'); this.cdr.markForCheck(); },
+    if (!payload.penalty) { this.reportPending = false; return; }
+    this.moderation.penalizeAccount(this.customer.user_id, payload.reason, payload.note, payload.penalty).subscribe({
+      next: () => { this.reportPending = false; this.reportOpen = false; this.toast.success('Penalty applied.'); this.load(); this.cdr.markForCheck(); },
       error: err => { this.reportPending = false; this.reportError = err?.error?.error || 'The report could not be submitted.'; this.cdr.markForCheck(); }
     });
   }
@@ -167,7 +169,7 @@ export class CustomerDetailComponent implements OnInit {
       next: (res) => {
         this.customer = res.data;
         this.loading = false;
-        this.loadOrders(1);
+        if (this.customer.can_view_orders !== false) this.loadOrders(1);
         this.cdr.markForCheck();
       },
       error: (err) => {

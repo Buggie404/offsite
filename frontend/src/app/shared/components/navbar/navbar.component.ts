@@ -1227,6 +1227,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
       case 'SUBSCRIPTION_NOT_STARTED':    return 'notif-icon--red';
       case 'SUBSCRIPTION_ADJUSTED':       return 'notif-icon--sage';
       case 'PANTRY_EXPIRY_SOON': return 'notif-icon--orange';
+      case 'PANTRY_EXPIRED':     return 'notif-icon--red';
+      case 'PANTRY_ITEM_ADDED':  return 'notif-icon--green';
       case 'POST_CREATED':     return 'notif-icon--green';
       case 'POST_LIKED':       return 'notif-icon--pink';
       case 'POST_COMMENTED':   return 'notif-icon--sage';

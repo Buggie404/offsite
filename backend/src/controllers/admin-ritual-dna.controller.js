@@ -279,9 +279,9 @@ async function deleteDraft(req, res) {
     if (!Number.isSafeInteger(version) || version < 1) return res.status(400).json({ error: 'Invalid version.' });
     const release = await Release.findOneAndDelete({ version, status: { $in: ['draft', 'archived'] }, published_at: null });
     if (!release) return res.status(409).json({ error: 'Only an unpublished draft can be deleted. Reopen a testing version first.' });
+    // Only which version was removed — the archetype content is not worth keeping in the log.
     await req.writeActivityLog({ actionType: 'ritual-dna.delete-draft', targetEntity: 'ritual_archetype_release',
-      targetId: String(version), oldValue: { status: release.status, source_version: release.source_version, archetypes: release.archetypes },
-      newValue: { deleted: true } });
+      targetId: String(version), oldValue: { version, status: release.status }, newValue: { deleted: true } });
     res.json({ data: { version, deleted: true } });
   } catch (error) {
     console.error('Could not delete Ritual DNA draft:', error);
@@ -376,7 +376,7 @@ async function deleteQuizDraft(req, res) {
     if (!Number.isSafeInteger(version) || version < 1) return res.status(400).json({ error: 'Invalid version.' });
     const release = await QuizRelease.findOneAndDelete({ version, status: 'draft', published_at: null });
     if (!release) return res.status(409).json({ error: 'Only an unpublished quiz draft can be deleted. Reopen a testing version first.' });
-    await req.writeActivityLog({ actionType: 'ritual-dna.quiz-delete-draft', targetEntity: 'ritual_quiz_release', targetId: String(version), oldValue: { questions: release.questions }, newValue: { deleted: true } });
+    await req.writeActivityLog({ actionType: 'ritual-dna.quiz-delete-draft', targetEntity: 'ritual_quiz_release', targetId: String(version), oldValue: { version, status: release.status }, newValue: { deleted: true } });
     res.json({ data: { version, deleted: true } });
   } catch (error) {
     console.error('Could not delete Ritual DNA quiz draft:', error);

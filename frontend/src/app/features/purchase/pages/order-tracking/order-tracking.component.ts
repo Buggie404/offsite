@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, ActivatedRoute } from '@angular/router';
@@ -27,6 +28,7 @@ import { isWithinRefundWindow, getRefundWindowNote } from '../../models/refund-w
   selector: 'app-order-tracking',
   standalone: true,
   imports: [
+    EmptyStateComponent,
     CommonModule,
     FormsModule,
     RouterLink,

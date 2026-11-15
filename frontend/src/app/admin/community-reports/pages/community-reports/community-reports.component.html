@@ -32,10 +32,7 @@
     <div class="state state--error">{{ error }} <button type="button" (click)="load()">Try again</button></div>
   } @else if (tab === 'waiting') {
     @if (!queue.length) {
-      <div class="state state--empty">
-        <svg lucideCircleCheck [size]="28"></svg>
-        <p>No reports waiting. The community is in good shape.</p>
-      </div>
+      <app-empty-state [compact]="true" eyebrow="Community reports" title="No reports waiting" text="The community is in good shape."></app-empty-state>
     }
     <div class="queue" [class.is-loading]="loading">
       @for (item of queue; track item.key) {
@@ -147,10 +144,7 @@
     </div>
   } @else {
     @if (!handled.length) {
-      <div class="state state--empty">
-        <svg lucideInbox [size]="28"></svg>
-        <p>Nothing handled yet.</p>
-      </div>
+      <app-empty-state [compact]="true" eyebrow="Community reports" title="Nothing handled yet" text="Reports you resolve will be listed here."></app-empty-state>
     } @else {
       <div class="handled-card" [class.is-loading]="loading">
         @for (row of handled; track row.action_id) {

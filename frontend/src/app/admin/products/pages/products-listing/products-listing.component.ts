@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { afterNextRender, ChangeDetectorRef, Component, DestroyRef, ElementRef, HostListener, Injector, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -14,7 +15,7 @@ type TagFilter = 'all' | 'new_arrival' | 'best_seller';
 
 @Component({
   selector: 'app-admin-products', standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LucidePlus, LucideDownload, LucideAlertTriangle, LucideCalendarClock, LucideMoreHorizontal, LucideChevronDown, LucideChevronLeft, LucideChevronRight, ConfirmationModalComponent],
+  imports: [EmptyStateComponent, CommonModule, FormsModule, RouterLink, LucidePlus, LucideDownload, LucideAlertTriangle, LucideCalendarClock, LucideMoreHorizontal, LucideChevronDown, LucideChevronLeft, LucideChevronRight, ConfirmationModalComponent],
   templateUrl: './products-listing.component.html', styleUrl: './products-listing.component.scss'
 })
 export class ProductsListingComponent implements OnInit, OnDestroy {

@@ -1,0 +1,238 @@
+// Shared empty state — mirrors the Ritual Box empty state (account › Ritual Box).
+:host {
+  display: block;
+  width: 100%;
+  container: empty-state / inline-size;
+  font-family: var(--font-body);
+  color: var(--color-near-black);
+}
+
+.es {
+  position: relative;
+  isolation: isolate;
+  min-height: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 88px 24px;
+  text-align: center;
+  // Keep the glow inside its own panel (matters in tables and side lists).
+  overflow: clip;
+
+  &--compact { min-height: 440px; padding: 64px 24px; }
+
+  &__glow {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    animation: es-breathe 9s ease-in-out infinite alternate;
+  }
+
+  &__blob {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    filter: blur(40px);
+
+    &--sage {
+      width: 520px;
+      height: 360px;
+      // Sage alone barely reads on cream, so the core mixes in some sage-deep.
+      background: radial-gradient(
+        closest-side,
+        color-mix(in srgb, var(--color-sage-deep) 70%, var(--color-sage)) 0%,
+        color-mix(in srgb, var(--color-sage-deep) 30%, var(--color-sage)) 45%,
+        rgba(207, 225, 185, 0) 100%
+      );
+      transform: translate(-50%, -50%);
+    }
+
+    &--blush {
+      width: 280px;
+      height: 220px;
+      background: radial-gradient(closest-side, var(--color-blush-pink), rgba(239, 181, 208, 0));
+      opacity: 0.9;
+      transform: translate(18%, -95%);
+    }
+
+    &--wheat {
+      width: 320px;
+      height: 220px;
+      background: radial-gradient(closest-side, var(--color-wheat), rgba(232, 213, 176, 0));
+      opacity: 0.9;
+      transform: translate(-110%, 0%);
+    }
+  }
+
+  &__core {
+    position: relative;
+    max-width: 440px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  &__eyebrow {
+    margin: 0 0 14px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-forest-green);
+  }
+
+  &__title {
+    margin: 0 0 12px;
+    font-family: 'Russo One', sans-serif;
+    font-size: 34px;
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--color-near-black);
+    text-wrap: balance;
+  }
+
+  &__text {
+    margin: 0;
+    font-size: 15px;
+    line-height: 24px;
+    color: var(--color-warm-brown);
+    text-wrap: pretty;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 28px;
+
+    &:not(:has(*)) { display: none; }
+  }
+
+  &__hint {
+    margin: 14px 0 0;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--color-warm-brown);
+  }
+
+  &__orbit {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+}
+
+// Projected CTAs (they live in the caller's template, hence ::ng-deep).
+:host ::ng-deep .es-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border: 1px solid rgba(84, 74, 64, 0.35);
+  border-radius: 999px;
+  background: #fffdf9;
+  color: var(--color-near-black);
+  font-family: var(--font-body) !important;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease, transform 0.2s ease;
+
+  svg { flex-shrink: 0; }
+
+  &:hover { background: var(--color-cream); border-color: var(--color-warm-brown); }
+  &:focus-visible { outline: 2px solid var(--color-forest-green); outline-offset: 2px; }
+}
+
+:host ::ng-deep .es-btn--primary {
+  background: var(--color-forest-green);
+  border-color: var(--color-forest-green);
+  color: var(--color-white);
+  // Lift the primary CTA off the glow.
+  box-shadow: 0 8px 24px rgba(55, 85, 52, 0.28);
+
+  &:hover {
+    background: var(--color-forest-green-hover);
+    border-color: var(--color-forest-green-hover);
+    box-shadow: 0 10px 28px rgba(55, 85, 52, 0.36);
+    transform: translateY(-1px);
+  }
+}
+
+// Hint chips around the glow
+.es-chip {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid rgba(84, 74, 64, 0.12);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 253, 249, 0.78);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px rgba(84, 74, 64, 0.08);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-near-black);
+  white-space: nowrap;
+
+  svg { flex-shrink: 0; color: var(--color-forest-green); }
+
+  &--1 { top: 13%;    left: 12%;  rotate: -3deg; }
+  &--2 { top: 17%;    right: 10%; rotate: 2deg;  }
+  &--3 { top: 46%;    left: 3%;   rotate: 1deg;  }
+  &--4 { top: 50%;    right: 3%;  rotate: -2deg; }
+  &--5 { bottom: 16%; left: 11%;  rotate: 2deg;  }
+  &--6 { bottom: 12%; right: 13%; rotate: -1deg; }
+}
+
+@keyframes es-breathe {
+  from { transform: scale(1); opacity: 0.9; }
+  to   { transform: scale(1.06); opacity: 1; }
+}
+
+// Not enough room to orbit: chips wrap into a centred row under the message.
+@container empty-state (max-width: 760px) {
+  .es {
+    min-height: 0;
+    padding: 56px 8px 40px;
+
+    &__blob        { top: 36%; }
+    &__blob--sage  { width: 360px; height: 300px; }
+    &__blob--blush { width: 200px; height: 170px; }
+    &__blob--wheat { width: 220px; height: 170px; transform: translate(-90%, 0%); }
+
+    &__title { font-size: 28px; }
+
+    &__orbit {
+      position: relative;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      max-width: 480px;
+      margin-top: 32px;
+    }
+  }
+
+  .es-chip {
+    position: static;
+    rotate: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .es__glow { animation: none; }
+}

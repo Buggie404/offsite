@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ChangeDetectorRef, Component, DestroyRef, EventEmitter, HostListener, Input, OnInit, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
@@ -85,7 +86,7 @@ const EMPTY_FORM: VoucherForm = {
 @Component({
   selector: 'app-admin-vouchers',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideSearch, LucidePlus, LucidePencil, LucideX, LucideChevronDown, LucideTriangleAlert, LucideInfo, LucideCheck, LucideLock, LucideCircleAlert, LucideCalendar],
+  imports: [EmptyStateComponent, CommonModule, FormsModule, LucideSearch, LucidePlus, LucidePencil, LucideX, LucideChevronDown, LucideTriangleAlert, LucideInfo, LucideCheck, LucideLock, LucideCircleAlert, LucideCalendar],
   templateUrl: './vouchers.component.html',
   styleUrl: './vouchers.component.scss'
 })
@@ -304,6 +305,11 @@ export class VouchersComponent implements OnInit {
   // Admin CC and QLSP edit and stop. CSKH only views and creates a complaint voucher.
   get canManage(): boolean {
     return this.role === 'admin_cc' || this.role === 'qlsp';
+  }
+
+  // Services Ops sees the voucher list only, not its performance.
+  get canViewPerformance(): boolean {
+    return this.role !== 'cskh';
   }
 
   get complaintOnly(): boolean {
@@ -815,7 +821,7 @@ export class VouchersComponent implements OnInit {
     this.performance = this.localEmpty(voucher);
     this.performanceError = '';
     this.performanceLoading = false;
-    if (refreshUsed && voucher.used_count > 0) this.loadPerformance(voucher._id);
+    if (refreshUsed && voucher.used_count > 0 && this.canViewPerformance) this.loadPerformance(voucher._id);
   }
 
   private localEmpty(voucher: AdminVoucher): VoucherPerformance {

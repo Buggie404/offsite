@@ -46,8 +46,8 @@
 
   <section class="card" aria-label="Recipes table">
     <p class="state-message" *ngIf="loading">Loading recipes…</p>
-    <p class="state-message" *ngIf="!loading && !rows.length && !error">No recipes yet.</p>
-    <p class="state-message" *ngIf="!loading && rows.length && !visibleRows.length">No recipes match these filters.</p>
+    <app-empty-state *ngIf="!loading && !rows.length && !error" [compact]="true" eyebrow="Recipes" title="No recipes yet" text="Recipes will be listed here once they are created."></app-empty-state>
+    <app-empty-state *ngIf="!loading && rows.length && !visibleRows.length" [compact]="true" eyebrow="Recipes" title="No recipes found" text="No recipes match these filters."></app-empty-state>
 
     <table class="recipe-table" *ngIf="!loading && visibleRows.length">
       <thead>

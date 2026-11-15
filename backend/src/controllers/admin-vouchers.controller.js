@@ -140,7 +140,8 @@ async function listVouchers(req, res) {
     const [creators, assignees, performance] = await Promise.all([
       creatorMap(vouchers),
       assigneeMap(vouchers),
-      focusDoc ? performanceFor(focusDoc) : Promise.resolve(null)
+      // Services Ops sees the voucher list only, never performance.
+      focusDoc && req.user.role !== 'cskh' ? performanceFor(focusDoc) : Promise.resolve(null)
     ]);
     const data = vouchers.map((voucher) => toRow(
       voucher,

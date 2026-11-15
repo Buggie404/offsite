@@ -28,7 +28,7 @@
     } @else if (error) {
       <p class="state-message state-message--error" role="alert">{{ error }}</p>
     } @else if (!rows.length) {
-      <p class="state-message">No subscriptions match these filters.</p>
+      <app-empty-state [compact]="true" eyebrow="Subscriptions" title="No subscriptions found" text="No subscriptions match these filters."></app-empty-state>
     } @else {
       <table class="sub-table">
         <thead>

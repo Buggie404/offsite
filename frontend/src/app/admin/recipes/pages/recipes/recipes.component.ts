@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ChangeDetectorRef, Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -50,7 +51,7 @@ interface FeaturedToast {
 @Component({
   selector: 'app-admin-recipes',
   standalone: true,
-  imports: [
+  imports: [EmptyStateComponent, 
     CommonModule,
     FormsModule,
     LucideChevronDown,

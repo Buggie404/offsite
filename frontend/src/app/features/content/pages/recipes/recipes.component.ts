@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Component, OnInit, OnDestroy, AfterViewInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -27,6 +28,7 @@ import { RitualFitComponent } from '../../../../shared/components/ritual-fit/rit
   selector: 'app-recipes',
   standalone: true,
   imports: [
+    EmptyStateComponent,
     LucideArrowRight,
     CommonModule, 
     FormsModule,

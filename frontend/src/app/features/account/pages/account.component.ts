@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, signal, computed, NgZone, ChangeDetectorRef, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
@@ -79,6 +80,7 @@ import { isWithinRefundWindow } from '../../purchase/models/refund-window.model'
   selector: 'app-account',
   standalone: true,
   imports: [
+    EmptyStateComponent,
     LucideWrench,
     CommonModule,
     ReactiveFormsModule,

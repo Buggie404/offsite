@@ -39,6 +39,7 @@ import {
   LucideStar,
   LucideListChecks,
   LucideCheckCheck,
+  LucideTrash2,
   LucideCreditCard,
   LucideBoxes,
   LucideCalendarClock,
@@ -127,6 +128,7 @@ export function headerSearchFor(path: string): HeaderSearchSection | null {
     LucideStar,
     LucideListChecks,
     LucideCheckCheck,
+    LucideTrash2,
     LucideCreditCard,
     LucideBoxes,
     LucideCalendarClock,
@@ -317,7 +319,8 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   private applyNotifications(response: AdminNotificationsResponse | null): void {
     this.notificationsLoading = false;
     if (response) {
-      this.notifications = response.data;
+      this.adminNotifications.pruneDeletedIds(response.data);
+      this.notifications = this.adminNotifications.withoutDeleted(response.data);
       this.notificationCategories = response.categories;
       if (this.activeNotificationTab !== 'all' && !this.notificationCategories.includes(this.activeNotificationTab)) {
         this.activeNotificationTab = 'all';
@@ -335,11 +338,6 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   }
 
   /** Columns so every row is full: 6 tabs → 3 per row, 4 tabs → 2 per row. */
-  get notificationTabColumns(): number {
-    const count = this.notificationTabs.length;
-    if (count <= 3) return count;
-    return count % 3 === 0 ? 3 : count % 2 === 0 ? 2 : 3;
-  }
 
   get filteredNotifications(): AdminNotification[] {
     if (this.activeNotificationTab === 'all') return this.notifications;
@@ -368,6 +366,26 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
   markAllNotificationsRead(event: MouseEvent): void {
     event.stopPropagation();
     this.adminNotifications.markAllAsRead(this.filteredNotifications);
+    this.unreadCount = this.adminNotifications.getUnreadCount(this.notifications);
+    this.cdr.markForCheck();
+  }
+
+  deleteNotification(item: AdminNotification, event: Event): void {
+    event.stopPropagation();
+    this.adminNotifications.delete([item]);
+    this.notifications = this.notifications.filter((row) => row.id !== item.id);
+    this.unreadCount = this.adminNotifications.getUnreadCount(this.notifications);
+    this.cdr.markForCheck();
+  }
+
+  /** Deletes every notice in the open tab (same scope as "Read all"). */
+  deleteAllNotifications(event: MouseEvent): void {
+    event.stopPropagation();
+    const items = this.filteredNotifications;
+    if (!items.length) return;
+    this.adminNotifications.delete(items);
+    const gone = new Set(items.map((item) => item.id));
+    this.notifications = this.notifications.filter((row) => !gone.has(row.id));
     this.unreadCount = this.adminNotifications.getUnreadCount(this.notifications);
     this.cdr.markForCheck();
   }
@@ -461,7 +479,7 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     this.cdr.markForCheck();
   }
 
-  openNotification(item: AdminNotification, event: MouseEvent): void {
+  openNotification(item: AdminNotification, event: Event): void {
     event.stopPropagation();
     this.adminNotifications.markAsRead(item.id);
     this.unreadCount = this.adminNotifications.getUnreadCount(this.notifications);

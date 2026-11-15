@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
@@ -52,7 +53,7 @@ import { OrderTypeBadgeComponent } from '../../../../shared/components/order-typ
 @Component({
   selector: 'app-orders-listing',
   standalone: true,
-  imports: [CommonModule, RouterLink, LucideDownload, LucideEye, LucideChevronDown, LucideCalendar, LucideAlertTriangle, OrderTypeBadgeComponent],
+  imports: [EmptyStateComponent, CommonModule, RouterLink, LucideDownload, LucideEye, LucideChevronDown, LucideCalendar, LucideAlertTriangle, OrderTypeBadgeComponent],
   templateUrl: './orders-listing.component.html',
   styleUrl: './orders-listing.component.scss'
 })

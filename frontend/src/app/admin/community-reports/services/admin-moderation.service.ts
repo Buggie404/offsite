@@ -81,6 +81,17 @@ export class AdminModerationService {
     return this.http.get<{ data: HandledItem[]; total: number; page: number; limit: number }>(`${this.api}/handled`, { params });
   }
 
+  /**
+   * Staff "Report account": apply the chosen penalty now (no pending report for review).
+   * The message is what the customer receives with the COMMUNITY_MODERATION notification.
+   */
+  penalizeAccount(userId: string, reason: string, note: string, penalty: PenaltyAction) {
+    const reasons: Record<string, string> = { spam: 'spam', inappropriate: 'inappropriate content', off_topic: 'off-topic content', misleading: 'misleading content', other: 'a community rule violation' };
+    const penalties: Record<PenaltyAction, string> = { warn: 'a warning', suspend_3d: 'a 3-day Community restriction', suspend_7d: 'a 7-day Community restriction' };
+    const message = [`Your account received ${penalties[penalty]} for ${reasons[reason] || reasons['other']}.`, note].filter(Boolean).join(' ');
+    return this.moderate({ target_type: 'account', target_id: userId, action: penalty, message, notify_reporters: false });
+  }
+
   moderate(body: ModerationRequest): Observable<{ data: { action_id: string; action: string; reports_closed: number } }> {
     return this.http.post<{ data: { action_id: string; action: string; reports_closed: number } }>(`${this.api}/moderate`, body);
   }

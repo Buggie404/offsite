@@ -44,6 +44,7 @@
     </label>
   </div>
 
+  @if (canViewPerformance) {
   <article class="perf" aria-label="Voucher performance">
     @if (selected && performance) {
       <header class="perf__header">
@@ -98,9 +99,10 @@
     } @else if (performanceError) {
       <div class="perf__empty">{{ performanceError }}</div>
     } @else {
-      <div class="perf__empty">No voucher in this view yet.</div>
+      <app-empty-state [compact]="true" eyebrow="Performance" title="No voucher in this view yet"></app-empty-state>
     }
   </article>
+  }
 
   <div class="table-card" [class.is-loading]="loading && vouchers.length">
     @if (loading && !vouchers.length) {
@@ -108,7 +110,7 @@
     } @else if (error) {
       <div class="state state--error">{{ error }} <button type="button" (click)="load()">Try again</button></div>
     } @else if (!vouchers.length) {
-      <div class="state">No vouchers match these filters.</div>
+      <app-empty-state [compact]="true" eyebrow="Vouchers" title="No vouchers found" text="No vouchers match these filters."></app-empty-state>
     } @else {
       <div class="table-scroll">
         <table class="vouchers-table">

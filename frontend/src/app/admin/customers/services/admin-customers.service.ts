@@ -50,6 +50,8 @@ export interface CustomerNote {
 
 export interface CustomerDetail extends CustomerRow {
   can_add_note?: boolean;
+  /** false for Services Ops when this customer is not assigned to them: profile is visible, orders are not. */
+  can_view_orders?: boolean;
   ritual_dna?: string | null;
   violation_level?: number;
   past_chats?: number;

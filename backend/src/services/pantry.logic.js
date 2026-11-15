@@ -107,14 +107,39 @@ function namesMatch(left, right) {
   return a.includes(b) || b.includes(a);
 }
 
-function expiryNotice(names) {
+const EXPIRY_NOTICE_DAYS = 3;
+
+function nameList(names) {
   const clean = (names || []).map(name => String(name || '').trim()).filter(Boolean);
-  if (!clean.length) return '';
+  if (!clean.length) return null;
   const shown = clean.slice(0, 3);
   const rest = clean.length - shown.length;
-  const list = rest > 0 ? `${shown.join(', ')} and ${rest} more` : shown.join(', ');
-  const verb = clean.length === 1 ? 'expires' : 'expire';
-  return `${list} ${verb} in 7 days.`;
+  return { text: rest > 0 ? `${shown.join(', ')} and ${rest} more` : shown.join(', '), one: clean.length === 1 };
+}
+
+// minDays / maxDays = days left across the items in the group (1..3).
+function expiryNotice(names, minDays = EXPIRY_NOTICE_DAYS, maxDays = minDays) {
+  const list = nameList(names);
+  if (!list) return '';
+  const verb = list.one ? 'expires' : 'expire';
+  if (minDays !== maxDays) return `${list.text} ${verb} within ${maxDays} days.`;
+  if (minDays <= 1) return `${list.text} ${verb} tomorrow.`;
+  return `${list.text} ${verb} in ${minDays} days.`;
+}
+
+// days = 0 on the expiry date; below 0 only when a missed daily run catches up.
+function expiredNotice(names, days = 0) {
+  const list = nameList(names);
+  if (!list) return '';
+  const what = days < 0 ? (list.one ? 'has expired' : 'have expired') : (list.one ? 'expires today' : 'expire today');
+  return `${list.text} ${what}. Check ${list.one ? 'it' : 'them'} before brewing.`;
+}
+
+function addedNotice(names, source) {
+  const list = nameList(names);
+  if (!list) return '';
+  const from = source === 'subscription' ? 'your Ritual Box delivery' : 'your delivered order';
+  return `${list.text} ${list.one ? 'was' : 'were'} added to My Pantry from ${from}.`;
 }
 
 function msUntilVnHour(hour, now = new Date()) {
@@ -670,7 +695,10 @@ module.exports = {
   adjustedIngredientAmount,
   consumptionAmount,
   PANTRY_UNITS,
+  EXPIRY_NOTICE_DAYS,
   expiryNotice,
+  expiredNotice,
+  addedNotice,
   msUntilVnHour,
   formatExpiryLabel,
   formatCompletedOn,

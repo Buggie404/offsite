@@ -48,10 +48,6 @@
 .violation-levels strong { font: 12px/16px var(--font-mono); }
 .violation-levels span { font-size: 11px; line-height: 17px; }
 .violation-levels .active { background: var(--color-forest-green); color: white; }
-.personal-voucher { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 0; border-bottom: 1px solid rgba(84,74,64,.18); }
-.personal-voucher:first-child { padding-top: 0; }
-.personal-voucher:last-child { border: 0; padding-bottom: 0; }
-.personal-voucher p { font-size: 12px; color: var(--color-warm-brown); margin: 4px 0 0; }
 .chip--open { background: #e3f0ff; color: #2563eb; }
 .chip--restricted { background: #fcf3d5; color: #977300; }
 .service-layout .tabs { overflow-y: hidden; }
@@ -77,7 +73,6 @@
 .voucher-facts dt { color: #8c8177; }
 .voucher-facts dd { margin: 0; color: var(--color-near-black); }
 .voucher-ticket--inactive .voucher-value { background: #f1ede7; color: #8d8277; border-right-color: #d8cfc5; }
-.service-sidebar .personal-voucher .chip:not(.chip--open) { background: #eeeae5; color: #766c62; }
 @media(max-width: 600px) { .voucher-list { padding: 16px; } .voucher-value { flex-basis: 78px; } .voucher-value strong { font-size: 23px; } .voucher-info { padding: 14px; } .vouchers-header { flex-wrap: wrap; } }
 .violation-history { display: grid; gap: 12px; list-style: none; margin: 0; padding: 20px 24px; }
 .violation-entry { --violation-ink: #946514; --violation-bg: #f7e8b8; display: flex; align-items: flex-start; gap: 14px; padding: 18px; border: 1px solid #e5dbc2; border-left: 4px solid var(--violation-ink); border-radius: 8px; background: #fffdf5; }
@@ -95,6 +90,9 @@
 .violations-empty > span { display: grid; place-items: center; margin: 0 auto 12px; width: 42px; height: 42px; border-radius: 50%; background: #e8f0df; color: var(--color-forest-green); font-size: 22px; }
 .violations-empty h3 { margin: 0 0 6px; font-size: 15px; font-weight: 500; }
 .violations-empty p { margin: 0; color: var(--color-warm-brown); font-size: 13px; line-height: 20px; }
+// Same block inside side panels and note lists: a little tighter.
+.violations-empty--compact { padding: 24px 16px; }
+.conversations-card > .violations-empty { grid-column: 1 / -1; }
 @media(max-width: 600px) { .violation-history { padding: 16px; } .violation-entry { gap: 10px; padding: 14px 12px; } .violations-header { flex-wrap: wrap; } }
 @media(max-width: 1150px) { .service-layout { grid-template-columns: minmax(0, 1fr); } .service-sidebar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; } .service-sidebar .card:last-child { grid-column: 1 / -1; } }
 @media(max-width: 700px) { .service-header { flex-wrap: wrap; } .service-header .page-actions { width: 100%; } .service-layout .profile__facts, .service-sidebar { grid-template-columns: 1fr; } .conversations-card { grid-template-columns: 1fr; } .conversation-list { max-height: 200px; border-right: 0; border-bottom: 1px solid rgba(84,74,64,.18); } }

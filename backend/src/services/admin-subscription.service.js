@@ -204,13 +204,15 @@ async function searchCondition(search) {
 
 // Admin list: filters, search and paging run in the database. Only the stock check needs
 // products, so it is done once for active boxes (two product queries in total).
-async function listSubscriptions({ filter = 'all', search = '', page = 1, limit = 50 } = {}) {
+// customerIds: null = every box; an array = only these customers' boxes (Services Ops sees its assigned customers).
+async function listSubscriptions({ filter = 'all', search = '', page = 1, limit = 50, customerIds = null } = {}) {
   const now = new Date();
+  const scope = Array.isArray(customerIds) ? { user_id: { $in: customerIds } } : {};
   const due = await Subscription.find(dueTransitionsQuery(now));
   for (const doc of due) await applyDueTransitions(doc, now);
 
   const activeBoxes = await Subscription.find(
-    { status: 'active' },
+    { ...scope, status: 'active' },
     'subscription_id product_id variant_id quantity status next_charge_at reserved_for reserved_items'
   ).lean();
   const activeProducts = await loadProducts(activeBoxes.map(s => s.product_id));
@@ -219,7 +221,7 @@ async function listSubscriptions({ filter = 'all', search = '', page = 1, limit 
     .map(s => s.subscription_id);
 
   const counts = Object.fromEntries(
-    (await Subscription.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }])).map(c => [c._id, c.n])
+    (await Subscription.aggregate([{ $match: scope }, { $group: { _id: '$status', n: { $sum: 1 } } }])).map(c => [c._id, c.n])
   );
   const stats = {
     active: counts.active || 0,
@@ -228,7 +230,7 @@ async function listSubscriptions({ filter = 'all', search = '', page = 1, limit 
     needs_action: outOfStockIds.length + NEEDS_ACTION_STATUSES.reduce((sum, s) => sum + (counts[s] || 0), 0)
   };
 
-  const conditions = [];
+  const conditions = Array.isArray(customerIds) ? [scope] : [];
   switch (filter) {
     case 'active': conditions.push({ status: 'active' }); break;
     case 'paused': conditions.push({ status: 'paused' }); break;

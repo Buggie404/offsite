@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ChangeDetectorRef, Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
@@ -38,7 +39,7 @@ const CUSTOMER_REQUEST = 'Customer asked us';
 @Component({
   selector: 'app-subscriptions-listing',
   standalone: true,
-  imports: [
+  imports: [EmptyStateComponent, 
     CommonModule,
     FormsModule,
     RouterLink,

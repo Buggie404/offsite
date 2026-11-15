@@ -142,7 +142,7 @@ async function listCustomers(req, res) {
     for (const stat of [...chatStats, ...reportStats]) statsById.set(stat._id, { ...statsById.get(stat._id), ...stat });
 
     res.json({
-      data: users.map((user) => ({ ...customerRow(user, statsById.get(user.user_id)), can_view_detail: !readable || readable.includes(user.user_id) })),
+      data: users.map((user) => ({ ...customerRow(user, statsById.get(user.user_id)), can_view_detail: true, is_assigned: !readable || readable.includes(user.user_id) })),
       assigned_total: readable ? await User.countDocuments({ ...query, user_id: { $in: readable } }) : undefined,
       total,
       page,
@@ -165,14 +165,15 @@ function orderRow(order) {
 }
 
 // GET /api/admin/customers/:userId -> profile, Ritual Box count, notes (orders come from /orders)
+// Services Ops may open any customer's profile; their orders stay limited to assigned customers.
 async function getCustomer(req, res) {
   try {
-    if (!(await canReadCustomer(req, req.params.userId))) return res.status(403).json({ error: 'This customer is not assigned to you.' });
     const customer = await User.findOne({ user_id: String(req.params.userId || ''), role: 'customer' }).lean();
     if (!customer) return res.status(404).json({ error: 'Customer not found.' });
 
     const userId = customer.user_id;
     const assigned = await scopedCustomerIds(req);
+    const canViewOrders = await canReadCustomer(req, userId);
     const archetype = customer.ritual_dna?.archetype_id
       ? await require('../services/ritual-dna.archetype-release').archetypeForProfile(customer.ritual_dna.archetype_id, customer.ritual_dna.archetype_profile_version) : null;
     const [orderCount, totals, ritualBoxes, notes, vouchers, pastChats] = await Promise.all([
@@ -195,6 +196,7 @@ async function getCustomer(req, res) {
         past_chats: pastChats,
         ritual_dna: archetype?.name || customer.ritual_dna?.archetype_id || null,
         can_add_note: !assigned || assigned.includes(userId),
+        can_view_orders: canViewOrders,
         violation_level: Math.max(activeRestriction(customer)?.level || 0, ...(customer.community_warnings || []).map(warning => warning.level || 1), 0),
         vouchers,
         violations: (customer.community_warnings || []).map(warning => ({ reason: warning.reason, level: warning.level, created_at: warning.created_at })),
@@ -303,7 +305,7 @@ async function setCustomerStatus(req, res) {
 
 async function listCustomerConversations(req, res) {
   try {
-    if (!(await canReadCustomer(req, req.params.userId))) return res.status(403).json({ error: 'This customer is not assigned to you.' });
+    // No assignment check: non-admin staff only ever get their own chats with this customer (filter below).
     if (!(await findCustomer(req.params.userId))) return res.status(404).json({ error: 'Customer not found.' });
     const filter = { customer_id: req.params.userId };
     if (req.user.role !== 'admin_cc') {

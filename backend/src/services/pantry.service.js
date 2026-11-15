@@ -25,7 +25,10 @@ const {
   adjustedIngredientAmount,
   consumptionAmount,
   normalizePantryText,
+  EXPIRY_NOTICE_DAYS,
   expiryNotice,
+  expiredNotice,
+  addedNotice,
   msUntilVnHour,
   formatExpiryLabel,
   formatCompletedOn,
@@ -174,6 +177,30 @@ async function addItemsForDeliveredOrder(order) {
     } catch (error) {
       if (error && error.code === 11000) continue;
       throw error;
+    }
+  }
+  if (created.length) {
+    const message = addedNotice(created.map(item => item.name), order.subscription_id ? 'subscription' : 'order');
+    // The pantry is already updated; a failed notice must not undo the delivery.
+    createNotification({
+      recipient_id: order.user_id,
+      sender: null,
+      type: 'PANTRY_ITEM_ADDED',
+      post_id: 'pantry',
+      order_id: order.order_id,
+      comment_content: message
+    }).catch(error => console.error('Pantry added notice failed:', order.order_id, error));
+    // Delivered items already within 3 days of their date get the "expires soon" notice now too.
+    const now = new Date();
+    const soon = created.filter(item => {
+      const days = daysUntil(item.expiry_date, now);
+      return item.status === 'active' && days != null && days >= 1 && days <= EXPIRY_NOTICE_DAYS;
+    });
+    if (soon.length) {
+      const range = soon.map(item => daysUntil(item.expiry_date, now));
+      sendPantryNotices(soon, 'PANTRY_EXPIRY_SOON', 'expiry_notified_at',
+        rows => expiryNotice(rows.map(row => row.name), Math.min(...range), Math.max(...range)), now)
+        .catch(error => console.error('Pantry expiry notice failed:', order.order_id, error));
     }
   }
   return created;
@@ -970,41 +997,80 @@ async function presentPantryItems(items) {
   });
 }
 
-async function notifyExpiringPantry(now = new Date()) {
-  const items = await PantryItem.find({
-    status: 'active',
-    expiry_date: { $ne: null },
-    expiry_notified_at: null
-  });
-  const due = items.filter(item => daysUntil(item.expiry_date, now) === 7);
+function groupByUser(items) {
   const byUser = new Map();
-  for (const item of due) {
+  for (const item of items) {
     const list = byUser.get(item.user_id) || [];
     list.push(item);
     byUser.set(item.user_id, list);
   }
+  return byUser;
+}
 
+// One notice per customer per run; the flag stops the same item being announced twice.
+async function sendPantryNotices(items, type, flag, messageFor, now) {
   let sent = 0;
-  for (const [userId, rows] of byUser) {
+  for (const [userId, rows] of groupByUser(items)) {
     try {
-      const message = expiryNotice(rows.map(row => row.name));
+      const message = messageFor(rows);
       if (!message) continue;
       await createNotification({
         recipient_id: userId,
         sender: null,
-        type: 'PANTRY_EXPIRY_SOON',
+        type,
         post_id: 'pantry',
         comment_content: message
       });
       await PantryItem.updateMany(
-        { _id: { $in: rows.map(row => row._id) }, expiry_notified_at: null },
-        { $set: { expiry_notified_at: now } }
+        { _id: { $in: rows.map(row => row._id) }, [flag]: null },
+        { $set: { [flag]: now } }
       );
       sent += 1;
     } catch (error) {
-      console.error('Pantry expiry notice failed:', userId, error);
+      console.error(`Pantry ${type} notice failed:`, userId, error);
     }
   }
+  return sent;
+}
+
+// Daily at 08:00 (VN): "expires in 3 days" and "expires today".
+// The windows reach back a little so a missed run (server down) still sends the notice once.
+async function notifyExpiringPantry(now = new Date()) {
+  // Old rule sent the notice 7 days ahead. Clear those flags so the item gets the 3-day notice.
+  // A notice sent 5+ days before the date can only be the old 7-day one.
+  await PantryItem.updateMany(
+    {
+      status: 'active',
+      expiry_date: { $ne: null },
+      expiry_notified_at: { $ne: null },
+      $expr: { $lt: ['$expiry_notified_at', { $subtract: ['$expiry_date', 5 * 24 * 60 * 60 * 1000] }] }
+    },
+    { $set: { expiry_notified_at: null } }
+  );
+
+  const items = await PantryItem.find({
+    status: { $in: ['active', 'expired'] },
+    expiry_date: { $ne: null },
+    $or: [{ expiry_notified_at: null }, { expired_notified_at: null }]
+  });
+  const withDays = items.map(item => ({ item, days: daysUntil(item.expiry_date, now) }));
+
+  const expiringToday = withDays
+    .filter(({ item, days }) => !item.expired_notified_at && days != null && days <= 0 && days >= -2
+      // Skip items that were already past their date when they were added.
+      && !(item.created_at && daysUntil(item.expiry_date, item.created_at) < 0))
+    .map(({ item }) => item);
+  const expiringSoon = withDays
+    .filter(({ item, days }) => item.status === 'active' && !item.expiry_notified_at
+      && days != null && days >= 1 && days <= EXPIRY_NOTICE_DAYS)
+    .map(({ item }) => item);
+
+  const soonest = rows => Math.min(...rows.map(row => daysUntil(row.expiry_date, now)));
+  const latest = rows => Math.max(...rows.map(row => daysUntil(row.expiry_date, now)));
+  let sent = await sendPantryNotices(expiringToday, 'PANTRY_EXPIRED', 'expired_notified_at',
+    rows => expiredNotice(rows.map(row => row.name), latest(rows)), now);
+  sent += await sendPantryNotices(expiringSoon, 'PANTRY_EXPIRY_SOON', 'expiry_notified_at',
+    rows => expiryNotice(rows.map(row => row.name), soonest(rows), latest(rows)), now);
 
   const today = startOfVnDay(now);
   if (today) {
@@ -1016,10 +1082,20 @@ async function notifyExpiringPantry(now = new Date()) {
   return sent;
 }
 
+// A manual item whose best-before is 1–3 days away would miss today's 08:00 run: notify now.
+async function notifyNewItemExpiry(item, now = new Date()) {
+  const days = daysUntil(item?.expiry_date, now);
+  if (!item || item.status !== 'active' || days == null || days < 1 || days > EXPIRY_NOTICE_DAYS) return 0;
+  return sendPantryNotices([item], 'PANTRY_EXPIRY_SOON', 'expiry_notified_at',
+    rows => expiryNotice(rows.map(row => row.name), days), now);
+}
+
 let expiryTimer = null;
 
 function startPantryExpiryJob() {
   if (expiryTimer) return;
+  // Catch up once on start (flags stop repeats), then every day at 08:00.
+  notifyExpiringPantry().catch(error => console.error('Pantry expiry job failed:', error));
   const run = () => {
     const wait = msUntilVnHour(8);
     expiryTimer = setTimeout(() => {
@@ -1052,6 +1128,7 @@ module.exports = {
   hidePantryRecipes,
   getPantry,
   notifyExpiringPantry,
+  notifyNewItemExpiry,
   startPantryExpiryJob,
   countActive,
   createItem

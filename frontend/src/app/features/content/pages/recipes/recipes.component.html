@@ -116,26 +116,17 @@
       </div>
 
       <!-- Empty state -->
-      <div *ngIf="!isLoading && filteredRecipes.length === 0" class="empty-state">
-        <div class="empty-icon-wrapper">
-          <svg lucideSearchX [size]="48" class="empty-icon"></svg>
-        </div>
-        <h3 class="empty-title">NO RECIPES FOUND</h3>
-        <p class="empty-subtitle">
-          <ng-container *ngIf="searchQuery.trim(); else filterOnlyText">
-            We couldn't find any recipes matching "{{ searchQuery }}".
-          </ng-container>
-          <ng-template #filterOnlyText>
-            We couldn't find any recipes matching your selected filters.
-          </ng-template>
-          <br class="desktop-only-br" />
-          Try different keywords or clear your filters to explore more artisanal preparations.
-        </p>
-        <button (click)="searchQuery = ''; selectedBase = 'ALL'; selectedStyle = 'ALL'; applyFilters()" class="clear-filters-btn">
-          <svg lucideRotateCcw [size]="16" class="btn-icon"></svg>
-          CLEAR SEARCH & FILTERS
+      <app-empty-state *ngIf="!isLoading && filteredRecipes.length === 0" eyebrow="Recipes" title="No recipes found"
+        [text]="(searchQuery.trim()
+          ? 'We couldn\'t find any recipes matching &quot;' + searchQuery + '&quot;.'
+          : 'We couldn\'t find any recipes matching your selected filters.')
+          + ' Try different keywords or clear your filters to explore more artisanal preparations.'"
+        [chips]="[{ icon: 'search', label: 'Try a shorter keyword' }, { icon: 'spell', label: 'Check the spelling' }, { icon: 'filter', label: 'Remove a filter' }, { icon: 'leaf', label: 'Matcha or coffee' }]">
+        <button type="button" class="es-btn es-btn--primary" (click)="searchQuery = ''; selectedBase = 'ALL'; selectedStyle = 'ALL'; applyFilters()">
+          <svg lucideRotateCcw [size]="14" aria-hidden="true"></svg>
+          Clear search & filters
         </button>
-      </div>
+      </app-empty-state>
 
       <!-- Cards Grid -->
       <div *ngIf="!isLoading && filteredRecipes.length > 0" class="card-grid">

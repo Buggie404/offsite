@@ -10,6 +10,7 @@ import { avatarInitials } from '../../../../shared/utils/avatar';
 import { ReportPayload, ReportPostModalComponent } from '../../../../features/community/components/report-post-modal/report-post-modal.component';
 import { VouchersComponent } from '../../../vouchers/pages/vouchers/vouchers.component';
 import { AdminVoucher } from '../../../vouchers/services/admin-vouchers.service';
+import { AdminModerationService } from '../../../community-reports/services/admin-moderation.service';
 
 type StatusFilter = 'waiting' | 'mine' | 'closed' | 'all';
 
@@ -27,6 +28,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private injector = inject(Injector);
   private customers = inject(AdminCustomersService);
+  private moderation = inject(AdminModerationService);
   customerDetails: (CustomerDetail & { recent_orders: CustomerOrder[] }) | null = null;
   customerDetailsLoading = false;
   private customerRequest?: Subscription;
@@ -52,7 +54,8 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   reportCustomer(payload: ReportPayload): void {
     if (!this.active || !this.canReply || this.reportPending || this.active.customer_id.startsWith('guest:')) return;
     this.reportPending = true;
-    this.chat.reportCustomer(this.active.customer_id, payload.reason, payload.note).subscribe({
+    if (!payload.penalty) { this.reportPending = false; return; }
+    this.moderation.penalizeAccount(this.active.customer_id, payload.reason, payload.note, payload.penalty).subscribe({
       next: () => { this.reportPending = false; this.reportOpen = false; this.actionError = ''; this.cdr.markForCheck(); },
       error: error => { this.reportPending = false; this.reportOpen = false; this.actionError = error?.error?.error || 'Could not report this customer.'; this.cdr.markForCheck(); }
     });

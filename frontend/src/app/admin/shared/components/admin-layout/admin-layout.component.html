@@ -135,12 +135,20 @@
                   <p class="header-notifications__title">Notifications</p>
                   <p class="header-notifications__subtitle">Action required · {{ adminRoleLabel }}</p>
                 </div>
-                @if (tabUnreadCount(activeNotificationTab) > 0) {
-                  <button type="button" class="header-notifications__read-all" (click)="markAllNotificationsRead($event)">
-                    <svg lucideCheckCheck aria-hidden="true" [size]="14"></svg>
-                    Read all
-                  </button>
-                }
+                <div class="header-notifications__header-actions">
+                  @if (tabUnreadCount(activeNotificationTab) > 0) {
+                    <button type="button" class="header-notifications__read-all" (click)="markAllNotificationsRead($event)">
+                      <svg lucideCheckCheck aria-hidden="true" [size]="14"></svg>
+                      Read all
+                    </button>
+                  }
+                  @if (filteredNotifications.length > 0) {
+                    <button type="button" class="header-notifications__read-all header-notifications__delete-all" (click)="deleteAllNotifications($event)">
+                      <svg lucideTrash2 aria-hidden="true" [size]="14"></svg>
+                      Delete all
+                    </button>
+                  }
+                </div>
               </div>
 
               <!-- Tabs: ALL + one tab per area this role is notified about -->
@@ -148,7 +156,6 @@
                 class="header-notifications__tabs"
                 role="tablist"
                 aria-label="Notification categories"
-                [style.--tab-cols]="notificationTabColumns"
               >
                 @for (tab of notificationTabs; track tab) {
                   <button
@@ -179,11 +186,13 @@
                   <ul class="header-notifications__list">
                     @for (item of filteredNotifications; track item.id) {
                       <li>
-                        <button
-                          type="button"
+                        <div
+                          role="button"
+                          tabindex="0"
                           class="header-notifications__item"
                           [class.header-notifications__item--unread]="!isNotificationRead(item)"
                           (click)="openNotification(item, $event)"
+                          (keydown.enter)="openNotification(item, $event)"
                         >
                           <span
                             class="header-notifications__item-icon"
@@ -226,10 +235,20 @@
                               }
                             </span>
                           </span>
-                          @if (!isNotificationRead(item)) {
-                            <span class="header-notifications__unread-dot" aria-label="Unread"></span>
-                          }
-                        </button>
+                          <span class="header-notifications__item-actions">
+                            <button
+                              type="button"
+                              class="header-notifications__delete"
+                              aria-label="Delete notification"
+                              (click)="deleteNotification(item, $event)"
+                            >
+                              <svg lucideTrash2 aria-hidden="true" [size]="14"></svg>
+                            </button>
+                            @if (!isNotificationRead(item)) {
+                              <span class="header-notifications__unread-dot" aria-label="Unread"></span>
+                            }
+                          </span>
+                        </div>
                       </li>
                     }
                   </ul>

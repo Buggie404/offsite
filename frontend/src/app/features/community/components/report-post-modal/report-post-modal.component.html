@@ -3,7 +3,7 @@
 
     <header class="modal-header">
       <div class="modal-heading">
-        <h3 class="modal-title" id="report-title">Report this {{ target }}</h3>
+        <h3 class="modal-title" id="report-title">{{ staffPenalty ? 'Penalize this account' : 'Report this ' + target }}</h3>
         <p class="modal-subtitle" *ngIf="authorUsername">
           &#64;{{ authorUsername }}<ng-container *ngIf="excerpt"> · “{{ excerpt }}”</ng-container>
         </p>
@@ -17,7 +17,7 @@
       @if (error) { <p class="note-error" role="alert">{{ error }}</p> }
       <div class="reason-list" role="radiogroup" aria-labelledby="report-title">
         <label class="reason" *ngFor="let r of reasons">
-          <input type="radio" name="report-reason" [value]="r.value" [(ngModel)]="reason">
+          <input type="radio" name="report-reason" [value]="r.value" [(ngModel)]="reason" (ngModelChange)="onReasonChange()">
           <span class="radio" aria-hidden="true">
             <img *ngIf="reason === r.value" src="assets/icons/radio-selected.svg" width="18" height="18" alt="">
           </span>
@@ -25,22 +25,41 @@
         </label>
       </div>
 
+      @if (staffPenalty) {
+        <p class="section-label" id="penalty-label">Penalty</p>
+        <div class="reason-list" role="radiogroup" aria-labelledby="penalty-label">
+          @for (p of penalties; track p.value) {
+            <label class="reason">
+              <input type="radio" name="report-penalty" [value]="p.value" [(ngModel)]="penalty" (ngModelChange)="onPenaltyChange()">
+              <span class="radio" aria-hidden="true">
+                @if (penalty === p.value) { <img src="assets/icons/radio-selected.svg" width="18" height="18" alt=""> }
+              </span>
+              <span>{{ p.label }} <small class="penalty-hint">{{ p.hint }}</small></span>
+            </label>
+          }
+        </div>
+      }
+
       <div class="note-field">
-        <label class="note-label" for="report-note">{{ noteRequired ? 'Add a note (required)' : 'Add a note (optional)' }}</label>
+        <label class="note-label" for="report-note">{{ staffPenalty ? (noteRequired ? 'Message to the customer (required)' : 'Message to the customer (optional)') : (noteRequired ? 'Add a note (required)' : 'Add a note (optional)') }}</label>
         <textarea id="report-note" class="note" maxlength="500" [class.note--required]="noteRequired && !note.trim()"
           [attr.aria-required]="noteRequired"
-          [placeholder]="noteRequired ? 'Please tell us what is wrong' : 'Tell us a bit more about the problem'"
+          [placeholder]="staffPenalty ? 'Added to the notice the customer receives' : (noteRequired ? 'Please tell us what is wrong' : 'Tell us a bit more about the problem')"
           [(ngModel)]="note"></textarea>
         <span class="note-error" *ngIf="noteRequired && !note.trim()">A note is required when you choose Other.</span>
       </div>
 
-      <p class="modal-hint">The {{ target }} stays visible until a moderator reviews it.</p>
+      @if (staffPenalty) {
+        <p class="modal-hint">The penalty applies right away and the customer is notified.</p>
+      } @else {
+        <p class="modal-hint">The {{ target }} stays visible until a moderator reviews it.</p>
+      }
     </div>
 
     <footer class="modal-footer">
       <button type="button" class="btn btn--outline" (click)="cancel.emit()">Cancel</button>
       <button type="button" class="btn btn--primary" [disabled]="!canSubmit" (click)="onSubmit()">
-        {{ submitting ? 'Sending...' : 'Submit report' }}
+        {{ submitting ? (staffPenalty ? 'Applying...' : 'Sending...') : (staffPenalty ? 'Apply penalty' : 'Submit report') }}
       </button>
     </footer>
   </div>

@@ -8,6 +8,7 @@ const {
   getPantry,
   countActive,
   createItem,
+  notifyNewItemExpiry,
   recordBrewStart,
   markRecipeDone,
   hidePantryRecipes,
@@ -106,7 +107,7 @@ async function addManualItem(req, res) {
       ? ((product.images || []).find(entry => entry.sort_order === 0) || product.images?.[0])
       : null;
     if (product && CATEGORIES.has(product.category)) category = product.category;
-    await createItem({
+    const created = await createItem({
       user_id: user.user_id,
       source: 'manual',
       order_id: null,
@@ -125,6 +126,7 @@ async function addManualItem(req, res) {
       expiry_notified_at: null,
       status: expiry.date && days != null && days < 0 ? 'expired' : 'active'
     });
+    await notifyNewItemExpiry(created, now).catch(error => console.error('Pantry expiry notice failed:', error));
 
     return res.status(201).json(await getPantry(user));
   } catch (error) {

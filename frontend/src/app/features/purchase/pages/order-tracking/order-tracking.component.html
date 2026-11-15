@@ -212,25 +212,12 @@
     </div>
 
     <!-- Empty State (Order Not Found) -->
-    <div *ngIf="searched() && !order() && !isLoading() && !needsVerification()"
-      class="empty-state-card animate-fade-in">
-      <div class="empty-icon-wrap">
-        <!-- SVG matching screenshot magnifying glass with X inside -->
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="1.8"
-          stroke-linecap="round" stroke-linejoin="round" class="empty-search-svg">
-          <circle cx="11" cy="11" r="8" stroke="#1A1A1A" stroke-width="1.8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="#1A1A1A" stroke-width="1.8"></line>
-          <line x1="8" y1="8" x2="14" y2="14" stroke="#1A1A1A" stroke-width="1.8"></line>
-          <line x1="14" y1="8" x2="8" y2="14" stroke="#1A1A1A" stroke-width="1.8"></line>
-        </svg>
-      </div>
-      <h3 class="empty-title font-display">NO ORDER FOUND</h3>
-      <p class="empty-desc font-body">We couldn't find any orders matching "{{ searchedQuery() }}". Please check your
-        order code and try again.</p>
-      <button routerLink="/shop/best-sellers" class="btn-continue-shopping font-body">
-        CONTINUE SHOPPING
-      </button>
-    </div>
+    <app-empty-state *ngIf="searched() && !order() && !isLoading() && !needsVerification()" class="animate-fade-in"
+      eyebrow="Order tracking" title="No order found"
+      [text]="'We couldn\'t find any orders matching &quot;' + searchedQuery() + '&quot;. Please check your order code and try again.'"
+      [chips]="[{ icon: 'hash', label: 'Check your order code' }, { icon: 'mail', label: 'See your confirmation email' }, { icon: 'user', label: 'Signed in? Check My Orders' }, { icon: 'message', label: 'Ask our support chat' }]">
+      <a routerLink="/shop/best-sellers" class="es-btn es-btn--primary">Continue shopping</a>
+    </app-empty-state>
   </div>
 </div>
 

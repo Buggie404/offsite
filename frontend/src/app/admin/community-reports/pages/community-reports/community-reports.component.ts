@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ChangeDetectorRef, Component, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -79,7 +80,7 @@ const HANDLED_PAGE_SIZE = 20;
 @Component({
   selector: 'app-admin-community-reports',
   standalone: true,
-  imports: [
+  imports: [EmptyStateComponent, 
     CommonModule, FormsModule, RouterModule,
     LucideBan, LucideCheck, LucideChevronDown, LucideChevronLeft, LucideChevronRight, LucideCircleCheck, LucideEye, LucideEyeOff, LucideInbox,
     LucideLock, LucideLockOpen, LucideTriangleAlert, LucideX

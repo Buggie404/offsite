@@ -104,7 +104,7 @@
       <article class="card conversations-card">
         @if (conversationsLoading) { <div class="state">Loading conversations...</div> }
         @else if (conversationsError) { <div class="state state--error" role="alert">{{ conversationsError }} <button type="button" class="link-btn" (click)="loadConversations()">Try again</button></div> }
-        @else if (!conversations.length) { <div class="state">No conversations yet.</div> }
+        @else if (!conversations.length) { <div class="violations-empty"><span aria-hidden="true"><svg lucideMessagesSquare [size]="20"></svg></span><h3>No conversations yet</h3><p>Support chats with this customer will appear here.</p></div> }
         @else {
           <nav class="conversation-list" aria-label="Customer conversations">
             @for (conversation of conversations; track conversation.conversation_id) {
@@ -127,7 +127,7 @@
                       <p>{{ message.content }}</p>
                       @if (message.metadata?.orderCard; as order) { <div class="history-order">Order #{{ order.code || order.order_id }} · {{ order.status || order.order_status }}</div> }
                     </div>
-                  } @empty { <div class="state">No messages in this conversation.</div> }
+                  } @empty { <div class="violations-empty"><span aria-hidden="true"><svg lucideMessageSquare [size]="20"></svg></span><h3>No messages in this conversation</h3><p>Messages will appear here once the chat starts.</p></div> }
                 }
               </div>
               <footer class="conversation-footer"><span>Read only here</span><a class="btn btn--outline" routerLink="/admin/chat" [queryParams]="{ conversation: conversation.conversation_id }">Continue in support chat <svg lucideArrowRight [size]="16" aria-hidden="true"></svg></a></footer>
@@ -160,7 +160,7 @@
         <header class="card__header"><h2>Personal vouchers</h2></header>
         @for (voucher of customer.vouchers; track voucher.code) {
           <div class="state"><strong>{{ voucher.code }}</strong> · {{ voucher.title || 'Personal voucher' }} · {{ voucher.discount_value }}{{ voucher.discount_type === 'percentage' ? '%' : ' USD' }} · Valid until {{ voucher.valid_to }} · {{ voucher.is_active ? 'Enabled' : 'Stopped' }} · Used {{ voucher.used_count }}{{ voucher.usage_limit ? ' / ' + voucher.usage_limit : '' }}</div>
-        } @empty { <div class="state">No personal vouchers.</div> }
+        } @empty { <div class="violations-empty"><span aria-hidden="true">%</span><h3>No personal vouchers yet</h3><p>This customer has no personal vouchers.</p></div> }
       </article>
       }
     }
@@ -193,14 +193,16 @@
       } @else {
       <article class="card"><header class="card__header"><h2>Community violations</h2></header>
         @for (violation of customer.violations; track $index) { <div class="state">Level {{ violation.level }} · {{ violation.reason }} · {{ shortDate(violation.created_at) }}</div> }
-        @empty { <div class="state">No recorded violations.</div> }
+        @empty { <div class="violations-empty"><span aria-hidden="true">✓</span><h3>No recorded violations</h3><p>This customer has no community warnings or restrictions.</p></div> }
       </article>
       }
     }
 
     @if (tab === 'orders') {
       <article class="card">
-        @if (ordersError) {
+        @if (customer.can_view_orders === false) {
+          <div class="state">Orders are only visible to staff assigned to this customer.</div>
+        } @else if (ordersError) {
           <div class="state" role="alert">
             {{ ordersError }}
             <button type="button" class="link-btn" (click)="loadOrders(ordersPage)">Try again</button>
@@ -270,7 +272,7 @@
               <p>{{ note.content }}</p>
             </div>
           } @empty {
-            <p class="notes__empty">No notes yet.</p>
+            <div class="violations-empty violations-empty--compact"><span aria-hidden="true"><svg lucideStickyNote [size]="20"></svg></span><h3>No notes yet</h3><p>Add a note below to share context with the team.</p></div>
           }
 
           <textarea
@@ -301,22 +303,14 @@
             <div class="violation-levels" aria-label="Violation level">
               @for (level of levels; track level.value) { <div [class.active]="violationLevel === level.value" [attr.aria-current]="violationLevel === level.value ? 'true' : null"><strong>L{{ level.value }}</strong><span>{{ level.label }}</span></div> }
             </div>
-            <p>{{ violationLevel ? customer.violations.length + ' recorded violation(s).' : 'No violations.' }} A report you file goes to Community reports and is handled by another CSKH or Senior Admin.</p>
-          </div>
-        </article>
-        <article class="card">
-          <header class="card__header"><h2>Personal vouchers</h2></header>
-          <div class="side-content">
-            @for (voucher of customer.vouchers; track voucher.code) {
-              <div class="personal-voucher"><div><strong class="mono">{{ voucher.code }}</strong><p>{{ voucher.discount_type === 'percentage' ? voucher.discount_value + '%' : '$' + voucher.discount_value }} · expires {{ shortDate(voucher.valid_to) }}</p></div><span class="chip" [class.chip--open]="voucherStatus(voucher) === 'Unused'">{{ voucherStatus(voucher) }}</span></div>
-            } @empty { <p>No personal vouchers yet.</p> }
+            <p>{{ violationLevel ? customer.violations.length + ' recorded violation(s).' : 'No violations.' }} Reporting this account applies the chosen penalty right away.</p>
           </div>
         </article>
         <article class="card">
           <header class="card__header"><h2>Internal notes</h2></header>
           <div class="notes">
             @for (note of customer.notes; track note.note_id) { <div class="note"><div class="note__meta"><strong>{{ shortName(note.author_name) }}</strong><span>{{ roleLabel(note.author_role) }} · {{ shortDate(note.created_at) }}</span></div><p>{{ note.content }}</p></div> }
-            @empty { <p class="notes__empty">No internal notes yet.</p> }
+            @empty { <div class="violations-empty violations-empty--compact"><span aria-hidden="true"><svg lucideStickyNote [size]="20"></svg></span><h3>No internal notes yet</h3><p>Internal notes about this customer will appear here.</p></div> }
             @if (customer.can_add_note === false) { <p class="notes__hint">Notes can only be added by staff assigned to this customer.</p> }
             <textarea class="textarea" rows="2" maxlength="1000" placeholder="Add a note..." aria-label="New internal note" [disabled]="customer.can_add_note === false" [(ngModel)]="noteDraft" (ngModelChange)="noteError = ''"></textarea>
             @if (noteError) { <p class="form-error" role="alert">{{ noteError }}</p> }
@@ -329,7 +323,7 @@
 
     @if (voucherCustomer) { <app-admin-vouchers [chatCustomer]="voucherCustomer" (dismissed)="voucherCustomer = null" (created)="voucherCreated($event)" /> }
     @if (reportOpen) {
-      <app-report-post-modal target="account" [authorUsername]="customer.community_name || customer.profile_name" [submitting]="reportPending" [error]="reportError" (cancel)="reportOpen = false" (submitReport)="reportCustomer($event)" />
+      <app-report-post-modal target="account" [staffPenalty]="true" [authorUsername]="customer.community_name || customer.profile_name" [submitting]="reportPending" [error]="reportError" (cancel)="reportOpen = false" (submitReport)="reportCustomer($event)" />
     }
 
     <app-confirmation-modal

@@ -33,8 +33,9 @@
     <!-- Banner 3 · Holiday sale -->
     <div class="hero__slide slide-holiday" [class.is-active]="active() === 2" role="group" aria-roledescription="slide" aria-label="3 of 3"
          [attr.inert]="active() === 2 ? null : ''">
-      <div class="holiday__art">
-        <img [src]="holidayImage" alt="Matcha bowl, espresso and a wrapped gift box on a festive tray" loading="lazy" />
+      <img *ngIf="holidayImage" class="hero__image" [src]="holidayImage" alt="Matcha bowl, espresso and a wrapped gift box on a festive tray" />
+
+      <div class="holiday__art" aria-hidden="true">
         <div class="holiday__badge" aria-hidden="true"><span>HOLIDAY</span><strong>20%</strong><span>OFF BUNDLES</span></div>
         <span class="holiday__star holiday__star--1" aria-hidden="true"></span>
         <span class="holiday__star holiday__star--2" aria-hidden="true"></span>

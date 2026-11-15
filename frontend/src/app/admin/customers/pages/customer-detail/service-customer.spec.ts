@@ -9,12 +9,12 @@ import { CustomerDetailComponent } from './customer-detail.component';
 import { AdminCustomersService } from '../../services/admin-customers.service';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
 import { ToastService } from '../../../../shared/services/toast.service';
-import { ChatService } from '../../../../core/services/chat.service';
+import { AdminModerationService } from '../../../community-reports/services/admin-moderation.service';
 
 afterEach(() => TestBed.resetTestingModule());
 it('opens scoped service customer sections and keeps the service route on the back link', async () => {
   const addNote = vi.fn(() => of({ data: { note_id: 'N1', content: 'Prefers chat', author_name: 'Ha', author_role: 'cskh', created_at: '2026-11-08' } }));
-  const reportCustomer = vi.fn(() => of({}));
+  const penalizeAccount = vi.fn(() => of({ data: { action_id: 'A1', action: 'warn', reports_closed: 0 } }));
   const customer = { user_id: 'USR1', profile_name: 'Mai', status: 'active', membership_tier: 'Seed', points: 0,
     order_count: 0, total_spent: 0, ritual_boxes: 0, notes: [],
     vouchers: [{ code: 'PERSONAL10', discount_value: 10, discount_type: 'percentage', is_active: true, used_count: 0, valid_to: '2026-12-31' }],
@@ -28,7 +28,7 @@ it('opens scoped service customer sections and keeps the service route on the ba
       conversations: () => of({ data: [{ conversation_id: 'CHAT1', status: 'open', last_message_at: '2026-11-08T03:42:00Z', last_message_preview: 'Broken bowl', summary: 'Refund forwarded', agent_name: 'Ha', close_outcome: null }] }),
       conversationMessages: () => of({ data: [{ _id: 'M1', conversation_id: 'CHAT1', sender_type: 'customer', sender_id: 'USR1', content: 'My bowl arrived broken', created_at: '2026-11-08T03:39:00Z' }] })
     } },
-    { provide: ChatService, useValue: { reportCustomer } },
+    { provide: AdminModerationService, useValue: { penalizeAccount } },
     { provide: AdminAuthService, useValue: { getUser: () => ({ role: 'cskh' }), getAdminRole: () => 'cskh' } },
     { provide: ToastService, useValue: { success: vi.fn() } }
   ] });
@@ -65,8 +65,8 @@ it('opens scoped service customer sections and keeps the service route on the ba
   actions.find(button => button.textContent?.includes('Report account'))!.click();
   harness.detectChanges();
   expect(element.querySelector('app-report-post-modal')).not.toBeNull();
-  component.reportCustomer({ reason: 'spam', note: 'Spam in support chat' });
+  component.reportCustomer({ reason: 'spam', note: 'Spam in support chat', penalty: 'warn' });
   harness.detectChanges();
-  expect(reportCustomer).toHaveBeenCalledWith('USR1', 'spam', 'Spam in support chat');
+  expect(penalizeAccount).toHaveBeenCalledWith('USR1', 'spam', 'Spam in support chat', 'warn');
   expect(element.querySelector('app-report-post-modal')).toBeNull();
 });

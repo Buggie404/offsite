@@ -210,31 +210,24 @@
   .btn--dark, .btn--outline { min-width: 0; }
 }
 
-// Artwork layer: sized from the banner height (cqh) so the art, badge and stars stay locked together.
+// Same loading as banner 1: a full-bleed .hero__image with object-fit: cover.
+// Anchored top-right so the Santa hat stays in frame; any trimming happens at the bottom.
+.slide-holiday .hero__image { object-position: right top; }
+
+// Decoration layer over the image (badge + stars), sized from the banner itself.
 .holiday__art {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  pointer-events: none;
   container-type: size;
-
-  // Slightly taller than the banner and pinned top-right: the Santa hat always stays in frame,
-  // only the bottom of the moon is trimmed, and the scene sits close to the copy.
-  img {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: auto;
-    max-width: none;
-    height: 114cqh;
-    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 6%);
-    mask-image: linear-gradient(to right, transparent 0, #000 6%);
-  }
 }
 
 .holiday__badge {
   position: absolute;
-  top: 6cqh;
-  right: 113cqh;
+  // Sits on the curve between the cream and green halves of the artwork (≈39% across, 14% down the image).
+  top: calc(7.9cqw - 9.5cqh);
+  left: calc(39cqw - 9.5cqh);
   display: grid;
   place-content: center;
   justify-items: center;
@@ -400,14 +393,14 @@
 
 @media (max-width: 900px) {
   // Holiday art becomes a band above the copy.
-  .holiday__art {
+  .slide-holiday .hero__image {
     inset: 0 0 auto;
     height: 320px;
+    object-position: 82% center;
     -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
     mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
-
-    img { inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 82% center; -webkit-mask-image: none; mask-image: none; }
   }
+  .holiday__art { inset: 0 0 auto; height: 320px; }
   .holiday__badge { top: 14px; right: auto; left: 16px; width: 92px; height: 92px; outline-width: 4px; font-size: 7px; strong { font-size: 28px; } }
   .holiday__star { display: none; }
 
@@ -490,7 +483,7 @@
     .hero__inner { padding-top: 286px; }
   }
 
-  .holiday__art { height: 290px; }
+  .holiday__art, .slide-holiday .hero__image { height: 290px; }
 
   .slide-holiday {
     .hero__inner { padding-top: 300px; }

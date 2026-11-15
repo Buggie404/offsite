@@ -21,7 +21,8 @@ const pantryItemSchema = new mongoose.Schema({
   delivered_at: { type: Date, default: null },
   expiry_date: { type: Date, default: null },
   expiry_source: { type: String, enum: ['batch', 'estimated', 'manual', null], default: null },
-  expiry_notified_at: { type: Date, default: null },
+  expiry_notified_at: { type: Date, default: null },   // "expires in 3 days" notice sent
+  expired_notified_at: { type: Date, default: null },  // "expires today" notice sent
   // active = in the pantry. removed = refunded or deleted by the owner, kept out of the list.
   status: { type: String, enum: ['active', 'used_up', 'expired', 'removed'], default: 'active', index: true }
 }, {

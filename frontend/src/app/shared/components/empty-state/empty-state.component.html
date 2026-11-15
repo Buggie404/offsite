@@ -1,0 +1,46 @@
+<section class="es" [class.es--compact]="compact" [attr.aria-labelledby]="titleId">
+  <div class="es__glow" aria-hidden="true">
+    <span class="es__blob es__blob--sage"></span>
+    <span class="es__blob es__blob--blush"></span>
+    <span class="es__blob es__blob--wheat"></span>
+  </div>
+
+  <div class="es__core">
+    @if (eyebrow) { <p class="es__eyebrow">{{ eyebrow }}</p> }
+    <h2 [id]="titleId" class="es__title">{{ title }}</h2>
+    @if (text) { <p class="es__text">{{ text }}</p> }
+    <div class="es__actions"><ng-content></ng-content></div>
+    @if (hint) { <p class="es__hint">{{ hint }}</p> }
+  </div>
+
+  @if (chips.length) {
+    <ul class="es__orbit" aria-label="Tips">
+      @for (chip of chips.slice(0, 6); track chip.label; let i = $index) {
+        <li class="es-chip" [class]="'es-chip es-chip--' + slot(i)">
+          @switch (chip.icon) {
+            @case ('search') { <svg lucideSearch [size]="16" aria-hidden="true"></svg> }
+            @case ('filter') { <svg lucideListFilter [size]="16" aria-hidden="true"></svg> }
+            @case ('spell') { <svg lucideSpellCheck [size]="16" aria-hidden="true"></svg> }
+            @case ('sparkles') { <svg lucideSparkles [size]="16" aria-hidden="true"></svg> }
+            @case ('hash') { <svg lucideHash [size]="16" aria-hidden="true"></svg> }
+            @case ('mail') { <svg lucideMail [size]="16" aria-hidden="true"></svg> }
+            @case ('user') { <svg lucideUser [size]="16" aria-hidden="true"></svg> }
+            @case ('message') { <svg lucideMessageCircle [size]="16" aria-hidden="true"></svg> }
+            @case ('heart') { <svg lucideHeart [size]="16" aria-hidden="true"></svg> }
+            @case ('bookmark') { <svg lucideBookmark [size]="16" aria-hidden="true"></svg> }
+            @case ('map-pin') { <svg lucideMapPin [size]="16" aria-hidden="true"></svg> }
+            @case ('home') { <svg lucideHouse [size]="16" aria-hidden="true"></svg> }
+            @case ('star') { <svg lucideStar [size]="16" aria-hidden="true"></svg> }
+            @case ('truck') { <svg lucideTruck [size]="16" aria-hidden="true"></svg> }
+            @case ('card') { <svg lucideCreditCard [size]="16" aria-hidden="true"></svg> }
+            @case ('repeat') { <svg lucideRepeat [size]="16" aria-hidden="true"></svg> }
+            @case ('book') { <svg lucideBookOpen [size]="16" aria-hidden="true"></svg> }
+            @case ('coffee') { <svg lucideCoffee [size]="16" aria-hidden="true"></svg> }
+            @case ('leaf') { <svg lucideLeaf [size]="16" aria-hidden="true"></svg> }
+          }
+          {{ chip.label }}
+        </li>
+      }
+    </ul>
+  }
+</section>

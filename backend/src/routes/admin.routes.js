@@ -60,7 +60,7 @@ router.get('/vouchers/products', authMiddleware, requireRole(...VOUCHER_VIEW_ROL
 router.get('/vouchers/complaint-order', authMiddleware, requireRole('admin_cc', 'cskh'), adminVouchersController.complaintOrder);
 router.get('/vouchers/code-available', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.codeAvailable);
 router.get('/vouchers/complaint-quota', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.complaintQuota);
-router.get('/vouchers/:id/performance', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.voucherPerformance);
+router.get('/vouchers/:id/performance', authMiddleware, requireRole('admin_cc', 'qlsp'), adminVouchersController.voucherPerformance);
 router.post('/vouchers', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminActivityLog({ requireReasonWhen: complaintNeedsReason }), adminVouchersController.createVoucher);
 router.patch('/vouchers/:id/stop', authMiddleware, requireRole(...VOUCHER_MANAGE_ROLES), adminActivityLog(), adminVouchersController.stopVoucher);
 router.patch('/vouchers/:id', authMiddleware, requireRole(...VOUCHER_MANAGE_ROLES), adminActivityLog(), adminVouchersController.updateVoucher);

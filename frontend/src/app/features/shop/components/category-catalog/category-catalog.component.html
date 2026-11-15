@@ -126,34 +126,27 @@
           ></app-product-card>
         }
         @if (pagedProducts.length === 0) {
-          <div class="catalog__empty">
-            <div class="catalog__empty-icon-wrap">
-              <svg lucideSearchX [size]="48" class="catalog__empty-icon" aria-hidden="true"></svg>
-            </div>
-            <h3>NO PRODUCTS FOUND</h3>
-            <p>
-              @if (searchQuery.trim() && hasActiveFilters) {
-                We couldn't find any products matching "{{ searchQuery }}" and your selected filters.
-              } @else if (searchQuery.trim()) {
-                We couldn't find any products matching "{{ searchQuery }}".
-              } @else {
-                We couldn't find any products matching your selected filters.
-              }
-              Try a different keyword or clear your search and filters.
-            </p>
+          <app-empty-state class="catalog__empty-state" eyebrow="Shop" title="No products found"
+            [text]="(searchQuery.trim() && hasActiveFilters
+              ? 'We couldn\'t find any products matching &quot;' + searchQuery + '&quot; and your selected filters.'
+              : searchQuery.trim()
+                ? 'We couldn\'t find any products matching &quot;' + searchQuery + '&quot;.'
+                : 'We couldn\'t find any products matching your selected filters.')
+              + ' Try a different keyword or clear your search and filters.'"
+            [chips]="[{ icon: 'search', label: 'Try a shorter keyword' }, { icon: 'spell', label: 'Check the spelling' }, { icon: 'filter', label: 'Remove a filter' }, { icon: 'sparkles', label: 'Browse best sellers' }]">
             @if (searchQuery || hasActiveFilters) {
-              <button type="button" class="catalog__clear-search" (click)="clearSearchAndFilters()">
-                <svg lucideRotateCcw [size]="16" aria-hidden="true"></svg>
+              <button type="button" class="es-btn es-btn--primary" (click)="clearSearchAndFilters()">
+                <svg lucideRotateCcw [size]="14" aria-hidden="true"></svg>
                 @if (searchQuery && hasActiveFilters) {
-                  CLEAR SEARCH & FILTERS
+                  Clear search & filters
                 } @else if (searchQuery) {
-                  CLEAR SEARCH
+                  Clear search
                 } @else {
-                  CLEAR FILTERS
+                  Clear filters
                 }
               </button>
             }
-          </div>
+          </app-empty-state>
         }
       </div>
     }

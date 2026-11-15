@@ -1,5 +1,6 @@
 // shop/components/category-catalog/category-catalog.component.ts
 
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Component, ElementRef, HostListener, Input, OnInit, OnChanges, OnDestroy, SimpleChanges, ViewChild, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -248,6 +249,7 @@ const CATEGORY_FILTERS: Record<string, FilterGroup[]> = {
   selector: 'app-category-catalog',
   standalone: true,
   imports: [
+    EmptyStateComponent,
     CommonModule, FormsModule, LucideChevronDown, LucideChevronRight,
     LucideCheck, LucideChevronLeft, LucideSearch, LucideX,
     LucideSearchX, LucideRotateCcw, ProductCardComponent

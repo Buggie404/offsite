@@ -42,6 +42,8 @@ const notificationSchema = new mongoose.Schema({
       'SUBSCRIPTION_NOT_STARTED',
       'SUBSCRIPTION_ADJUSTED',
       'PANTRY_EXPIRY_SOON',
+      'PANTRY_EXPIRED',
+      'PANTRY_ITEM_ADDED',
       // Community reports (admin moderation): message written by staff; post_id only when there is a post to open
       'COMMUNITY_MODERATION',
       'COMMUNITY_REPORT_RESOLVED',

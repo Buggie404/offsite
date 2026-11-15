@@ -188,7 +188,7 @@
 } @else if (error) {
   <p class="state-message state-message--error" role="alert">{{ error }}</p>
 } @else if (!orders.length) {
-  <p class="state-message">No orders found for the selected filters.</p>
+  <app-empty-state [compact]="true" eyebrow="Orders" title="No orders found" text="No orders match the selected filters."></app-empty-state>
 } @else {
   <section class="data-card">
     <table class="data-table">

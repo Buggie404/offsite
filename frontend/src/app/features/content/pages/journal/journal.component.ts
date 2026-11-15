@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Component, OnInit, OnDestroy, AfterViewInit, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -31,6 +32,7 @@ interface Article {
   selector: 'app-journal',
   standalone: true,
   imports: [
+    EmptyStateComponent,
     CommonModule,
     RouterModule,
     LucideSearch,

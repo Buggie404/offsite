@@ -128,11 +128,9 @@
       } @else if (error) {
         <div class="state state--error">{{ error }} <button type="button" (click)="load()">Try again</button></div>
       } @else if (!rows.length) {
-        <div class="state state--empty">
-          <svg lucideHistory [size]="28"></svg>
-          <p>No activity matches these filters.</p>
-          @if (hasFilters) { <button type="button" (click)="clearFilters()">Clear filters</button> }
-        </div>
+        <app-empty-state [compact]="true" eyebrow="Activity log" title="No activity found" text="No activity matches these filters.">
+          @if (hasFilters) { <button type="button" class="es-btn es-btn--primary" (click)="clearFilters()">Clear filters</button> }
+        </app-empty-state>
       } @else {
         <div class="table-scroll">
           <table class="log-table">

@@ -87,6 +87,7 @@ export class AdminNotificationService {
   private readonly adminAuth = inject(AdminAuthService);
   private readonly apiUrl = '/api/admin/notifications';
   private readonly readStoragePrefix = 'admin_notifications_read';
+  private readonly deletedStoragePrefix = 'admin_notifications_deleted';
 
   loadNotifications(): Observable<AdminNotificationsResponse | null> {
     return this.http.get<AdminNotificationsResponse>(this.apiUrl).pipe(
@@ -135,7 +136,54 @@ export class AdminNotificationService {
     if (kept.size !== readIds.size) this.persistReadIds(kept);
   }
 
+  // ── Deleted notices ───────────────────────────────────────────────────────
+  // Admin notices are worked out live from orders, stock, chats… so "delete" hides them for this
+  // account. The id carries a version (e.g. stock level), so a notice that changes comes back.
+
+  withoutDeleted(notifications: AdminNotification[]): AdminNotification[] {
+    const deleted = this.getIds(this.deletedStorageKey);
+    return deleted.size ? notifications.filter((item) => !deleted.has(item.id)) : notifications;
+  }
+
+  delete(items: AdminNotification[]): void {
+    const deleted = this.getIds(this.deletedStorageKey);
+    items.forEach((item) => deleted.add(item.id));
+    this.persistIds(this.deletedStorageKey, deleted);
+  }
+
+  /** Forget delete marks for notices the server no longer sends. */
+  pruneDeletedIds(notifications: AdminNotification[]): void {
+    const current = new Set(notifications.map((item) => item.id));
+    const deleted = this.getIds(this.deletedStorageKey);
+    const kept = new Set([...deleted].filter((id) => current.has(id)));
+    if (kept.size !== deleted.size) this.persistIds(this.deletedStorageKey, kept);
+  }
+
   // ── Read state: localStorage, one key per admin account ──────────────────
+
+  private get deletedStorageKey(): string {
+    const user = this.adminAuth.getUser();
+    return `${this.deletedStoragePrefix}:${user?.user_id || user?._id || 'anonymous'}`;
+  }
+
+  private getIds(key: string): Set<string> {
+    if (typeof localStorage === 'undefined') return new Set();
+    try {
+      const raw = localStorage.getItem(key);
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  private persistIds(key: string, ids: Set<string>): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(key, JSON.stringify([...ids]));
+    } catch {
+      // Ignore storage errors (quota, private mode).
+    }
+  }
 
   private get readStorageKey(): string {
     const user = this.adminAuth.getUser();

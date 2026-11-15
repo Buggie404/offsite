@@ -13,7 +13,7 @@
     <div class="section-heading"><div><p class="eyebrow">CUSTOMER DIRECTORY</p><h3>{{ total() }} result{{ total() === 1 ? '' : 's' }}</h3></div><span>Page {{ page() }}</span></div>
     @if (listError()) { <p class="state-message state-message--error" role="alert">{{ listError() }} <button type="button" (click)="loadList()">Retry</button></p> }
     @else if (loadingList()) { <p class="state-message" role="status">Loading customers...</p> }
-    @else if (!rows().length) { <p class="state-message">No customers match these filters.</p> }
+    @else if (!rows().length) { <app-empty-state [compact]="true" eyebrow="Ritual DNA" title="No customers found" text="No customers match these filters."></app-empty-state> }
     @else {
       <div class="customer-rows">
         @for (row of rows(); track row.user_id) {

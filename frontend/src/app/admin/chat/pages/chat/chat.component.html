@@ -206,7 +206,7 @@
   </aside>
 </div>
 
-@if (reportOpen && active) { <app-report-post-modal target="account" [authorUsername]="customerDetails?.community_name || customerName(active)" [submitting]="reportPending" (cancel)="reportOpen = false" (submitReport)="reportCustomer($event)" /> }
+@if (reportOpen && active) { <app-report-post-modal target="account" [staffPenalty]="true" [authorUsername]="customerDetails?.community_name || customerName(active)" [submitting]="reportPending" (cancel)="reportOpen = false" (submitReport)="reportCustomer($event)" /> }
 
 <dialog #transferDialog class="support-dialog" aria-labelledby="transfer-title" (cancel)="$event.preventDefault(); dismissDialogs()">
   <form (submit)="$event.preventDefault(); transfer()">

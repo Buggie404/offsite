@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { LucideArrowRight, LucideSparkle } from '@lucide/angular';
 import { CommonModule } from '@angular/common';
 import { Component, DestroyRef, Input, OnInit, inject, signal } from '@angular/core';
@@ -12,7 +13,7 @@ import {
 @Component({
   selector: 'app-admin-ritual-dna-customers',
   standalone: true,
-  imports: [LucideArrowRight, LucideSparkle,CommonModule, RouterLink],
+  imports: [EmptyStateComponent, LucideArrowRight, LucideSparkle,CommonModule, RouterLink],
   templateUrl: './ritual-dna-customers.component.html',
   styleUrl: './ritual-dna-customers.component.scss'
 })

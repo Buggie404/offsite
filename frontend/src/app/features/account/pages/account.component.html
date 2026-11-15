@@ -537,34 +537,18 @@
 
         </div>
 
-        <div class="saved-empty-state-wrapper" *ngIf="!isSavedLoading() && !hasAnySavedItems()">
-          <div class="saved-empty-icon-container">
-            <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="saved-empty-search-svg">
-              <circle cx="28" cy="28" r="15"></circle>
-              <line x1="39" y1="39" x2="54" y2="54"></line>
-              <line x1="22" y1="22" x2="34" y2="34"></line>
-              <line x1="34" y1="22" x2="22" y2="34"></line>
-            </svg>
-          </div>
-          <h2 class="saved-empty-title">NO SAVED ITEMS YET</h2>
-          <p class="saved-empty-subtitle">Your favorite products and recipes will appear here so you can find them easily.</p>
-          <a routerLink="/" class="btn-explore-more">EXPLORE MORE</a>
-        </div>
+        <app-empty-state *ngIf="!isSavedLoading() && !hasAnySavedItems()" [compact]="true" eyebrow="Saved" title="No saved items yet"
+          text="Your favorite products and recipes will appear here so you can find them easily."
+          [chips]="[{ icon: 'heart', label: 'Tap the heart to save' }, { icon: 'leaf', label: 'Products' }, { icon: 'coffee', label: 'Recipes' }, { icon: 'bookmark', label: 'Posts & blogs' }]">
+          <a routerLink="/" class="es-btn es-btn--primary">Explore more</a>
+        </app-empty-state>
       </div>
 
       <div class="tab-content address-empty-content-tab" *ngIf="activeTab() === 'address' && sortedAddresses().length === 0">
-        <div class="address-empty-state-wrapper">
-          <div class="address-empty-icon-container">
-            <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="address-empty-search-svg">
-              <circle cx="28" cy="28" r="15"></circle>
-              <line x1="39" y1="39" x2="54" y2="54"></line>
-              <line x1="22" y1="22" x2="34" y2="34"></line>
-              <line x1="34" y1="22" x2="22" y2="34"></line>
-            </svg>
-          </div>
-          <h2 class="address-empty-title">NO ADDRESS YET</h2>
-          <p class="address-empty-subtitle">You haven't saved any addresses yet. Add one to start shipping your orders.</p>
-        </div>
+        <app-empty-state [compact]="true" eyebrow="Addresses" title="No address yet"
+          text="You haven't saved any addresses yet. Add one to start shipping your orders."
+          [chips]="[{ icon: 'map-pin', label: 'Faster checkout' }, { icon: 'home', label: 'Home or office' }, { icon: 'star', label: 'Set a default' }, { icon: 'truck', label: 'Delivered to your door' }]">
+        </app-empty-state>
       </div>
 
       <div class="tab-content address-list-tab" *ngIf="activeTab() === 'address' && sortedAddresses().length > 0">
@@ -815,13 +799,10 @@
       </div>
 
       <div class="tab-content payment-empty-content-tab" *ngIf="activeTab() === 'payment' && sortedPaymentMethods().length === 0 && !isAddingCard()">
-        <div class="address-empty-state-wrapper">
-          <div class="address-empty-icon-container">
-            <svg lucideCreditCard [size]="48" class="address-empty-search-svg" style="color: var(--color-warm-brown); opacity: 0.6;"></svg>
-          </div>
-          <h2 class="address-empty-title">NO SAVED CARDS YET</h2>
-          <p class="address-empty-subtitle">You haven't saved any payment cards yet. Add a card for a faster checkout experience.</p>
-        </div>
+        <app-empty-state [compact]="true" eyebrow="Payment" title="No saved cards yet"
+          text="You haven't saved any payment cards yet. Add a card for a faster checkout experience."
+          [chips]="[{ icon: 'card', label: 'Faster checkout' }, { icon: 'star', label: 'Set a default' }, { icon: 'repeat', label: 'Ready for Ritual Box' }]">
+        </app-empty-state>
       </div>
 
       <div class="tab-content payment-list-tab" *ngIf="activeTab() === 'payment' && sortedPaymentMethods().length > 0 && !isAddingCard()">

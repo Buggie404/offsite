@@ -55,7 +55,7 @@
 
   <section class="table-card">
     <p class="state" *ngIf="currentLoading">Loading {{ viewingDrafts ? 'drafts' : 'products' }}…</p>
-    <p class="state" *ngIf="!currentLoading && !error && !(viewingDrafts && draftsError) && !filteredRows.length">No {{ viewingDrafts ? 'drafts' : 'products' }} match these filters.</p>
+    <app-empty-state *ngIf="!currentLoading && !error && !(viewingDrafts && draftsError) && !filteredRows.length" [compact]="true" [eyebrow]="viewingDrafts ? 'Drafts' : 'Products'" [title]="viewingDrafts ? 'No drafts found' : 'No products found'" [text]="'No ' + (viewingDrafts ? 'drafts' : 'products') + ' match these filters.'"></app-empty-state>
     <div class="table-scroll" *ngIf="!currentLoading && filteredRows.length" (scroll)="closeMenu()">
       <table [class.is-drafts]="viewingDrafts">
         <thead><tr><th>Product</th><th>Category</th><th>From</th><th>Stock</th><th>{{ viewingDrafts ? 'Live status' : 'Status' }}</th><th>{{ viewingDrafts ? 'Draft saved' : 'Tags' }}</th><th></th></tr></thead>

@@ -1,3 +1,4 @@
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -15,7 +16,7 @@ const PAGE_SIZE = 20;
 @Component({
   selector: 'app-admin-customers-listing',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideLock, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideUsers],
+  imports: [EmptyStateComponent, CommonModule, FormsModule, LucideLock, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideUsers],
   templateUrl: './customers-listing.component.html',
   styleUrl: './customers-listing.component.scss'
 })
