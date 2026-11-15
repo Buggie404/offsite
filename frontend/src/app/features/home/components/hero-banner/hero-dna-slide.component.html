@@ -1,0 +1,71 @@
+<div class="dna" [class.is-active]="active" [class.is-dealing]="dealing()" [attr.data-archetype]="selectedId()" (pointermove)="onPointer($event)" (pointerleave)="onPointerLeave()">
+  <canvas #scene class="dna__scene" aria-hidden="true"></canvas>
+
+  <div class="dna__inner">
+    <div class="dna__content">
+      <h2 class="dna__heading">Find your<br>Ritual <span>DNA</span></h2>
+      <p class="dna__body">
+        A 7-question quiz maps your taste across <strong>brightness, boldness, sweetness, skill and tempo</strong>
+        — then matches you to one of four ritual archetypes. Your DNA keeps evolving with every order and saved recipe.
+      </p>
+
+      <div class="dna__cta">
+        <a routerLink="/ritual-dna" class="dna__button">Find your Ritual DNA <svg lucideArrowRight [size]="18" aria-hidden="true"></svg></a>
+      </div>
+
+      <div class="dna__archetypes">
+        <p class="dna__archetypes-label"><span>4 ARCHETYPES</span></p>
+        <div class="dna__chips" role="group" aria-label="Preview an archetype card">
+          @for (item of archetypes; track item.id) {
+            <button type="button" class="chip" [class.chip--active]="item.id === selectedId()"
+                    [attr.aria-pressed]="item.id === selectedId()" (click)="select(item.id)">
+              <span class="chip__icon" aria-hidden="true">
+                @switch (item.icon) {
+                  @case ('leaf') { <svg lucideLeaf [size]="14"></svg> }
+                  @case ('flask') { <svg lucideFlaskConical [size]="14"></svg> }
+                  @case ('zap') { <svg lucideZap [size]="14"></svg> }
+                  @case ('coffee') { <svg lucideCoffee [size]="14"></svg> }
+                }
+              </span>
+              {{ item.name }}
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div #stack class="dna__stack" aria-live="polite">
+      @for (item of archetypes; track item.id) {
+        <article class="dna-card" [attr.data-archetype]="item.id" [attr.data-pos]="posOf(item.id)"
+                 [class.is-leaving]="leavingId() === item.id" [class.is-entering]="enteringId() === item.id"
+                 [attr.data-from]="enteringId() === item.id ? enteringFrom() : null"
+                 [attr.aria-hidden]="item.id !== selectedId()">
+          <div class="dna-card__topline">
+            <div class="dna-card__brand"><img src="assets/images/logo-mark-dark.svg" alt=""><span>Offsite<small>RITUAL DNA</small></span></div>
+            <span class="dna-card__badge">SAMPLE PROFILE</span>
+          </div>
+          <div class="dna-card__intro"><span>YOUR CUP, YOUR WAY</span><span class="dna-card__spark" aria-hidden="true"><svg lucideSparkle [size]="18" [attr.fill]="'currentColor'"></svg></span></div>
+          <div class="dna-card__radar-panel">
+            <div class="dna-card__panel-heading"><span>THE RITUAL RADAR</span><span>05 NOTES</span></div>
+            <div class="radar-wrap">
+              <svg viewBox="0 0 200 200" role="img" [attr.aria-label]="item.name + ' five-axis radar'">
+                <polygon class="radar-grid" points="100,24 172.3,76.5 144.7,161.5 55.3,161.5 27.7,76.5"></polygon>
+                <polygon class="radar-grid" points="100,50 147.6,84.5 129.4,140.5 70.6,140.5 52.4,84.5"></polygon>
+                <polygon class="radar-grid" points="100,76 122.8,92.6 114.1,119.4 85.9,119.4 77.2,92.6"></polygon>
+                <line x1="100" y1="100" x2="100" y2="24"></line><line x1="100" y1="100" x2="172.3" y2="76.5"></line>
+                <line x1="100" y1="100" x2="144.7" y2="161.5"></line><line x1="100" y1="100" x2="55.3" y2="161.5"></line>
+                <line x1="100" y1="100" x2="27.7" y2="76.5"></line>
+                <polygon class="radar-shape" [attr.points]="radarPoints(item.radar)"></polygon>
+              </svg>
+              <span class="axis axis--brightness">BRIGHTNESS</span><span class="axis axis--boldness">BOLDNESS</span>
+              <span class="axis axis--sweetness">SWEETNESS</span><span class="axis axis--skill">SKILL</span><span class="axis axis--tempo">TEMPO</span>
+            </div>
+          </div>
+          <div class="dna-card__identity"><span>YOUR ARCHETYPE</span><h3>{{ item.name }}</h3><p>{{ item.tagline }}</p></div>
+          <div class="dna-card__footer"><span>BREW YOUR OWN MOMENT</span><span aria-hidden="true"><svg lucideAsterisk [size]="16"></svg></span></div>
+          <div class="dna-card__veil" aria-hidden="true"><span>{{ item.name }}</span></div>
+        </article>
+      }
+    </div>
+  </div>
+</div>

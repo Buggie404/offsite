@@ -1,18 +1,72 @@
-<section class="hero">
-  <img *ngIf="heroImage" class="hero__image" [src]="heroImage" alt="Offsite home cafe setup" />
+<section class="hero" aria-roledescription="carousel" aria-label="Featured"
+         (mouseenter)="setHover(true)" (mouseleave)="setHover(false)"
+         (focusin)="setFocus(true)" (focusout)="setFocus(false)">
+  <div #track class="hero__track" (scroll)="onScroll()">
 
-  <div class="hero__inner">
-    <div class="hero__content">
-      <h1 class="hero__heading">
-        {{ heading }} <span class="hero__heading-accent">{{ headingAccent }}</span>
-      </h1>
+    <!-- Banner 1 · Brand -->
+    <div class="hero__slide slide-home" [class.is-active]="active() === 0" role="group" aria-roledescription="slide" aria-label="1 of 3"
+         [attr.inert]="active() === 0 ? null : ''">
+      <img *ngIf="heroImage" class="hero__image" [src]="heroImage" alt="Matcha bowl, whisk, latte and coffee on a linen cloth" />
 
-      <p class="hero__body">{{ body }}</p>
+      <div class="hero__inner">
+        <div class="hero__content">
+          <h1 class="hero__heading">
+            {{ heading }}<br><span class="hero__heading-accent">{{ headingAccent }}</span>
+          </h1>
 
-      <div class="hero__cta">
-        <a routerLink="/shop/best-seller" class="btn btn--dark">{{ ctaPrimary }}</a>
-        <a routerLink="/starter-quiz" class="btn btn--outline">{{ ctaSecondary }}</a>
+          <p class="hero__body">{{ body }}</p>
+
+          <div class="hero__cta">
+            <a routerLink="/shop/best-seller" class="btn btn--dark">{{ ctaPrimary }}</a>
+            <a routerLink="/starter-quiz" class="btn btn--outline">{{ ctaSecondary }}</a>
+          </div>
+        </div>
       </div>
     </div>
+
+    <!-- Banner 2 · Ritual DNA -->
+    <div class="hero__slide" [class.is-active]="active() === 1" role="group" aria-roledescription="slide" aria-label="2 of 3"
+         [attr.inert]="active() === 1 ? null : ''">
+      <app-hero-dna-slide [active]="active() === 1" (interact)="schedule()"></app-hero-dna-slide>
+    </div>
+
+    <!-- Banner 3 · Holiday sale -->
+    <div class="hero__slide slide-holiday" [class.is-active]="active() === 2" role="group" aria-roledescription="slide" aria-label="3 of 3"
+         [attr.inert]="active() === 2 ? null : ''">
+      <div class="holiday__art">
+        <img [src]="holidayImage" alt="Matcha bowl, espresso and a wrapped gift box on a festive tray" loading="lazy" />
+        <div class="holiday__badge" aria-hidden="true"><span>HOLIDAY</span><strong>20%</strong><span>OFF BUNDLES</span></div>
+        <span class="holiday__star holiday__star--1" aria-hidden="true"></span>
+        <span class="holiday__star holiday__star--2" aria-hidden="true"></span>
+        <span class="holiday__star holiday__star--3" aria-hidden="true"></span>
+      </div>
+
+      <div class="hero__inner">
+        <div class="hero__content">
+          <p class="holiday__eyebrow"><svg lucideSparkle [size]="13" [attr.fill]="'currentColor'" aria-hidden="true"></svg> HOLIDAY SALE · LIMITED TIME</p>
+          <h2 class="hero__heading holiday__heading">Wrap up<br><span class="hero__heading-accent">the ritual</span></h2>
+          <p class="hero__body">Matcha, coffee and the tools to make them — bundled for gifting, or for slow mornings of your own.</p>
+          <p class="holiday__offer"><strong>BUNDLE &amp; SAVE 20%</strong><span>on build-your-own sets</span></p>
+
+          <div class="hero__cta">
+            <a routerLink="/shop/bundles" class="btn btn--dark">Shop Holiday Sets</a>
+            <a routerLink="/shop/build-your-bundle" class="btn btn--outline">Build a Gift Bundle</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero__controls">
+    <button type="button" class="hero__arrow" aria-label="Previous banner" (click)="go(active() - 1)"><svg lucideChevronLeft [size]="18" aria-hidden="true"></svg></button>
+    <div class="hero__dots">
+      @for (label of slides; track label; let i = $index) {
+        <button type="button" class="hero__dot" [class.hero__dot--active]="i === active()"
+                [class.hero__dot--running]="i === active() && autoplay() && !paused()"
+                [attr.aria-label]="'Banner ' + (i + 1) + ': ' + label" [attr.aria-current]="i === active() ? 'true' : null"
+                (click)="go(i)"><span></span></button>
+      }
+    </div>
+    <button type="button" class="hero__arrow" aria-label="Next banner" (click)="go(active() + 1)"><svg lucideChevronRight [size]="18" aria-hidden="true"></svg></button>
   </div>
 </section>

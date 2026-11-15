@@ -1,0 +1,348 @@
+:host {
+  // The home page remaps --font-display to DM Sans; the hero keeps the brand display face.
+  --font-display: 'Russo One', sans-serif;
+  display: block;
+  height: 100%;
+  min-height: inherit;
+}
+
+.dna {
+  position: relative;
+  height: 100%;
+  min-height: inherit;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 92% 12%, rgba(232, 213, 176, .55) 0, transparent 34%),
+    radial-gradient(rgba(84, 74, 64, .16) 1px, transparent 1.4px) 0 0 / 22px 22px,
+    linear-gradient(100deg, #f8f1ea 0%, #f6efe6 55%, #f3ebe0 100%);
+}
+
+.dna__scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.dna__inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: inherit;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 32px;
+  margin: 0 auto;
+  padding: 72px clamp(28px, 3.4vw, 72px) 92px clamp(34px, 6.25vw, 120px);
+}
+
+.dna__content { max-width: 640px; }
+
+.dna__heading {
+  margin: 0 0 26px;
+  color: var(--color-near-black);
+  font-family: var(--font-display);
+  font-size: clamp(52px, 5.2vw, 100px);
+  font-weight: 400;
+  line-height: .98;
+  letter-spacing: -.01em;
+  // Russo One ships a single weight; a hairline stroke gives the heavier cut of the reference.
+  -webkit-text-stroke: .022em currentColor;
+
+  span { color: var(--color-forest-green); }
+}
+
+.dna__body {
+  max-width: clamp(400px, 30vw, 560px);
+  margin: 0;
+  color: var(--color-warm-brown);
+  font-family: var(--font-body);
+  font-size: clamp(17px, 1.15vw, 22px);
+  line-height: 1.5;
+
+  strong { color: var(--color-near-black); font-weight: 600; }
+}
+
+.dna__cta { padding-top: 34px; }
+
+.dna__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 18px 34px;
+  border: 2px solid var(--color-forest-green);
+  border-radius: 999px;
+  background: var(--color-forest-green);
+  color: var(--color-cream);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: background-color .22s ease, color .22s ease, transform .24s cubic-bezier(.2, .8, .2, 1);
+
+  &:hover { background: var(--color-forest-green-hover); transform: translateY(-4px); }
+  &:focus-visible { outline: 2px solid var(--color-near-black); outline-offset: 3px; }
+}
+
+.dna__archetypes { padding-top: 34px; }
+
+.dna__archetypes-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  color: var(--color-warm-brown);
+  font: 10px var(--font-mono);
+  letter-spacing: .14em;
+
+  &::after { flex: 0 0 72px; height: 1px; background: rgba(84, 74, 64, .3); content: ''; }
+}
+
+.dna__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 13px 5px 5px;
+  border: 1px solid rgba(84, 74, 64, .22);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, .82);
+  color: var(--color-near-black);
+  font: 10.5px var(--font-mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .2s ease, border-color .2s ease, transform .2s ease;
+
+  &:hover { border-color: var(--color-forest-green); transform: translateY(-2px); }
+  &:focus-visible { outline: 2px solid var(--color-forest-green); outline-offset: 2px; }
+}
+
+.chip__icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-warm-brown);
+  color: var(--color-cream);
+  transition: background-color .2s ease;
+}
+
+.chip--active {
+  border-color: var(--color-forest-green);
+  background: var(--color-sage);
+
+  .chip__icon { background: var(--color-forest-green); }
+}
+
+// ── Card stack ──────────────────────────────────────────────
+
+.dna__stack {
+  position: relative;
+  width: 286px;
+  height: 480px;
+  margin-right: 26px;
+  zoom: var(--card-scale, 1);
+  transform: translate3d(var(--px, 0px), var(--py, 0px), 0);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  // the stack hovers gently; content and cards arrive when the banner comes on screen
+  .dna__stack { animation: stack-float 7s ease-in-out infinite; }
+  .dna__content > * { opacity: 0; }
+  .dna.is-active .dna__content > * { animation: dna-rise .7s cubic-bezier(.2, .8, .2, 1) both; }
+  .dna.is-active .dna__content > :nth-child(2) { animation-delay: .08s; }
+  .dna.is-active .dna__content > :nth-child(3) { animation-delay: .16s; }
+  .dna.is-active .dna__content > :nth-child(4) { animation-delay: .24s; }
+  .dna-card { opacity: 0; }
+  .dna.is-active .dna-card { opacity: 1; }
+  .dna.is-dealing .dna-card:not(.is-leaving):not(.is-entering) { animation: card-deal .8s cubic-bezier(.2, .8, .2, 1) backwards; }
+  .dna.is-dealing .dna-card[data-pos='0']:not(.is-leaving):not(.is-entering) { animation-delay: .34s; }
+  .dna.is-dealing .dna-card[data-pos='1']:not(.is-leaving):not(.is-entering) { animation-delay: .24s; }
+  .dna.is-dealing .dna-card[data-pos='2']:not(.is-leaving):not(.is-entering) { animation-delay: .14s; }
+}
+
+@keyframes stack-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -8px; }
+}
+
+@keyframes dna-rise {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes card-deal {
+  from { opacity: 0; transform: translate(70%, 12%) rotate(22deg); }
+  to { opacity: 1; transform: var(--pose); }
+}
+
+.dna-card {
+  --card-tint: #eaf3e4;
+  --card-accent: #406f49;
+  --card-accent-strong: #244f2d;
+  --card-sticker: #d8e9b9;
+  --card-orb: rgba(178, 213, 142, .32);
+  --radar-glow: #83ba68;
+  --radar-fill: rgba(131, 186, 104, .34);
+  --pose: rotate(2.5deg);
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto;
+  gap: 12px;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--card-accent) 30%, #e6dfd5);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 96% 2%, var(--card-orb) 0, transparent 34%),
+    linear-gradient(160deg, #fffdf8 0%, color-mix(in srgb, var(--card-tint) 34%, #f8f3e9) 100%);
+  color: var(--color-near-black);
+  box-shadow: 0 18px 40px color-mix(in srgb, var(--card-accent) 16%, transparent);
+  transform: var(--pose);
+  transition: transform .6s cubic-bezier(.2, .8, .2, 1);
+
+  &::before { position: absolute; z-index: -1; top: 0; right: 0; left: 0; height: 5px; background: linear-gradient(90deg, var(--card-accent-strong), var(--card-accent), var(--card-sticker)); content: ''; }
+
+  &[data-archetype='ARC0002'] { --card-tint: #f5e5ef; --card-accent: #914b79; --card-accent-strong: #642e52; --card-sticker: #e7b2d2; --card-orb: rgba(225, 168, 203, .3); --radar-glow: #c968a9; --radar-fill: rgba(201, 104, 169, .3); }
+  &[data-archetype='ARC0003'] { --card-tint: #f7e7ca; --card-accent: #a96824; --card-accent-strong: #764315; --card-sticker: #edbd6b; --card-orb: rgba(232, 177, 89, .31); --radar-glow: #d9963b; --radar-fill: rgba(217, 150, 59, .32); }
+  &[data-archetype='ARC0004'] { --card-tint: #f7e3de; --card-accent: #ae5c52; --card-accent-strong: #773c36; --card-sticker: #efaaa0; --card-orb: rgba(226, 145, 133, .29); --radar-glow: #d9756c; --radar-fill: rgba(217, 117, 108, .3); }
+
+  &[data-pos='1'] { --pose: translate(-26px, 12px) rotate(-6.5deg); z-index: 3; }
+  &[data-pos='2'] { --pose: translate(22px, 18px) rotate(8deg); z-index: 2; }
+  &[data-pos='3'] { --pose: translate(2px, 26px) rotate(-2deg); z-index: 1; }
+
+  &[data-from='1'] { --from: translate(-26px, 12px) rotate(-6.5deg); }
+  &[data-from='2'] { --from: translate(22px, 18px) rotate(8deg); }
+  &[data-from='3'] { --from: translate(2px, 26px) rotate(-2deg); }
+
+  &.is-leaving { animation: card-leave .72s cubic-bezier(.45, .05, .25, 1) both; }
+  &.is-entering { animation: card-enter .72s cubic-bezier(.45, .05, .25, 1) both; }
+}
+
+// Front card lifts off to the left and tucks under the stack…
+@keyframes card-leave {
+  0% { z-index: 9; transform: rotate(2.5deg); }
+  45% { z-index: 9; transform: translate(-58%, -5%) rotate(-13deg); }
+  55% { z-index: 0; transform: translate(-58%, -5%) rotate(-13deg); }
+  100% { z-index: 0; transform: var(--pose); }
+}
+
+// …while the chosen card slides out to the right and lands on top.
+@keyframes card-enter {
+  0% { z-index: 2; transform: var(--from, var(--pose)); }
+  45% { z-index: 2; transform: translate(46%, 3%) rotate(11deg); }
+  55% { z-index: 10; transform: translate(46%, 3%) rotate(11deg); }
+  100% { z-index: 10; transform: var(--pose); }
+}
+
+// Cards waiting in the stack show a coloured back.
+.dna-card__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 18px 9px;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 80% 12%, color-mix(in srgb, var(--card-sticker) 26%, transparent) 0, transparent 46%),
+    var(--card-accent-strong);
+  color: color-mix(in srgb, var(--card-sticker) 80%, #fff);
+  font: 9px var(--font-mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  opacity: 1;
+  pointer-events: none;
+  transition: opacity .3s ease .2s;
+}
+
+.dna-card[data-pos='0'] .dna-card__veil { opacity: 0; }
+.dna-card.is-leaving .dna-card__veil { transition-delay: .3s; }
+
+.dna-card__topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dna-card__brand { display: flex; align-items: center; gap: 7px; color: #273c28; font: 15px/1 var(--font-display); }
+.dna-card__brand img { width: 28px; height: 28px; object-fit: contain; }
+.dna-card__brand small { display: block; margin-top: 3px; color: #6d7860; font: 8px/1.5 var(--font-mono); letter-spacing: .12em; }
+.dna-card__badge { padding: 6px 9px; border: 1px solid color-mix(in srgb, var(--card-accent) 28%, #e5ddd1); border-radius: 99px; background: rgba(255, 255, 255, .7); color: var(--card-accent-strong); font: 8px var(--font-mono); letter-spacing: .06em; white-space: nowrap; }
+
+.dna-card__intro { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--card-accent-strong); font: 13px/1.2 var(--font-display); }
+.dna-card__spark { display: grid; place-items: center; flex: 0 0 34px; width: 34px; height: 34px; border: 1px solid color-mix(in srgb, var(--card-accent) 28%, transparent); border-radius: 50%; background: var(--card-sticker); color: var(--card-accent-strong); box-shadow: 0 6px 14px color-mix(in srgb, var(--card-accent) 19%, transparent); }
+
+// Light-mode radar panel
+.dna-card__radar-panel {
+  position: relative;
+  overflow: hidden;
+  padding: 12px 14px 10px;
+  border: 1px solid color-mix(in srgb, var(--card-accent) 24%, #e6dfd5);
+  border-radius: 14px;
+  background: radial-gradient(circle 130px at 50% 56%, color-mix(in srgb, var(--radar-glow) 24%, #fffdf8) 0%, color-mix(in srgb, var(--radar-glow) 8%, #fffdf8) 55%, #fdf9f1 100%);
+}
+.dna-card__radar-panel::after { position: absolute; right: -35px; bottom: -48px; width: 128px; height: 128px; border: 1px dashed color-mix(in srgb, var(--card-accent) 24%, transparent); border-radius: 50%; content: ''; }
+.dna-card__panel-heading { position: relative; z-index: 2; display: flex; justify-content: space-between; gap: 8px; color: var(--card-accent-strong); font: 8px var(--font-mono); letter-spacing: .08em; }
+
+.radar-wrap { position: relative; width: 172px; aspect-ratio: 1; margin: 12px auto 4px; }
+.radar-wrap svg { width: 100%; height: 100%; overflow: visible; }
+.radar-grid, .radar-wrap line { fill: none; stroke: color-mix(in srgb, var(--card-accent-strong) 30%, transparent); stroke-width: .8; }
+.radar-shape { fill: var(--radar-fill); stroke: var(--card-accent); stroke-width: 1.8; stroke-linejoin: round; }
+
+.axis { position: absolute; color: var(--card-accent-strong); font: 7px var(--font-mono); letter-spacing: .11em; white-space: nowrap; }
+.axis--brightness { top: -4px; left: 50%; transform: translateX(-50%); }
+.axis--boldness { top: 40%; right: -22px; }
+.axis--sweetness { right: -6px; bottom: -2px; }
+.axis--skill { bottom: -2px; left: 4px; }
+.axis--tempo { top: 40%; left: -14px; }
+
+.dna-card__identity span { color: var(--card-accent); font: 9px var(--font-mono); letter-spacing: .1em; }
+.dna-card__identity h3 { margin: 5px 0 4px; color: var(--card-accent-strong); font: 400 21px/1.08 var(--font-display); }
+.dna-card__identity p { margin: 0; color: var(--color-warm-brown); font: 12px/1.4 var(--font-body); }
+
+.dna-card__footer { display: flex; justify-content: space-between; align-items: center; padding-top: 9px; border-top: 1px solid color-mix(in srgb, var(--card-accent) 20%, #e6dfd5); color: #72816a; font: 8px var(--font-mono); letter-spacing: .09em; }
+.dna-card__footer span:last-child { display: grid; color: var(--card-accent); }
+
+// ── Responsive ──────────────────────────────────────────────
+
+@media (max-width: 1100px) {
+  .dna__content { max-width: 470px; }
+  .dna__heading { font-size: 54px; }
+  .dna__body { max-width: 400px; font-size: 16px; }
+}
+
+@media (max-width: 900px) {
+  .dna__scene { opacity: .6; }
+  .dna__inner { gap: 20px; padding: 88px 34px 92px; }
+  .dna__heading { font-size: clamp(40px, 6vw, 54px); }
+  .dna__stack { zoom: .82; margin-right: 0; transform: none; }
+}
+
+@media (max-width: 620px) {
+  .dna__scene {
+    opacity: 1;
+    -webkit-mask-image: linear-gradient(to bottom, #000 220px, transparent 330px);
+    mask-image: linear-gradient(to bottom, #000 220px, transparent 330px);
+  }
+  .dna__inner { display: block; padding: 300px 24px 84px; }
+  .dna__heading { margin-bottom: 14px; font-size: clamp(32px, 9vw, 42px); }
+  .dna__body { max-width: none; font-size: 15px; line-height: 1.5; }
+  .dna__cta { padding-top: 22px; }
+  .dna__button { min-height: 48px; padding: 13px 22px; font-size: 12px; }
+  .dna__archetypes, .dna__stack { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dna-card { transition: none; }
+  .dna-card.is-leaving, .dna-card.is-entering { animation: none; }
+  .dna-card__veil { transition: none; }
+}
