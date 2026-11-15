@@ -18,17 +18,6 @@
   }
 
   <div class="filters">
-    <label class="search">
-      <svg lucideSearch [size]="16"></svg>
-      <input
-        type="search"
-        placeholder="Search name, target, ID or reason"
-        aria-label="Search name, target, ID or reason"
-        [ngModel]="q"
-        (ngModelChange)="onSearch($event)"
-      />
-    </label>
-
     <div class="select-wrap">
       <select class="select" aria-label="Role" [(ngModel)]="adminRole" (ngModelChange)="applyFilters()">
         <option value="">Any role</option>

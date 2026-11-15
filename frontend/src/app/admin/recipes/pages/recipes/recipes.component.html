@@ -11,17 +11,6 @@
   </header>
 
   <div class="filters">
-    <label class="search">
-      <svg lucideSearch [size]="16" aria-hidden="true"></svg>
-      <input
-        type="search"
-        placeholder="Recipe or author"
-        aria-label="Recipe or author"
-        [ngModel]="query"
-        (ngModelChange)="onSearch($event)"
-      />
-    </label>
-
     <div class="filter-group">
       <span class="filter-label">Source</span>
       <div class="segmented" role="group" aria-label="Source">

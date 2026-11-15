@@ -104,6 +104,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   ];
   filter: StatusFilter = 'waiting';
   search = '';
+  private searchSub: { unsubscribe(): void } | null = null;
   sourceFilter: 'all' | 'ai' | 'direct' = 'all';
   sortOrder: 'latest' | 'oldest' = 'latest';
   actionPending = false;
@@ -211,6 +212,12 @@ export class AdminChatComponent implements OnInit, OnDestroy {
     if (status === 'open') this.filter = 'mine'; // Existing dashboard links.
     else if (this.filters.some(f => f.value === status)) this.filter = status as StatusFilter;
     this.openId = params.get('conversation');
+    // The search box lives in the admin header and writes ?search= on this page.
+    this.search = params.get('search') || '';
+    this.searchSub = this.route.queryParamMap.subscribe((next) => {
+      this.search = next.get('search') || '';
+      this.cdr.markForCheck();
+    });
 
     if (this.isSenior) this.chat.agents().subscribe({
       next: res => { this.inboxAgents = res.data; this.cdr.markForCheck(); },
@@ -255,6 +262,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.customerRequest?.unsubscribe();
+    this.searchSub?.unsubscribe();
     this.subs.unsubscribe();
     clearTimeout(this.typingTimer);
     clearTimeout(this.stopTypingTimer);
@@ -499,7 +507,28 @@ export class AdminChatComponent implements OnInit, OnDestroy {
     }).sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
   }
 
-  customerName(c: ChatConversation): string { return c.customer?.profile_name || c.customer_id; }
+  customerName(c: ChatConversation): string {
+    if (c.customer?.profile_name) return c.customer.profile_name;
+    // Guests give no name: show a short, stable label from their session id (guest:<uuid>).
+    if (this.isGuest(c)) return `Guest #${this.guestSessionId(c).replace(/[^a-z0-9]/gi, '').slice(0, 4).toUpperCase()}`;
+    return c.customer_id;
+  }
+
+  isGuest(c: ChatConversation | null | undefined): boolean {
+    return !!c && !c.customer?.profile_name && String(c.customer_id || '').startsWith('guest:');
+  }
+
+  guestSessionId(c: ChatConversation): string {
+    return String(c.customer_id || '').replace(/^guest:/, '');
+  }
+
+  avatarText(c: ChatConversation): string {
+    return this.isGuest(c) ? 'G' : this.initials(this.customerName(c));
+  }
+
+  copyGuestId(c: ChatConversation): void {
+    void navigator.clipboard?.writeText(c.customer_id).catch(() => undefined);
+  }
 
   private scrollSoon(force = false): void {
     // Socket events must schedule a render before measuring the new thread height.

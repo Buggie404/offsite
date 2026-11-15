@@ -16,16 +16,6 @@
   }
 
   <div class="filters">
-    <label class="search">
-      <svg lucideSearch [size]="16"></svg>
-      <input
-        type="search"
-        placeholder="Search code"
-        aria-label="Search code"
-        [ngModel]="query"
-        (ngModelChange)="onSearch($event)"
-      />
-    </label>
 
     <div class="segmented" role="group" aria-label="Status">
       @for (item of statuses; track item.value) {

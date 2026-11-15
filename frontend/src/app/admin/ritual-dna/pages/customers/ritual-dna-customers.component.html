@@ -3,10 +3,9 @@
 </section>
 
 <form class="customer-filters" (submit)="$event.preventDefault(); applyFilters()" aria-label="Search DNA customers">
-  <label class="search-field">SEARCH BY NAME, EMAIL OR USER ID<input type="search" [value]="search()" (input)="setSearch($event)" placeholder="Search customers..."></label>
   <label>DNA STATUS<select [value]="status()" (change)="setStatus($event)"><option value="all">All customers</option><option value="completed">Quiz completed</option><option value="missing">No DNA yet</option></select></label>
   <label>ARCHETYPE<select [value]="archetype()" (change)="setArchetype($event)"><option value="">All archetypes</option>@for (row of archetypes; track row.archetype_id) { <option [value]="row.archetype_id">{{ row.name }}</option> }</select></label>
-  <button type="submit">SEARCH</button>
+  <button type="submit">APPLY</button>
 </form>
 
 <div class="customer-workspace">

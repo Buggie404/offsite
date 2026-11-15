@@ -13,17 +13,6 @@
     </div>
   }
   <div class="filters">
-    <label class="search">
-      <svg lucideSearch [size]="16"></svg>
-      <input
-        type="search"
-        placeholder="Name, @username, email or phone"
-        aria-label="Search customers"
-        [ngModel]="q"
-        (ngModelChange)="onSearch($event)"
-      />
-    </label>
-
     <div class="filter-group">
       <span class="filter-group__label">Tier</span>
       <div class="segmented" role="group" aria-label="Tier">

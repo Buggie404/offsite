@@ -94,7 +94,7 @@
         </div>
       </a>
 
-      <!-- Search the current list through the shared search query parameter. -->
+      <!-- The only search bar in admin: filters the current section (see headerSearchFor). -->
       <div class="header-search" *ngIf="showHeaderSearch">
         <svg lucideSearch class="header-search__icon" aria-hidden="true" [size]="18"></svg>
         <input
@@ -104,6 +104,7 @@
           [attr.aria-label]="searchAriaLabel"
           [value]="searchQuery"
           (input)="onSearchInput($any($event.target).value)"
+          (keydown.enter)="onSearchEnter()"
         />
       </div>
 

@@ -9,10 +9,6 @@
 <div class="chat-layout">
   <aside class="chat-list">
     <div class="chat-controls">
-      <div class="chat-search-field"><img src="/assets/icons/chat/search.svg" alt="" width="16" height="16">
-        <input class="chat-search" type="search" aria-label="Search by name or customer ID" placeholder="Name or customer ID"
-          [value]="search" (input)="search = $any($event.target).value">
-      </div>
       <div class="chat-filters" role="group" aria-label="Conversation status">
         @for (f of filters; track f.value) {
           <button type="button" class="chat-filter" [class.active]="filter === f.value" [attr.aria-pressed]="filter === f.value"
@@ -48,9 +44,9 @@
 
     @for (c of visible; track c.customer?.user_id || c.customer_id) {
       <button type="button" class="chat-item" [class.active]="(active?.customer?.user_id || active?.customer_id) === (c.customer?.user_id || c.customer_id)" (click)="select(c)">
-        <span class="chat-item__avatar">
+        <span class="chat-item__avatar" [class.chat-item__avatar--guest]="isGuest(c)">
           @if (c.customer?.avatar_url) { <img [src]="c.customer?.avatar_url" [alt]="customerName(c)"> }
-          @else { {{ initials(customerName(c)) }} }
+          @else { {{ avatarText(c) }} }
         </span>
         <span class="chat-item__body">
           <span class="chat-item__top">
@@ -74,7 +70,7 @@
   <section class="chat-pane">
     @if (active) {
       <header class="chat-pane__head">
-        <span class="chat-item__avatar chat-head-avatar">@if (active.customer?.avatar_url) { <img [src]="active.customer?.avatar_url" alt=""> } @else { {{ initials(customerName(active)) }} }</span>
+        <span class="chat-item__avatar chat-head-avatar" [class.chat-item__avatar--guest]="isGuest(active)">@if (active.customer?.avatar_url) { <img [src]="active.customer?.avatar_url" alt=""> } @else { {{ avatarText(active) }} }</span>
         <div class="chat-pane__identity">
           <strong>{{ customerName(active) }}</strong>
           <small class="chat-state" aria-live="polite">{{ activeState }}@if (active.status === 'open' && active.claimed_at) { · {{ active.claimed_at | date:'HH:mm' }} }@if (active.status === 'closed' && active.closed_at) { · {{ active.closed_at | date:'dd/MM/yyyy HH:mm':'+0700' }} }</small>
@@ -174,8 +170,11 @@
     @if (active) {
       <div class="customer-panel__body">
         <div class="customer-panel__identity">
-          <span class="chat-item__avatar customer-panel__avatar">@if (active.customer?.avatar_url) { <img [src]="active.customer?.avatar_url" alt=""> } @else { {{ initials(customerName(active)) }} }</span>
-          <div><strong>{{ customerName(active) }}</strong><small>{{ customerDetails?.community_name ? '@' + customerDetails?.community_name : active.customer_id }}@if (customerDetails?.created_at) { · since {{ customerDetails?.created_at | date:'MMM yyyy' }} }</small>
+          <span class="chat-item__avatar customer-panel__avatar" [class.chat-item__avatar--guest]="isGuest(active)">@if (active.customer?.avatar_url) { <img [src]="active.customer?.avatar_url" alt=""> } @else { {{ avatarText(active) }} }</span>
+          <div><strong>{{ customerName(active) }}</strong>@if (isGuest(active)) {
+            <small>Not signed in</small>
+            <button type="button" class="guest-session-id" [title]="'Session ' + guestSessionId(active) + ' · click to copy'" (click)="copyGuestId(active)">Session {{ guestSessionId(active).slice(0, 8) }}…</button>
+          } @else {<small>{{ customerDetails?.community_name ? '@' + customerDetails?.community_name : active.customer_id }}@if (customerDetails?.created_at) { · since {{ customerDetails?.created_at | date:'MMM yyyy' }} }</small>}
           </div>
         </div>
         <div class="customer-panel__badges">

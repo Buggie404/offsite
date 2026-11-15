@@ -10,7 +10,6 @@ import {
   LucideEyeOff,
   LucideLock,
   LucidePlus,
-  LucideSearch,
   LucideTrash2,
   LucideTriangleAlert,
   LucideX
@@ -54,7 +53,6 @@ interface FeaturedToast {
   imports: [
     CommonModule,
     FormsModule,
-    LucideSearch,
     LucideChevronDown,
     LucidePlus,
     LucideEye,
@@ -212,16 +210,6 @@ export class AdminRecipesComponent implements OnInit {
     const target = event.target as HTMLElement | null;
     if (target?.closest('button, a, input, select, textarea, label')) return;
     void this.router.navigate(['/admin/recipes', row.recipe_id]);
-  }
-
-  onSearch(value: string): void {
-    this.query = value;
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { search: value.trim() || null },
-      queryParamsHandling: 'merge',
-      replaceUrl: true
-    });
   }
 
   setFeatured(row: AdminRecipeRow, featured: boolean): void {

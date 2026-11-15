@@ -274,6 +274,11 @@ $cream: #fffdf9;
   padding: 10px 0;
   font-size: 12px;
   color: var(--color-warm-brown);
-  select { width: 100%; min-width: 0; padding: 8px; border: 1px solid #c9c3bb; border-radius: 6px; background: var(--color-white); color: inherit; }
+  // Custom chevron inside the box; the native arrow sat on the border.
+  select { width: 100%; min-width: 0; appearance: none; padding: 8px 32px 8px 10px; border: 1px solid #c9c3bb; border-radius: 6px; background: var(--color-white) url('/assets/icons/chat/chevron-down.svg') no-repeat right 10px center; color: inherit; font: inherit; font-size: 14px; }
 }
 .chat-assignee-name { display: block; font-size: 11px; color: var(--color-warm-brown); margin-top: 3px; }
+
+// Guests: no name, so a short label and a dashed G avatar.
+.chat-item__avatar--guest { background: transparent !important; border: 1.5px dashed rgba(84, 74, 64, 0.45); color: var(--color-warm-brown); }
+.guest-session-id { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; padding: 0; border: 0; background: transparent; color: var(--color-warm-brown); font: 11px/16px var(--font-mono); cursor: pointer; text-align: left; &:hover { text-decoration: underline; } }

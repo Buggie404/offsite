@@ -1,7 +1,9 @@
 import { LucideArrowRight, LucideSparkle } from '@lucide/angular';
 import { CommonModule } from '@angular/common';
-import { Component, Input, OnInit, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, DestroyRef, Input, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { debounceTime } from 'rxjs';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   AdminDnaCustomer, AdminDnaCustomerDetail, AdminDnaHistoryEntry, AdminRitualArchetype,
   AdminRitualDnaService, DnaAxis
@@ -16,6 +18,8 @@ import {
 })
 export class RitualDnaCustomersComponent implements OnInit {
   private readonly api = inject(AdminRitualDnaService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
   private listRequest = 0;
   private detailRequest = 0;
   readonly Math = Math;
@@ -40,7 +44,17 @@ export class RitualDnaCustomersComponent implements OnInit {
   readonly loadingDetail = signal(false);
   readonly detailError = signal('');
 
-  ngOnInit(): void { this.loadList(); }
+  ngOnInit(): void {
+    // The search box lives in the admin header and writes ?search= on /admin/ritual-dna.
+    this.search.set(this.route.snapshot.queryParamMap.get('search') || '');
+    this.loadList();
+    this.route.queryParamMap.pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const value = params.get('search') || '';
+      if (value === this.search()) return;
+      this.search.set(value);
+      this.applyFilters();
+    });
+  }
 
   setSearch(event: Event): void { this.search.set((event.target as HTMLInputElement).value); }
 

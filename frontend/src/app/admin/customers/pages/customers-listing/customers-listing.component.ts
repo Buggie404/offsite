@@ -3,8 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
-import { LucideLock, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideSearch, LucideUsers } from '@lucide/angular';
+import { debounceTime } from 'rxjs';
+import { LucideLock, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideUsers } from '@lucide/angular';
 import { avatarInitials } from '../../../../shared/utils/avatar';
 import { AdminCustomersService, CustomerRow, CustomerStatusFilter, CustomerTier } from '../../services/admin-customers.service';
 import { AdminAuthService } from '../../../auth/services/admin-auth.service';
@@ -15,7 +15,7 @@ const PAGE_SIZE = 20;
 @Component({
   selector: 'app-admin-customers-listing',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideLock, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideSearch, LucideUsers],
+  imports: [CommonModule, FormsModule, LucideLock, LucideChevronLeft, LucideChevronRight, LucideEllipsis, LucideUsers],
   templateUrl: './customers-listing.component.html',
   styleUrl: './customers-listing.component.scss'
 })
@@ -30,7 +30,6 @@ export class CustomersListingComponent implements OnInit {
   private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
-  private search$ = new Subject<string>();
   private requestVersion = 0;
 
   readonly tiers: (CustomerTier | '')[] = ['', 'Seed', 'Leaf', 'Bloom', 'Zen'];
@@ -61,11 +60,9 @@ export class CustomersListingComponent implements OnInit {
     this.status = (['active', 'restricted', 'suspended'].includes(params.get('status') || '') ? params.get('status') : '') as CustomerStatusFilter;
     this.page = Math.max(Number(params.get('page')) || 1, 1);
 
-    this.search$
-      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.applyFilters());
     this.load();
-    if (this.serviceCustomers) this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+    // The search box lives in the admin header and writes ?q= on this page.
+    this.route.queryParamMap.pipe(debounceTime(250), takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       const query = params.get('q') || '';
       const assignment = this.isCskh && params.get('assignment') !== 'all' ? 'mine' : 'all';
       if (query === this.q && assignment === this.assignment) return;
@@ -97,11 +94,6 @@ export class CustomersListingComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
-  }
-
-  onSearch(value: string): void {
-    this.q = value;
-    this.search$.next(value.trim());
   }
 
   setAssignment(value: 'mine' | 'all'): void {

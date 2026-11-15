@@ -49,6 +49,40 @@ import { ADMIN_NAV_GROUPS, AdminNavGroup, AdminNavItem } from '../../../admin-na
 import { ADMIN_ROLE_LABELS } from '../../../../shared/models/admin-role.model';
 import { AdminRecipeService } from '../../../recipes/services/admin-recipe.service';
 
+export interface HeaderSearchSection {
+  placeholder: string;
+  /** List page the search filters. */
+  listPath: string;
+  /** Query parameter that list page reads. */
+  param: 'search' | 'q';
+}
+
+const ORDER_LOOKUP: HeaderSearchSection = { placeholder: 'Find an order by ID, customer name or email…', listPath: '/admin/orders', param: 'search' };
+
+// First match wins; prefixes cover the list and its detail pages.
+const HEADER_SEARCH: { prefix: string; section: HeaderSearchSection | null }[] = [
+  { prefix: '/admin/orders', section: { placeholder: 'Search by order ID, customer name or email…', listPath: '/admin/orders', param: 'search' } },
+  { prefix: '/admin/service-customers', section: { placeholder: 'Search customers by name, email or ID…', listPath: '/admin/service-customers', param: 'q' } },
+  { prefix: '/admin/customers', section: { placeholder: 'Search customers by name, email or ID…', listPath: '/admin/customers', param: 'q' } },
+  { prefix: '/admin/products/', section: null },
+  { prefix: '/admin/products', section: { placeholder: 'Search products by name or SKU…', listPath: '/admin/products', param: 'search' } },
+  { prefix: '/admin/vouchers', section: { placeholder: 'Search vouchers by code…', listPath: '/admin/vouchers', param: 'search' } },
+  { prefix: '/admin/subscriptions', section: { placeholder: 'Search subscriptions by ID, customer or product…', listPath: '/admin/subscriptions', param: 'search' } },
+  { prefix: '/admin/ritual-dna', section: { placeholder: 'Search DNA customers by name, email or ID…', listPath: '/admin/ritual-dna', param: 'search' } },
+  { prefix: '/admin/chat', section: { placeholder: 'Search conversations by name or customer ID…', listPath: '/admin/chat', param: 'search' } },
+  { prefix: '/admin/recipes', section: { placeholder: 'Search recipes by title or author…', listPath: '/admin/recipes', param: 'search' } },
+  { prefix: '/admin/community-reports', section: { placeholder: 'Search reports by user, content or reason…', listPath: '/admin/community-reports', param: 'search' } },
+  { prefix: '/admin/staff', section: { placeholder: 'Search staff by name, email or ID…', listPath: '/admin/staff', param: 'search' } },
+  { prefix: '/admin/activity-log', section: { placeholder: 'Search name, target, ID or reason…', listPath: '/admin/activity-log', param: 'search' } },
+  { prefix: '/admin/starter-quiz', section: null }
+];
+
+export function headerSearchFor(path: string): HeaderSearchSection | null {
+  const hit = HEADER_SEARCH.find((entry) => path === entry.prefix || path.startsWith(entry.prefix.endsWith('/') ? entry.prefix : entry.prefix + '/'));
+  // Dashboards and anything else: quick order lookup (Enter opens Orders).
+  return hit ? hit.section : ORDER_LOOKUP;
+}
+
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
@@ -138,22 +172,21 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     return this.adminAuth.getDefaultRoute();
   }
 
+  /** Header search target for the current page (one search bar per section; pages have no search of their own). */
+  get searchSection(): HeaderSearchSection | null {
+    return headerSearchFor(this.router.url.split('?')[0]);
+  }
+
   get searchPlaceholder(): string {
-    const path = this.router.url.split('?')[0];
-    if (path.startsWith('/admin/chat')) return 'Search conversations...';
-    if (path.startsWith('/admin/customers') || path.startsWith('/admin/service-customers')) return 'Search customers...';
-    if (path.startsWith('/admin/subscriptions')) return 'Search subscriptions...';
-    if (path.startsWith('/admin/products')) return 'Search name or SKU...';
-    if (path.startsWith('/admin/recipes')) return 'Search recipes…';
-    return 'Search by order ID, customer name, or email...';
+    return this.searchSection?.placeholder || '';
   }
 
   get showHeaderSearch(): boolean {
-    return !this.router.url.split('?')[0].startsWith('/admin/products/');
+    return !!this.searchSection;
   }
 
   get searchAriaLabel(): string {
-    return this.searchPlaceholder.replace(/\.\.\.$/, '');
+    return this.searchPlaceholder.replace(/(\.\.\.|…)$/, '');
   }
 
   get canViewOrderNotifications(): boolean {
@@ -208,12 +241,10 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
       .subscribe(() => {
         this.closeNotifications();
         this.closeSidebar();
+        this.syncSearchFromUrl();
       });
 
-    this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
-      this.searchQuery = params['q'] || params['search'] || '';
-      this.cdr.markForCheck();
-    });
+    this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.syncSearchFromUrl());
 
     this.warmRecipesPage();
 
@@ -295,18 +326,37 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     return this.notifications.filter((item) => item.type === 'urgent_processing');
   }
 
+  /** On a list page the box mirrors its parameter; elsewhere it starts empty. */
+  private syncSearchFromUrl(): void {
+    const section = this.searchSection;
+    const params = this.router.parseUrl(this.router.url).queryParams;
+    this.searchQuery = section && this.isOnSearchList(section) ? (params[section.param] || '') : '';
+    this.cdr.markForCheck();
+  }
+
+  private isOnSearchList(section: HeaderSearchSection): boolean {
+    return this.router.url.split('?')[0] === section.listPath;
+  }
+
+  /** On the section's list page, every keystroke filters it. Elsewhere (details, dashboards) Enter opens the list. */
   onSearchInput(value: string): void {
     this.searchQuery = value;
-    const currentPath = this.router.url.split('?')[0];
-    if (currentPath.startsWith('/admin/service-customers')) {
-      void this.router.navigate(['/admin/service-customers'], { queryParams: { q: value || null, page: null, search: null }, queryParamsHandling: 'merge', replaceUrl: true });
-      return;
-    }
-    this.router.navigate([currentPath], {
-      queryParams: currentPath === '/admin/products' ? { search: value || null, page: null, scroll: null } : { search: value || null },
+    const section = this.searchSection;
+    if (!section || !this.isOnSearchList(section)) return;
+    const extra = section.listPath === '/admin/products' ? { page: null, scroll: null }
+      : section.param === 'q' ? { page: null, search: null } : {};
+    void this.router.navigate([section.listPath], {
+      queryParams: { [section.param]: value || null, ...extra },
       queryParamsHandling: 'merge',
-      replaceUrl: currentPath === '/admin/products'
+      replaceUrl: true
     });
+  }
+
+  onSearchEnter(): void {
+    const section = this.searchSection;
+    const value = this.searchQuery.trim();
+    if (!section || this.isOnSearchList(section) || !value) return;
+    void this.router.navigate([section.listPath], { queryParams: { [section.param]: value } });
   }
 
   onNavigationClick(event: MouseEvent, item: AdminNavItem): void {

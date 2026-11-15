@@ -194,6 +194,13 @@ export class VouchersComponent implements OnInit {
       this.pickCustomer(this.chatCustomer);
       return;
     }
+    // The search box lives in the admin header and writes ?search= on this page.
+    this.query = this.route.snapshot.queryParamMap.get('search') || '';
+    this.queryApplied = this.query.trim();
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const value = params.get('search') || '';
+      if (value !== this.query) this.onSearch(value);
+    });
     this.search$
       .pipe(debounceTime(200), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe((value) => {

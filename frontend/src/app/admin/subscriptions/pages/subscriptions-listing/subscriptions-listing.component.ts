@@ -10,7 +10,6 @@ import {
   LucidePause,
   LucidePlay,
   LucideRepeat,
-  LucideSearch,
   LucideSkipForward,
   LucideX
 } from '@lucide/angular';
@@ -49,7 +48,6 @@ const CUSTOMER_REQUEST = 'Customer asked us';
     LucidePause,
     LucidePlay,
     LucideRepeat,
-    LucideSearch,
     LucideSkipForward,
     LucideX
   ],
@@ -211,10 +209,6 @@ export class SubscriptionsListingComponent implements OnInit {
 
   setFilter(filter: AdminSubscriptionFilter): void {
     this.updateQuery({ status: filter === 'all' ? null : filter });
-  }
-
-  onSearchInput(value: string): void {
-    this.updateQuery({ search: value || null });
   }
 
   private updateQuery(queryParams: Record<string, string | null>): void {

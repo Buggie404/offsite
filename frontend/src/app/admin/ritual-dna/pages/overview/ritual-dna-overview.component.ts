@@ -1,5 +1,6 @@
 import { LucideArrowDown, LucideArrowUp, LucideAsterisk, LucideSparkle, LucideTriangleAlert, LucideX } from '@lucide/angular';
 import { Component, HostListener, OnInit, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
 import {
   AdminArchetypeRelease, AdminRitualArchetype, AdminRitualDnaService, AdminRitualOverview, AdminSignatureImpact,
@@ -18,6 +19,7 @@ import { ToastService } from '../../../../shared/services/toast.service';
 export class RitualDnaOverviewComponent implements OnInit {
   private readonly api = inject(AdminRitualDnaService);
   private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
   readonly loading = signal(true);
   readonly error = signal('');
   readonly overview = signal<AdminRitualOverview | null>(null);
@@ -51,7 +53,11 @@ export class RitualDnaOverviewComponent implements OnInit {
     { key: 'tempo', label: 'Tempo', short: 'TEM' }
   ];
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.load();
+    // Typing in the header search opens the Customers tab, which reads ?search=.
+    this.route.queryParamMap.subscribe((params) => { if (params.get('search')) this.tab.set('customers'); });
+  }
 
   load(preferredVersion?: number, preferredQuizVersion?: number): void {
     this.loading.set(true);

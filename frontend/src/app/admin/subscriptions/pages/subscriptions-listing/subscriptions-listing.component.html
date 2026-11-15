@@ -4,17 +4,6 @@
 </header>
 
 <div class="filters">
-  <label class="search-field">
-    <svg lucideSearch class="search-field__icon" aria-hidden="true" [size]="16"></svg>
-    <input
-      type="search"
-      class="search-field__input"
-      placeholder="Customer, product or SUB-ID"
-      aria-label="Search subscriptions"
-      [value]="search"
-      (input)="onSearchInput($any($event.target).value)"
-    />
-  </label>
 
   <div class="segmented" role="tablist" aria-label="Filter subscriptions">
     @for (filter of filters; track filter.value) {

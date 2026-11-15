@@ -1,5 +1,6 @@
 import { ChangeDetectorRef, Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
@@ -12,7 +13,6 @@ import {
   LucideDownload,
   LucideEllipsis,
   LucideHistory,
-  LucideSearch,
   LucideTriangleAlert,
   LucideX
 } from '@lucide/angular';
@@ -80,7 +80,6 @@ function displayDate(value: string): string {
     LucideDownload,
     LucideEllipsis,
     LucideHistory,
-    LucideSearch,
     LucideTriangleAlert,
     LucideX
   ],
@@ -92,6 +91,7 @@ export class AdminActivityLogComponent implements OnInit {
   private toast = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
+  private route = inject(ActivatedRoute);
   private search$ = new Subject<string>();
   private requestVersion = 0;
 
@@ -135,6 +135,12 @@ export class AdminActivityLogComponent implements OnInit {
     this.search$
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.applyFilters());
+    // The search box lives in the admin header and writes ?search= on this page.
+    this.q = this.route.snapshot.queryParamMap.get('search') || '';
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const value = params.get('search') || '';
+      if (value !== this.q) this.onSearch(value);
+    });
     this.load(true);
   }
 
