@@ -512,6 +512,9 @@
                     </ng-template>
                   </span>
                 </div>
+                <div class="summary-item__voucher" *ngIf="voucherLineLabel(item) as tag" [class.summary-item__voucher--off]="!tag.eligible">
+                  {{ tag.text }}
+                </div>
 
                 <ng-container *ngIf="isBundleItem(item); else regularCheckoutVariant">
                   <div class="summary-item__purchase-type">{{ item.bundle!.purchaseType }}</div>
@@ -784,6 +787,12 @@
               PROMO APPLIED
             </span>
             <span class="discount-applied__code">{{ voucher.code }}</span>
+          </div>
+          <div class="discount-scope" *ngIf="voucherCoverage() as cov">
+            <ng-container *ngIf="cov.partial; else allCovered">
+              Applies to {{ cov.eligible }} of {{ cov.total }} items · eligible amount ${{ voucherQuote()?.eligible_subtotal | number:'1.2-2' }}
+            </ng-container>
+            <ng-template #allCovered>Applies to every item in your order</ng-template>
           </div>
         </ng-container>
 

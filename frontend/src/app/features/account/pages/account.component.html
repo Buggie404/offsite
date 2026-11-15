@@ -202,9 +202,17 @@
 
               <div class="info-field">
                 <span class="field-label">STATUS</span>
-                <div class="status-badge">
-                  <span class="status-dot"></span>
-                  Active
+                <div class="profile-status-badges">
+                  <div class="status-badge">
+                    <span class="status-dot"></span>
+                    Active
+                  </div>
+                  <span class="sidebar-customer-tier-badge" [ngClass]="getCustomerTierClass()" title="Customer tier">
+                    {{ getCustomerTier() }}
+                  </span>
+                  <button *ngIf="dnaBadge() as archetype" type="button" class="sidebar-customer-tier-badge sidebar-archetype-badge" [attr.data-archetype]="archetype.id" [attr.title]="archetype.name" (click)="switchTab('dna')" aria-label="View your Ritual DNA">
+                    {{ archetype.name }}
+                  </button>
                 </div>
               </div>
             </div>

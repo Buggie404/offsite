@@ -2015,3 +2015,21 @@
 .points-note + .confirm-btn {
   margin-top: var(--space-3);
 }
+
+.summary-item__voucher {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 16px;
+  color: #2d7a47;
+
+  &--off {
+    color: #544a40;
+  }
+}
+
+.discount-scope {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: #544a40;
+}

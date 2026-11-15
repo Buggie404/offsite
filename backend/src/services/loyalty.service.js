@@ -6,6 +6,7 @@ const Referral = require('../models/Referral');
 const Voucher = require('../models/Voucher');
 const Order = require('../models/Order');
 const { tierMultiplier, TIER_MULTIPLIER, HOLD_DAYS, adjustBalance } = require('./points.service');
+const voucherService = require('./voucher.service');
 
 const REFERRALS_PER_YEAR_LIMIT = 10;
 const COMMUNITY_DAILY_CAP = 20;
@@ -18,39 +19,7 @@ const TIER_THRESHOLDS = [
   { tier: 'Zen', minLifetime: 1000 }
 ];
 
-const REDEEM_REWARDS = [
-  {
-    id: 'off5_30',
-    title: '$5 off',
-    subtitle: 'Orders from $30',
-    pointsCost: 500,
-    voucherType: 'discount',
-    discountType: 'fixed',
-    discountValue: 5,
-    minOrderAmount: 30
-  },
-  {
-    id: 'free_shipping',
-    title: 'Free shipping',
-    subtitle: 'Any order',
-    pointsCost: 800,
-    voucherType: 'shipping',
-    discountType: 'fixed',
-    discountValue: 999,
-    minOrderAmount: 0
-  },
-  {
-    id: 'off20_80',
-    title: '$20 off',
-    subtitle: 'Orders from $80',
-    pointsCost: 2000,
-    voucherType: 'discount',
-    discountType: 'fixed',
-    discountValue: 20,
-    minOrderAmount: 80
-  }
-];
-
+// Redeem offers come from Vouchers with points_cost > 0 (created in Admin › Vouchers).
 const REFERRAL_CODE_REGEX = /^[A-Z0-9]+_[A-Z0-9]{8}$/;
 
 const TIER_RANK = { Seed: 0, Leaf: 1, Bloom: 2, Zen: 3 };
@@ -221,26 +190,6 @@ function tierVoucherCode(prefix, userId) {
   return `${prefix}_${String(userId).replace(/^USR/i, '')}`;
 }
 
-function isVoucherUsable(voucher, today) {
-  if (!voucher?.is_active) return false;
-  if (voucher.usage_limit != null && voucher.used_count >= voucher.usage_limit) return false;
-  if (voucher.valid_from && today < voucher.valid_from) return false;
-  if (voucher.valid_to && today > voucher.valid_to) return false;
-  return true;
-}
-
-function formatVoucherRow(voucher) {
-  return {
-    code: voucher.code,
-    title: voucher.title || voucher.code,
-    subtitle: voucher.subtitle || '',
-    voucherType: voucher.voucher_type,
-    discountValue: voucher.discount_value,
-    minOrderAmount: voucher.min_order_amount ?? 0,
-    validTo: voucher.valid_to
-  };
-}
-
 async function ensureTierPerkVouchers(userId, tier) {
   const rank = TIER_RANK[tier] ?? 0;
   const now = new Date();
@@ -282,31 +231,153 @@ async function ensureTierPerkVouchers(userId, tier) {
   }
 }
 
-async function listAvailableVouchers(userId, profile, tier) {
-  await ensureTierPerkVouchers(userId, tier);
-  const codes = new Set();
+const CATEGORY_LABELS = { matcha: 'Matcha', coffee: 'Coffee', tools: 'Tools', drinkware: 'Drinkware', sets_bundles: 'Sets & bundles' };
+const MY_VOUCHER_LIMIT = 30;
 
-  if (profile.welcome_voucher_code) codes.add(profile.welcome_voucher_code);
+function money(value) {
+  const number = Number(value) || 0;
+  return Number.isInteger(number) ? `$${number}` : `$${number.toFixed(2)}`;
+}
 
-  const redeemed = await PointTransaction.find(
-    { user_id: userId, type: 'redeem_voucher', ref_id: { $ne: null } },
-    { ref_id: 1 }
-  ).lean();
-  redeemed.forEach((row) => codes.add(row.ref_id));
-
-  for (const def of TIER_PERK_VOUCHERS) {
-    if ((TIER_RANK[def.tier] ?? 0) <= (TIER_RANK[tier] ?? 0)) {
-      codes.add(tierVoucherCode(def.codePrefix, userId));
-    }
+// Card title and subtitle built from the voucher terms, so new vouchers need no copywriting.
+function offerTitle(voucher) {
+  if (voucher.voucher_type === 'shipping') {
+    const full = voucher.discount_type === 'percentage' ? Number(voucher.discount_value) >= 100 : Number(voucher.discount_value) >= 15;
+    return full ? 'Free shipping' : `${voucher.discount_type === 'percentage' ? `${voucher.discount_value}%` : money(voucher.discount_value)} off shipping`;
   }
+  return voucher.discount_type === 'percentage' ? `${voucher.discount_value}% off` : `${money(voucher.discount_value)} off`;
+}
 
-  if (!codes.size) return [];
+function offerSubtitle(voucher) {
+  const parts = [];
+  const scope = voucher.applies_to || 'all';
+  if (scope === 'category' && voucher.applicable_categories?.length) {
+    parts.push(`${voucher.applicable_categories.map((value) => CATEGORY_LABELS[value] || value).join(', ')} only`);
+  } else if (scope === 'product') {
+    parts.push('Selected products');
+  }
+  parts.push(Number(voucher.min_order_amount) > 0 ? `Orders from ${money(voucher.min_order_amount)}` : 'Any order');
+  if (voucher.voucher_type === 'discount' && voucher.discount_type === 'percentage' && voucher.max_discount_value) {
+    parts.push(`up to ${money(voucher.max_discount_value)}`);
+  }
+  return parts.join(' · ');
+}
 
-  const today = new Date().toISOString().slice(0, 10);
-  const vouchers = await Voucher.find({ code: { $in: [...codes] } }).lean();
-  return vouchers
-    .filter((v) => isVoucherUsable(v, today))
-    .map((v) => formatVoucherRow(v));
+function tierAllows(voucher, tier) {
+  return !voucher.target_tier || voucher.target_tier === String(tier || '').toLowerCase();
+}
+
+function todayKey() {
+  return voucherService.businessToday();
+}
+
+function inWindow(voucher, today) {
+  const from = voucherService.dateKey(voucher.valid_from);
+  const to = voucherService.dateKey(voucher.valid_to);
+  return !(from && today < from) && !(to && today > to);
+}
+
+function hasUsesLeft(voucher) {
+  return voucher.usage_limit == null || (voucher.used_count || 0) < voucher.usage_limit;
+}
+
+const REDEEMABLE_FILTER = {
+  is_active: true,
+  points_cost: { $gt: 0 },
+  purpose: { $in: ['campaign', 'loyalty_redeem'] },
+  $or: [{ assigned_user_id: null }, { assigned_user_id: '' }, { assigned_user_id: { $exists: false } }]
+};
+
+async function redeemedCounts(userId, templateIds) {
+  if (!templateIds.length) return new Map();
+  const rows = await Voucher.aggregate([
+    { $match: { assigned_user_id: userId, source_voucher_id: { $in: templateIds } } },
+    { $group: { _id: '$source_voucher_id', count: { $sum: 1 } } }
+  ]);
+  return new Map(rows.map((row) => [row._id, row.count]));
+}
+
+// Point vouchers this customer's tier can redeem now, cheapest first.
+async function listRedeemOffers(userId, tier, balance) {
+  const today = todayKey();
+  const templates = (await Voucher.find(REDEEMABLE_FILTER).sort({ points_cost: 1, createdAt: -1 }).lean())
+    .filter((voucher) => tierAllows(voucher, tier) && inWindow(voucher, today) && hasUsesLeft(voucher));
+  const counts = await redeemedCounts(userId, templates.map((voucher) => String(voucher._id)));
+  return templates.map((voucher) => {
+    const perUser = voucherService.perUserLimit(voucher);
+    const redeemed = counts.get(String(voucher._id)) || 0;
+    const limitReached = perUser != null && redeemed >= perUser;
+    const short = Math.max(0, voucher.points_cost - balance);
+    return {
+      id: String(voucher._id),
+      title: offerTitle(voucher),
+      subtitle: offerSubtitle(voucher),
+      pointsCost: voucher.points_cost,
+      tier: voucher.target_tier || null,
+      validTo: voucherService.dateKey(voucher.valid_to),
+      canRedeem: !limitReached && short === 0,
+      reason: limitReached ? 'Already redeemed' : short > 0 ? `${short.toLocaleString('en-US')} more pts` : null
+    };
+  });
+}
+
+function sourceLabel(voucher) {
+  if (voucher.source_voucher_id) return 'Redeemed';
+  if (voucher.purpose === 'complaint') return 'From support';
+  if (voucher.purpose === 'referral') return 'Welcome';
+  if (voucher.assigned_user_id) return 'Tier perk';
+  return voucher.target_tier ? 'Member offer' : 'Open to all';
+}
+
+function myVoucherRow(voucher) {
+  return {
+    code: voucher.code,
+    title: offerTitle(voucher),
+    subtitle: offerSubtitle(voucher),
+    source: sourceLabel(voucher),
+    personal: !!voucher.assigned_user_id,
+    voucherType: voucher.voucher_type,
+    validTo: voucherService.dateKey(voucher.valid_to)
+  };
+}
+
+// My vouchers: personal codes (redeemed with points, tier perks, support, welcome) plus open codes
+// that need no points and that this customer can still use.
+async function listMyVouchers(userId, tier) {
+  await ensureTierPerkVouchers(userId, tier);
+  const today = todayKey();
+  const [personal, open] = await Promise.all([
+    Voucher.find({ assigned_user_id: userId, is_active: true }).sort({ createdAt: -1 }).lean(),
+    Voucher.find({
+      is_active: true,
+      purpose: { $in: ['campaign', 'loyalty_redeem', 'referral'] },
+      $and: [
+        { $or: [{ assigned_user_id: null }, { assigned_user_id: '' }, { assigned_user_id: { $exists: false } }] },
+        { $or: [{ points_cost: null }, { points_cost: { $lte: 0 } }, { points_cost: { $exists: false } }] }
+      ]
+    }).sort({ createdAt: -1 }).lean()
+  ]);
+
+  const usable = [
+    ...personal.filter((voucher) => inWindow(voucher, today) && hasUsesLeft(voucher)),
+    ...open.filter((voucher) => inWindow(voucher, today) && hasUsesLeft(voucher) && tierAllows(voucher, tier))
+  ];
+  if (!usable.length) return [];
+
+  // Drop codes this customer already used up (per-account cap), counted from their orders.
+  const codes = usable.map((voucher) => voucher.code);
+  const usedRows = await Order.aggregate([
+    { $match: { user_id: userId, order_status: { $ne: 'canceled' }, 'coupon.code': { $in: codes } } },
+    { $group: { _id: '$coupon.code', count: { $sum: 1 } } }
+  ]);
+  const used = new Map(usedRows.map((row) => [row._id, row.count]));
+  return usable
+    .filter((voucher) => {
+      const cap = voucherService.perUserLimit(voucher);
+      return cap == null || (used.get(voucher.code) || 0) < cap;
+    })
+    .slice(0, MY_VOUCHER_LIMIT)
+    .map(myVoucherRow);
 }
 
 function formatActivityLabel(txn) {
@@ -373,7 +444,10 @@ async function getDashboard(jwtUserId) {
     .limit(50)
     .lean();
 
-  const availableVouchers = await listAvailableVouchers(appUserId, profile, tier);
+  const [redeemRewards, myVouchers] = await Promise.all([
+    listRedeemOffers(appUserId, tier, availablePoints),
+    listMyVouchers(appUserId, tier)
+  ]);
 
   return {
     tier,
@@ -384,10 +458,7 @@ async function getDashboard(jwtUserId) {
     nextTier: nextTier.nextTier,
     pointsToNext: nextTier.pointsToNext,
     progressPercent: nextTier.progressPercent,
-    redeemRewards: REDEEM_REWARDS.map((reward) => ({
-      ...reward,
-      canRedeem: availablePoints >= reward.pointsCost
-    })),
+    redeemRewards,
     pointsHistory: history.map((txn) => ({
       id: txn.transaction_id,
       date: txn.created_at,
@@ -404,7 +475,7 @@ async function getDashboard(jwtUserId) {
         (row.order_reward_status === 'posted' ? row.order_points : 0)
     })),
     welcomeVoucherCode: profile.welcome_voucher_code || null,
-    availableVouchers
+    myVouchers
   };
 }
 
@@ -417,53 +488,82 @@ function formatReferralStatus(row) {
   return 'Pending';
 }
 
+function personalCode(templateCode) {
+  const base = String(templateCode).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 24);
+  return `${base}-${randomReferralSuffix().slice(0, 5)}`;
+}
+
+// rewardId is the template voucher's _id. Spends the points and issues a personal one-use copy
+// with the same terms and scope, valid until the template ends.
 async function redeemReward(jwtUserId, rewardId) {
   const appUserId = await resolveAppUserId(jwtUserId);
   if (!appUserId) return { ok: false, error: 'User not found.' };
+  if (!mongoose.Types.ObjectId.isValid(String(rewardId))) return { ok: false, error: 'Reward not found.' };
 
-  const reward = REDEEM_REWARDS.find((entry) => entry.id === rewardId);
-  if (!reward) return { ok: false, error: 'Reward not found.' };
+  const template = await Voucher.findOne({ _id: rewardId, ...REDEEMABLE_FILTER }).lean();
+  if (!template) return { ok: false, error: 'This reward is no longer available.' };
 
-  const user = await User.findOne({ user_id: appUserId }, { points: 1, user_id: 1 }).lean();
+  const user = await User.findOne({ user_id: appUserId }, { points: 1, user_id: 1, membership_tier: 1 }).lean();
   if (!user) return { ok: false, error: 'User not found.' };
+  if (!tierAllows(template, user.membership_tier)) return { ok: false, error: 'This reward is for another member tier.' };
+  if (!inWindow(template, todayKey())) return { ok: false, error: 'This reward is not active right now.' };
 
-  const balance = user.points ?? 0;
-  if (balance < reward.pointsCost) {
-    return { ok: false, error: 'Not enough points for this reward.' };
+  const perUser = voucherService.perUserLimit(template);
+  if (perUser != null) {
+    const redeemed = await Voucher.countDocuments({ assigned_user_id: appUserId, source_voucher_id: String(template._id) });
+    if (redeemed >= perUser) return { ok: false, error: 'You have already redeemed this reward.' };
   }
 
-  const code = `RW${Date.now().toString(36).toUpperCase()}${randomReferralSuffix().slice(0, 4)}`;
-  const now = new Date();
-  const validFrom = now.toISOString().slice(0, 10);
-  const validTo = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const cost = template.points_cost;
+  // Spend the points only if the balance still covers them (two quick clicks cannot overspend).
+  const spent = await User.updateOne({ user_id: appUserId, points: { $gte: cost } }, { $inc: { points: -cost } });
+  if (!spent.modifiedCount) return { ok: false, error: 'Not enough points for this reward.' };
 
+  // Take one redemption from the template's total limit.
+  const taken = await Voucher.updateOne(
+    { _id: template._id, $or: [{ usage_limit: null }, { $expr: { $lt: ['$used_count', '$usage_limit'] } }] },
+    { $inc: { used_count: 1 } }
+  );
+  if (!taken.modifiedCount) {
+    await adjustBalance(appUserId, cost);
+    return { ok: false, error: 'This reward has run out.' };
+  }
+
+  const now = new Date();
+  let code = personalCode(template.code);
+  while (await Voucher.exists({ code })) code = personalCode(template.code);
+  const scope = voucherService.scopeSnapshot(template);
   await Voucher.create({
     code,
-    title: reward.title,
-    subtitle: reward.subtitle,
-    voucher_type: reward.voucherType,
-    discount_type: reward.discountType,
-    discount_value: reward.discountValue,
+    title: offerTitle(template),
+    subtitle: offerSubtitle(template),
+    voucher_type: template.voucher_type,
+    discount_type: template.discount_type,
+    discount_value: template.discount_value,
     is_active: true,
     usage_limit: 1,
     used_count: 0,
-    min_order_amount: reward.minOrderAmount,
-    max_discount_value: reward.voucherType === 'shipping' ? null : reward.discountValue,
-    valid_from: validFrom,
-    valid_to: validTo,
+    min_order_amount: template.min_order_amount || 0,
+    max_discount_value: template.max_discount_value ?? null,
+    valid_from: todayKey(),
+    valid_to: voucherService.dateKey(template.valid_to),
     createdAt: now.toISOString(),
-    purpose: 'loyalty_redeem',
+    created_by: null,
+    purpose: template.purpose,
     assigned_user_id: appUserId,
     usage_limit_per_user: 1,
-    target_tier: null
+    target_tier: null,
+    applies_to: scope.applies_to,
+    applicable_categories: scope.applicable_categories,
+    applicable_product_ids: scope.applicable_product_ids,
+    points_cost: null,
+    source_voucher_id: String(template._id)
   });
-
-  await adjustBalance(appUserId, -reward.pointsCost);
 
   await PointTransaction.create({
     user_id: appUserId,
     type: 'redeem_voucher',
-    amount: -reward.pointsCost,
+    amount: -cost,
     status: 'used',
     ref_type: 'voucher',
     ref_id: code,
@@ -473,8 +573,8 @@ async function redeemReward(jwtUserId, rewardId) {
   return {
     ok: true,
     voucherCode: code,
-    message: `Redeemed successfully. Your voucher code is ${code}.`,
-    availablePoints: balance - reward.pointsCost
+    message: `Redeemed. ${code} is in My vouchers.`,
+    availablePoints: (user.points ?? 0) - cost
   };
 }
 
@@ -834,7 +934,8 @@ async function handleReferralRegistration(referee, referralCode) {
 module.exports = {
   TIER_THRESHOLDS,
   TIER_MULTIPLIER,
-  REDEEM_REWARDS,
+  listRedeemOffers,
+  listMyVouchers,
   REFERRAL_CODE_REGEX,
   REFERRALS_PER_YEAR_LIMIT,
   resolveAppUserId,

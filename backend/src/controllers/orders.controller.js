@@ -323,6 +323,8 @@ async function createOrder(req, res) {
     const productCache = new Map();
     const bundleQuantities = new Map();
     const orderItems = [];
+    // Same lines, with what getEligibleItems needs to pick the lines a voucher discounts.
+    const voucherLines = [];
     for (const line of items) {
       const quantity = Number(line.quantity);
       if (!Number.isInteger(quantity) || quantity < 1) {
@@ -357,6 +359,16 @@ async function createOrder(req, res) {
         subscription_frequency_days: isSubscription
           ? ([7, 14, 30].includes(Number(line.subscription_frequency_days)) ? Number(line.subscription_frequency_days) : 14)
           : null
+      });
+      voucherLines.push({
+        product_id: String(product._id),
+        variant_id: variant.sku,
+        product_name: product.name,
+        category: product.category,
+        subtotal: round2(unitPrice * quantity),
+        purchase_type: isSubscription ? 'subscription' : 'one_time',
+        from_quiz_bundle: !!(bundleKey && line.from_quiz_bundle),
+        product_active: product.is_active !== false
       });
     }
     // Bundles are packs of 2 or 3, so a single discounted line is not a bundle.
@@ -528,7 +540,8 @@ async function createOrder(req, res) {
         subtotal: serverSubtotal,
         shippingMethod: shipping.method,
         userId: user_id,
-        userTier: userDoc?.membership_tier || null
+        userTier: userDoc?.membership_tier || null,
+        lines: voucherLines
       });
 
       if (!vResult.isValid) {
@@ -575,7 +588,9 @@ async function createOrder(req, res) {
         code: String(vResult.voucher.code).trim().toUpperCase(),
         discount_type: vResult.voucher.discount_type,
         discount_value: vResult.voucher.discount_value,
-        discount_amount: calculatedDiscount
+        discount_amount: calculatedDiscount,
+        ...voucherService.scopeSnapshot(vResult.voucher),
+        eligible_subtotal: vResult.eligibleSubtotal
       };
     }
 

@@ -72,7 +72,7 @@ import {
   getCartItemImage,
   isBundleCartItem
 } from '../../models/bundle-cart.model';
-import { Voucher } from '../../../../shared/models/voucher.model';
+import { Voucher, VoucherQuote, VoucherQuoteItem } from '../../../../shared/models/voucher.model';
 import { AuthService } from '../../../../core/auth.service';
 import { InlineValidator, FieldConfig } from '../../../../shared/utils/inline-validator';
 import { TIER_POINT_MULTIPLIER, UserAddress, UserPaymentMethod, UserProfile } from '../../../../shared/models/user.model';
@@ -623,8 +623,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   discountCode = '';
   appliedVoucher = signal<Voucher | null>(null);
+  /** Server quote for the applied voucher: discount and which lines it covers. */
+  voucherQuote = signal<VoucherQuote | null>(null);
   voucherError = signal<string | null>(null);
   applyingVoucher = signal(false);
+  private quoteVersion = 0;
+  private quoteTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly subtotal = computed(() =>
     this.items().reduce((sum, it) => sum + this.getItemPrice(it) * it.quantity, 0)
@@ -690,10 +694,32 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     return Math.round(this.subtotal() * (TIER_POINT_MULTIPLIER[tier] ?? 1));
   });
 
+  // Priced on the server (POST /api/vouchers/quote); the client never computes the applied discount.
   readonly discountAmount = computed(() => {
     const v = this.appliedVoucher();
-    if (!v) return 0;
-    return this.computeVoucherAmount(v);
+    const quote = this.voucherQuote();
+    if (!v || !quote || quote.voucher.code !== v.code) return 0;
+    return quote.discount_amount;
+  });
+
+  /** Per checkout line: true = discounted by the voucher, false = not eligible, null = no scoped voucher shown. */
+  readonly voucherLineState = computed(() => {
+    const quote = this.voucherQuote();
+    const map = new Map<string, { eligible: boolean; reason: string | null }>();
+    if (!quote || !this.appliedVoucher()) return map;
+    for (const line of quote.lines) {
+      const prev = map.get(line.key);
+      // A kit has several component lines; it counts as discounted when any line is.
+      if (!prev || (!prev.eligible && line.eligible)) map.set(line.key, { eligible: line.eligible, reason: line.reason });
+    }
+    return map;
+  });
+
+  readonly voucherCoverage = computed(() => {
+    const states = [...this.voucherLineState().values()];
+    if (!states.length) return null;
+    const eligible = states.filter(s => s.eligible).length;
+    return { eligible, total: states.length, partial: eligible < states.length };
   });
 
   readonly total = computed(
@@ -710,6 +736,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       if (v.valid_from && now < v.valid_from) return false;
       if (v.valid_to && now > v.valid_to) return false;
       if (v.usage_limit != null && v.used_count >= v.usage_limit) return false;
+      // Scoped vouchers depend on which lines are eligible; only the server can price them.
+      if (v.applies_to && v.applies_to !== 'all') return false;
       return true;
     });
 
@@ -754,6 +782,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       if (v.valid_from && now < v.valid_from) return false;
       if (v.valid_to && now > v.valid_to) return false;
       if (v.usage_limit != null && v.used_count >= v.usage_limit) return false;
+      // Scoped vouchers depend on which lines are eligible; only the server can price them.
+      if (v.applies_to && v.applies_to !== 'all') return false;
       return true;
     });
 
@@ -788,16 +818,14 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   constructor() {
     this.populateRealCities();
 
+    // Re-price the applied voucher on the server whenever the cart or shipping changes.
     effect(() => {
       const v = this.appliedVoucher();
+      const items = this.quoteItems();
+      const shipping = this.shippingMethod();
       if (!v) return;
-      const issue = this.validateVoucher(v);
-      if (issue) {
-        this.appliedVoucher.set(null);
-        this.voucherError.set(issue);
-      } else {
-        this.voucherError.set(null);
-      }
+      if (this.quoteTimer) clearTimeout(this.quoteTimer);
+      this.quoteTimer = setTimeout(() => { void this.refreshQuote(v.code, items, shipping); }, 250);
     }, { allowSignalWrites: true });
 
     effect(() => {
@@ -2016,6 +2044,63 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     }, 100);
   }
 
+  /** Cart lines for the voucher quote; key matches trackByItem so each line can show its state. */
+  readonly quoteItems = computed((): VoucherQuoteItem[] => this.items().flatMap((it: CheckoutItem): VoucherQuoteItem[] => {
+    const key = this.trackByItem(0, it);
+    if (isBundleCartItem(it)) {
+      return expandBundleForBackendItems({ quantity: it.quantity, bundle: it.bundle! }).map((line: any) => ({
+        key,
+        product_id: String(line.product_id),
+        variant_id: line.variant_id,
+        quantity: line.quantity,
+        unit_price: line.unit_price,
+        purchase_type: 'one_time' as const,
+        from_quiz_bundle: !!it.fromQuizBundle
+      }));
+    }
+    return [{
+      key,
+      product_id: it.product._id,
+      variant_id: this.getVariant(it).sku,
+      quantity: it.quantity,
+      unit_price: this.getItemPrice(it),
+      purchase_type: isSubscriptionItem(it) ? 'subscription' as const : 'one_time' as const
+    }];
+  }));
+
+  private async refreshQuote(code: string, items: VoucherQuoteItem[], shipping: string): Promise<boolean> {
+    const version = ++this.quoteVersion;
+    try {
+      const quote = await this.checkoutService.quoteVoucher(code, items, shipping);
+      if (version !== this.quoteVersion) return false;
+      this.voucherQuote.set(quote);
+      this.voucherError.set(null);
+      return true;
+    } catch (err) {
+      if (version !== this.quoteVersion) return false;
+      this.appliedVoucher.set(null);
+      this.voucherQuote.set(null);
+      this.voucherError.set(err instanceof VoucherFetchError
+        ? (err.status === 404 ? `Code "${code}" doesn't exist.` : err.message)
+        : 'Could not validate code. Try again.');
+      return false;
+    }
+  }
+
+  voucherLineLabel(item: CheckoutItem): { eligible: boolean; text: string } | null {
+    const coverage = this.voucherCoverage();
+    const v = this.appliedVoucher();
+    if (!coverage || !v || !coverage.partial) return null;
+    const state = this.voucherLineState().get(this.trackByItem(0, item));
+    if (!state) return null;
+    if (state.eligible) return { eligible: true, text: `${v.code} applied` };
+    const why = state.reason === 'ritual_box' ? 'Ritual Box has its own pricing'
+      : state.reason === 'starter_kit' ? 'Starter Quiz kits have their own pricing'
+      : state.reason === 'unavailable' ? 'no longer on sale'
+      : `not covered by ${v.code}`;
+    return { eligible: false, text: `No voucher: ${why}` };
+  }
+
   async applyDiscount() {
     const code = this.discountCode.trim().toUpperCase();
     this.voucherError.set(null);
@@ -2028,13 +2113,11 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
     this.applyingVoucher.set(true);
     try {
-      const voucher = await this.checkoutService.fetchVoucher(code);
-      const issue = this.validateVoucher(voucher);
-      if (issue) {
-        this.voucherError.set(issue);
-        return;
-      }
-      this.appliedVoucher.set(voucher);
+      const version = ++this.quoteVersion;
+      const quote = await this.checkoutService.quoteVoucher(code, this.quoteItems(), this.shippingMethod());
+      if (version !== this.quoteVersion) return;
+      this.voucherQuote.set(quote);
+      this.appliedVoucher.set(quote.voucher);
       this.discountCode = '';
     } catch (err) {
       if (err instanceof VoucherFetchError) {
@@ -2052,14 +2135,15 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   removeVoucher() {
+    this.quoteVersion++;
     this.appliedVoucher.set(null);
+    this.voucherQuote.set(null);
     this.voucherError.set(null);
   }
 
-  applySuggestedVoucher(voucher: Voucher) {
-    this.appliedVoucher.set(voucher);
-    this.discountCode = '';
-    this.voucherError.set(null);
+  async applySuggestedVoucher(voucher: Voucher) {
+    this.discountCode = voucher.code;
+    await this.applyDiscount();
   }
 
   applyMotivationVoucher() {
@@ -2175,7 +2259,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
         return expandBundleForBackendItems({
           quantity: it.quantity,
           bundle: it.bundle
-        }).map(line => ({ ...line, bundle_key: it.bundle!.bundleKey }));
+        }).map(line => ({ ...line, bundle_key: it.bundle!.bundleKey, from_quiz_bundle: !!it.fromQuizBundle }));
       }
 
       const variant = this.getVariant(it);

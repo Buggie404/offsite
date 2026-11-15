@@ -601,7 +601,8 @@
   margin-top: auto;
   padding-top: 16px;
 
-  span {
+  // Only the points label; the button's own label keeps the button colour.
+  > span {
     color: #544a40;
     font-family: var(--font-mono), 'DM Mono', monospace;
     font-size: 13px;
@@ -635,14 +636,134 @@
     stroke: currentColor;
   }
 
+  // Disabled: readable text on a pale fill instead of a faded dark button.
   &:disabled {
     cursor: not-allowed;
-    opacity: 0.55;
+    background: rgba(84, 74, 64, 0.1);
+    color: #544a40;
   }
 
   &:not(:disabled):hover {
     background: #2f4230;
   }
+}
+
+.reward-meta {
+  margin-top: 6px !important;
+  font-family: var(--font-mono), 'DM Mono', monospace;
+  font-size: 11px !important;
+  letter-spacing: 0.02em;
+}
+
+.empty-note {
+  margin: 16px 0 0;
+  color: #544a40;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* My vouchers */
+// One row that scrolls sideways, snapping to each voucher.
+.my-voucher-list {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  padding-bottom: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+
+  > .my-voucher {
+    flex: 0 0 min(340px, 85%);
+    scroll-snap-align: start;
+  }
+}
+
+.my-voucher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px dashed rgba(55, 85, 52, 0.45);
+  border-radius: 8px;
+  background: #fffdf9;
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+
+    strong {
+      color: #1a1a1a;
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    p {
+      margin: 0;
+      color: #544a40;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+  }
+
+  &__source {
+    align-self: flex-start;
+    margin-bottom: 4px;
+    font-family: var(--font-mono), 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #544a40;
+
+    &[data-personal='true'] {
+      color: #375534;
+    }
+  }
+
+  &__side {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  &__code {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid rgba(55, 85, 52, 0.35);
+    border-radius: 4px;
+    background: #eef4e6;
+    color: #375534;
+    cursor: pointer;
+
+    code {
+      font-family: var(--font-mono), 'DM Mono', monospace;
+      font-size: 12px;
+    }
+
+    &:hover {
+      background: #e2ecd5;
+    }
+  }
+
+  &__expiry {
+    color: #544a40;
+    font-family: var(--font-mono), 'DM Mono', monospace;
+    font-size: 11px;
+  }
+}
+
+.my-vouchers-card {
+  margin-top: 0;
 }
 
 /* Invite friends */
@@ -926,5 +1047,45 @@
 
   .tier-modal__title {
     font-size: 28px;
+  }
+}
+
+.referral-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.referral-modal {
+  &__steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    @media (max-width: 640px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  &__rules {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    background: #f6efe6;
+    color: #1a1a1a;
+    font-size: 13px;
+    line-height: 1.5;
+
+    ul {
+      margin: 6px 0 0;
+      padding-left: 18px;
+    }
+
+    li + li {
+      margin-top: 4px;
+    }
+
+    code {
+      font-family: var(--font-mono), 'DM Mono', monospace;
+      font-size: 12px;
+    }
   }
 }

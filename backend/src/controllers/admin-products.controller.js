@@ -161,6 +161,45 @@ function buildPayload(body, existing = null) {
   } };
 }
 
+// Activity log for product.update: only the fields that actually changed, as short readable values,
+// so the log drawer can show Old / New instead of an empty diff.
+const LOGGED_PRODUCT_FIELDS = ['name', 'slug', 'category', 'description', 'seo_title', 'product_tag', 'variant_type',
+  'is_best_seller', 'is_new_arrival', 'is_subscribable', 'subscribe_discount_percent', 'quiz_eligible', 'is_active',
+  'matcha', 'coffee', 'drinkware', 'tools', 'sets_bundles'];
+
+function logShape(product) {
+  const value = product ? (typeof product.toObject === 'function' ? product.toObject() : product) : {};
+  const shape = {};
+  for (const field of LOGGED_PRODUCT_FIELDS) {
+    let item = value[field];
+    if (item && typeof item === 'object' && !Array.isArray(item)) item = JSON.parse(JSON.stringify(item));
+    if (field === 'description' && typeof item === 'string' && item.length > 160) item = `${item.slice(0, 157)}…`;
+    shape[field] = item ?? null;
+  }
+  shape.images = (value.images || []).length;
+  for (const variant of value.variants || []) {
+    shape[`variant ${variant.sku}`] = `${variant.label || 'Default'} · $${variant.price} · stock ${variant.stock}${variant.is_default ? ' · default' : ''}`;
+  }
+  return shape;
+}
+
+function productChanges(before, after) {
+  const oldShape = logShape(before);
+  const newShape = logShape(after);
+  const oldValue = {};
+  const newValue = {};
+  for (const key of new Set([...Object.keys(oldShape), ...Object.keys(newShape)])) {
+    if (JSON.stringify(oldShape[key] ?? null) === JSON.stringify(newShape[key] ?? null)) continue;
+    oldValue[key] = oldShape[key] ?? null;
+    newValue[key] = newShape[key] ?? null;
+  }
+  // Keep the name so a row with no field change still says which product it was.
+  if (!Object.keys(newValue).length) {
+    return { oldValue: { name: oldShape.name }, newValue: { name: newShape.name, note: 'Published with no field changes' } };
+  }
+  return { oldValue, newValue };
+}
+
 function presentProduct(product) {
   const value = typeof product.toObject === 'function' ? product.toObject() : product;
   return { ...value,
@@ -387,9 +426,10 @@ async function publishWithBatchChanges(req, res, productId, { createOnly = false
       }
       await ProductDraft.deleteOne({ product_id: productId }, { session });
     });
+    const logged = previous ? productChanges(previous, published) : null;
     await req.writeActivityLog({ actionType: created ? 'product.create' : 'product.update', targetEntity: 'Products', targetId: String(productId),
-      oldValue: previous ? { name: previous.name, is_active: previous.is_active } : null,
-      newValue: { name: published.name, is_active: published.is_active } });
+      oldValue: logged ? logged.oldValue : null,
+      newValue: logged ? logged.newValue : { name: published.name, category: published.category, is_active: published.is_active } });
     for (const event of events) await req.writeActivityLog({ ...event, targetEntity: 'Products', targetId: String(productId) });
     return res.status(createOnly ? 201 : 200).json({ data: presentProduct(published) });
   } catch (error) {
@@ -447,11 +487,9 @@ async function updateProduct(req, res) {
     Object.assign(product, built.payload, { updatedAt: new Date().toISOString() });
     await product.save();
     await ProductDraft.deleteOne({ product_id: product.product_id });
+    const logged = productChanges(previous, product);
     await req.writeActivityLog({ actionType: 'product.update', targetEntity: 'Products', targetId: String(product.product_id),
-      oldValue: { name: previous.name, category: previous.category, is_active: previous.is_active,
-        price: previous.variants?.find((variant) => variant.is_default)?.price ?? previous.variants?.[0]?.price ?? null },
-      newValue: { name: product.name, category: product.category, is_active: product.is_active,
-        price: product.variants?.find((variant) => variant.is_default)?.price ?? product.variants?.[0]?.price ?? null } });
+      oldValue: logged.oldValue, newValue: logged.newValue });
     res.json({ data: presentProduct(product) });
   } catch (error) {
     const conflict = duplicateError(error);

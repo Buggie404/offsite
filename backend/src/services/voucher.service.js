@@ -4,6 +4,30 @@ const Order = require('../models/Order');
 const BUSINESS_TZ = 'Asia/Ho_Chi_Minh';
 const TIERS = ['seed', 'leaf', 'bloom', 'zen'];
 const CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]{1,29}$/;
+const SCOPES = ['all', 'category', 'product'];
+const SCOPE_CATEGORIES = ['matcha', 'coffee', 'tools', 'drinkware', 'sets_bundles'];
+const MAX_SCOPE_PRODUCTS = 50;
+// Purposes that may carry a category / product scope. The others always cover the whole order.
+const SCOPED_PURPOSES = ['campaign', 'loyalty_redeem'];
+// Most points a voucher may cost: the lifetime points that open the next tier above its target tier.
+// Zen has no next tier and caps at 2000. A voucher for every tier uses the same top cap.
+const POINTS_CAP_BY_TIER = { seed: 150, leaf: 400, bloom: 1000, zen: 2000 };
+const POINTS_CAP_ALL_TIERS = 2000;
+
+function pointsCapFor(tier) {
+  return POINTS_CAP_BY_TIER[String(tier || '').toLowerCase()] || POINTS_CAP_ALL_TIERS;
+}
+
+// A voucher that costs points is a template; only the personal copy issued on redeem can be used.
+function needsRedeem(voucher) {
+  return Number(voucher?.points_cost) > 0 && !voucher?.assigned_user_id;
+}
+
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+const SCOPE_ERRORS = {
+  none: 'Mã này không áp dụng cho sản phẩm trong giỏ.'
+};
 
 function businessToday(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -46,11 +70,88 @@ async function countUserRedemptions(code, userId) {
 }
 
 /**
+ * Splits cart lines into the ones a voucher discounts and the ones it skips.
+ * Shared by the voucher quote (cart / checkout) and createOrder, so both always agree.
+ * Each line: { product_id, category, subtotal, purchase_type, from_quiz_bundle, product_active }.
+ * Ritual Box (subscription) lines and Starter Quiz kit lines never get a voucher, whatever the scope.
+ */
+function getEligibleItems(voucher, cartItems = []) {
+  const scope = voucher?.applies_to || 'all';
+  const categories = new Set(voucher?.applicable_categories || []);
+  const productIds = new Set((voucher?.applicable_product_ids || []).map(String));
+  const lines = (cartItems || []).map((item) => {
+    let reason = null;
+    if (item.purchase_type === 'subscription') reason = 'ritual_box';
+    else if (item.from_quiz_bundle) reason = 'starter_kit';
+    else if (item.product_active === false) reason = 'unavailable';
+    else if (scope === 'category' && !categories.has(item.category)) reason = 'out_of_scope';
+    else if (scope === 'product' && !productIds.has(String(item.product_id))) reason = 'out_of_scope';
+    return { ...item, eligible: !reason, reason };
+  });
+  const eligibleItems = lines.filter((line) => line.eligible);
+  const eligibleSubtotal = round2(eligibleItems.reduce((sum, line) => sum + (Number(line.subtotal) || 0), 0));
+  return { lines, eligibleItems, eligibleSubtotal };
+}
+
+/**
+ * Adds category and active state from Products to raw cart lines
+ * ({ product_id, variant_id, quantity, subtotal | unit_price, purchase_type, from_quiz_bundle, bundle_key }).
+ * Prices sent by the client are only used by the quote; createOrder passes server-built lines.
+ */
+async function describeCartLines(items = []) {
+  const Product = require('../models/Product');
+  const ids = [...new Set((items || []).map((item) => String(item.product_id || '')).filter(Boolean))];
+  const objectIds = ids.filter((id) => /^[0-9a-fA-F]{24}$/.test(id));
+  const numericIds = ids.filter((id) => /^\d+$/.test(id)).map(Number);
+  const products = ids.length
+    ? await Product.find({
+      $or: [
+        ...(objectIds.length ? [{ _id: { $in: objectIds } }] : []),
+        ...(numericIds.length ? [{ product_id: { $in: numericIds } }] : [])
+      ]
+    }, '_id product_id name category is_active').lean()
+    : [];
+  const byId = new Map();
+  for (const product of products) {
+    byId.set(String(product._id), product);
+    byId.set(String(product.product_id), product);
+  }
+  return (items || []).map((item, index) => {
+    const product = byId.get(String(item.product_id));
+    const quantity = Number(item.quantity) || 1;
+    const subtotal = item.subtotal != null ? Number(item.subtotal) : (Number(item.unit_price) || 0) * quantity;
+    return {
+      key: item.key || `${item.product_id}::${item.variant_id || ''}::${index}`,
+      product_id: product ? String(product._id) : String(item.product_id),
+      variant_id: item.variant_id || null,
+      product_name: item.product_name || product?.name || '',
+      category: product?.category || null,
+      subtotal: round2(subtotal),
+      purchase_type: item.purchase_type === 'subscription' ? 'subscription' : 'one_time',
+      from_quiz_bundle: !!item.from_quiz_bundle,
+      product_active: product ? product.is_active !== false : false
+    };
+  });
+}
+
+function scopeSnapshot(voucher) {
+  const scope = voucher?.applies_to || 'all';
+  return {
+    applies_to: scope,
+    applicable_categories: scope === 'category' ? [...(voucher.applicable_categories || [])] : undefined,
+    applicable_product_ids: scope === 'product' ? [...(voucher.applicable_product_ids || [])] : undefined
+  };
+}
+
+/**
  * Validates a voucher code against validity dates, usage limits, minimum order amount, and shipping method.
  * userId / userTier enforce assigned vouchers, the tier gate, and the per-account cap.
- * Returns an object with { isValid, voucher, discountAmount, error }.
+ * lines: cart lines from describeCartLines (or createOrder). With lines, an item discount is
+ * measured on the eligible lines only (getEligibleItems). Without lines only whole-order
+ * vouchers can be priced, and subtotal is used as is.
+ * Returns { isValid, voucher, discountAmount, eligibleSubtotal, lines, error }.
  */
-async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod = 'standard', userId = null, userTier = null }) {
+async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod = 'standard', userId = null, userTier = null, lines = null }) {
   if (!code || typeof code !== 'string' || !code.trim()) {
     return { isValid: false, voucher: null, discountAmount: 0, error: 'Mã giảm giá không hợp lệ.' };
   }
@@ -73,6 +174,16 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
       voucher: null,
       discountAmount: 0,
       error: `Mã giảm giá "${codeUpper}" không tồn tại hoặc đã bị ngưng áp dụng.`
+    };
+  }
+
+  if (needsRedeem(voucher)) {
+    return {
+      isValid: false,
+      voucher,
+      discountAmount: 0,
+      code: 'REDEEM_REQUIRED',
+      error: `Mã "${codeUpper}" cần đổi ${voucher.points_cost} điểm trong mục Rewards trước khi dùng.`
     };
   }
 
@@ -128,12 +239,26 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
   }
 
   const numSubtotal = Number(subtotal) || 0;
-  if (voucher.min_order_amount && numSubtotal < voucher.min_order_amount) {
-    return { 
-      isValid: false, 
-      voucher, 
-      discountAmount: 0, 
-      error: `Đơn hàng chưa đạt giá trị tối thiểu ($${voucher.min_order_amount}) để áp dụng mã "${codeUpper}".` 
+  const scoped = voucher.voucher_type === 'discount';
+  const eligibility = scoped && Array.isArray(lines) ? getEligibleItems(voucher, lines) : null;
+  // Item discounts are measured on the eligible lines. Shipping vouchers always look at the whole order.
+  const base = eligibility ? eligibility.eligibleSubtotal : numSubtotal;
+  const extra = { eligibleSubtotal: base, lines: eligibility ? eligibility.lines : null };
+
+  if (eligibility && !eligibility.eligibleItems.length) {
+    return { isValid: false, voucher, discountAmount: 0, ...extra, code: 'NO_ELIGIBLE_ITEMS', error: SCOPE_ERRORS.none };
+  }
+  if (voucher.min_order_amount && base < voucher.min_order_amount) {
+    const missing = round2(voucher.min_order_amount - base).toFixed(2);
+    const onEligible = eligibility && (voucher.applies_to || 'all') !== 'all' ? ' sản phẩm được áp dụng' : '';
+    return {
+      isValid: false,
+      voucher,
+      discountAmount: 0,
+      ...extra,
+      code: 'MIN_ORDER',
+      missing: Number(missing),
+      error: `Mua thêm $${missing}${onEligible} để dùng mã "${codeUpper}" (tối thiểu $${voucher.min_order_amount}).`
     };
   }
 
@@ -142,17 +267,17 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
 
   if (voucher.voucher_type === 'discount') {
     if (voucher.discount_type === 'percentage') {
-      discountAmount = numSubtotal * (Math.min(voucher.discount_value, 100) / 100);
+      discountAmount = base * (Math.min(voucher.discount_value, 100) / 100);
     } else if (voucher.discount_type === 'fixed') {
       discountAmount = voucher.discount_value;
     }
-    discountAmount = Math.min(discountAmount, numSubtotal);
   } else if (voucher.voucher_type === 'shipping') {
     if (shippingMethod !== 'express') {
       return { 
         isValid: false, 
         voucher, 
         discountAmount: 0, 
+        ...extra,
         error: `Mã giảm giá vận chuyển "${codeUpper}" chỉ áp dụng cho phương thức Giao hàng Hỏa tốc.` 
       };
     }
@@ -166,12 +291,15 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
   if (voucher.max_discount_value != null && discountAmount > voucher.max_discount_value) {
     discountAmount = voucher.max_discount_value;
   }
-  discountAmount = Math.round(discountAmount * 100) / 100;
+  // An item discount never exceeds the eligible amount.
+  if (voucher.voucher_type === 'discount') discountAmount = Math.min(discountAmount, base);
+  discountAmount = round2(discountAmount);
 
   return {
     isValid: true,
     voucher,
     discountAmount,
+    ...extra,
     error: null
   };
 }
@@ -228,7 +356,34 @@ function fail(field, error) {
  * Dates are Vietnam calendar days stored as YYYY-MM-DD.
  * Amounts are USD.
  */
-function validateVoucherPayload(input, { usedCount = 0, existing = null } = {}) {
+function parseScope(source, { voucherType, purpose }) {
+  const allowed = voucherType !== 'shipping' && SCOPED_PURPOSES.includes(purpose || 'campaign');
+  const scope = source.applies_to == null || source.applies_to === '' ? 'all' : String(source.applies_to);
+  if (!SCOPES.includes(scope)) return fail('applies_to', 'Choose Whole order, By category or By product.');
+  if (!allowed || scope === 'all') {
+    if (!allowed && scope !== 'all') {
+      return fail('applies_to', voucherType === 'shipping'
+        ? 'A shipping voucher always applies to the whole order.'
+        : 'Only Campaign and Loyalty vouchers can be limited to categories or products.');
+    }
+    return { ok: true, value: { applies_to: 'all', applicable_categories: null, applicable_product_ids: null } };
+  }
+  const list = (value) => [...new Set((Array.isArray(value) ? value : []).map((item) => String(item || '').trim()).filter(Boolean))];
+  if (scope === 'category') {
+    const categories = list(source.applicable_categories).map((item) => item.toLowerCase());
+    if (!categories.length) return fail('applicable_categories', 'Pick at least one category.');
+    if (categories.some((item) => !SCOPE_CATEGORIES.includes(item))) return fail('applicable_categories', 'Pick categories from the list.');
+    if (list(source.applicable_product_ids).length) return fail('applies_to', 'Use either categories or products, not both.');
+    return { ok: true, value: { applies_to: 'category', applicable_categories: categories, applicable_product_ids: null } };
+  }
+  const products = list(source.applicable_product_ids);
+  if (!products.length) return fail('applicable_product_ids', 'Pick at least one product.');
+  if (products.length > MAX_SCOPE_PRODUCTS) return fail('applicable_product_ids', `Pick at most ${MAX_SCOPE_PRODUCTS} products.`);
+  if (list(source.applicable_categories).length) return fail('applies_to', 'Use either categories or products, not both.');
+  return { ok: true, value: { applies_to: 'product', applicable_categories: null, applicable_product_ids: products } };
+}
+
+function validateVoucherPayload(input, { usedCount = 0, existing = null, purpose = null } = {}) {
   const locked = usedCount > 0;
   const source = input || {};
 
@@ -271,7 +426,11 @@ function validateVoucherPayload(input, { usedCount = 0, existing = null } = {}) 
     target_tier: tierRaw
   };
   if (locked && existing) {
+    // The scope is locked too after the first use.
     terms = {
+      applies_to: existing.applies_to || 'all',
+      applicable_categories: existing.applicable_categories?.length ? [...existing.applicable_categories] : null,
+      applicable_product_ids: existing.applicable_product_ids?.length ? [...existing.applicable_product_ids] : null,
       code: existing.code,
       voucher_type: existing.voucher_type,
       discount_type: existing.discount_type,
@@ -303,6 +462,31 @@ function validateVoucherPayload(input, { usedCount = 0, existing = null } = {}) 
       return fail('max_discount_value', 'Maximum discount must be greater than 0.');
     }
     if (tierRaw && !TIERS.includes(tierRaw)) return fail('target_tier', 'Choose a customer tier.');
+    const scope = parseScope(source, { voucherType, purpose: purpose || existing?.purpose || source.purpose || 'campaign' });
+    if (!scope.ok) return scope;
+    terms = { ...terms, ...scope.value };
+  }
+
+  // Points to redeem can still change after the first use: it only prices future redemptions.
+  const pointsPurpose = purpose || existing?.purpose || source.purpose || 'campaign';
+  const pointsRaw = source.points_cost;
+  let pointsCost = null;
+  if (pointsRaw !== '' && pointsRaw != null) {
+    pointsCost = parseAmount(pointsRaw);
+    if (!Number.isInteger(pointsCost) || pointsCost < 0) {
+      return fail('points_cost', 'Points must be a whole number, 0 or more.');
+    }
+    if (pointsCost === 0) pointsCost = null;
+  }
+  if (pointsCost != null && !SCOPED_PURPOSES.includes(pointsPurpose)) {
+    return fail('points_cost', 'Only Campaign and Loyalty vouchers can cost points.');
+  }
+  const cap = pointsCapFor(terms.target_tier);
+  if (pointsCost != null && pointsCost > cap) {
+    const tierName = terms.target_tier ? terms.target_tier.charAt(0).toUpperCase() + terms.target_tier.slice(1) : null;
+    return fail('points_cost', tierName
+      ? `A ${tierName} voucher can cost at most ${cap} points.`
+      : `A voucher can cost at most ${cap} points.`);
   }
 
   return {
@@ -311,7 +495,8 @@ function validateVoucherPayload(input, { usedCount = 0, existing = null } = {}) 
       ...terms,
       valid_from: from,
       valid_to: to,
-      usage_limit: usageLimit
+      usage_limit: usageLimit,
+      points_cost: pointsCost
     }
   };
 }
@@ -374,29 +559,49 @@ function samplePerformance(voucher) {
     revenue: round(Math.max(orderBase * used - totalDiscounted, 0)),
     range_from: range.start,
     range_to: range.end,
-    buckets: filled
+    buckets: filled.map((bucket) => ({
+      ...bucket,
+      discounted: round(each * bucket.count),
+      revenue: round(Math.max(orderBase - each, 0) * bucket.count)
+    }))
   };
 }
 
-function bucketUsage(dayCounts, start, end) {
+// dayCounts: { 'YYYY-MM-DD': uses }. dayMoney (optional): { 'YYYY-MM-DD': { discounted, revenue } },
+// summed per bucket for the chart tooltip.
+function bucketUsage(dayCounts, start, end, dayMoney = {}) {
   const span = Math.max(1, daysBetween(start, end) + 1);
   const bucketCount = Math.min(12, span);
   const size = span / bucketCount;
   const buckets = Array.from({ length: bucketCount }, (_, index) => {
     const bucketStart = addDays(start, Math.floor(index * size));
     const bucketEnd = addDays(start, Math.floor((index + 1) * size) - 1);
-    return { start: bucketStart, end: index === bucketCount - 1 ? end : bucketEnd, count: 0 };
+    return { start: bucketStart, end: index === bucketCount - 1 ? end : bucketEnd, count: 0, discounted: 0, revenue: 0 };
   });
+  const indexOf = (day) => Math.min(bucketCount - 1, Math.floor(daysBetween(start, day) / size));
   for (const [day, count] of Object.entries(dayCounts)) {
     if (day < start || day > end) continue;
-    const offset = daysBetween(start, day);
-    const index = Math.min(bucketCount - 1, Math.floor(offset / size));
-    buckets[index].count += count;
+    buckets[indexOf(day)].count += count;
+  }
+  for (const [day, money] of Object.entries(dayMoney || {})) {
+    if (day < start || day > end) continue;
+    const bucket = buckets[indexOf(day)];
+    bucket.discounted = round2(bucket.discounted + (Number(money?.discounted) || 0));
+    bucket.revenue = round2(bucket.revenue + (Number(money?.revenue) || 0));
   }
   return buckets;
 }
 
 module.exports = {
+  POINTS_CAP_BY_TIER,
+  POINTS_CAP_ALL_TIERS,
+  pointsCapFor,
+  needsRedeem,
+  getEligibleItems,
+  describeCartLines,
+  scopeSnapshot,
+  SCOPE_CATEGORIES,
+  MAX_SCOPE_PRODUCTS,
   validateAndCalculateVoucher,
   incrementVoucherUsage,
   releaseVoucherUsage,

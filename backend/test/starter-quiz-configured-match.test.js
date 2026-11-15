@@ -93,4 +93,28 @@ const none = matchConfiguredKit({
 });
 assert.strictEqual(none.error, 'NO_ACTIVE_KITS');
 
+// The quiz passes the indexed catalog, not a plain array. It must fill kits the same way.
+const { indexProducts } = require('../src/services/starter-quiz.slots');
+if (typeof indexProducts === 'function') {
+  const indexed = matchConfiguredKit({ questions, answers, kits, products: indexProducts(products) });
+  assert.strictEqual(indexed.error, undefined);
+  assert.strictEqual(indexed.kit.title, 'The Matcha Kit');
+}
+
+// No kit fits every answer: the closest fillable kit comes back, flagged, instead of an error.
+const strictKits = kits.map((kit) => ({ ...kit, level: kit.level === 'any' ? 'any' : kit.level, budget: 'under_60' }));
+const closestQuestions = [
+  ...questions,
+  { question_id: 'SQB', code: 'q5', matching_role: 'secondary', options: [{ option_id: 'X', code: 'sweet', text: 'Sweet' }] }
+];
+const closest = matchConfiguredKit({
+  questions: closestQuestions,
+  answers: [...answers, { question_id: 'SQB', option_id: 'X' }],
+  kits: strictKits.map((kit) => ({ ...kit, level: 'beginner' })),
+  products
+});
+assert.strictEqual(closest.error, undefined);
+assert.strictEqual(closest.kit.closest, true);
+assert.match(closest.kit.why, /closest/);
+
 console.log('configured matcher ok');

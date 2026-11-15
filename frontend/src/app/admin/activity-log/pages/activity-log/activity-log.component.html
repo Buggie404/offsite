@@ -252,7 +252,11 @@
                 </div>
               </div>
             } @else {
-              <p class="muted">No field values were recorded for this action.</p>
+              @if (recordedFields(entry); as fields) {
+                <p class="muted">This entry only recorded {{ fields }}, and none of them changed. The edit touched other fields, which entries before this update did not log.</p>
+              } @else {
+                <p class="muted">No field values were recorded for this action.</p>
+              }
             }
           }
         </div>

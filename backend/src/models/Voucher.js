@@ -37,7 +37,20 @@ const voucherSchema = new mongoose.Schema({
   // Uses per account. Null means no per-account cap; omitted on older rows is treated as 1.
   usage_limit_per_user: { type: Number, default: 1 },
   // seed | leaf | bloom | zen. Null means every tier.
-  target_tier: { type: String, enum: ['seed', 'leaf', 'bloom', 'zen', null], default: null }
+  target_tier: { type: String, enum: ['seed', 'leaf', 'bloom', 'zen', null], default: null },
+  // Scope (Campaign and Loyalty only). Shipping, Referral and Complaint vouchers are always 'all'.
+  applies_to: { type: String, enum: ['all', 'category', 'product'], default: 'all' },
+  // Values of Products.category. Set only when applies_to is 'category'.
+  applicable_categories: { type: [String], default: undefined },
+  // Products._id as strings, at most 50. Set only when applies_to is 'product'.
+  applicable_product_ids: { type: [String], default: undefined },
+  // Points a customer spends to redeem this voucher (Campaign and Loyalty only).
+  // Null or 0: no redemption needed, the code is open to every eligible customer.
+  // A redeemable voucher is a template: redeeming issues a personal one-use copy, and the template
+  // code itself is refused at checkout.
+  points_cost: { type: Number, default: null },
+  // On a personal copy issued by redeeming points: the template voucher's _id.
+  source_voucher_id: { type: String, default: null }
 }, {
   collection: 'Vouchers'
 });

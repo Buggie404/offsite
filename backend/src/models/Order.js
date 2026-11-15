@@ -105,7 +105,12 @@ const couponSchema = new mongoose.Schema({
   code:            { type: String, default: null },
   discount_type:   { type: String, enum: ["percentage", "fixed"], default: null },
   discount_value:  { type: Number, default: null },  // e.g. 10 (%) or 5 ($)
-  discount_amount: { type: Number, default: null }   // actual $ deducted
+  discount_amount: { type: Number, default: null },  // actual $ deducted
+  // Snapshot of the voucher scope at checkout, so later edits to the voucher never change this order.
+  applies_to:             { type: String, enum: ["all", "category", "product", null], default: null },
+  applicable_categories:  { type: [String], default: undefined },
+  applicable_product_ids: { type: [String], default: undefined },
+  eligible_subtotal:      { type: Number, default: null }
 }, { _id: false });
 
 const statusHistorySchema = new mongoose.Schema({

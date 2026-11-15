@@ -28,7 +28,8 @@ async function getAllVouchers(req, res) {
     const shopper = await resolveShopper(req.user);
     const vouchers = await Voucher.find({
       is_active: true,
-      $and: [PUBLIC_VOUCHER, tierClause(shopper?.membership_tier)]
+      // Vouchers that cost points are redeemed in Rewards first, so checkout never suggests them.
+      $and: [PUBLIC_VOUCHER, tierClause(shopper?.membership_tier), { $or: [{ points_cost: null }, { points_cost: { $lte: 0 } }, { points_cost: { $exists: false } }] }]
     });
     res.json(vouchers);
   } catch (error) {
@@ -68,7 +69,56 @@ async function getVoucherByCode(req, res) {
   }
 }
 
+// Cart and checkout price a voucher here; the client only shows the result.
+// Body: { code, items: [{ product_id, variant_id, quantity, unit_price | subtotal, purchase_type, from_quiz_bundle }], shipping_method }
+async function quoteVoucher(req, res) {
+  try {
+    const code = String(req.body?.code || '').trim();
+    if (!code) return res.status(400).json({ error: 'Voucher code is required' });
+    const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 200) : [];
+    const shopper = await resolveShopper(req.user);
+    const lines = await voucherService.describeCartLines(items);
+    const subtotal = lines.reduce((sum, line) => sum + line.subtotal, 0);
+    const result = await voucherService.validateAndCalculateVoucher({
+      code,
+      subtotal,
+      shippingMethod: req.body?.shipping_method || 'standard',
+      userId: shopper?.user_id || null,
+      userTier: shopper?.membership_tier || null,
+      lines
+    });
+    const quoteLines = (result.lines || []).map((line) => ({
+      key: line.key,
+      product_id: line.product_id,
+      variant_id: line.variant_id,
+      eligible: line.eligible,
+      reason: line.reason
+    }));
+    if (!result.isValid) {
+      return res.status(result.voucher ? 400 : 404).json({
+        error: result.error,
+        code: result.code || null,
+        missing: result.missing ?? null,
+        eligible_subtotal: result.eligibleSubtotal ?? null,
+        lines: quoteLines
+      });
+    }
+    const voucher = result.voucher.toObject ? result.voucher.toObject() : result.voucher;
+    res.json({
+      voucher,
+      discount_amount: result.discountAmount,
+      eligible_subtotal: result.eligibleSubtotal,
+      applies_to: voucher.applies_to || 'all',
+      lines: quoteLines
+    });
+  } catch (error) {
+    console.error('Error quoting voucher:', error);
+    res.status(500).json({ error: 'Failed to check voucher' });
+  }
+}
+
 module.exports = {
+  quoteVoucher,
   getAllVouchers,
   getVoucherByCode
 };

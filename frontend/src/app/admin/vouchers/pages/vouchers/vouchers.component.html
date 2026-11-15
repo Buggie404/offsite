@@ -79,10 +79,20 @@
           </div>
         </div>
         <div class="perf__chart">
-          <div class="chart" aria-hidden="true">
-            @for (bucket of performance.buckets; track bucket.start) {
-              <div class="chart__col">
-                <div class="chart__bar" [style.height.%]="barHeight(bucket.count)"></div>
+          <div class="chart" role="img" [attr.aria-label]="'Uses of ' + performance.code + ' over time'" (mouseleave)="hoverBucket = null">
+            @for (bucket of performance.buckets; track bucket.start; let i = $index) {
+              <div class="chart__col" (mouseenter)="hoverBucket = i">
+                <div class="chart__bar" [class.is-dim]="hoverBucket !== null && hoverBucket !== i" [style.height.%]="barHeight(bucket.count)"></div>
+              </div>
+            }
+            @if (hoverBucket !== null && performance.buckets[hoverBucket]; as bucket) {
+              <div class="chart__tooltip"
+                [style.left.%]="(hoverBucket + 0.5) * 100 / performance.buckets.length"
+                [class.is-right]="hoverBucket >= performance.buckets.length / 2">
+                <span>{{ bucketRange(bucket) }}</span>
+                <strong>{{ bucket.count | number }} {{ bucket.count === 1 ? 'use' : 'uses' }}</strong>
+                <em>Discounted {{ money2(bucket.discounted || 0) }}</em>
+                <em>Revenue {{ money2(bucket.revenue || 0) }}</em>
               </div>
             }
           </div>
@@ -141,10 +151,13 @@
                     <span class="meter" aria-hidden="true"><span [style.width.%]="meterWidth(voucher)"></span></span>
                   }
                 </td>
-                <td>{{ purposeLabel(voucher.purpose) }}</td>
+                <td>
+                  {{ purposeLabel(voucher.purpose) }}
+                  @if (voucher.points_cost) { <span class="pts mono">· {{ voucher.points_cost | number }} pts</span> }
+                </td>
                 <td>{{ voucher.assigned_user_name || '—' }}</td>
                 <td>
-                  <span class="chip" [class]="'chip chip--' + voucher.status">{{ statusLabel(voucher.status) }}</span>
+                  <span class="status-text" [class]="'status-text status-text--' + voucher.status">{{ statusLabel(voucher.status) }}</span>
                 </td>
                 <td class="creator">
                   <span>{{ shortName(voucher.created_by_name) }}</span>
@@ -179,16 +192,19 @@
 @if (modalOpen) {
   <div class="overlay" (click)="closeModal()">
     <div
-      class="modal"
+      class="modal modal--wide"
       role="dialog"
       aria-modal="true"
       aria-labelledby="voucher-modal-title"
       (click)="$event.stopPropagation()"
     >
       <header class="modal__header">
-        <h2 id="voucher-modal-title">{{ modalTitle }}</h2>
+        <div class="modal__titles">
+          <h2 id="voucher-modal-title">{{ modalTitle }}</h2>
+          <p>{{ purposeHint }}</p>
+        </div>
         <button type="button" class="icon-btn" aria-label="Close" (click)="closeModal()">
-          <svg lucideX [size]="18"></svg>
+          <svg lucideX [size]="20"></svg>
         </button>
       </header>
 
@@ -196,208 +212,412 @@
         @if (locked) {
           <div class="warning">
             <svg lucideTriangleAlert [size]="16"></svg>
-            <p><strong>{{ warningCount() | number }} {{ warningCount() === 1 ? 'customer' : 'customers' }} already used this code.</strong> Changes apply to new orders only; past orders keep their discount.</p>
+            <p><strong>{{ warningCount() | number }} {{ warningCount() === 1 ? 'customer' : 'customers' }} already used this code.</strong> Code, discount and scope are locked. Changes apply to new orders only; past orders keep their discount.</p>
           </div>
         }
 
         @if (saveError) {
-          <p class="form-error">{{ saveError }}</p>
+          <p class="form-error form-error--box">{{ saveError }}</p>
         }
 
-        @if (role === 'admin_cc' && modalMode === 'create') {
-          <div class="segmented purpose" role="group" aria-label="Purpose">
-            <button type="button" [class.active]="form.purpose === 'campaign'" (click)="setPurpose('campaign')">Campaign</button>
-            <button type="button" [class.active]="form.purpose === 'complaint'" (click)="setPurpose('complaint')">Complaint</button>
-          </div>
-        }
-        @if (complaintMode) {
-          @if (chatCustomer) {
-            <div class="limit-note"><p>For <strong>{{ chatCustomer.profile_name }}</strong> only@if (chatCustomer.conversation_id) { · linked to this conversation }</p></div>
-          } @else {
-          <label class="field">
-            <span>Customer</span>
-            <span class="search suggest-search" [class.invalid]="fieldError('assigned_user')">
-              <svg lucideSearch [size]="16"></svg>
-              <input
-                [class.invalid]="fieldError('assigned_user')"
-                [ngModel]="customerQuery"
-                (ngModelChange)="onCustomerInput($event)"
-                placeholder="Name or user ID"
-                autocomplete="off"
-              />
-              @if (customerHits.length) {
-                <ul class="suggest" role="listbox">
-                  @for (hit of customerHits; track hit.user_id) {
-                    <li>
-                      <button type="button" (click)="pickCustomer(hit)">
-                        <strong>{{ hit.profile_name }}</strong>
-                        <span>{{ hit.user_id }}</span>
-                      </button>
-                    </li>
-                  }
-                </ul>
+        <!-- Voucher type -->
+        @if (modalMode === 'create' && !typeLocked) {
+          <section class="block">
+            <div class="block__label">Voucher type</div>
+            <div class="type-picker" role="group" aria-label="Voucher type">
+              @for (choice of typeChoices; track choice.value) {
+                <button
+                  type="button"
+                  class="type-card"
+                  [class.active]="form.purpose === choice.value"
+                  [attr.aria-pressed]="form.purpose === choice.value"
+                  [disabled]="!canCreateType(choice.value)"
+                  [attr.title]="canCreateType(choice.value) ? null : 'Your role cannot create this type'"
+                  (click)="setPurpose(choice.value)"
+                >
+                  <span class="type-card__name">
+                    @if (!canCreateType(choice.value)) { <svg lucideLock [size]="12"></svg> }
+                    {{ choice.label }}
+                  </span>
+                  <span class="type-card__hint">{{ choice.hint }}</span>
+                </button>
               }
-            </span>
-            @if (fieldError('assigned_user')) { <small>{{ fieldError('assigned_user') }}</small> }
-          </label>
+            </div>
+          </section>
+        }
+
+        @if (complaintMode) {
+          @if (typeLocked) {
+            <div class="lock-banner">
+              <span class="lock-banner__text">
+                <svg lucideLock [size]="16"></svg>
+                <span>Complaint is the only voucher type a <strong>Services Ops</strong> account can create.</span>
+              </span>
+              @if (quota && quota.limit != null) {
+                <span class="mono lock-banner__quota">{{ quota.left }} / {{ quota.limit }} vouchers left today</span>
+              }
+            </div>
           }
 
-          <div class="discount-row">
-            <div class="segmented discount-kind" role="group" aria-label="Discount">
-              <button type="button" [class.active]="form.discount_type === 'percentage'" (click)="form.discount_type = 'percentage'">% off</button>
-              <button type="button" [class.active]="form.discount_type === 'fixed'" (click)="form.discount_type = 'fixed'">Fixed $</button>
-            </div>
-            <label class="field value-field">
-              <span class="sr-only">Value</span>
-              <span class="control" [class.control--money]="form.discount_type === 'fixed'" [class.control--percent]="form.discount_type === 'percentage'">
-                @if (form.discount_type === 'fixed') { <em>$</em> }
-                <input class="num" [class.invalid]="fieldError('discount_value')" inputmode="decimal" [ngModel]="form.discount_value" (ngModelChange)="onAmount('discount_value', $event)" />
-                @if (form.discount_type === 'percentage') { <em class="suffix">%</em> }
-              </span>
-            </label>
-          </div>
-          @if (fieldError('discount_value')) { <p class="form-error">{{ fieldError('discount_value') }}</p> }
-
-          <div class="grid">
-            <label class="field">
-              <span>Min. order</span>
-              <span class="control control--money">
-                <em>$</em>
-                <input class="num" [class.invalid]="fieldError('min_order_amount')" inputmode="decimal" [ngModel]="form.min_order_amount" (ngModelChange)="onAmount('min_order_amount', $event)" />
-              </span>
-              @if (fieldError('min_order_amount')) { <small>{{ fieldError('min_order_amount') }}</small> }
-            </label>
-            <label class="field">
-              <span>Expires in</span>
-              <span class="control">
-                <select [(ngModel)]="form.expires_in">
-                  @for (choice of expireChoices; track choice.value) {
-                    <option [value]="choice.value">{{ choice.label }}</option>
+          <!-- Customer -->
+          <section class="block">
+            <div class="block__label">Customer</div>
+            @if (chatCustomer) {
+              <div class="customer-card">
+                <span class="avatar">{{ initials(chatCustomer.profile_name) }}</span>
+                <span class="customer-card__text">
+                  <strong>{{ chatCustomer.profile_name }}</strong>
+                  <span class="mono">{{ chatCustomer.user_id }}@if (chatCustomer.conversation_id) { · linked to this conversation }</span>
+                </span>
+              </div>
+            } @else if (form.assigned_user) {
+              <div class="customer-card">
+                <span class="avatar">{{ initials(customerName) }}</span>
+                <span class="customer-card__text">
+                  <strong>{{ customerName }}</strong>
+                  <span class="mono">{{ form.assigned_user }}@if (customerEmail) { · {{ customerEmail }} }</span>
+                </span>
+                <button type="button" class="btn-pill" (click)="clearCustomer()">Change</button>
+              </div>
+            } @else {
+              <label class="field">
+                <span class="field__label">Search by name, email or customer ID</span>
+                <span class="search suggest-search" [class.invalid]="fieldError('assigned_user')">
+                  <svg lucideSearch [size]="16"></svg>
+                  <input
+                    [ngModel]="customerQuery"
+                    (ngModelChange)="onCustomerInput($event)"
+                    placeholder="Type at least 2 characters"
+                    autocomplete="off"
+                  />
+                  @if (customerHits.length) {
+                    <ul class="suggest" role="listbox">
+                      @for (hit of customerHits; track hit.user_id) {
+                        <li>
+                          <button type="button" (click)="pickCustomer(hit)">
+                            <strong>{{ hit.profile_name }}</strong>
+                            <span>{{ hit.user_id }}@if (hit.email) { · {{ hit.email }} }</span>
+                          </button>
+                        </li>
+                      }
+                    </ul>
                   }
-                </select>
-                <svg lucideChevronDown [size]="16"></svg>
-              </span>
+                </span>
+              </label>
+            }
+            @if (fieldError('assigned_user')) { <small class="field-msg field-msg--error">{{ fieldError('assigned_user') }}</small> }
+          </section>
+
+          <!-- Reason -->
+          <section class="block">
+            <div class="block__label">Reason</div>
+            <label class="field">
+              <span class="field__label">Describe the issue and include the related order ID</span>
+              <textarea rows="3" [class.invalid]="fieldError('reason')" [ngModel]="form.reason" (ngModelChange)="onReasonInput($event)" placeholder="Missing 1 matcha pack from order OFS-2026-00418…"></textarea>
             </label>
-          </div>
+            @if (orderState === 'found') {
+              <small class="field-msg field-msg--ok"><svg lucideCheck [size]="14"></svg> Found order <span class="mono">{{ orderId }}</span>, it belongs to this customer</small>
+            } @else if (orderState === 'checking') {
+              <small class="field-msg">Checking order <span class="mono">{{ orderId }}</span>…</small>
+            } @else if (orderId && !form.assigned_user) {
+              <small class="field-msg">Choose the customer to check order <span class="mono">{{ orderId }}</span>.</small>
+            } @else if (fieldError('reason')) {
+              <small class="field-msg field-msg--error"><svg lucideCircleAlert [size]="14"></svg> {{ fieldError('reason') }}</small>
+            }
+          </section>
 
-          <label class="field">
-            <span>Reason (internal)</span>
-            <textarea [class.invalid]="fieldError('reason')" [(ngModel)]="form.reason" (ngModelChange)="touch('reason')" rows="2"></textarea>
-            @if (fieldError('reason')) { <small>{{ fieldError('reason') }}</small> }
-          </label>
+          <!-- Compensation -->
+          <section class="block">
+            <div class="block__label">Compensation</div>
+            <div class="grid grid--comp">
+              <div class="field">
+                <span class="field__label">Type</span>
+                <div class="seg seg--wide" role="group" aria-label="Compensation type">
+                  <button type="button" [class.active]="form.discount_type === 'fixed'" [attr.aria-pressed]="form.discount_type === 'fixed'" (click)="form.discount_type = 'fixed'">Fixed, up to order total</button>
+                  <button type="button" [class.active]="form.discount_type === 'percentage'" [attr.aria-pressed]="form.discount_type === 'percentage'" (click)="form.discount_type = 'percentage'">Percentage, up to 20%</button>
+                </div>
+              </div>
+              <label class="field">
+                <span class="field__label">Value</span>
+                <span class="unit-input" [class.invalid]="fieldError('discount_value')">
+                  <input class="mono" inputmode="decimal" [ngModel]="form.discount_value" (ngModelChange)="onAmount('discount_value', $event)" />
+                  <em>{{ form.discount_type === 'percentage' ? '%' : 'USD' }}</em>
+                </span>
+                @if (fieldError('discount_value')) {
+                  <small class="field-msg field-msg--error">{{ fieldError('discount_value') }}</small>
+                } @else if (form.discount_type === 'percentage') {
+                  <small class="field-msg">Max 20%</small>
+                } @else if (complaintCap != null) {
+                  <small class="field-msg">Max {{ complaintCap | number: '1.2-2' }} USD, the total of order <span class="mono">{{ orderId }}</span></small>
+                } @else {
+                  <small class="field-msg">The cap is the total of the complained order.</small>
+                }
+              </label>
+            </div>
+          </section>
 
-          <label class="field">
-            <span>Message to customer</span>
-            <textarea [(ngModel)]="form.message" rows="2"></textarea>
-          </label>
+          @if (chatCustomer) {
+            <label class="field">
+              <span class="field__label">Message to customer</span>
+              <textarea [(ngModel)]="form.message" rows="2"></textarea>
+            </label>
+          }
 
-          <div class="limit-note">
-            <svg lucideInfo [size]="16"></svg>
-            <p>One use, up to 20% or $10, and at most 30 days. Assigned to the customer you choose.</p>
-          </div>
-
-          <div class="code-preview">
-            <span>Code preview</span>
-            <strong class="mono">{{ previewCode || '—' }}</strong>
+          <div class="summary">
+            <div><span>Voucher code, auto-generated</span><strong class="mono">CMP-XXXXX</strong></div>
+            <div><span>Uses</span><strong class="mono">1 use</strong></div>
+            <div><span>Expires</span><strong class="mono">{{ complaintExpiry }}</strong></div>
           </div>
         } @else {
-          <div class="grid">
-            <label class="field">
-              <span>Code</span>
-              <input [class.invalid]="fieldError('code')" [disabled]="locked" [(ngModel)]="form.code" (ngModelChange)="touch('code')" autocomplete="off" />
-              @if (fieldError('code')) { <small>{{ fieldError('code') }}</small> }
-            </label>
-            <label class="field">
-              <span>Type</span>
-              <span class="control">
-                <select [disabled]="locked" [(ngModel)]="form.voucher_type">
-                  <option value="discount">Discount</option>
-                  <option value="shipping">Shipping</option>
-                </select>
-                <svg lucideChevronDown [size]="16"></svg>
-              </span>
-            </label>
-          </div>
+          <!-- Code and discount -->
+          <section class="block">
+            <div class="block__label">Code and discount</div>
+            <div class="grid grid--code">
+              <label class="field">
+                <span class="field__label">Voucher code</span>
+                <span class="unit-input" [class.invalid]="fieldError('code')">
+                  <input class="mono" [disabled]="locked || modalMode === 'edit'" [ngModel]="form.code" (ngModelChange)="onCodeInput($event)" autocomplete="off" placeholder="MATCHA-NOV15" />
+                  @if (modalMode === 'create' && codeState === 'available' && !fieldError('code')) {
+                    <em class="ok"><svg lucideCheck [size]="14"></svg> Available</em>
+                  } @else if (modalMode === 'create' && codeState === 'checking') {
+                    <em>Checking…</em>
+                  }
+                </span>
+                @if (fieldError('code')) { <small class="field-msg field-msg--error">{{ fieldError('code') }}</small> }
+              </label>
+              <div class="field">
+                <span class="field__label">Discount on</span>
+                <div class="seg" role="group" aria-label="Discount on">
+                  <button type="button" [disabled]="locked" [class.active]="form.voucher_type === 'discount'" (click)="form.voucher_type = 'discount'">Items</button>
+                  <button type="button" [disabled]="locked || form.purpose === 'referral'" [class.active]="form.voucher_type === 'shipping'" (click)="form.voucher_type = 'shipping'">Shipping</button>
+                </div>
+              </div>
+            </div>
+            <div class="grid grid--4">
+              <div class="field">
+                <span class="field__label">Type</span>
+                <div class="seg" role="group" aria-label="Discount type">
+                  <button type="button" [disabled]="locked" [class.active]="form.discount_type === 'percentage'" (click)="form.discount_type = 'percentage'">%</button>
+                  <button type="button" [disabled]="locked" [class.active]="form.discount_type === 'fixed'" (click)="form.discount_type = 'fixed'">USD</button>
+                </div>
+              </div>
+              <label class="field">
+                <span class="field__label">Value</span>
+                <span class="unit-input" [class.invalid]="fieldError('discount_value')">
+                  <input class="mono" [disabled]="locked" inputmode="decimal" [ngModel]="form.discount_value" (ngModelChange)="onAmount('discount_value', $event)" />
+                  <em>{{ form.discount_type === 'percentage' ? '%' : 'USD' }}</em>
+                </span>
+              </label>
+              <label class="field">
+                <span class="field__label">Max discount</span>
+                <span class="unit-input" [class.invalid]="fieldError('max_discount_value')">
+                  <input class="mono" [disabled]="locked" inputmode="decimal" placeholder="None" [ngModel]="form.max_discount_value" (ngModelChange)="onAmount('max_discount_value', $event)" />
+                  <em>USD</em>
+                </span>
+              </label>
+              <label class="field">
+                <span class="field__label">Min. order</span>
+                <span class="unit-input" [class.invalid]="fieldError('min_order_amount')">
+                  <input class="mono" [disabled]="locked" inputmode="decimal" placeholder="0.00" [ngModel]="form.min_order_amount" (ngModelChange)="onAmount('min_order_amount', $event)" />
+                  <em>USD</em>
+                </span>
+              </label>
+            </div>
+            @for (f of ['discount_value', 'max_discount_value', 'min_order_amount']; track f) {
+              @if (fieldError($any(f))) { <small class="field-msg field-msg--error">{{ fieldError($any(f)) }}</small> }
+            }
+            @if (scoped && form.applies_to !== 'all') {
+              <p class="hint">With a scope selected below, min. order and max discount are measured on eligible items only, not the whole order.</p>
+            }
+          </section>
 
-          <div class="grid">
-            <label class="field">
-              <span>Discount</span>
-              <span class="control">
-                <select [disabled]="locked" [(ngModel)]="form.discount_type">
-                  <option value="percentage">Percentage</option>
-                  <option value="fixed">Fixed</option>
-                </select>
-                <svg lucideChevronDown [size]="16"></svg>
-              </span>
-            </label>
-            <label class="field">
-              <span>Value</span>
-              <span class="control" [class.control--money]="form.discount_type === 'fixed'">
-                @if (form.discount_type === 'fixed') { <em>$</em> }
-                <input class="num" [class.invalid]="fieldError('discount_value')" [disabled]="locked" inputmode="decimal" [ngModel]="form.discount_value" (ngModelChange)="onAmount('discount_value', $event)" />
-              </span>
-              @if (fieldError('discount_value')) { <small>{{ fieldError('discount_value') }}</small> }
-            </label>
-          </div>
-
-          <div class="grid">
-            <label class="field">
-              <span>Min. order</span>
-              <span class="control control--money">
-                <em>$</em>
-                <input class="num" [class.invalid]="fieldError('min_order_amount')" [disabled]="locked" inputmode="decimal" [ngModel]="form.min_order_amount" (ngModelChange)="onAmount('min_order_amount', $event)" />
-              </span>
-              @if (fieldError('min_order_amount')) { <small>{{ fieldError('min_order_amount') }}</small> }
-            </label>
-            <label class="field">
-              <span>Max discount</span>
-              <span class="control control--money">
-                <em>$</em>
-                <input class="num" [class.invalid]="fieldError('max_discount_value')" [disabled]="locked" inputmode="decimal" [ngModel]="form.max_discount_value" (ngModelChange)="onAmount('max_discount_value', $event)" />
-              </span>
-              @if (fieldError('max_discount_value')) { <small>{{ fieldError('max_discount_value') }}</small> }
-            </label>
-          </div>
-
-          <div class="grid">
-            <label class="field">
-              <span>Valid from</span>
-              <input class="num" placeholder="dd/mm/yyyy" [class.invalid]="fieldError('valid_from')" [ngModel]="form.valid_from" (ngModelChange)="form.valid_from = $event; touch('valid_from')" />
-              @if (fieldError('valid_from')) { <small>{{ fieldError('valid_from') }}</small> }
-            </label>
-            <label class="field">
-              <span>Valid to</span>
-              <input class="num" placeholder="dd/mm/yyyy" [class.invalid]="fieldError('valid_to')" [ngModel]="form.valid_to" (ngModelChange)="form.valid_to = $event; touch('valid_to')" />
-              @if (fieldError('valid_to')) { <small>{{ fieldError('valid_to') }}</small> }
-            </label>
-          </div>
-
-          <label class="field">
-            <span>Usage limit</span>
-            <input class="num" [class.invalid]="fieldError('usage_limit')" inputmode="numeric" placeholder="No limit" [ngModel]="form.usage_limit" (ngModelChange)="onWhole('usage_limit', $event)" />
-            @if (fieldError('usage_limit')) { <small>{{ fieldError('usage_limit') }}</small> }
-          </label>
-
-          <label class="field">
-            <span>Apply to Customer Tier</span>
-            <span class="control">
-              <select [disabled]="locked" [(ngModel)]="form.target_tier">
-                @for (tier of tiers; track tier.value) {
-                  <option [value]="tier.value">{{ tier.label }}</option>
+          @if (form.purpose === 'loyalty_redeem') {
+            <section class="block">
+              <div class="block__label">Member tier</div>
+              <div class="seg seg--tiers" role="group" aria-label="Member tier">
+                @for (tier of tiers.slice(1); track tier.value) {
+                  <button type="button" [disabled]="locked" [class.active]="form.target_tier === tier.value" (click)="form.target_tier = tier.value; touch('target_tier')">{{ tier.label }}</button>
                 }
-              </select>
-              <svg lucideChevronDown [size]="16"></svg>
-            </span>
-          </label>
+              </div>
+              @if (fieldError('target_tier')) { <small class="field-msg field-msg--error">{{ fieldError('target_tier') }}</small> }
+            </section>
+          }
+
+          @if (form.purpose === 'campaign' || form.purpose === 'loyalty_redeem') {
+            <section class="block">
+              <div class="block__head">
+                <div class="block__label">Points to redeem</div>
+                <div class="block__note">Max {{ pointsCap | number }} pts{{ form.target_tier ? ' for ' + tierName(form.target_tier) : '' }}</div>
+              </div>
+              <div class="grid grid--points">
+                <label class="field">
+                  <span class="field__label">Points</span>
+                  <span class="unit-input" [class.invalid]="fieldError('points_cost')">
+                    <input class="mono" inputmode="numeric" placeholder="0" [ngModel]="form.points_cost" (ngModelChange)="onWhole('points_cost', $event)" />
+                    <em>pts</em>
+                  </span>
+                </label>
+                <p class="hint points-hint">
+                  @if (pointsValue > 0) {
+                    Customers spend {{ pointsValue | number }} points in Rewards to get a personal one-use copy. The code itself can't be used at checkout.
+                  } @else {
+                    0 or empty: no points needed. Every eligible customer sees it in My vouchers and can use the code.
+                  }
+                </p>
+              </div>
+              @if (fieldError('points_cost')) { <small class="field-msg field-msg--error">{{ fieldError('points_cost') }}</small> }
+            </section>
+          }
+
+          <!-- Scope -->
+          <section class="block">
+            <div class="block__head">
+              <div class="block__label">Scope</div>
+              <div class="block__note">Campaign and Loyalty only</div>
+            </div>
+            @if (!scoped) {
+              <div class="note">
+                <svg lucideInfo [size]="16"></svg>
+                <span>{{ form.voucher_type === 'shipping' ? 'A shipping voucher always applies to the whole order.' : 'Referral vouchers always apply to the whole order.' }}</span>
+              </div>
+            } @else {
+              <div class="scope-picker" role="radiogroup" aria-label="Scope">
+                <label class="scope-card" [class.active]="form.applies_to === 'all'" [class.disabled]="locked">
+                  <input type="radio" name="scope" value="all" [disabled]="locked" [checked]="form.applies_to === 'all'" (change)="setScope('all')" />
+                  <span><strong>Whole order</strong><small>Every item in the cart</small></span>
+                </label>
+                <label class="scope-card" [class.active]="form.applies_to === 'category'" [class.disabled]="locked">
+                  <input type="radio" name="scope" value="category" [disabled]="locked" [checked]="form.applies_to === 'category'" (change)="setScope('category')" />
+                  <span><strong>By category</strong><small>Pick one or more</small></span>
+                </label>
+                <label class="scope-card" [class.active]="form.applies_to === 'product'" [class.disabled]="locked">
+                  <input type="radio" name="scope" value="product" [disabled]="locked" [checked]="form.applies_to === 'product'" (change)="setScope('product')" />
+                  <span><strong>By product</strong><small>Search and pick, up to 50</small></span>
+                </label>
+              </div>
+
+              @if (form.applies_to === 'category') {
+                <div class="chips" role="group" aria-label="Categories">
+                  @for (cat of scopeCategories; track cat.value) {
+                    <button type="button" class="cat-chip" [class.on]="scopeCats.includes(cat.value)" [attr.aria-pressed]="scopeCats.includes(cat.value)" [disabled]="locked" (click)="toggleCategory(cat.value)">
+                      @if (scopeCats.includes(cat.value)) { <svg lucideCheck [size]="12"></svg> }
+                      <span>{{ cat.label }}</span>
+                    </button>
+                  }
+                </div>
+                <p class="hint">{{ scopeCats.length }} {{ scopeCats.length === 1 ? 'category' : 'categories' }} selected. The list comes from the category values products already have.</p>
+              }
+
+              @if (form.applies_to === 'product') {
+                @if (!locked) {
+                  <label class="field product-search">
+                    <span class="field__label">Add products</span>
+                    <span class="search suggest-search">
+                      <svg lucideSearch [size]="16"></svg>
+                      <input [ngModel]="productQuery" (ngModelChange)="onProductInput($event)" placeholder="Name or SKU" autocomplete="off" />
+                      @if (productHits.length && productQuery.trim().length >= 2) {
+                        <ul class="suggest product-hits" role="listbox">
+                          @for (hit of productHits; track hit._id) {
+                            <li>
+                              <button type="button" [disabled]="isPicked(hit) || scopeProducts.length >= maxScopeProducts" (click)="addProduct(hit)">
+                                <span class="ph-name"><strong>{{ hit.name }}</strong><span>{{ hit.sku }}</span></span>
+                                <span class="mono">{{ hit.category }}</span>
+                                <span class="mono">{{ hit.price | number: '1.2-2' }}</span>
+                                <span class="ph-action" [class.added]="isPicked(hit)">{{ isPicked(hit) ? 'Added' : 'Add' }}</span>
+                              </button>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </span>
+                    <small class="field-msg">Type 2 or more characters to search by name or SKU. Only active products are listed.</small>
+                  </label>
+                }
+                <div class="picked">
+                  <div class="picked__head"><strong>Selected</strong><span class="mono">{{ scopeProducts.length }} / {{ maxScopeProducts }} products</span></div>
+                  @if (scopeProducts.length) {
+                    <ul class="picked__list">
+                      @for (item of scopeProducts; track item._id) {
+                        <li>
+                          <span class="ph-name"><strong>{{ item.name }}</strong><span>{{ item.sku }}@if (!item.is_active) { · hidden }</span></span>
+                          <span class="mono">{{ item.category }}</span>
+                          <span class="mono">{{ item.price | number: '1.2-2' }}</span>
+                          <button type="button" class="icon-btn" aria-label="Remove product" [disabled]="locked" (click)="removeProduct(item)"><svg lucideX [size]="16"></svg></button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                  <p class="hint">Products that are hidden or discontinued later stay in this list but no longer get the discount.</p>
+                </div>
+              }
+              @if (fieldError('applies_to')) { <small class="field-msg field-msg--error">{{ fieldError('applies_to') }}</small> }
+            }
+
+            @if (form.voucher_type === 'discount') {
+              <div class="note">
+                <svg lucideLock [size]="16"></svg>
+                <span>Ritual Box lines and Starter Quiz kits are always excluded, because they already have their own pricing.</span>
+              </div>
+            }
+          </section>
+
+          <!-- Schedule and limits -->
+          <section class="block">
+            <div class="block__label">Schedule and limits</div>
+            <div class="grid grid--4">
+              <label class="field">
+                <span class="field__label">Valid from</span>
+                <span class="unit-input" [class.invalid]="fieldError('valid_from')">
+                  <input class="mono" placeholder="dd/mm/yyyy" [ngModel]="form.valid_from" (ngModelChange)="form.valid_from = $event; touch('valid_from')" />
+                  <em><svg lucideCalendar [size]="16"></svg></em>
+                </span>
+                @if (fieldError('valid_from')) { <small class="field-msg field-msg--error">{{ fieldError('valid_from') }}</small> }
+              </label>
+              <label class="field">
+                <span class="field__label">Valid to</span>
+                <span class="unit-input" [class.invalid]="fieldError('valid_to')">
+                  <input class="mono" placeholder="dd/mm/yyyy" [ngModel]="form.valid_to" (ngModelChange)="form.valid_to = $event; touch('valid_to')" />
+                  <em><svg lucideCalendar [size]="16"></svg></em>
+                </span>
+                @if (fieldError('valid_to')) { <small class="field-msg field-msg--error"><svg lucideCircleAlert [size]="14"></svg> {{ fieldError('valid_to') }}</small> }
+              </label>
+              <label class="field">
+                <span class="field__label">Total uses</span>
+                <span class="unit-input" [class.invalid]="fieldError('usage_limit')">
+                  <input class="mono" inputmode="numeric" placeholder="No limit" [ngModel]="form.usage_limit" (ngModelChange)="onWhole('usage_limit', $event)" />
+                </span>
+                @if (fieldError('usage_limit')) { <small class="field-msg field-msg--error">{{ fieldError('usage_limit') }}</small> }
+              </label>
+              <label class="field">
+                <span class="field__label">Per customer</span>
+                <span class="unit-input" [class.invalid]="fieldError('usage_limit_per_user')">
+                  <input class="mono" inputmode="numeric" placeholder="No cap" [disabled]="form.purpose === 'referral'" [ngModel]="form.usage_limit_per_user" (ngModelChange)="onWhole('usage_limit_per_user', $event)" />
+                </span>
+                @if (fieldError('usage_limit_per_user')) { <small class="field-msg field-msg--error">{{ fieldError('usage_limit_per_user') }}</small> }
+              </label>
+            </div>
+          </section>
         }
       </div>
 
       <footer class="modal__footer">
-        @if (canStop) {
-          <button type="button" class="btn-stop" [disabled]="saving" (click)="stop()">Stop voucher</button>
-        }
-        <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
-        <button type="button" class="btn-save" [disabled]="!canSubmit" (click)="save()">{{ chatCustomer?.conversation_id && !saving ? 'Create & send in chat' : saveLabel }}</button>
+        <div class="footer-status">
+          @if (issueList.length) {
+            <span class="status status--error"><svg lucideCircleAlert [size]="16"></svg> {{ issueList.length }} {{ issueList.length === 1 ? 'field needs' : 'fields need' }} attention: {{ issueLabels }}</span>
+          } @else if (!hasPendingIssues) {
+            <span class="status status--ok"><svg lucideCheck [size]="16"></svg> Ready to {{ modalMode === 'create' ? 'create' : 'save' }}</span>
+          } @else {
+            <span class="status">Fill in the fields above</span>
+          }
+          <span class="footer-note">{{ modalMode === 'create' ? 'Creating this voucher logs voucher.create to the activity log.' : 'Saving logs voucher.update to the activity log.' }}</span>
+        </div>
+        <div class="footer-actions">
+          @if (canStop) {
+            <button type="button" class="btn-stop" [disabled]="saving" (click)="stop()">Stop voucher</button>
+          }
+          <button type="button" class="btn-pill btn-pill--ghost" (click)="closeModal()">Cancel</button>
+          <button type="button" class="btn-pill btn-pill--solid" [disabled]="!canSubmit" (click)="save()">{{ chatCustomer?.conversation_id && !saving ? 'Create & send in chat' : saveLabel }}</button>
+        </div>
       </footer>
     </div>
   </div>

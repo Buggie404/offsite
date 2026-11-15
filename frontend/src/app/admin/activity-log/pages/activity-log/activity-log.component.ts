@@ -312,6 +312,15 @@ export class AdminActivityLogComponent implements OnInit {
     return diffValues(row.old_value, row.new_value);
   }
 
+  /** Field names an entry stored but that did not change (older product.update rows kept only name / is_active). */
+  recordedFields(row: ActivityLogEntry): string {
+    const keys = new Set<string>();
+    for (const value of [row.old_value, row.new_value]) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) Object.keys(value).forEach((key) => keys.add(key));
+    }
+    return [...keys].join(', ');
+  }
+
   /** Nothing to compare against (e.g. a new note): the drawer shows the New box alone */
   hasOldValues(list: FieldChange[]): boolean {
     return list.some((change) => change.before !== null);

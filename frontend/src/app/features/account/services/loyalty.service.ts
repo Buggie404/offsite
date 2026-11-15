@@ -7,7 +7,22 @@ export interface LoyaltyRedeemReward {
   title: string;
   subtitle: string;
   pointsCost: number;
+  tier: string | null;
+  validTo: string;
   canRedeem: boolean;
+  /** Why the button is off: 'Already redeemed' or '120 more pts'. */
+  reason: string | null;
+}
+
+export interface LoyaltyMyVoucher {
+  code: string;
+  title: string;
+  subtitle: string;
+  /** Redeemed · Tier perk · From support · Welcome · Member offer · Open to all */
+  source: string;
+  personal: boolean;
+  voucherType: string;
+  validTo: string;
 }
 
 export interface LoyaltyPointsHistoryRow {
@@ -16,16 +31,6 @@ export interface LoyaltyPointsHistoryRow {
   activity: string;
   points: number;
   status: string;
-}
-
-export interface LoyaltyAvailableVoucher {
-  code: string;
-  title: string;
-  subtitle: string;
-  voucherType: string;
-  discountValue: number;
-  minOrderAmount: number;
-  validTo: string;
 }
 
 export interface LoyaltyReferralActivityRow {
@@ -48,7 +53,7 @@ export interface LoyaltyDashboard {
   pointsHistory: LoyaltyPointsHistoryRow[];
   referralActivity: LoyaltyReferralActivityRow[];
   welcomeVoucherCode?: string | null;
-  availableVouchers?: LoyaltyAvailableVoucher[];
+  myVouchers: LoyaltyMyVoucher[];
 }
 
 @Injectable({ providedIn: 'root' })

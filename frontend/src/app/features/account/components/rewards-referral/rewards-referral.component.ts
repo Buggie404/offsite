@@ -1,6 +1,6 @@
 import { Component, EventEmitter, Input, OnInit, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { LucideAward, LucideInfo, LucidePlus, LucideShare2, LucideX } from '@lucide/angular';
+import { LucideAward, LucideCopy, LucideInfo, LucidePlus, LucideShare2, LucideX } from '@lucide/angular';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ShareModalComponent } from '../../../community/components/share-modal/share-modal.component';
 import {
@@ -12,7 +12,7 @@ import { MembershipTier } from '../../../../shared/models/user.model';
 @Component({
   selector: 'app-rewards-referral',
   standalone: true,
-  imports: [CommonModule, LucideAward, LucideInfo, LucidePlus, LucideShare2, LucideX, ShareModalComponent],
+  imports: [CommonModule, LucideAward, LucideCopy, LucideInfo, LucidePlus, LucideShare2, LucideX, ShareModalComponent],
   templateUrl: './rewards-referral.component.html',
   styleUrl: './rewards-referral.component.scss'
 })
@@ -28,6 +28,9 @@ export class RewardsReferralComponent implements OnInit {
   loading = signal(true);
   redeemingId = signal<string | null>(null);
   showTierInfo = signal(false);
+  showReferralInfo = signal(false);
+  /** Days after delivery before the first-order referral points post (POINTS_HOLD_DAYS, default 3). */
+  readonly referralHoldDays = 3;
   showShareModal = signal(false);
   dashboard = signal<LoyaltyDashboard | null>(null);
 
@@ -173,12 +176,34 @@ export class RewardsReferralComponent implements OnInit {
       this.toastService.success(result.message || 'Reward redeemed successfully.');
       await this.loadDashboard();
       this.loyaltyUpdated.emit();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Redeem failed:', error);
-      this.toastService.error('Could not redeem this reward.');
+      this.toastService.error(error?.error?.error || 'Could not redeem this reward.');
+      await this.loadDashboard();
     } finally {
       this.redeemingId.set(null);
     }
+  }
+
+  async copyCode(code: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(code);
+      this.toastService.success(`Copied ${code}. Paste it at checkout.`);
+    } catch {
+      this.toastService.error('Could not copy. Select the code and copy it.');
+    }
+  }
+
+  tierLabel(tier: string): string {
+    return tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : '';
+  }
+
+  /** YYYY-MM-DD → Nov 30, 2026 */
+  shortDate(value: string): string {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value || '');
+    if (!match) return '—';
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+      .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   formatDate(value: string): string {

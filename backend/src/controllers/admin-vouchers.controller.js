@@ -2,11 +2,19 @@ const mongoose = require('mongoose');
 const Voucher = require('../models/Voucher');
 const User = require('../models/User');
 const Order = require('../models/Order');
+const Product = require('../models/Product');
 const voucherService = require('../services/voucher.service');
 
 const COMPLAINT_DAILY_LIMIT = 3;
-const COMPLAINT_MAX_AMOUNT = 10;
 const COMPLAINT_MAX_PERCENT = 20;
+const ORDER_ID_PATTERN = /OFS-\d{4}-\d{5}/i;
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+// Which voucher types each role may create (Voucher (new), section 8).
+const CREATE_PURPOSES = {
+  admin_cc: ['campaign', 'loyalty_redeem', 'referral', 'complaint'],
+  qlsp: ['campaign', 'loyalty_redeem'],
+  cskh: ['complaint']
+};
 const COMPLAINT_MAX_DAYS = 30;
 const PAGE_LIMIT = 20;
 
@@ -35,6 +43,12 @@ function toRow(voucher, creator, assignedName = null) {
     valid_to: voucherService.dateKey(voucher.valid_to),
     is_active: voucher.is_active !== false,
     target_tier: voucher.target_tier || null,
+    applies_to: voucher.applies_to || 'all',
+    applicable_categories: voucher.applicable_categories || [],
+    applicable_product_ids: voucher.applicable_product_ids || [],
+    related_ref: voucher.related_ref || null,
+    points_cost: Number(voucher.points_cost) > 0 ? voucher.points_cost : null,
+    source_voucher_id: voucher.source_voucher_id || null,
     purpose: voucher.purpose || 'campaign',
     assigned_user_id: voucher.assigned_user_id || null,
     assigned_user_name: assignedName || null,
@@ -182,25 +196,71 @@ async function resolveCustomer(value) {
   }, 'user_id profile_name').lean();
 }
 
-// CSKH may only issue a complaint voucher: one use, at most 30 days,
-// at most $10 or 20%, assigned to one customer. Three a day; past that, only Admin CC.
+function orderIdFrom(text) {
+  const match = ORDER_ID_PATTERN.exec(String(text || ''));
+  return match ? match[0].toUpperCase() : null;
+}
+
+async function complaintIssuedToday(adminUserId) {
+  const bounds = vietnamDayBounds(voucherService.businessToday());
+  return Voucher.countDocuments({
+    created_by: adminUserId,
+    purpose: 'complaint',
+    createdAt: { $gte: bounds.start, $lt: bounds.end }
+  });
+}
+
+// The complained order must exist and belong to the customer. Its total is the cap of a fixed voucher.
+async function findComplaintOrder(orderId, userId) {
+  if (!orderId) return { ok: false, field: 'related_ref', error: 'Include the order ID (OFS-YYYY-XXXXX) in the reason.' };
+  const order = await Order.findOne({ order_id: orderId }, 'order_id user_id pricing.total order_status created_at').lean();
+  if (!order) return { ok: false, field: 'related_ref', error: `Order ${orderId} does not exist.` };
+  if (userId && order.user_id !== userId) {
+    return { ok: false, field: 'related_ref', error: `Order ${orderId} belongs to another customer.` };
+  }
+  return { ok: true, order, cap: Math.round((Number(order.pricing?.total) || 0) * 100) / 100 };
+}
+
+async function generateComplaintCode() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    let suffix = '';
+    for (let i = 0; i < 5; i += 1) suffix += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+    const code = `CMP-${suffix}`;
+    if (!(await Voucher.exists({ code }))) return code;
+  }
+  throw new Error('Could not generate a unique complaint code.');
+}
+
+function complaintValueError(discountType, value, cap, orderId) {
+  if (discountType === 'percentage' && value > COMPLAINT_MAX_PERCENT) {
+    return 'A complaint voucher cannot exceed 20%.';
+  }
+  if (discountType === 'fixed' && value > cap) {
+    return `A fixed complaint voucher cannot exceed ${cap.toFixed(2)} USD, the total of order ${orderId}.`;
+  }
+  return null;
+}
+
+// Complaint voucher (Services Ops, Senior Admin): one customer, one use, at most 30 days,
+// tied to an order of that customer. Up to 20%, or a fixed amount up to that order's total.
+// Services Ops may issue 3 a day; past that, a Senior Admin creates it. The code is generated: CMP-XXXXX.
 async function buildComplaint(req, admin) {
   const discountType = req.body?.discount_type === 'percentage' ? 'percentage' : 'fixed';
+  const today = voucherService.businessToday();
   const input = {
     ...req.body,
+    code: 'CMP-PENDING',
     voucher_type: 'discount',
     discount_type: discountType,
     usage_limit: 1,
-    target_tier: ''
+    min_order_amount: 0,
+    max_discount_value: null,
+    target_tier: '',
+    applies_to: 'all',
+    valid_from: req.body?.valid_from || today
   };
-  const parsed = voucherService.validateVoucherPayload(input);
+  const parsed = voucherService.validateVoucherPayload(input, { purpose: 'complaint' });
   if (!parsed.ok) return parsed;
-  if (discountType === 'fixed' && parsed.value.discount_value > COMPLAINT_MAX_AMOUNT) {
-    return { ok: false, field: 'discount_value', error: 'A complaint voucher cannot exceed $10.' };
-  }
-  if (discountType === 'percentage' && parsed.value.discount_value > COMPLAINT_MAX_PERCENT) {
-    return { ok: false, field: 'discount_value', error: 'A complaint voucher cannot exceed 20%.' };
-  }
   if (daySpan(parsed.value.valid_from, parsed.value.valid_to) > COMPLAINT_MAX_DAYS) {
     return { ok: false, field: 'valid_to', error: 'A complaint voucher can last at most 30 days.' };
   }
@@ -210,32 +270,52 @@ async function buildComplaint(req, admin) {
     return { ok: false, field: 'assigned_user', error: 'Choose the customer this voucher is for.' };
   }
 
-  if (req.user.role === 'cskh') {
-    const bounds = vietnamDayBounds(voucherService.businessToday());
-    const issuedToday = await Voucher.countDocuments({
-      created_by: admin.user_id,
-      purpose: 'complaint',
-      createdAt: { $gte: bounds.start, $lt: bounds.end }
-    });
-    if (issuedToday >= COMPLAINT_DAILY_LIMIT) {
-      return {
-        ok: false,
-        status: 403,
-        error: 'You can issue 3 complaint vouchers a day. Ask an Admin CC to create the next one.'
-      };
-    }
+  const orderId = orderIdFrom(req.body?.related_ref) || orderIdFrom(req.body?.reason);
+  const found = await findComplaintOrder(orderId, customer.user_id);
+  if (!found.ok) return found;
+  const valueError = complaintValueError(discountType, parsed.value.discount_value, found.cap, orderId);
+  if (valueError) return { ok: false, field: 'discount_value', error: valueError };
+
+  if (req.user.role === 'cskh' && (await complaintIssuedToday(admin.user_id)) >= COMPLAINT_DAILY_LIMIT) {
+    return {
+      ok: false,
+      status: 403,
+      error: 'You can issue 3 complaint vouchers a day. Ask a Senior Admin to create the next one.'
+    };
   }
 
   return {
     ok: true,
     value: {
       ...parsed.value,
+      code: await generateComplaintCode(),
       purpose: 'complaint',
       assigned_user_id: customer.user_id,
       assigned_user_name: customer.profile_name || customer.user_id,
+      related_ref: orderId,
       usage_limit_per_user: 1,
       message: String(req.body?.message || '').trim().slice(0, 280)
     }
+  };
+}
+
+// Product ids in a product scope must be real products.
+async function checkScopeProducts(value) {
+  if (value.applies_to !== 'product') return null;
+  const ids = value.applicable_product_ids || [];
+  const objectIds = ids.filter((id) => mongoose.isValidObjectId(id));
+  const found = await Product.countDocuments({ _id: { $in: objectIds } });
+  if (found !== ids.length) {
+    return { field: 'applicable_product_ids', error: 'Some picked products no longer exist. Remove them and try again.' };
+  }
+  return null;
+}
+
+function scopeLog(value) {
+  return {
+    applies_to: value.applies_to || 'all',
+    applicable_categories: value.applicable_categories || null,
+    applicable_product_ids: value.applicable_product_ids || null
   };
 }
 
@@ -245,17 +325,36 @@ async function createVoucher(req, res) {
     if (!admin?.user_id) return res.status(401).json({ error: 'Authentication is required.' });
 
     const role = req.user.role;
-    const complaint = role === 'cskh' || req.body?.purpose === 'complaint';
-    if (complaint && role === 'qlsp') {
-      return res.status(403).json({ error: 'Sales-Ops cannot create a complaint voucher.', code: 'ROLE_FORBIDDEN' });
+    const allowed = CREATE_PURPOSES[role] || [];
+    const requested = role === 'cskh' ? 'complaint' : String(req.body?.purpose || 'campaign');
+    if (!allowed.includes(requested)) {
+      const message = role === 'cskh'
+        ? 'Services Ops can only create a complaint voucher.'
+        : role === 'qlsp' && requested === 'complaint'
+          ? 'Sales Ops cannot create a complaint voucher.'
+          : 'Your role cannot create this voucher type.';
+      return res.status(403).json({ error: message, code: 'ROLE_FORBIDDEN' });
     }
-    if (!complaint && role === 'cskh') {
-      return res.status(403).json({ error: 'Support can only create a complaint voucher.', code: 'ROLE_FORBIDDEN' });
-    }
+    const complaint = requested === 'complaint';
 
-    const parsed = complaint
-      ? await buildComplaint(req, admin)
-      : voucherService.validateVoucherPayload(req.body);
+    let parsed;
+    if (complaint) {
+      parsed = await buildComplaint(req, admin);
+    } else {
+      parsed = voucherService.validateVoucherPayload(req.body, { purpose: requested });
+      if (parsed.ok && requested === 'loyalty_redeem' && !parsed.value.target_tier) {
+        parsed = { ok: false, field: 'target_tier', error: 'Choose the member tier for a loyalty voucher.' };
+      }
+      if (parsed.ok && requested === 'referral') {
+        parsed.value = { ...parsed.value, purpose: 'referral', usage_limit_per_user: 1, target_tier: null };
+      } else if (parsed.ok) {
+        parsed.value = { ...parsed.value, purpose: requested };
+      }
+      if (parsed.ok) {
+        const productIssue = await checkScopeProducts(parsed.value);
+        if (productIssue) parsed = { ok: false, ...productIssue };
+      }
+    }
     if (!parsed.ok) return res.status(parsed.status || 400).json({ error: parsed.error, field: parsed.field });
 
     const { purpose, assigned_user_id, assigned_user_name, related_ref, usage_limit_per_user, message, ...terms } = parsed.value;
@@ -268,7 +367,9 @@ async function createVoucher(req, res) {
       purpose: purpose || 'campaign',
       assigned_user_id: assigned_user_id || null,
       related_ref: related_ref || null,
-      usage_limit_per_user: usage_limit_per_user ?? 1,
+      usage_limit_per_user: usage_limit_per_user ?? (req.body?.usage_limit_per_user === '' || req.body?.usage_limit_per_user == null
+        ? 1
+        : perCustomerLimit(req.body.usage_limit_per_user)),
       title: null,
       subtitle: message || null
     });
@@ -280,6 +381,7 @@ async function createVoucher(req, res) {
       targetId: voucher.code,
       newValue: {
         ...terms,
+        ...scopeLog(terms),
         purpose: voucher.purpose,
         assigned_user_id: voucher.assigned_user_id,
         related_ref: voucher.related_ref
@@ -337,20 +439,23 @@ async function updateVoucher(req, res) {
 
     const parsed = voucherService.validateVoucherPayload(req.body, {
       usedCount: voucher.used_count || 0,
-      existing: voucher
+      existing: voucher,
+      purpose: voucher.purpose || 'campaign'
     });
     if (!parsed.ok) return res.status(400).json({ error: parsed.error, field: parsed.field });
+    if (!(voucher.used_count > 0)) {
+      const productIssue = await checkScopeProducts(parsed.value);
+      if (productIssue) return res.status(400).json(productIssue);
+    }
 
     if (voucher.purpose === 'complaint') {
       parsed.value.voucher_type = 'discount';
       parsed.value.usage_limit = 1;
       parsed.value.target_tier = null;
-      if (parsed.value.discount_type === 'fixed' && parsed.value.discount_value > COMPLAINT_MAX_AMOUNT) {
-        return res.status(400).json({ error: 'A complaint voucher cannot exceed $10.', field: 'discount_value' });
-      }
-      if (parsed.value.discount_type === 'percentage' && parsed.value.discount_value > COMPLAINT_MAX_PERCENT) {
-        return res.status(400).json({ error: 'A complaint voucher cannot exceed 20%.', field: 'discount_value' });
-      }
+      const found = await findComplaintOrder(voucher.related_ref, voucher.assigned_user_id);
+      const cap = found.ok ? found.cap : 0;
+      const valueError = complaintValueError(parsed.value.discount_type, parsed.value.discount_value, cap, voucher.related_ref);
+      if (valueError) return res.status(400).json({ error: valueError, field: 'discount_value' });
       if (daySpan(parsed.value.valid_from, parsed.value.valid_to) > COMPLAINT_MAX_DAYS) {
         return res.status(400).json({ error: 'A complaint voucher can last at most 30 days.', field: 'valid_to' });
       }
@@ -366,7 +471,9 @@ async function updateVoucher(req, res) {
       valid_from: voucher.valid_from,
       valid_to: voucher.valid_to,
       usage_limit: voucher.usage_limit,
-      target_tier: voucher.target_tier
+      target_tier: voucher.target_tier,
+      points_cost: voucher.points_cost ?? null,
+      ...scopeLog(voucher)
     };
 
     const updated = await Voucher.findByIdAndUpdate(voucher._id, { $set: parsed.value }, { new: true }).lean();
@@ -376,7 +483,7 @@ async function updateVoucher(req, res) {
       targetEntity: 'Vouchers',
       targetId: updated.code,
       oldValue: before,
-      newValue: parsed.value
+      newValue: { ...parsed.value, ...scopeLog(parsed.value) }
     });
 
     res.json({ data: toRow(updated) });
@@ -413,6 +520,7 @@ async function performanceFor(voucher) {
   ]);
 
   const dayCounts = {};
+  const dayMoney = {};
   let orders = 0;
   let discounted = 0;
   let revenue = 0;
@@ -420,10 +528,13 @@ async function performanceFor(voucher) {
     orders += day.orders || 0;
     discounted += day.discounted || 0;
     revenue += day.revenue || 0;
-    if (day._id) dayCounts[day._id] = day.orders || 0;
+    if (day._id) {
+      dayCounts[day._id] = day.orders || 0;
+      dayMoney[day._id] = { discounted: day.discounted || 0, revenue: day.revenue || 0 };
+    }
   }
   const range = voucherService.performanceWindow(voucher);
-  const buckets = voucherService.bucketUsage(dayCounts, range.start, range.end);
+  const buckets = voucherService.bucketUsage(dayCounts, range.start, range.end, dayMoney);
   const shown = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
   if (!orders || !shown) return voucherService.samplePerformance(voucher);
   const round = (amount) => Math.round((Number(amount) || 0) * 100) / 100;
@@ -439,7 +550,9 @@ async function performanceFor(voucher) {
     buckets: buckets.map((bucket) => ({
       start: bucket.start,
       end: bucket.end,
-      count: bucket.count
+      count: bucket.count,
+      discounted: bucket.discounted,
+      revenue: bucket.revenue
     }))
   };
 }
@@ -459,7 +572,9 @@ function emptyPerformance(voucher) {
     buckets: buckets.map((bucket) => ({
       start: bucket.start,
       end: bucket.end,
-      count: bucket.count
+      count: bucket.count,
+      discounted: bucket.discounted,
+      revenue: bucket.revenue
     }))
   };
 }
@@ -478,7 +593,83 @@ async function voucherPerformance(req, res) {
   }
 }
 
+function perCustomerLimit(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : 1;
+}
+
+// Product picker of the scope block: active products by name or variant SKU.
+async function searchProducts(req, res) {
+  try {
+    const q = String(req.query.q || '').trim();
+    const ids = String(req.query.ids || '').split(',').map((id) => id.trim()).filter((id) => mongoose.isValidObjectId(id));
+    let filter;
+    if (ids.length) filter = { _id: { $in: ids.slice(0, voucherService.MAX_SCOPE_PRODUCTS) } };
+    else if (q.length >= 2) {
+      const pattern = new RegExp(escapeRegex(q), 'i');
+      filter = { is_active: { $ne: false }, $or: [{ name: pattern }, { 'variants.sku': pattern }] };
+    } else return res.json({ data: [] });
+    const products = await Product.find(filter, '_id name category is_active variants.sku variants.price').limit(ids.length ? 50 : 10).lean();
+    res.json({
+      data: products.map((product) => {
+        const prices = (product.variants || []).map((variant) => Number(variant.price)).filter(Number.isFinite);
+        return {
+          _id: String(product._id),
+          name: product.name,
+          category: product.category,
+          sku: product.variants?.[0]?.sku || '',
+          price: prices.length ? Math.min(...prices) : 0,
+          is_active: product.is_active !== false
+        };
+      })
+    });
+  } catch (error) {
+    console.error('Error searching voucher products:', error);
+    res.status(500).json({ error: 'Products could not be searched.' });
+  }
+}
+
+// Complaint form: checks the order ID in the reason and returns the cap shown under the value.
+async function complaintOrder(req, res) {
+  try {
+    const orderId = orderIdFrom(req.query.order_id);
+    const found = await findComplaintOrder(orderId, String(req.query.user_id || '') || null);
+    if (!found.ok) return res.status(orderId ? 404 : 400).json({ error: found.error, field: found.field });
+    res.json({ data: { order_id: found.order.order_id, user_id: found.order.user_id, total: found.cap } });
+  } catch (error) {
+    console.error('Error checking complaint order:', error);
+    res.status(500).json({ error: 'The order could not be checked.' });
+  }
+}
+
+async function codeAvailable(req, res) {
+  try {
+    const code = String(req.query.code || '').trim().toUpperCase();
+    if (!code) return res.json({ data: { available: false } });
+    res.json({ data: { available: !(await Voucher.exists({ code })) } });
+  } catch (error) {
+    console.error('Error checking voucher code:', error);
+    res.status(500).json({ error: 'The code could not be checked.' });
+  }
+}
+
+async function complaintQuota(req, res) {
+  try {
+    const admin = await resolveAdmin(req);
+    if (req.user.role !== 'cskh') return res.json({ data: { limit: null, used: 0, left: null } });
+    const used = await complaintIssuedToday(admin?.user_id);
+    res.json({ data: { limit: COMPLAINT_DAILY_LIMIT, used, left: Math.max(0, COMPLAINT_DAILY_LIMIT - used) } });
+  } catch (error) {
+    console.error('Error loading complaint quota:', error);
+    res.status(500).json({ error: 'The daily limit could not be loaded.' });
+  }
+}
+
 module.exports = {
+  searchProducts,
+  complaintOrder,
+  complaintQuota,
+  codeAvailable,
   listVouchers,
   searchCustomers,
   createVoucher,

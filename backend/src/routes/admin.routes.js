@@ -48,13 +48,17 @@ router.get('/customers/:userId/conversations/:conversationId/messages', authMidd
 router.post('/customers/:userId/notes', authMiddleware, requireRole(...CUSTOMER_ROLES), adminActivityLog(), adminCustomersController.addCustomerNote);
 router.patch('/customers/:userId/status', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminCustomersController.setCustomerStatus);
 
-// Vouchers: Admin CC and QLSP can view, create, edit and stop.
+// Vouchers: Admin CC and QLSP can view, edit and stop. QLSP creates Campaign and Loyalty vouchers.
 // CSKH can view and can create a complaint voucher only (a reason is required). Edit and stop return 403.
 const VOUCHER_VIEW_ROLES = ['admin_cc', 'qlsp', 'cskh'];
 const VOUCHER_MANAGE_ROLES = ['admin_cc', 'qlsp'];
 const complaintNeedsReason = (req) => req.user?.role === 'cskh' || req.body?.purpose === 'complaint';
 router.get('/vouchers', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.listVouchers);
 router.get('/vouchers/customers', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.searchCustomers);
+router.get('/vouchers/products', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.searchProducts);
+router.get('/vouchers/complaint-order', authMiddleware, requireRole('admin_cc', 'cskh'), adminVouchersController.complaintOrder);
+router.get('/vouchers/code-available', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.codeAvailable);
+router.get('/vouchers/complaint-quota', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.complaintQuota);
 router.get('/vouchers/:id/performance', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminVouchersController.voucherPerformance);
 router.post('/vouchers', authMiddleware, requireRole(...VOUCHER_VIEW_ROLES), adminActivityLog({ requireReasonWhen: complaintNeedsReason }), adminVouchersController.createVoucher);
 router.patch('/vouchers/:id/stop', authMiddleware, requireRole(...VOUCHER_MANAGE_ROLES), adminActivityLog(), adminVouchersController.stopVoucher);

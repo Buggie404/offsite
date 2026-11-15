@@ -583,11 +583,32 @@ async function saveDraftConfig(req, res) {
   }
 }
 
+// The live quiz always answers with an active kit (the closest one when none fits every answer),
+// so it needs at least one active kit whose every slot has an in-stock product.
+async function assertSomeKitFillable(kits) {
+  const products = await loadProducts();
+  const active = (kits || []).filter((kit) => kit.status === 'active');
+  const blocked = [];
+  const fillable = active.filter((kit) => {
+    const empty = (kit.slots || []).filter((slot) => !bestInStock(productsForSlot(products, slot).filter((product) => slotMatches(product, slot))));
+    if (empty.length) blocked.push(`${kit.name} (${empty.map((slot) => slot.name).join(', ')})`);
+    return !empty.length;
+  });
+  if (!fillable.length) {
+    const error = new Error(blocked.length
+      ? `No active kit can be filled from products in stock, so the quiz would show no result. Fix these slots or activate another kit: ${blocked.join('; ')}.`
+      : 'Activate at least one kit before turning the quiz on.');
+    error.status = 400;
+    throw error;
+  }
+}
+
 async function publishDraft(_req, res) {
   try {
     const draft = await StarterQuizDraft.findById(SETTINGS_ID).lean();
     if (!draft) return res.status(400).json({ error: 'There are no unpublished changes.' });
     const cleaned = cleanDraft(draft);
+    if (cleaned.enabled) await assertSomeKitFillable(cleaned.kits);
     await publishCollections(cleaned);
     await StarterQuizDraft.deleteOne({ _id: SETTINGS_ID });
     const published = await publishedConfig();

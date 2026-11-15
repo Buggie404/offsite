@@ -4,7 +4,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { Product, ProductVariant } from '../../../shared/models/product.model';
 import { BundleCartMeta } from '../models/bundle-cart.model';
-import { Voucher } from '../../../shared/models/voucher.model';
+import { Voucher, VoucherQuote, VoucherQuoteItem } from '../../../shared/models/voucher.model';
 import { UserAddress, UserPaymentMethod, UserProfile } from '../../../shared/models/user.model';
 import { isMatchaPowder } from '../components/cart-pairings/cart-pairings.rules';
 
@@ -19,6 +19,7 @@ export interface CheckoutItem {
   bundle?: BundleCartMeta;
   purchaseType?: PurchaseType;
   subscriptionFrequencyDays?: SubscriptionFrequencyDays | null;
+  fromQuizBundle?: boolean;
 }
 
 export interface DeliveryInfo {
@@ -144,6 +145,25 @@ export class CheckoutService {
     try {
       return await firstValueFrom(
         this.http.get<Voucher>(`/api/vouchers/${normalized}`)
+      );
+    } catch (err) {
+      if (err instanceof HttpErrorResponse) {
+        const message = err.error?.error ?? 'Voucher request failed';
+        throw new VoucherFetchError(message, err.status);
+      }
+      throw err;
+    }
+  }
+
+  /** Price a voucher on the server for these cart lines. Throws `VoucherFetchError` when it does not apply. */
+  async quoteVoucher(code: string, items: VoucherQuoteItem[], shippingMethod: string): Promise<VoucherQuote> {
+    try {
+      return await firstValueFrom(
+        this.http.post<VoucherQuote>('/api/vouchers/quote', {
+          code: code.trim().toUpperCase(),
+          items,
+          shipping_method: shippingMethod
+        })
       );
     } catch (err) {
       if (err instanceof HttpErrorResponse) {

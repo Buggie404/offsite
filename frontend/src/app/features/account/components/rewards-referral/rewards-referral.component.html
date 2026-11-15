@@ -124,48 +124,76 @@
         <p class="redeem-card__note">Redeeming does not lower your tier</p>
       </div>
 
-      @if ((dashboard()?.availableVouchers?.length || 0) > 0) {
-        <div class="voucher-list">
-          @for (voucher of dashboard()?.availableVouchers || []; track voucher.code) {
-            <article class="voucher-chip">
-              <div>
-                <strong>{{ voucher.title }}</strong>
-                <p>{{ voucher.subtitle }}</p>
+      @if (dashboard()?.redeemRewards?.length) {
+        <div class="reward-options">
+          @for (reward of dashboard()?.redeemRewards || []; track reward.id) {
+            <article class="reward-option">
+              <h3>{{ reward.title }}</h3>
+              <p>{{ reward.subtitle }}</p>
+              @if (reward.tier) { <p class="reward-meta">{{ tierLabel(reward.tier) }} members · until {{ shortDate(reward.validTo) }}</p> }
+              @else { <p class="reward-meta">Until {{ shortDate(reward.validTo) }}</p> }
+              <div class="reward-action">
+                <span>{{ reward.pointsCost | number }} pts</span>
+                <button
+                  type="button"
+                  class="reward-redeem-btn"
+                  [disabled]="!reward.canRedeem || redeemingId() === reward.id"
+                  [attr.title]="reward.reason"
+                  (click)="redeem(reward.id)"
+                >
+                  @if (redeemingId() !== reward.id && reward.canRedeem) {
+                    <svg lucidePlus [size]="14" aria-hidden="true"></svg>
+                  }
+                  <span>{{ redeemingId() === reward.id ? 'Redeeming…' : (reward.canRedeem ? 'Redeem' : reward.reason) }}</span>
+                </button>
               </div>
-              <code>{{ voucher.code }}</code>
             </article>
           }
         </div>
+      } @else {
+        <p class="empty-note">No rewards to redeem for your tier right now. New ones appear here when the team adds them.</p>
       }
+    </section>
 
-      <div class="reward-options">
-        @for (reward of dashboard()?.redeemRewards || []; track reward.id) {
-          <article class="reward-option">
-            <h3>{{ reward.title }}</h3>
-            <p>{{ reward.subtitle }}</p>
-            <div class="reward-action">
-              <span>{{ reward.pointsCost | number }} pts</span>
-              <button
-                type="button"
-                class="reward-redeem-btn"
-                [disabled]="!reward.canRedeem || redeemingId() === reward.id"
-                (click)="redeem(reward.id)"
-              >
-                @if (redeemingId() !== reward.id) {
-                  <svg lucidePlus [size]="14" aria-hidden="true"></svg>
-                }
-                <span>{{ redeemingId() === reward.id ? 'Redeeming…' : 'Redeem' }}</span>
-              </button>
-            </div>
-          </article>
-        }
+    <section class="dashboard-card my-vouchers-card" aria-labelledby="my-vouchers-title">
+      <div class="redeem-card__heading">
+        <h2 id="my-vouchers-title" class="section-label">My vouchers</h2>
+        <p class="redeem-card__note">Enter a code at checkout · one voucher per order</p>
       </div>
+
+      @if (dashboard()?.myVouchers?.length) {
+        <div class="my-voucher-list">
+          @for (voucher of dashboard()?.myVouchers || []; track voucher.code) {
+            <article class="my-voucher">
+              <div class="my-voucher__main">
+                <span class="my-voucher__source" [attr.data-personal]="voucher.personal">{{ voucher.source }}</span>
+                <strong>{{ voucher.title }}</strong>
+                <p>{{ voucher.subtitle }}</p>
+              </div>
+              <div class="my-voucher__side">
+                <button type="button" class="my-voucher__code" (click)="copyCode(voucher.code)" [attr.aria-label]="'Copy code ' + voucher.code">
+                  <code>{{ voucher.code }}</code>
+                  <svg lucideCopy [size]="14" aria-hidden="true"></svg>
+                </button>
+                <span class="my-voucher__expiry">Until {{ shortDate(voucher.validTo) }}</span>
+              </div>
+            </article>
+          }
+        </div>
+      } @else {
+        <p class="empty-note">No vouchers yet. Redeem points above, or check back for new offers.</p>
+      }
     </section>
 
     <section class="dashboard-card referral-section" aria-labelledby="referral-title">
-      <h2 id="referral-title" class="section-label">Invite friends</h2>
+      <div class="referral-heading">
+        <h2 id="referral-title" class="section-label">Invite friends</h2>
+        <button type="button" class="tier-info-btn" (click)="showReferralInfo.set(true)" aria-label="How the referral program works">
+          <svg lucideInfo [size]="14" aria-hidden="true"></svg>
+        </button>
+      </div>
       <p class="referral-desc">
-        You both get <strong>100 points</strong> when they sign up, and <strong>100 more</strong> after their first confirmed order.
+        You get <strong>20 points</strong> when a friend signs up with your code, and <strong>20 more</strong> after their first order is delivered. Your friend gets a <strong>$5 welcome voucher</strong>.
       </p>
 
       <div class="referral-share-row">
@@ -229,6 +257,52 @@
       [shareText]="referralShareMessage"
       (close)="closeShareModal()"
     />
+  }
+
+  @if (showReferralInfo()) {
+    <div class="tier-modal-backdrop" (click)="showReferralInfo.set(false)" aria-hidden="true"></div>
+    <div class="tier-modal referral-modal" role="dialog" aria-modal="true" aria-labelledby="referral-modal-title">
+      <div class="tier-modal__header">
+        <div>
+          <h3 id="referral-modal-title" class="tier-modal__title">Referral program</h3>
+        </div>
+        <button type="button" class="tier-modal__close" (click)="showReferralInfo.set(false)" aria-label="Close">
+          <svg lucideX [size]="18" aria-hidden="true"></svg>
+        </button>
+      </div>
+
+      <p class="tier-modal__intro">
+        Share your code with friends. You earn points at two steps, and your friend gets a welcome voucher.
+      </p>
+
+      <div class="tier-modal__grid referral-modal__steps">
+        <article class="tier-modal__card">
+          <div class="tier-modal__card-head"><strong>1 · Your friend signs up</strong></div>
+          <ul>
+            <li>You get <strong>+20 points</strong>, added to your balance right away.</li>
+            <li>Counts only when they create an account with email or phone and enter your code. Sign-ups with Google or Facebook do not count.</li>
+          </ul>
+        </article>
+        <article class="tier-modal__card">
+          <div class="tier-modal__card-head"><strong>2 · Their first order</strong></div>
+          <ul>
+            <li>Your friend gets a <strong>WELCOME5</strong> voucher: $5 off their order total.</li>
+            <li>You get <strong>+20 points</strong>, posted {{ referralHoldDays }} days after their first order is delivered, so cancelled or returned orders don't count.</li>
+            <li>Referral points are not multiplied by your tier.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="referral-modal__rules">
+        <strong>Rules</strong>
+        <ul>
+          <li>Your code looks like <code>NAME_AB12CD34</code>. It never expires and can be shared as often as you like.</li>
+          <li>Friends can only enter a code when they sign up, and each account can have one referrer.</li>
+          <li>You can earn rewards for up to <strong>10 friends per year</strong>.</li>
+          <li>No first-order reward if the delivery phone number matches your account's phone number.</li>
+        </ul>
+      </div>
+    </div>
   }
 
   @if (showTierInfo()) {
