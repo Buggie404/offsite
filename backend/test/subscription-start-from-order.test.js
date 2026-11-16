@@ -33,6 +33,7 @@ function fixture({ uniqueIndex = true, saveError = null } = {}) {
     items: [{ product_id: PRODUCT_ID, variant_id: 'SKU1', quantity: 1, unit_price: 20, purchase_type: 'subscription', subscription_frequency_days: 14 }]
   };
   const subs = [];
+  const notifications = [];
   let nextId = 1;
 
   const Order = {
@@ -82,9 +83,9 @@ function fixture({ uniqueIndex = true, saveError = null } = {}) {
       findById: () => lean({ _id: PRODUCT_ID, name: 'Ceremonial Matcha', is_subscribable: true, subscribe_discount_percent: 10, variants: [{ sku: 'SKU1', price: 20, label: 'Default' }], images: [] }),
       findOne: () => lean(null)
     },
-    './notification.service': { notifySubscription: async () => {} }
+    './notification.service': { notifyEvent: async event => { notifications.push(event); return true; }, notifySubscription: async () => {} }
   });
-  return { service, order, subs, cards };
+  return { service, order, subs, cards, notifications };
 }
 
 test('two concurrent starts create exactly one Ritual Box; the other gets 409', async () => {
@@ -101,6 +102,7 @@ test('two concurrent starts create exactly one Ritual Box; the other gets 409', 
   assert.equal(failed[0].reason.message, 'The Ritual Box of this order has already started.');
 
   assert.equal(f.subs.length, 1);
+  assert.equal(f.notifications.filter(event => event.type === 'SUBSCRIPTION_STARTED').length, 1);
   assert.equal(ok[0].value.order_id, f.order.order_id);
   assert.equal(ok[0].value.subscriptions.length, 1);
   assert.equal(f.order.subscription_start_failed, false);

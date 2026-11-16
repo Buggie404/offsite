@@ -351,6 +351,7 @@ orderSchema.pre('save', async function(next) {
 
     // Transition from not delivered to delivered -> increment total_sold_quantity
     const isDelivered = (newStatus === 'delivered') && (this.isNew || originalStatus !== 'delivered');
+    if (isDelivered) this.$locals.notifyDelivered = true;
 
     const Product = require('./Product');
 
@@ -359,7 +360,7 @@ orderSchema.pre('save', async function(next) {
         await Product.updateOne(
           { _id: item.product_id, 'variants.sku': item.variant_id },
           {
-            $inc: { 'variants.$.stock': -item.quantity }
+            $inc: { 'variants.$.stock': -item.quantity, 'variants.$.inventory_revision': 1, __v: 1 }
           }
         );
       }
@@ -380,7 +381,7 @@ orderSchema.pre('save', async function(next) {
         await Product.updateOne(
           { _id: item.product_id, 'variants.sku': item.variant_id },
           {
-            $inc: { 'variants.$.stock': item.quantity }
+            $inc: { 'variants.$.stock': item.quantity, 'variants.$.inventory_revision': 1, __v: 1 }
           }
         );
       }
@@ -430,6 +431,7 @@ orderSchema.pre('save', async function(next) {
     // it is canceled (refunds reverse them in the refund approval). Done after the save.
     if (this.user_id && newStatus === 'processing' && originalStatus !== 'processing') {
       this.$locals.purchasePoints = 'award';
+      this.$locals.notifyConfirmed = true;
     }
     if (this.user_id && newStatus === 'canceled' && originalStatus && originalStatus !== 'canceled') {
       this.$locals.purchasePoints = 'reverse';
@@ -449,6 +451,26 @@ orderSchema.pre('save', async function(next) {
 orderSchema.index({ created_at: -1 });
 // Voucher performance matches the stored code directly. Codes are saved in uppercase.
 orderSchema.index({ 'coupon.code': 1 });
+
+orderSchema.post('save', async function confirmedNotification(doc) {
+  if (this.$session()?.inTransaction()) return;
+  if (!this.$locals.notifyConfirmed || doc.is_guest || !doc.user_id) return;
+  this.$locals.notifyConfirmed = false;
+  await require('../services/notification.service').notifyEvent({ recipient_id: doc.user_id,
+    type: 'ORDER_CONFIRMED', event_key: `confirmed:${doc.order_id}`, target_type: 'order', target_id: doc.order_id,
+    message: `Order ${doc.order_id} has been confirmed and is being prepared.` });
+});
+
+orderSchema.post('save', async function deliveredNotification(doc) {
+  if (this.$session()?.inTransaction()) return;
+  if (!this.$locals.notifyDelivered || doc.is_guest || !doc.user_id) return;
+  this.$locals.notifyDelivered = false;
+  await require('../services/notification.service').notifyEvent({
+    recipient_id: doc.user_id, type: 'ORDER_DELIVERED', event_key: `delivered:${doc.order_id}`,
+    order_id: doc.order_id, target_type: 'order', target_id: doc.order_id,
+    message: `Order ${doc.order_id} has been delivered. You can review your items or check the return window.`
+  });
+});
 
 orderSchema.post('save', function pantrySync(doc) {
   const event = this._pantryEvent || this.$locals?.pantryEvent;

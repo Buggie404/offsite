@@ -8,7 +8,8 @@
   }
 
   @if (product() && !isLoading()) {
-  <section class="detail-shell" [class.detail-shell--bundle]="product()?.category === 'sets_bundles'">
+  <section class="detail-shell" [class.detail-shell--bundle]="product()?.category === 'sets_bundles'"
+    [class.detail-shell--spaced]="['tools', 'drinkware', 'sets_bundles'].includes(product()?.category || '')">
     <!-- Product image -->
     <aside class="product-media" [class.product-media--single-image]="images().length <= 1"
       (mouseenter)="pauseCarousel()" (mouseleave)="resumeCarousel()"
@@ -111,6 +112,40 @@
             <span>DARK</span>
           </div>
         </section>
+        }
+
+        @if (getProductAttributeTags().length) {
+        <div class="product-tags" aria-label="Product attributes">
+          @for (tag of getProductAttributeTags(); track tag.icon + ':' + tag.label) {
+          <span class="attribute-pill">
+            @switch (tag.icon) {
+              @case ('origin') { <svg lucideMapPin [size]="15" aria-hidden="true"></svg> }
+              @case ('decaf') { <svg lucideLeaf [size]="15" aria-hidden="true"></svg> }
+              @case ('grade') { <svg lucideFlower2 [size]="15" aria-hidden="true"></svg> }
+              @case ('tool') {
+                @if (tag.label.toLowerCase().includes('matcha') || tag.label.toLowerCase().includes('tea')) {
+                  <svg lucideLeaf [size]="15" aria-hidden="true"></svg>
+                } @else {
+                  <svg lucideCoffee [size]="15" aria-hidden="true"></svg>
+                }
+              }
+              @case ('tool-type') { <svg lucideDroplets [size]="15" aria-hidden="true"></svg> }
+              @case ('drinkware') {
+                @if (tag.label.toLowerCase().includes('mug') || tag.label.toLowerCase().includes('cup')) {
+                  <svg lucideCoffee [size]="15" aria-hidden="true"></svg>
+                } @else {
+                  <svg lucideGlassWater [size]="15" aria-hidden="true"></svg>
+                }
+              }
+              @case ('material') { <svg lucideSparkle [size]="15" aria-hidden="true"></svg> }
+              @case ('count') { <svg lucideGift [size]="15" aria-hidden="true"></svg> }
+              @case ('exclusive') { <svg lucideSparkles [size]="15" aria-hidden="true"></svg> }
+              @default { <svg lucideBean [size]="15" aria-hidden="true"></svg> }
+            }
+            {{ tag.label }}
+          </span>
+          }
+        </div>
         }
 
         @if (getTastingNotes().length) {
@@ -313,15 +348,24 @@
       @for (method of brewingMethods(); track method.slug; let index = $index) {
       <article class="brewing-card" [routerLink]="['/journal', method.slug]" [state]="contentDetailEntryState" role="link" tabindex="0"
         [attr.aria-label]="'Read journal guide for ' + method.title">
+        <span class="brewing-card__decor" aria-hidden="true">
+          <svg lucideSparkles class="brewing-card__decor-stars" [size]="28"></svg>
+          @switch (index % 3) {
+          @case (0) { <svg lucideCircle class="brewing-card__decor-shape" [size]="48"></svg> }
+          @case (1) { <svg lucideSquare class="brewing-card__decor-shape" [size]="48"></svg> }
+          @default { <svg lucideTriangle class="brewing-card__decor-shape" [size]="48"></svg> }
+          }
+          <svg lucideSparkle class="brewing-card__decor-glint" [size]="12"></svg>
+        </span>
         <div class="brewing-card__top">
           <span class="brewing-card__badge">{{ method.methodLabel }}</span>
           <span class="brewing-card__icon" aria-hidden="true">
             @if (getMethodIcon(method) === 'coffee') {
-            <svg lucideCoffee [size]="24"></svg>
+            <svg lucideCoffee [size]="18"></svg>
             } @else if (getMethodIcon(method) === 'droplet') {
-            <svg lucideDroplet [size]="24"></svg>
+            <svg lucideDroplet [size]="18"></svg>
             } @else {
-            <svg lucideLeaf [size]="24"></svg>
+            <svg lucideLeaf [size]="18"></svg>
             }
           </span>
         </div>
@@ -340,6 +384,7 @@
         <a class="brewing-card__button" [routerLink]="['/journal', method.slug]" [state]="contentDetailEntryState"
           [fragment]="method.stepAnchor || undefined" (click)="$event.stopPropagation()">
           Step-by-Step Guide
+          <svg lucideArrowRight [size]="16" aria-hidden="true"></svg>
         </a>
       </article>
       }

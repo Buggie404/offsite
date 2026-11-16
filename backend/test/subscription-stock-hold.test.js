@@ -132,7 +132,8 @@ function world({ stock = { 'SKU-1': 10, 'SKU-2': 10 }, unit } = {}) {
     },
     releaseItems: async (items) => { calls.release++; for (const l of items) stock[l.variant_id] += l.quantity; }
   };
-  const notificationService = { notifySubscription: async (sub, type, message) => notices.push({ type, sub: sub.subscription_id, message }) };
+  const events = [];
+  const notificationService = { notifyEvent: async event => { events.push(event); return true; }, notifySubscription: async (sub, type, message) => notices.push({ type, sub: sub.subscription_id, message }) };
   const cards = [{ _id: 'CARD1', card_type: 'VISA', card_number: '4111111111111111', expire_date: '12/40', cardholder_name: 'A' }];
   const User = { findOne: () => ({ lean: async () => ({ payment_methods: clone(cards) }) }) };
 
@@ -170,7 +171,7 @@ function world({ stock = { 'SKU-1': 10, 'SKU-2': 10 }, unit } = {}) {
   };
   const run = (now) => job.runSubscriptionChargeJob({ now });
   const types = () => notices.map(n => n.type);
-  return { service, job, subs, orders, notices, calls, stock, cards, addBox, run, types };
+  return { service, job, subs, orders, notices, events, calls, stock, cards, addBox, run, types };
 }
 
 test('held 3 days ahead: stock taken once for the next cycle, SUBSCRIPTION_UPCOMING once; idempotent', async () => {
@@ -199,6 +200,8 @@ test('charge uses the held stock: no second subtraction, no stock re-check', asy
   await w.run(box.next_charge_at);
   assert.equal(w.orders.length, 1);
   const [order] = w.orders;
+  assert.equal(w.events.filter(event => event.type === 'SUBSCRIPTION_CHARGED').length, 1);
+  assert.equal(w.events[0].order_id, order.order_id);
   assert.equal(order.stock_reserved, true);
   assert.equal(order.items[0].quantity, 2);
   assert.equal(order.items[0].variant_id, 'SKU-1');

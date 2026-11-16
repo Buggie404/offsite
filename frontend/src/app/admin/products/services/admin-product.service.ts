@@ -63,6 +63,7 @@ export type AdminProductPayload = Omit<AdminProduct,
   '_id' | 'product_id' | 'total_sold_quantity' | 'rating_avg' | 'review_count' | 'createdAt' | 'updatedAt' | 'batch_expiry_set_at' | 'has_draft' | 'draft_saved_at' | 'is_new_product'>;
 
 export interface ProductBatch {
+  stock_applied?: boolean;
   _id: string;
   batch_code: string;
   product_id: number;
@@ -172,6 +173,10 @@ export class AdminProductService {
 
   publishDraft(productId: number): Observable<{ data: AdminProduct }> {
     return this.http.post<{ data: AdminProduct }>(`/api/admin/products/${productId}/publish-draft`, {}).pipe(tap(() => this.invalidateList()));
+  }
+
+  reserveBatchCode(): Observable<{ data: { batch_code: string } }> {
+    return this.http.post<{ data: { batch_code: string } }>('/api/admin/products/batch-code', {});
   }
 
   batches(productId: number): Observable<{ data: ProductBatch[] }> {

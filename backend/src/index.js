@@ -15,6 +15,8 @@ initSocket(server);
 
 connectDB()
   .then(async () => {
+    await require('./models/Notification').init();
+    await require('./services/notification-jobs.service').initializeNotificationJobs();
     try {
       await require('./services/ai-chat-session').syncSessionIndexes();
     } catch (error) {
@@ -31,6 +33,7 @@ connectDB()
     require('./services/redelivery.service').startRedeliveryJob();
     require('./services/pantry.service').startPantryExpiryJob();
     require('./services/chat-lifecycle.service').startChatLifecycleJob();
+    require('./services/notification-jobs.service').startNotificationJobs();
   })
   .catch((error) => {
     console.error('Failed to start server:', error.message);

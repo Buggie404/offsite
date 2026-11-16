@@ -20,8 +20,9 @@ async function findActiveUser(userId) {
 
 // Idempotent: following twice is not an error. Returns true if a new row was created.
 async function follow(followerId, followingId) {
+  let relation;
   try {
-    await Follow.create({ follower_id: followerId, following_id: followingId });
+    relation = await Follow.create({ follower_id: followerId, following_id: followingId });
   } catch (error) {
     if (error.code === 11000) return false;
     throw error;
@@ -30,6 +31,14 @@ async function follow(followerId, followingId) {
     User.updateOne({ user_id: followerId }, { $inc: { following_count: 1 } }),
     User.updateOne({ user_id: followingId }, { $inc: { followers_count: 1 } })
   ]);
+  await require('./notification.service').notifyEvent({
+    recipient_id: followingId, type: 'FOLLOW_RECEIVED',
+    event_key: `follow:${followerId}:${new Date(relation.created_at || Date.now()).toISOString().slice(0, 10)}`, target_type: 'profile', target_id: followerId,
+    message: 'started following you.',
+    sender: await User.findOne({ user_id: followerId }, 'user_id community_name profile_name avatar_url').lean()
+      .then(user => user ? { user_id: user.user_id, username: user.community_name || user.profile_name || 'A member', avatar_url: user.avatar_url } : null)
+      .catch(() => null)
+  });
   return true;
 }
 

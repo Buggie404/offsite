@@ -7,12 +7,9 @@ const { bootstrap: quizBootstrap, fields: quizFields, validate: validateQuiz } =
 const { bootstrap, validate, fields } = require('../services/ritual-dna.archetype-release');
 const { archetypeForProfile } = require('../services/ritual-dna.archetype-release');
 const User = require('../models/User');
-const { RULE_VERSION } = require('../services/ritual-dna.evidence');
-const { EVENT_WEIGHTS, SAVE_DAILY_CAP } = require('../services/ritual-dna.behavior');
-const { EVIDENCE_TARGET, MAX_BEHAVIOR_SHARE, ARCHETYPE_MARGIN, ARCHETYPE_COOLDOWN_MS } = require('../services/ritual-dna.evolution');
 const { simulateSignatureImpact } = require('../services/ritual-dna.impact');
 const { scoreQuiz } = require('../services/ritual-dna.scoring');
-const { activeArchetypes } = require('../services/ritual-dna.archetype-release');
+const { previewResult } = require('../services/ritual-dna.admin-preview');
 
 const pageNumber = value => Math.max(1, Math.min(100000, Number.parseInt(value, 10) || 1));
 const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -153,20 +150,7 @@ async function overview(req, res) {
       archetypes: activeRelease.archetypes.map(row => ({ ...row, profile_version: activeRelease.version, member_count: distribution.get(row.archetype_id) || 0 })),
       archetype_releases: releaseRows.map(row => ({ version: row.version, status: row.status, source_version: row.source_version,
         updated_at: row.updated_at, published_at: row.published_at, created_by: row.created_by,
-        archetypes: row.archetypes.map(item => ({ ...item, profile_version: row.version, member_count: distribution.get(item.archetype_id) || 0 })) })),
-      behavior_rules: {
-        version: RULE_VERSION,
-        evidence_target: EVIDENCE_TARGET,
-        max_behavior_share: MAX_BEHAVIOR_SHARE,
-        archetype_margin: ARCHETYPE_MARGIN,
-        archetype_cooldown_days: ARCHETYPE_COOLDOWN_MS / (24 * 60 * 60 * 1000),
-        save_daily_cap: SAVE_DAILY_CAP,
-        events: [
-          { key: 'order', label: 'Delivered order', weight: EVENT_WEIGHTS.order, daily_cap: null },
-          { key: 'recipe_saved', label: 'Saved recipe', weight: EVENT_WEIGHTS.recipe_saved, daily_cap: SAVE_DAILY_CAP },
-          { key: 'product_saved', label: 'Saved product', weight: EVENT_WEIGHTS.product_saved, daily_cap: SAVE_DAILY_CAP }
-        ]
-      }
+        archetypes: row.archetypes.map(item => ({ ...item, profile_version: row.version, member_count: distribution.get(item.archetype_id) || 0 })) }))
     } });
   } catch (error) {
     console.error('Could not load Ritual DNA admin overview:', error);
@@ -186,7 +170,7 @@ async function createDraft(req, res) {
     const counter = await VersionCounter.findOneAndUpdate({ _id: 'archetype' }, { $inc: { value: 1 } }, { new: true });
     const created = await Release.create({ version: counter.value, status: 'draft', source_version: active.version,
       archetypes: source.archetypes.map(fields), created_by: req.user.user_id });
-    await req.writeActivityLog({ actionType: 'ritual-dna.draft', targetEntity: 'ritual_archetype_release', targetId: String(created.version), newValue: { status: 'draft', source_version: source.version } });
+    await req.writeActivityLog({ actionType: 'ritual-dna.draft', targetEntity: 'ritual_archetype_release', targetId: String(created.version), newValue: { status: 'draft', source_version: source.version, archetypes: created.archetypes } });
     res.status(201).json({ data: created });
   } catch (error) { res.status(error.code === 11000 ? 409 : 500).json({ error: 'Could not create draft.' }); }
 }
@@ -251,7 +235,6 @@ async function changeStatus(req, res) {
     const issue = validate(release.archetypes);
     if (issue) return res.status(400).json({ error: issue });
     if (action === 'publish') {
-      if (!release.tested_at) return res.status(409).json({ error: 'Run a complete quiz simulation before publishing.' });
       const active = await Release.findOne({ status: 'active' }).lean();
       if (!active || release.source_version !== active.version) return res.status(409).json({ error: 'Active version changed; create a new draft.' });
       const session = await Release.db.startSession();
@@ -268,7 +251,7 @@ async function changeStatus(req, res) {
       const updated = await Release.updateOne({ _id: release._id, status: from }, { $set: { status: to } });
       if (updated.modifiedCount !== 1) return res.status(409).json({ error: 'Version changed. Reload.' });
     }
-    await req.writeActivityLog({ actionType: `ritual-dna.${action}`, targetEntity: 'ritual_archetype_release', targetId: String(release.version), oldValue: { status: from }, newValue: { status: to } });
+    await req.writeActivityLog({ actionType: `ritual-dna.${action}`, targetEntity: 'ritual_archetype_release', targetId: String(release.version), oldValue: { status: from }, newValue: { status: to, ...(action === 'publish' ? { replaced_version: release.source_version } : {}) } });
     res.json({ data: { version: release.version, status: to } });
   } catch (error) { console.error('Ritual DNA release transition failed:', error); res.status(500).json({ error: 'Could not change release status.' }); }
 }
@@ -279,9 +262,8 @@ async function deleteDraft(req, res) {
     if (!Number.isSafeInteger(version) || version < 1) return res.status(400).json({ error: 'Invalid version.' });
     const release = await Release.findOneAndDelete({ version, status: { $in: ['draft', 'archived'] }, published_at: null });
     if (!release) return res.status(409).json({ error: 'Only an unpublished draft can be deleted. Reopen a testing version first.' });
-    // Only which version was removed — the archetype content is not worth keeping in the log.
     await req.writeActivityLog({ actionType: 'ritual-dna.delete-draft', targetEntity: 'ritual_archetype_release',
-      targetId: String(version), oldValue: { version, status: release.status }, newValue: { deleted: true } });
+      targetId: String(version), oldValue: { version, status: release.status, source_version: release.source_version, archetypes: release.archetypes }, newValue: { deleted: true } });
     res.json({ data: { version, deleted: true } });
   } catch (error) {
     console.error('Could not delete Ritual DNA draft:', error);
@@ -301,7 +283,7 @@ async function createQuizDraft(req, res) {
     const counter = await QuizVersionCounter.findOneAndUpdate({ _id: 'quiz' }, { $inc: { value: 1 } }, { new: true });
     const created = await QuizRelease.create({ version: counter.value, status: 'draft', source_version: active.version,
       questions: source.questions.map(quizFields), created_by: req.user.user_id });
-    await req.writeActivityLog({ actionType: 'ritual-dna.quiz-draft', targetEntity: 'ritual_quiz_release', targetId: String(created.version), newValue: { status: 'draft', source_version: source.version } });
+    await req.writeActivityLog({ actionType: 'ritual-dna.quiz-draft', targetEntity: 'ritual_quiz_release', targetId: String(created.version), newValue: { status: 'draft', source_version: source.version, questions: created.questions } });
     res.status(201).json({ data: created });
   } catch (error) {
     console.error('Could not create Ritual DNA quiz draft:', error);
@@ -346,6 +328,7 @@ async function changeQuizStatus(req, res) {
     const issue = validateQuiz(release.questions);
     if (issue) return res.status(400).json({ error: issue });
     if (action === 'publish') {
+      if (!release.tested_at) return res.status(409).json({ error: 'Run a complete quiz simulation before publishing.' });
       const active = await QuizRelease.findOne({ status: 'active' }).lean();
       if (!active || release.source_version !== active.version) return res.status(409).json({ error: 'Live quiz changed; create a new draft.' });
       const session = await QuizRelease.db.startSession();
@@ -362,7 +345,7 @@ async function changeQuizStatus(req, res) {
       const updated = await QuizRelease.updateOne({ _id: release._id, status: from }, { $set: { status: to, tested_at: null } });
       if (updated.modifiedCount !== 1) return res.status(409).json({ error: 'Quiz version changed. Reload.' });
     }
-    await req.writeActivityLog({ actionType: `ritual-dna.quiz-${action}`, targetEntity: 'ritual_quiz_release', targetId: String(release.version), oldValue: { status: from }, newValue: { status: to } });
+    await req.writeActivityLog({ actionType: `ritual-dna.quiz-${action}`, targetEntity: 'ritual_quiz_release', targetId: String(release.version), oldValue: { status: from }, newValue: { status: to, ...(action === 'publish' ? { replaced_version: release.source_version } : {}) } });
     res.json({ data: { version: release.version, status: to } });
   } catch (error) {
     console.error('Could not transition Ritual DNA quiz version:', error);
@@ -376,7 +359,7 @@ async function deleteQuizDraft(req, res) {
     if (!Number.isSafeInteger(version) || version < 1) return res.status(400).json({ error: 'Invalid version.' });
     const release = await QuizRelease.findOneAndDelete({ version, status: 'draft', published_at: null });
     if (!release) return res.status(409).json({ error: 'Only an unpublished quiz draft can be deleted. Reopen a testing version first.' });
-    await req.writeActivityLog({ actionType: 'ritual-dna.quiz-delete-draft', targetEntity: 'ritual_quiz_release', targetId: String(version), oldValue: { version, status: release.status }, newValue: { deleted: true } });
+    await req.writeActivityLog({ actionType: 'ritual-dna.quiz-delete-draft', targetEntity: 'ritual_quiz_release', targetId: String(version), oldValue: { version, status: release.status, source_version: release.source_version, questions: release.questions }, newValue: { deleted: true } });
     res.json({ data: { version, deleted: true } });
   } catch (error) {
     console.error('Could not delete Ritual DNA quiz draft:', error);
@@ -384,18 +367,54 @@ async function deleteQuizDraft(req, res) {
   }
 }
 
+async function recordQuizTest(req, release, archetypeVersion, mode) {
+  const testedAt = new Date();
+  const previous = await QuizRelease.findOneAndUpdate({ _id: release._id, status: 'testing', updated_at: release.updated_at },
+    { $set: { tested_at: testedAt } }, { new: false }).lean();
+  if (!previous) throw Object.assign(new Error('Quiz changed during testing. Reload and run the test again.'), { status: 409 });
+  await req.writeActivityLog({ actionType: 'ritual-dna.quiz-tested', targetEntity: 'ritual_quiz_release', targetId: String(release.version),
+    oldValue: { tested_at: previous.tested_at || null },
+    newValue: { tested_at: testedAt, quiz_version: release.version, archetype_version: archetypeVersion, mode } });
+}
+
 async function simulateQuiz(req, res) {
   try {
     const release = await QuizRelease.findOne({ version: Number(req.params.version), status: 'testing' }).lean();
     if (!release) return res.status(409).json({ error: 'Send this quiz version to testing first.' });
-    const archetypes = await activeArchetypes();
-    const result = scoreQuiz(release.questions, req.body?.answers, archetypes);
-    await QuizRelease.updateOne({ _id: release._id, status: 'testing' }, { $set: { tested_at: new Date() } });
+    const archetypes = await Release.findOne({ status: 'active' }).lean();
+    if (!archetypes) return res.status(409).json({ error: 'No active archetype version. Reload before testing.' });
+    const result = scoreQuiz(release.questions, req.body?.answers, archetypes.archetypes);
+    await recordQuizTest(req, release, archetypes.version, 'simulation');
     res.json({ data: { radar: result.radar, archetype: { id: result.archetype.archetype_id, name: result.archetype.name }, attributes: result.attributes } });
   } catch (error) {
     res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not simulate quiz result.' });
   }
 }
 
+async function previewCustomerQuiz(req, res) {
+  try {
+    const quizVersion = Number(req.body?.quiz_version);
+    const archetypeVersion = Number(req.body?.archetype_version);
+    if (![quizVersion, archetypeVersion].every(value => Number.isSafeInteger(value) && value > 0)) {
+      return res.status(400).json({ error: 'Select valid quiz and archetype versions.' });
+    }
+    const [quizRelease, archetypeRelease, activeArchetypeRelease] = await Promise.all([
+      QuizRelease.findOne({ version: quizVersion }).lean(),
+      Release.findOne({ version: archetypeVersion }).lean(),
+      Release.findOne({ status: 'active' }).select('version').lean()
+    ]);
+    if (!quizRelease || !archetypeRelease) return res.status(404).json({ error: 'Selected version was not found.' });
+    const result = previewResult(quizRelease, archetypeRelease, req.body?.answers);
+    if (quizRelease.status === 'testing' && archetypeVersion === activeArchetypeRelease?.version) {
+      await recordQuizTest(req, quizRelease, archetypeVersion, 'customer-preview');
+    }
+    res.json({ data: result });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    console.error('Could not preview Ritual DNA customer quiz:', error);
+    res.status(500).json({ error: 'Could not preview Ritual DNA.' });
+  }
+}
+
 module.exports = { overview, customers, customerDetail, createDraft, saveDraft, signatureImpact, changeStatus, deleteDraft,
-  createQuizDraft, saveQuizDraft, changeQuizStatus, deleteQuizDraft, simulateQuiz };
+  createQuizDraft, saveQuizDraft, changeQuizStatus, deleteQuizDraft, simulateQuiz, previewCustomerQuiz };

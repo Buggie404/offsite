@@ -98,16 +98,14 @@
         <div class="card-heading"><h2>Variants</h2><label class="compact-field"><span>Variant type</span><select [(ngModel)]="form.variant_type" aria-label="Variant type"><option *ngFor="let item of variantTypes" [ngValue]="item.value">{{ item.label }}</option></select></label></div>
         <div class="variant-table-wrap">
           <table class="variant-table">
-            <colgroup><col class="variant-col-sku" /><col class="variant-col-label" /><col class="variant-col-price" /><col class="variant-col-stock" /><col class="variant-col-default" /><col class="variant-col-image" /><col class="variant-col-threshold" /><col class="variant-col-actions" /></colgroup>
-            <thead><tr><th>SKU *</th><th>Label</th><th>Price *</th><th>Stock *</th><th>Default</th><th>Image</th><th>Low-stock at</th><th></th></tr></thead>
+            <colgroup><col class="variant-col-sku" /><col class="variant-col-label" /><col class="variant-col-price" /><col class="variant-col-default" /><col class="variant-col-image" /><col class="variant-col-actions" /></colgroup>
+            <thead><tr><th>SKU *</th><th>Label</th><th>Price *</th><th>Default</th><th>Image</th><th></th></tr></thead>
             <tbody><tr *ngFor="let variant of form.variants; let index = index; trackBy: trackIndex">
               <td><input [(ngModel)]="variant.sku" [class.invalid]="submitAttempted && !variant.sku.trim()" /></td>
               <td><input [(ngModel)]="variant.label" [placeholder]="form.variant_type === 'none' ? 'Default' : 'Variant label'" /></td>
               <td class="variant-price-cell"><input type="number" min="0.01" step="0.01" [(ngModel)]="variant.price" [class.invalid]="showPriceError(variant)" [attr.aria-invalid]="showPriceError(variant)" [attr.aria-label]="'Price for ' + (variant.sku || 'variant ' + (index + 1))" [attr.aria-describedby]="showPriceError(variant) ? 'variant-price-error-' + index : null" /><small class="inline-field-error" *ngIf="showPriceError(variant)" [id]="'variant-price-error-' + index">Must be greater than 0.</small></td>
-              <td><input type="number" min="0" step="1" [(ngModel)]="variant.stock" /></td>
               <td><input class="radio" type="radio" name="default-variant" [checked]="variant.is_default" (change)="setDefault(index)" /></td>
               <td><button type="button" class="variant-image-picker" (click)="chooseVariantImage(index)" [attr.aria-label]="'Choose image for ' + (variant.sku || 'variant ' + (index + 1))"><img *ngIf="variantImage(variant) as image; else missingVariantImage" [src]="image.url" [alt]="image.alt_text || variant.label || variant.sku" /><ng-template #missingVariantImage><svg lucideImagePlus [size]="18"></svg></ng-template></button></td>
-              <td><input type="number" min="0" step="1" [(ngModel)]="variant.low_stock_threshold" aria-label="Low-stock threshold" /></td>
               <td><button type="button" class="icon-btn danger" [disabled]="form.variants.length === 1" (click)="removeVariant(index)" aria-label="Remove variant"><svg lucideTrash2 [size]="15"></svg></button></td>
             </tr></tbody>
           </table>
@@ -134,7 +132,11 @@
       </section>
 
       <section class="card batches-card">
-        <h2>Batches and best-before dates</h2>
+        <h2>Inventory &amp; batches</h2>
+        <div class="variant-table-wrap"><table class="inventory-table"><thead><tr><th>SKU</th><th>Current stock</th><th>After publish</th><th>Low-stock at</th></tr></thead><tbody>
+          <tr *ngFor="let variant of form.variants"><td>{{ variant.sku || 'Enter a SKU' }}</td><td>{{ variant.stock }}</td><td>{{ stockAfterPublish(variant) }}</td><td><input type="number" min="0" step="1" [(ngModel)]="variant.low_stock_threshold" aria-label="Low-stock threshold" /></td></tr>
+        </tbody></table></div>
+        <p class="batch-stage-note">Add a batch to receive stock. Existing stock is your opening balance. Batch codes are generated automatically. Legacy records do not change stock.</p>
         <!-- The one date My Pantry reads. Kept here, next to the batch table, so it isn't confused with Best before. -->
         <div
           id="batch-expiry"
@@ -157,12 +159,12 @@
         </div>
         <p class="batch-stage-note">Confirming a row only updates this form. Save draft to keep it as a draft; Publish to apply batch changes.</p>
         <p class="batch-stage-note" *ngIf="batchesLoading" role="status">Loading batches…</p>
-        <div class="variant-table-wrap"><table class="batch-table"><thead><tr><th>Batch</th><th>SKU</th><th>Received</th><th>Best before</th><th>Added by</th><th>Qty</th><th aria-label="Batch actions"></th></tr></thead><tbody>
-          <ng-container *ngFor="let batch of batches"><tr *ngIf="batch._id !== batchEditingId"><td>{{ batch.batch_code }}</td><td>{{ batch.variant_sku }}</td><td>{{ batch.received_at | date:'dd/MM/yyyy' }}</td><td>
+        <div class="variant-table-wrap"><table class="batch-table"><thead><tr><th>Batch</th><th>SKU</th><th>Received</th><th>Best before</th><th>Added by</th><th>Qty received</th><th aria-label="Batch actions"></th></tr></thead><tbody>
+          <ng-container *ngFor="let batch of batches"><tr *ngIf="batch._id !== batchEditingId"><td>{{ batch.batch_code }}<small *ngIf="batch.batch_code && !batch.stock_applied && !batch._id.startsWith('new-')"> · Legacy record</small></td><td>{{ batch.variant_sku }}</td><td>{{ batch.received_at | date:'dd/MM/yyyy' }}</td><td>
             <button type="button" class="date-button" [disabled]="addingBatch || saving" (click)="editBatch(batch)">{{ batch.best_before ? (batch.best_before | date:'dd/MM/yyyy') : 'Not set' }}</button>
           </td><td>{{ batch.added_by_name }}</td><td>{{ batch.quantity }}</td><td><div class="batch-row-actions"><button type="button" class="icon-btn" [disabled]="addingBatch || saving" (click)="editBatch(batch)" [attr.aria-label]="'Edit batch ' + batch.batch_code" title="Edit batch"><svg lucidePencil [size]="16"></svg></button><button type="button" class="icon-btn danger" [disabled]="addingBatch || saving" (click)="requestRemoveBatch(batch)" [attr.aria-label]="'Remove batch ' + batch.batch_code" title="Remove batch"><svg lucideTrash2 [size]="16"></svg></button></div></td></tr></ng-container>
           <tr class="batch-add-row" *ngIf="addingBatch">
-            <td><input [(ngModel)]="batchDraft.batch_code" [disabled]="saving" maxlength="80" aria-label="Batch code" placeholder="Batch code" /></td>
+            <td><span>{{ batchDraft.batch_code }}</span></td>
             <td><select [(ngModel)]="batchDraft.variant_sku" [disabled]="saving" aria-label="Batch SKU"><option *ngIf="batchDraft.variant_sku && !hasBatchSku(batchDraft.variant_sku)" [value]="batchDraft.variant_sku">{{ batchDraft.variant_sku }} (removed variant)</option><option *ngFor="let variant of batchVariantOptions" [value]="variant.sku.trim()">{{ variant.sku }}</option></select></td>
             <td><app-product-date-input [value]="batchDraft.received_at" (valueChange)="batchDraft.received_at = $event || ''" [disabled]="saving" label="Batch received date"></app-product-date-input></td>
             <td><app-product-date-input [(value)]="batchDraft.best_before" [disabled]="saving" [min]="batchDraft.received_at" label="Batch best-before date"></app-product-date-input></td>
@@ -172,12 +174,12 @@
           </tr>
           <tr *ngIf="!batches.length && !addingBatch && !batchesLoading && !batchesLoadFailed"><td colspan="7" class="empty-batches">No batches recorded yet.</td></tr>
         </tbody></table></div>
-        <footer><button type="button" class="btn btn--secondary btn--small" [disabled]="addingBatch || saving || batchesLoading || batchesLoadFailed || !batchVariantOptions.length" (click)="addBatchRow()"><svg lucidePlus [size]="14"></svg> Add batch</button><span class="aside-copy" *ngIf="pendingBatchCount" role="status">{{ pendingBatchCount }} pending batch change(s)</span></footer>
+        <footer><button type="button" class="btn btn--secondary btn--small" [disabled]="batchCodeLoading || addingBatch || saving || batchesLoading || batchesLoadFailed || !batchVariantOptions.length" (click)="addBatchRow()"><svg lucidePlus [size]="14"></svg> Add batch</button><span class="aside-copy" *ngIf="pendingBatchCount" role="status">{{ pendingBatchCount }} pending batch change(s)</span></footer>
         <p class="batch-error" *ngIf="batchError" role="alert">{{ batchError }}</p>
       </section>
 
       <section class="card">
-        <h2>Inventory & availability</h2>
+        <h2>Availability</h2>
         <div class="card-body fields-grid">
           <label class="field"><span>Subscription discount (%)</span><input type="number" min="5" max="15" step="1" [(ngModel)]="form.subscribe_discount_percent" [disabled]="!form.is_subscribable" /><small>Leave empty to use the shop default.</small></label>
           <label class="check-field"><input type="checkbox" [(ngModel)]="form.is_subscribable" /><span>Can be subscribed to</span></label>

@@ -38,7 +38,7 @@ async function reserveItems(items, session = null) {
     const match = productMatch(line.product_id);
     const result = match && await Product.updateOne(
       { ...match, variants: { $elemMatch: { sku: line.variant_id, stock: { $gte: line.quantity } } } },
-      { $inc: { 'variants.$.stock': -line.quantity } },
+      { $inc: { 'variants.$.stock': -line.quantity, 'variants.$.inventory_revision': 1, __v: 1 } },
       { session }
     );
     if (!result || result.modifiedCount !== 1) {
@@ -59,7 +59,7 @@ async function releaseItems(items, session = null) {
     try {
       await Product.updateOne(
         { ...match, 'variants.sku': line.variant_id },
-        { $inc: { 'variants.$.stock': line.quantity } },
+        { $inc: { 'variants.$.stock': line.quantity, 'variants.$.inventory_revision': 1, __v: 1 } },
         { session }
       );
     } catch (err) {

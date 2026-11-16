@@ -84,7 +84,13 @@ async function updateBehavior(userId, eventId, event = null, replacement = null)
       { _id: user._id, 'ritual_dna.updated_at': dna.updated_at },
       { $set: { ritual_dna: updated } }, { runValidators: true }
     );
-    if (result.modifiedCount === 1) return { applied: true, radar: next.radar, archetypeChanged: next.archetypeChanged };
+    if (result.modifiedCount === 1) {
+      if (next.archetypeChanged) await require('./notification.service').notifyEvent({
+        recipient_id: userId, type: 'RITUAL_DNA_CHANGED', event_key: `dna:${eventId}:${now.getTime()}`,
+        target_type: 'ritual_dna', message: `Your Ritual DNA has evolved to ${next.archetype.name}. Explore your updated profile.`
+      });
+      return { applied: true, radar: next.radar, archetypeChanged: next.archetypeChanged };
+    }
   }
   throw new Error(`Ritual DNA update conflict for ${eventId}`);
 }

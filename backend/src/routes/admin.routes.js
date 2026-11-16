@@ -74,6 +74,7 @@ router.get('/dashboard', authMiddleware, requireRole('admin_cc'), adminDashboard
 router.get('/sales-dashboard', authMiddleware, requireRole('admin_cc', 'qlsp'), adminDashboardController.getSalesDashboard);
 router.get('/services-dashboard', authMiddleware, requireRole('admin_cc', 'cskh'), adminDashboardController.getServicesDashboard);
 router.get('/ritual-dna/overview', authMiddleware, requireRole('admin_cc'), adminRitualDnaController.overview);
+router.post('/ritual-dna/customer-preview', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.previewCustomerQuiz);
 router.post('/ritual-dna/archetype-releases', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.createDraft);
 router.put('/ritual-dna/archetype-releases/:version', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.saveDraft);
 router.post('/ritual-dna/archetype-releases/:version/impact', authMiddleware, requireRole('admin_cc'), adminRitualDnaController.signatureImpact);
@@ -82,7 +83,7 @@ router.post('/ritual-dna/archetype-releases/:version/:action', authMiddleware, r
 router.post('/ritual-dna/quiz-releases', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.createQuizDraft);
 router.put('/ritual-dna/quiz-releases/:version', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.saveQuizDraft);
 router.delete('/ritual-dna/quiz-releases/:version', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.deleteQuizDraft);
-router.post('/ritual-dna/quiz-releases/:version/simulate', authMiddleware, requireRole('admin_cc'), adminRitualDnaController.simulateQuiz);
+router.post('/ritual-dna/quiz-releases/:version/simulate', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.simulateQuiz);
 router.post('/ritual-dna/quiz-releases/:version/:action', authMiddleware, requireRole('admin_cc'), adminActivityLog(), adminRitualDnaController.changeQuizStatus);
 router.get('/ritual-dna/customers', authMiddleware, requireRole('admin_cc'), adminRitualDnaController.customers);
 router.get('/ritual-dna/customers/:userId', authMiddleware, requireRole('admin_cc'), adminRitualDnaController.customerDetail);
@@ -99,6 +100,7 @@ router.post('/orders/:id/refunds/mark-paid', authMiddleware, requireRole(...ADMI
 
 router.get('/products', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.listProducts);
 router.get('/products/composition-options', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.searchCompositionProducts);
+router.post('/products/batch-code', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.reserveBatchCode);
 router.get('/products/drafts', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminProductsController.listDrafts);
 router.delete('/products/:productId/draft', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.discardDraft);
 router.post('/products/:productId/publish-draft', authMiddleware, requireRole(...ADMIN_ORDER_MANAGE_ROLES), adminActivityLog(), adminProductsController.publishDraft);

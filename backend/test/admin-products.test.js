@@ -26,7 +26,7 @@ function loadBatchService(ProductBatch) {
 }
 
 test('saving/reopening/discarding a product draft carries batch changes without writing any live batch', async () => {
-  const batchChanges = { upserts: [{ client_id: 'new-test', batch_code: 'B1', variant_sku: 'C1', quantity: 2,
+  const batchChanges = { upserts: [{ client_id: 'new-test', batch_code: '', variant_sku: 'C1', quantity: 2,
     received_at: '2026-11-10', best_before: '2027-11-10' }], deletes: [] };
   const live = { product_id: 10001, name: 'Coffee', slug: 'coffee', category: 'coffee', variant_type: 'none', is_active: true,
     variants: [{ sku: 'C1', price: 10, stock: 3, is_default: true }] };
@@ -64,7 +64,7 @@ test('batch changes validate SKU, duplicate codes, positive integer quantity, da
     { ...row, best_before: '2026-11-09' }, { ...row, id: 'invalid-id' }
   ];
   for (const candidate of invalid) assert.throws(() => normalizeBatchChanges({ upserts: [candidate], deletes: [] }, [{ sku: 'C1' }]), error => error.status === 400);
-  assert.throws(() => normalizeBatchChanges({ upserts: [row, { ...row, client_id: 'new2' }], deletes: [] }, [{ sku: 'C1' }]), /unique code/);
+  assert.equal(normalizeBatchChanges({ upserts: [row, { ...row, client_id: 'new2' }], deletes: [] }, [{ sku: 'C1' }]).upserts.length, 2);
   assert.equal(normalizeBatchChanges({ upserts: [], deletes: [] }, [{ sku: 'C1' }]), null);
 });
 
@@ -72,8 +72,8 @@ test('published batch changes use the transaction session for add/edit/delete an
   const id1 = '6af100000000000000000001', id2 = '6af100000000000000000002', session = {};
   const base = { batch_code: 'B1', variant_sku: 'C1', quantity: 1, received_at: '2026-11-10', best_before: null };
   const current = [
-    { ...base, _id: id1, received_at: new Date('2026-11-09T17:00:00Z'), product_id: 10001, added_by: 'ORIGINAL' },
-    { ...base, _id: id2, batch_code: 'B2', received_at: new Date('2026-11-09T17:00:00Z'), product_id: 10001, added_by: 'ORIGINAL' }
+    { ...base, _id: id1, received_at: new Date('2026-11-09T17:00:00Z'), product_id: 10001, added_by: 'ORIGINAL', stock_applied: true, inventory_revision: 0 },
+    { ...base, _id: id2, batch_code: 'B2', received_at: new Date('2026-11-09T17:00:00Z'), product_id: 10001, added_by: 'ORIGINAL', stock_applied: true, inventory_revision: 0 }
   ];
   const writes = [];
   const service = loadBatchService({
@@ -85,7 +85,7 @@ test('published batch changes use the transaction session for add/edit/delete an
   const changes = service.normalizeBatchChanges({ upserts: [
     { ...base, id: id1, quantity: 5, expected: base }, { ...base, client_id: 'new1', batch_code: 'B3', added_by: 'FORGED' }
   ], deletes: [{ id: id2, expected: { ...base, batch_code: 'B2' } }] }, [{ sku: 'C1' }]);
-  const events = await service.applyBatchChanges(10001, changes, { user_id: 'PUBLISHER', profile_name: 'Admin' }, session, [{ sku: 'C1' }]);
+  const events = await service.applyBatchChanges(10001, changes, { user_id: 'PUBLISHER', profile_name: 'Admin' }, session, [{ sku: 'C1', stock: 10 }]);
   assert.deepEqual(events.map(event => event.actionType), ['product.batch-delete', 'product.batch-update', 'product.batch-create']);
   assert.equal(writes[1][2].$set.quantity, 5);
   assert.equal(writes[1][2].$set.added_by, undefined);
@@ -126,6 +126,7 @@ test('Publish commits product and batches together; failed product validation ro
       }
     });
     const body = { ...original.product, name: 'Published coffee', is_active: true,
+      variants: original.product.variants.map(variant => ({ ...variant, stock: 999 })),
       batch_changes: { upserts: [{ client_id: 'new1', batch_code: 'B1', variant_sku: 'C1', quantity: 1, received_at: '2026-11-10', best_before: null }], deletes: [] } };
     const actualService = loadBatchService({});
     const api = load({ db: { startSession: async () => session }, findOne() {
@@ -145,6 +146,7 @@ test('Publish commits product and batches together; failed product validation ro
     else {
       assert.equal(res.statusCode, 200); assert.equal(state.product.name, 'Published coffee');
       assert.equal(state.product.is_active, false); assert.equal(state.product.batch_changes, undefined);
+      assert.equal(state.product.variants[0].stock, 3, 'Publishing must ignore old or forged draft stock');
       assert.equal(state.batches.length, 1); assert.equal(state.draft, false);
       assert.deepEqual(logs.map(log => log.actionType), ['product.update', 'product.batch-create']);
     }
@@ -474,4 +476,94 @@ test('legacy batch write endpoints refuse immediate changes without touching any
     assert.equal(res.statusCode, 409);
     assert.match(res.body.error, /Save draft or Publish/);
   }
+});
+
+
+test('receipts generate codes, add stock once, preserve opening balance and retain replay protection after removal', async () => {
+  const records = [], variants = [{ sku: 'C1', stock: 10, inventory_revision: 0 }];
+  const service = loadBatchService({
+    find: () => ({ session() { return this; }, lean: async () => structuredClone(records) }),
+    create: async rows => records.push({ ...rows[0], _id: '6af100000000000000000001' }),
+    updateOne: async (query, update) => Object.assign(records.find(row => row._id === query._id), update.$set)
+  });
+  const input = { client_id: 'receipt1', batch_code: 'B-1234567890ABCDEF', variant_sku: 'C1', quantity: 20, received_at: '2026-11-16', best_before: null };
+  const changes = service.normalizeBatchChanges({ upserts: [input], deletes: [] }, variants);
+  await service.applyBatchChanges(1, changes, { user_id: 'A1' }, {}, variants);
+  assert.equal(variants[0].stock, 30);
+  assert.match(records[0].batch_code, /^B-[A-F0-9]{16}$/);
+  assert.equal(records[0].batch_code, input.batch_code, 'Keep the code shown in the editor');
+  await assert.rejects(service.applyBatchChanges(1, changes, {}, {}, variants), /already published/);
+  assert.equal(variants[0].stock, 30);
+  const expected = { ...input, batch_code: records[0].batch_code };
+  delete expected.client_id;
+  await service.applyBatchChanges(1, { upserts: [{ ...expected, id: records[0]._id, quantity: 25, expected }], deletes: [] }, {}, {}, variants);
+  assert.equal(variants[0].stock, 35);
+  await service.applyBatchChanges(1, { upserts: [], deletes: [{ id: records[0]._id, expected: { ...expected, quantity: 25 } }] }, {}, {}, variants);
+  assert.equal(variants[0].stock, 10);
+  assert.ok(records[0].removed_at);
+  await assert.rejects(service.applyBatchChanges(1, changes, {}, {}, variants), /already published/);
+});
+
+test('sales or reservations lock receipt quantity even after a date edit; legacy deletion never subtracts opening stock', async () => {
+  const original = { _id: '6af100000000000000000001', batch_code: 'B1', variant_sku: 'C1', quantity: 20,
+    received_at: '2026-11-16', best_before: null, stock_applied: true, inventory_revision: 0 };
+  const variants = [{ sku: 'C1', stock: 27, inventory_revision: 1 }];
+  const service = loadBatchService({
+    find: () => ({ session() { return this; }, lean: async () => [structuredClone(original)] }),
+    updateOne: async (_q, update) => Object.assign(original, update.$set)
+  });
+  const expected = { batch_code: 'B1', variant_sku: 'C1', quantity: 20, received_at: '2026-11-16', best_before: null };
+  await service.applyBatchChanges(1, { upserts: [{ ...expected, id: original._id, best_before: '2027-01-01', expected }], deletes: [] }, {}, {}, variants);
+  assert.equal(original.inventory_revision, 0);
+  await assert.rejects(service.applyBatchChanges(1, { upserts: [], deletes: [{ id: original._id, expected: { ...expected, best_before: '2027-01-01' } }] }, {}, {}, variants), /sales, reservations or returns/);
+  assert.equal(variants[0].stock, 27);
+  original.stock_applied = false;
+  await service.applyBatchChanges(1, { upserts: [], deletes: [{ id: original._id, expected: { ...expected, best_before: '2027-01-01' } }] }, {}, {}, variants);
+  assert.equal(variants[0].stock, 27);
+});
+
+
+test('product audit keeps same-count image changes, full descriptions, variant images, thresholds and Pantry dates', async () => {
+  const image = { url: 'https://example.test/old', public_id: 'old', alt_text: 'Before', sort_order: 0 };
+  const product = { product_id: 1, name: 'Coffee', slug: 'coffee', category: 'coffee', variant_type: 'none', is_active: true,
+    description: 'a'.repeat(200) + 'before', images: [image], variants: [{ sku: 'C1', price: 10, stock: 5, is_default: true, low_stock_threshold: 10, images: [image] }],
+    save: async () => {}, toObject() { const { save, toObject, ...data } = this; return structuredClone(data); } };
+  const changed = { ...image, url: 'https://example.test/new', public_id: 'new', alt_text: 'After' };
+  const logs = [];
+  const api = load({ findOne: async () => product }, { '../models/ProductDraft': { deleteOne: async () => {} } });
+  const res = response();
+  await api.updateProduct({ params: { productId: '1' }, writeActivityLog: async log => logs.push(log), body: {
+    ...product.toObject(), description: 'a'.repeat(200) + 'after', images: [changed], batch_expiry_date: '2027-01-01',
+    variants: [{ ...product.variants[0], low_stock_threshold: 4, images: [changed] }], password: 'DO NOT RECORD'
+  } }, res);
+  assert.equal(res.statusCode, 200);
+  const log = logs[0];
+  assert.equal(log.oldValue.description, 'a'.repeat(200) + 'before');
+  assert.equal(log.newValue.description, 'a'.repeat(200) + 'after');
+  assert.equal(log.newValue.images[0].url, changed.url);
+  assert.equal(log.newValue['variant C1'].images[0].alt_text, 'After');
+  assert.equal(log.newValue['variant C1'].low_stock_threshold, 4);
+  assert.ok(log.newValue.batch_expiry_date);
+  assert.ok(!JSON.stringify(log).includes('DO NOT RECORD'));
+});
+
+test('draft audit captures atomic previous content, new content and the discarded snapshot', async () => {
+  const live = { product_id: 1, name: 'Live', slug: 'live', category: 'coffee', variant_type: 'none', is_active: true,
+    variants: [{ sku: 'C1', price: 10, stock: 2, is_default: true }] };
+  let stored = { payload: { ...live, name: 'Earlier draft', description: 'test content' } };
+  const logs = [];
+  const api = load({ findOne: () => ({ lean: async () => live }) }, { '../models/ProductDraft': {
+    findOneAndUpdate: (_q, update, options) => ({ lean: async () => {
+      assert.equal(options.new, false); const previous = structuredClone(stored); stored = structuredClone(update.$set); return previous;
+    } }),
+    findOneAndDelete: () => ({ lean: async () => stored })
+  } });
+  const req = { params: { productId: '1' }, user: { user_id: 'A1' }, body: { ...live, name: 'Latest draft' }, writeActivityLog: async log => logs.push(log) };
+  const res = response(); await api.saveDraft(req, res);
+  assert.equal(res.statusCode, 200); assert.equal(res.body.data.name, 'Latest draft');
+  assert.equal(logs[0].oldValue.name, 'Earlier draft'); assert.equal(logs[0].oldValue.description, 'test content');
+  assert.equal(logs[0].newValue.name, 'Latest draft');
+  await api.discardDraft(req, response());
+  assert.equal(logs[1].oldValue.name, 'Latest draft'); assert.equal(logs[1].oldValue['variant C1'].price, 10);
+  assert.equal(logs[1].newValue, null);
 });

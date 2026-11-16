@@ -13,6 +13,7 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     enum: [
+      ...Object.keys(require('../services/notification.registry')),
       'POST_CREATED',
       'POST_LIKED',
       'POST_COMMENTED',
@@ -60,6 +61,7 @@ const notificationSchema = new mongoose.Schema({
   post_id: {
     type: String,
     required() {
+      if (require('../services/notification.registry')[this.type]) return false;
       return !this.type?.startsWith('SUBSCRIPTION_')
         && !this.type?.startsWith('COMMUNITY_')
         && this.type !== 'RECIPE_PUBLISHED'
@@ -72,6 +74,10 @@ const notificationSchema = new mongoose.Schema({
   order_id: { type: String, default: null }, // Ritual Box notifications about an order (e.g. SUBSCRIPTION_NOT_STARTED)
   recipe_slug: { type: String, default: null }, // RECIPE_PUBLISHED / RECIPE_MODERATION / RECIPE_SAVED → /recipes/:slug
   message: { type: String, default: null }, // Ritual Box: text shown to the customer
+  target_type: { type: String, default: null },
+  target_id: { type: String, default: null },
+  event_key: { type: String },
+  is_deleted: { type: Boolean, default: false },
   comment_id: { type: String, default: null }, // Optional comment_id
   comment_content: { type: String, default: null }, // Optional snippet of comment/reply
   is_read: { type: Boolean, default: false }
@@ -79,5 +85,8 @@ const notificationSchema = new mongoose.Schema({
   collection: 'Notifications',
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
+
+notificationSchema.index({ event_key: 1 }, { unique: true, sparse: true });
+notificationSchema.index({ recipient_id: 1, created_at: -1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

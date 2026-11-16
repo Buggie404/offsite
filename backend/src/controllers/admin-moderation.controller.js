@@ -159,8 +159,8 @@ async function loadTarget(type, targetId) {
 }
 
 async function setContentHidden(type, targetId, hide, adminId) {
-  if (type === 'post') return hide ? hidePost(targetId, { reason: 'manual', adminId }) : unhidePost(targetId);
-  if (type === 'comment') return hide ? hideComment(targetId, { reason: 'manual', adminId }) : unhideComment(targetId);
+  if (type === 'post') return hide ? hidePost(targetId, { reason: 'manual', adminId, notify: false }) : unhidePost(targetId, { notify: false });
+  if (type === 'comment') return hide ? hideComment(targetId, { reason: 'manual', adminId, notify: false }) : unhideComment(targetId, { notify: false });
   return null;
 }
 
@@ -238,8 +238,9 @@ async function moderate(req, res) {
       admin_id: adminId, admin_name: name, admin_role: req.user.role
     });
 
-    if (message && action !== 'dismiss') {
-      await notify({ recipient_id: owner.user_id, type: 'COMMUNITY_MODERATION', post_id: target.postId, message });
+    if (action !== 'dismiss') {
+      await notify({ recipient_id: owner.user_id, type: 'COMMUNITY_MODERATION', post_id: target.postId,
+        message: message || 'Your content or Community access has been restored.' });
     }
     if (restrictedUntil) sendSimulatedNotice(owner, `${message} (Community limited until ${formatDate(restrictedUntil)})`);
     // Reporters hear the result unless staff untick the box; a dismissed report stays quiet.

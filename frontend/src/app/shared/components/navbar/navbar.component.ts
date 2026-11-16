@@ -1,11 +1,22 @@
 import { avatarInitials } from '../../utils/avatar';
-import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, HostListener, ElementRef, ViewChild, signal, effect, untracked, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, Injector, PLATFORM_ID, HostListener, ElementRef, ViewChild, signal, effect, untracked, ChangeDetectorRef } from '@angular/core';
 import { SuccessModalComponent, SuccessModalConfig } from '../success-modal/success-modal.components';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import {
   LucideSearch,
+  LucidePause,
+  LucidePlay,
+  LucideCreditCard,
+  LucideCalendarClock,
+  LucidePackageX,
+  LucideBanknote,
+  LucideShieldCheck,
+  LucideFlag,
+  LucideFilePenLine,
+  LucideCircleAlert,
+  LucideUserPlus, LucideAward, LucideTicket, LucideSparkles,
   LucideShoppingCart,
   LucideShoppingBag,
   LucideUser,
@@ -87,6 +98,9 @@ import { CartPairingsComponent } from '../../../features/purchase/components/car
   selector: 'app-navbar',
   standalone: true,
   imports: [
+    LucidePause, LucidePlay, LucideCreditCard, LucideCalendarClock, LucidePackageX,
+    LucideBanknote, LucideShieldCheck, LucideFlag, LucideFilePenLine, LucideCircleAlert,
+    LucideUserPlus, LucideAward, LucideTicket, LucideSparkles,
     LucideCornerDownLeft,
     LucideSprout,
     CommonModule,
@@ -128,6 +142,14 @@ import { CartPairingsComponent } from '../../../features/purchase/components/car
   styleUrl: './navbar.component.scss'
 })
 export class NavbarComponent implements OnInit, OnDestroy {
+  private readonly notificationInjector = inject(Injector);
+
+  private async openSupportNotification(notification: Notification): Promise<void> {
+    const { AiChatService } = await import('../ai-chat-drawer/ai-chat.service');
+    const chat = this.notificationInjector.get(AiChatService);
+    chat.open();
+    if (notification.target_id) chat.openHistory(notification.target_id);
+  }
   /** Hide empty / "Default" variant labels (products without real variants). */
   readonly isMeaningfulVariantLabel = isMeaningfulVariantLabel;
 
@@ -145,6 +167,25 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
 
   notifications = signal<Notification[]>([]);
+  private readonly failedNotificationAvatars = signal<Set<string>>(new Set());
+
+  usesSenderAvatar(item: Notification): boolean {
+    return !!item.sender && ['FOLLOW_RECEIVED', 'POST_LIKED', 'POST_COMMENTED',
+      'COMMENT_REPLIED', 'COMMENT_LIKED', 'RECIPE_SAVED'].includes(item.type);
+  }
+
+  notificationAvatarUrl(item: Notification): string | null {
+    const url = item.sender?.avatar_url;
+    return url && !this.failedNotificationAvatars().has(url) ? url : null;
+  }
+
+  notificationSenderInitials(item: Notification): string {
+    return avatarInitials(item.sender?.username || 'Member');
+  }
+
+  onNotificationAvatarError(url: string): void {
+    this.failedNotificationAvatars.update(failed => new Set([...failed, url]));
+  }
   unreadNotificationCount = 0;
   isNotificationDropdownOpen = signal<boolean>(false);
   activeNotificationTab = signal<string>('ALL');
@@ -627,6 +668,27 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.isNotificationDropdownOpen.set(false);
     this.cdr.markForCheck();
 
+    if (notification.target_type === 'profile' && notification.target_id) {
+      void this.router.navigate(['/community/profile', notification.target_id]); return;
+    }
+    if (notification.target_type === 'rewards') {
+      void this.router.navigate(['/account'], { queryParams: { tab: 'rewards' } }); return;
+    }
+    if (notification.target_type === 'ritual_dna') {
+      void this.router.navigate(['/account'], { queryParams: { tab: 'dna' } }); return;
+    }
+    if (notification.target_type === 'product' && notification.target_id) {
+      void this.router.navigate(['/products', notification.target_id]); return;
+    }
+    if (notification.target_type === 'contact') {
+      void this.router.navigate(['/contact-us']); return;
+    }
+    if (notification.target_type === 'support') {
+      this.openSupportNotification(notification); return;
+    }
+    if (notification.target_type === 'order' && notification.target_id) {
+      void this.router.navigate(['/order-tracking'], { queryParams: { orderId: notification.target_id } }); return;
+    }
     // Navigate to post detail or order tracking
     const isOrderOrRefund = notification.type.startsWith('ORDER_') || notification.type.startsWith('REFUND_');
     if (notification.type === 'SUBSCRIPTION_NOT_STARTED' && notification.order_id) {
@@ -651,7 +713,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     } else if (notification.type.startsWith('COMMUNITY_')) {
       // Moderation notices: open the post when there is one (a hidden post shows its own notice)
       if (notification.post_id) this.router.navigate(['/community/post', notification.post_id]);
-    } else {
+      else this.router.navigate(['/community']);
+    } else if (notification.post_id) {
       this.router.navigate(['/community/post', notification.post_id]);
     }
   }
@@ -1176,22 +1239,36 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   // ── Notification tab helpers ─────────────────────────────────────────────
 
+  readonly notificationTabs = [
+    { key: 'ALL', label: 'ALL' }, { key: 'ORDERS', label: 'ORDERS' },
+    { key: 'COMMUNITY', label: 'COMMUNITY' }, { key: 'RECIPES', label: 'RECIPES' },
+    { key: 'RITUAL_BOX', label: 'RITUAL BOX' }, { key: 'PANTRY', label: 'PANTRY' },
+    { key: 'REWARDS', label: 'REWARDS' }, { key: 'SUPPORT', label: 'SUPPORT' }, { key: 'DNA', label: 'RITUAL DNA' }
+  ];
+
   setNotificationTab(tab: string): void {
     this.activeNotificationTab.set(tab);
   }
 
-  getFilteredNotifications(): Notification[] {
-    const tab = this.activeNotificationTab();
+  getUnreadNotificationCount(tab: string): number {
+    return this.getFilteredNotifications(tab).filter(item => !item.is_read).length;
+  }
+
+  getFilteredNotifications(tab: string = this.activeNotificationTab()): Notification[] {
     const all = this.notifications();
     if (tab === 'ALL') return all;
     if (tab === 'ORDERS') return all.filter(n =>
       n.type.startsWith('ORDER_') || n.type.startsWith('REFUND_')
     );
     if (tab === 'COMMUNITY') return all.filter(n =>
-      n.type.startsWith('POST_') || n.type.startsWith('COMMENT_')
+      n.type.startsWith('POST_') || n.type.startsWith('COMMENT_') || n.type.startsWith('COMMUNITY_') || n.type === 'FOLLOW_RECEIVED'
     );
+    if (tab === 'RECIPES') return all.filter(n => n.type.startsWith('RECIPE_'));
     if (tab === 'RITUAL_BOX') return all.filter(n => n.type.startsWith('SUBSCRIPTION_'));
-    if (tab === 'PANTRY') return all.filter(n => n.type.startsWith('PANTRY_'));
+    if (tab === 'PANTRY') return all.filter(n => n.type.startsWith('PANTRY_') || n.type === 'CONSUMPTION_REMINDER');
+    if (tab === 'REWARDS') return all.filter(n => n.type.startsWith('POINTS_') || n.type.startsWith('VOUCHER_') || n.type === 'MEMBERSHIP_CHANGED');
+    if (tab === 'SUPPORT') return all.filter(n => n.type.startsWith('SUPPORT_') || n.type === 'CONTACT_STATUS');
+    if (tab === 'DNA') return all.filter(n => n.type === 'RITUAL_DNA_CHANGED');
     return [];
   }
 
@@ -1201,6 +1278,21 @@ export class NavbarComponent implements OnInit, OnDestroy {
    */
   getNotificationIconBgClass(type: string): string {
     switch (type) {
+      case 'ORDER_CONFIRMED': return 'notif-icon--blue';
+      case 'ORDER_CUSTOMER_CANCELED': case 'ORDER_PAYMENT_FAILED': return 'notif-icon--red';
+      case 'COMMUNITY_CONTENT_HIDDEN': case 'POINTS_REVERSED': case 'VOUCHER_WITHDRAWN': case 'VOUCHER_EXPIRED': return 'notif-icon--red';
+      case 'POINTS_USED': case 'MEMBERSHIP_CHANGED': case 'VOUCHER_RECEIVED': case 'RITUAL_DNA_CHANGED': return 'notif-icon--purple';
+      case 'VOUCHER_EXPIRING': case 'CONSUMPTION_REMINDER': return 'notif-icon--orange';
+      case 'SUBSCRIPTION_UPDATED': return 'notif-icon--sage';
+      case 'SUPPORT_CLOSED': return 'notif-icon--green';
+      case 'FOLLOW_RECEIVED': case 'COMMUNITY_CONTENT_RESTORED': case 'SUBSCRIPTION_STARTED':
+      case 'SUBSCRIPTION_CHARGED': case 'ORDER_DELIVERED': case 'POINTS_POSTED': return 'notif-icon--green';
+      case 'POINTS_PENDING': case 'POINTS_USED': case 'MEMBERSHIP_CHANGED':
+      case 'VOUCHER_RECEIVED': case 'RITUAL_DNA_CHANGED': return 'notif-icon--purple';
+      case 'COMMUNITY_CONTENT_HIDDEN': case 'REVIEW_MODERATION': case 'VOUCHER_EXPIRING':
+      case 'CONSUMPTION_REMINDER': return 'notif-icon--orange';
+      case 'POINTS_REVERSED': case 'VOUCHER_WITHDRAWN': return 'notif-icon--red';
+      case 'SUPPORT_REPLY': case 'CONTACT_STATUS': return 'notif-icon--blue';
       case 'ORDER_PLACED':     return 'notif-icon--blue';
       case 'ORDER_SHIPPING':   return 'notif-icon--blue';
       case 'ORDER_CANCELED':   return 'notif-icon--red';
@@ -1235,6 +1327,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
       case 'COMMENT_REPLIED':  return 'notif-icon--sage';
       case 'COMMENT_LIKED':    return 'notif-icon--pink';
       case 'RECIPE_SAVED':     return 'notif-icon--pink';
+      case 'RECIPE_PUBLISHED': return 'notif-icon--green';
+      case 'RECIPE_MODERATION': return 'notif-icon--orange';
+      case 'COMMUNITY_MODERATION': return 'notif-icon--orange';
+      case 'COMMUNITY_REPORT_RESOLVED': return 'notif-icon--green';
       default:                 return 'notif-icon--gray';
     }
   }

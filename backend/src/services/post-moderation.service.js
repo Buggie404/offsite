@@ -1,7 +1,7 @@
 const Post = require('../models/Post');
 const PostReport = require('../models/PostReport');
 
-async function transitionPost(postId, hide, { reason, adminId = null } = {}) {
+async function transitionPost(postId, hide, { reason, adminId = null, notify = true } = {}) {
   const session = await Post.db.startSession();
   let post = null;
   try {
@@ -21,12 +21,13 @@ async function transitionPost(postId, hide, { reason, adminId = null } = {}) {
         await PostReport.updateMany({ post_id: postId, status: 'pending' }, { $set: { status: 'dismissed' } }, { session });
       }
     });
+    if (notify) await require('./notification.content').notifyContent(post, 'post', hide);
     return post;
   } finally { await session.endSession(); }
 }
 
 const hidePost = (postId, options) => transitionPost(postId, true, options);
-const unhidePost = postId => transitionPost(postId, false);
+const unhidePost = (postId, options) => transitionPost(postId, false, options);
 // A penalty on a post that was already hidden: the points are gone already, keep them gone.
 const forfeitPostPoints = postId => Post.updateOne({ post_id: postId }, { $set: { points_forfeited: true } });
 

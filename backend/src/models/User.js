@@ -135,6 +135,9 @@ const userSchema = new mongoose.Schema({
   done_recipes: { type: [doneRecipeSchema], default: [] },
   started_recipes: { type: [startedRecipeSchema], default: [] },
   hidden_pantry_recipes: { type: [String], default: [] },
+  notification_preferences: {
+    consumption_reminder: { type: Boolean, default: true }
+  },
   saved_posts: { type: [savedPostSchema], default: [] },
   liked_posts: [{ post_id: {type: String,required: true}, liked_at: {type: Date, default: Date.now}}],
   liked_posts: { type: [likedPostSchema], default: [] },

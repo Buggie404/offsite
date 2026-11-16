@@ -455,7 +455,7 @@ describe('Products async rendering without user interaction', () => {
     const saveDraft = vi.fn((_id: number, payload: any) => of({ data: { ...product, ...payload, has_draft: true } }));
     TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection(), provideRouter([]),
       { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '10001' } } } },
-      { provide: AdminProductService, useValue: { get: () => of({ data: product }), batches: () => of({ data: [] }), addBatch: immediateWrite, updateBatchBestBefore: immediateWrite, saveDraft } },
+      { provide: AdminProductService, useValue: { get: () => of({ data: product }), batches: () => of({ data: [] }), reserveBatchCode: () => of({ data: { batch_code: 'B-000001' } }), addBatch: immediateWrite, updateBatchBestBefore: immediateWrite, saveDraft } },
       { provide: AdminAuthService, useValue: { getAdminRole: () => 'qlsp' } },
       { provide: CloudinaryService, useValue: {} }
     ] });
@@ -477,15 +477,20 @@ describe('Products async rendering without user interaction', () => {
     add.click();
     await fixture.whenStable();
     const confirm = fixture.nativeElement.querySelector('[aria-label="Confirm batch row"]') as HTMLButtonElement;
+    component.batchDraft.quantity = 0;
     confirm.click();
     await fixture.whenStable();
     expect(component.batches).toEqual([]);
-    const code = fixture.nativeElement.querySelector('input[aria-label="Batch code"]') as HTMLInputElement;
-    code.value = 'B-TEST'; code.dispatchEvent(new Event('input'));
+    expect(fixture.nativeElement.querySelector('input[aria-label="Batch code"]')).toBeNull();
+    component.batchDraft.quantity = 2;
     await fixture.whenStable();
     confirm.click();
     await fixture.whenStable();
     expect(component.batches).toHaveLength(1);
+    expect(component.batches[0].batch_code).toMatch(/^B-\d{6}$/);
+    expect(component.stockAfterPublish(component.form.variants[0])).toBe(component.form.variants[0].stock + 2);
+    expect(fixture.nativeElement.querySelector('.variants-card')?.textContent).not.toContain('Low-stock at');
+    expect(fixture.nativeElement.querySelector('.inventory-table')?.textContent).toContain('Current stock');
     expect(immediateWrite).not.toHaveBeenCalled();
     expect(saveDraft).not.toHaveBeenCalled();
     const id = component.batches[0]._id;

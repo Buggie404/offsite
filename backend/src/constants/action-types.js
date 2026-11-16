@@ -3,6 +3,7 @@
 // user.suspend, community_user_suspend and community.lock are no longer written (admins cannot lock
 // customers); they stay listed so older logs keep their name and can still be filtered.
 const ACTION_TYPES = [
+  { value: 'ritual-dna.quiz-tested', label: 'Ritual DNA quiz test completed', group: 'Ritual DNA' },
   { value: 'ritual-dna.draft', label: 'Ritual DNA draft created', group: 'Ritual DNA' },
   { value: 'ritual-dna.save-draft', label: 'Ritual DNA draft saved', group: 'Ritual DNA' },
   { value: 'ritual-dna.test', label: 'Ritual DNA testing started', group: 'Ritual DNA' },

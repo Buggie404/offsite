@@ -17,7 +17,12 @@ export interface Notification {
     | 'COMMUNITY_MODERATION' | 'COMMUNITY_REPORT_RESOLVED'
     | 'RECIPE_PUBLISHED'
     | 'RECIPE_MODERATION'
-    | 'RECIPE_SAVED';
+    | 'RECIPE_SAVED'
+    | 'FOLLOW_RECEIVED' | 'COMMUNITY_CONTENT_HIDDEN' | 'COMMUNITY_CONTENT_RESTORED'
+    | 'SUBSCRIPTION_CHARGED' | 'SUBSCRIPTION_STARTED' | 'SUBSCRIPTION_UPDATED' | 'CONSUMPTION_REMINDER'
+    | 'POINTS_PENDING' | 'POINTS_POSTED' | 'POINTS_REVERSED' | 'POINTS_USED' | 'MEMBERSHIP_CHANGED'
+    | 'VOUCHER_RECEIVED' | 'VOUCHER_EXPIRING' | 'VOUCHER_EXPIRED' | 'VOUCHER_WITHDRAWN'
+    | 'SUPPORT_REPLY' | 'SUPPORT_CLOSED' | 'CONTACT_STATUS' | 'RITUAL_DNA_CHANGED' | 'ORDER_DELIVERED' | 'ORDER_CONFIRMED' | 'ORDER_CUSTOMER_CANCELED' | 'ORDER_PAYMENT_FAILED';
   /** Post / order id; null for Ritual Box notifications (older ones stored the subscription id here). */
   post_id: string | null;
   subscription_id?: string | null;
@@ -26,6 +31,8 @@ export interface Notification {
   /** RECIPE_PUBLISHED / RECIPE_MODERATION / RECIPE_SAVED → /recipes/:slug */
   recipe_slug?: string | null;
   message?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
   comment_id?: string | null;
   comment_content?: string | null;
   is_read: boolean;

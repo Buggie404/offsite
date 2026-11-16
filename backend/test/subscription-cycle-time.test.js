@@ -42,7 +42,7 @@ function chargeFixture(unit) {
     '../models/Product': { findById: () => lean({ name: 'Matcha', variants: [{ sku: 'SKU1', label: 'Default', stock: 5, images: [] }], images: [] }), findOne: () => lean(null) },
     '../models/Order': Order,
     './inventory.service': { reserveItems: async () => ({ ok: true }), releaseItems: async () => {} },
-    './notification.service': { notifySubscription: async () => {} }
+    './notification.service': { notifyEvent: async () => true, notifySubscription: async () => {} }
   }, unit);
   const sub = {
     subscription_id: 'SUB1', user_id: 'USR1', product_id: '507f1f77bcf86cd799439011', variant_id: 'SKU1', quantity: 1,
@@ -84,7 +84,7 @@ function outOfStockJob(unit, consecutiveSkips) {
       findOneAndUpdate: async () => sub
     },
     '../models/Order': { findOne: () => lean(null) },
-    './notification.service': { notifySubscription: async (s, type) => notices.push(type) },
+    './notification.service': { notifyEvent: async () => true, notifySubscription: async (s, type) => notices.push(type) },
     './subscription.service': {
       chargeSubscription: async () => ({ ok: false, reason: 'out_of_stock' }),
       applyDueTransitions: async () => {},

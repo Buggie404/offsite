@@ -182,8 +182,16 @@ function getNextTierInfo(tier, lifetimePoints) {
 
 async function syncMembershipTier(userId, lifetimePoints) {
   const tier = resolveTierFromLifetime(lifetimePoints);
-  await User.updateOne({ user_id: userId }, { $set: { membership_tier: tier } });
-  return tier;
+  const lowerTiers = Object.keys(TIER_RANK).filter(name => TIER_RANK[name] < TIER_RANK[tier]);
+  const before = await User.findOneAndUpdate({ user_id: userId, membership_tier: { $in: [...lowerTiers, null] } },
+    { $set: { membership_tier: tier } }, { new: false }).lean();
+  if (before && (TIER_RANK[tier] || 0) > (TIER_RANK[before.membership_tier] || 0)) {
+    await require('./notification.service').notifyEvent({ recipient_id: userId, type: 'MEMBERSHIP_CHANGED',
+      event_key: `membership:${tier}`, target_type: 'rewards', message: `You reached ${tier} membership. Explore your new benefits.` });
+  }
+  if (before) return tier;
+  const current = await User.findOne({ user_id: userId }, 'membership_tier').lean();
+  return current?.membership_tier || tier;
 }
 
 function tierVoucherCode(prefix, userId) {
@@ -932,6 +940,8 @@ async function handleReferralRegistration(referee, referralCode) {
 }
 
 module.exports = {
+  computeLifetimePoints,
+  syncMembershipTier,
   TIER_THRESHOLDS,
   TIER_MULTIPLIER,
   listRedeemOffers,

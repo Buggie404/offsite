@@ -30,7 +30,8 @@ const pointTransactionSchema = new mongoose.Schema({
   ref_type: { type: String, enum: REF_TYPES, default: null },     // bảng mà ref_id trỏ tới
   ref_id:   { type: String, default: null, index: true },         // order_id, review_id, post_id, ...
   posted_at:   { type: Date, default: null },                     // lúc chuyển sang posted
-  reversed_at: { type: Date, default: null }
+  reversed_at: { type: Date, default: null },
+  notification_seen_at: { type: Date, default: null }
 }, {
   collection: 'PointTransactions',
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
@@ -38,6 +39,7 @@ const pointTransactionSchema = new mongoose.Schema({
 
 // Posting job: pending transactions waiting for their hold period to end.
 pointTransactionSchema.index({ status: 1, created_at: 1 });
+pointTransactionSchema.index({ updated_at: 1 });
 
 pointTransactionSchema.pre('validate', async function(next) {
   if (this.transaction_id) return next();

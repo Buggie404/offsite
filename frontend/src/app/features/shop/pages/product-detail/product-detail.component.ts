@@ -3,6 +3,16 @@ import { CommonModule, Location, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, NavigationStart, Router, RouterLink } from '@angular/router';
 import {
   LucideArrowRight,
+  LucideBean,
+  LucideCircle,
+  LucideSquare,
+  LucideTriangle,
+  LucideDroplets,
+  LucideFlower2,
+  LucideGift,
+  LucideGlassWater,
+  LucideMapPin,
+  LucideSparkles,
   LucideChevronDown,
   LucideChevronLeft,
   LucideChevronRight,
@@ -55,6 +65,11 @@ interface ProductHeaderTag {
   kind: 'status' | 'pantry';
 }
 
+interface ProductAttributeTag {
+  label: string;
+  icon: 'origin' | 'process' | 'decaf' | 'grade' | 'tool' | 'tool-type' | 'drinkware' | 'material' | 'count' | 'exclusive';
+}
+
 interface IncludedProduct {
   name: string;
   eyebrow: string;
@@ -102,6 +117,16 @@ import { RitualFitComponent } from '../../../../shared/components/ritual-fit/rit
     RecipeSectionComponent,
     RitualFitComponent,
     LucideArrowRight,
+    LucideBean,
+    LucideCircle,
+    LucideSquare,
+    LucideTriangle,
+    LucideDroplets,
+    LucideFlower2,
+    LucideGift,
+    LucideGlassWater,
+    LucideMapPin,
+    LucideSparkles,
     LucideChevronDown,
     LucideChevronLeft,
     LucideChevronRight,
@@ -413,6 +438,45 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     }
 
     return getPrimaryProductImage(prod) ?? null;
+  }
+
+  getProductAttributeTags(): ProductAttributeTag[] {
+    const product = this.product();
+    if (!product) return [];
+
+    const tags: ProductAttributeTag[] = [];
+    const add = (icon: ProductAttributeTag['icon'], value?: string | null) => {
+      const label = value?.trim();
+      if (label) tags.push({ icon, label });
+    };
+
+    switch (product.category) {
+      case 'coffee': {
+        add('origin', product.coffee?.product_origin);
+        const process = product.coffee?.process_type;
+        add(/decaf/i.test(process ?? '') ? 'decaf' : 'process', process);
+        break;
+      }
+      case 'matcha':
+        add('origin', product.matcha?.origin);
+        add('grade', product.matcha?.product_grade);
+        break;
+      case 'tools':
+        add('tool', product.tools?.tool_category);
+        add('tool-type', product.tools?.tool_type);
+        break;
+      case 'drinkware':
+        add('drinkware', product.drinkware?.ware_type);
+        add('material', product.drinkware?.material);
+        break;
+      case 'sets_bundles': {
+        const count = product.sets_bundles?.composition?.length ?? 0;
+        if (count > 0) add('count', `${count} ${count === 1 ? 'product' : 'products'}`);
+        if (product.sets_bundles?.is_exclusive) add('exclusive', 'Exclusive set');
+        break;
+      }
+    }
+    return tags;
   }
 
   getProductHeaderTags(): ProductHeaderTag[] {

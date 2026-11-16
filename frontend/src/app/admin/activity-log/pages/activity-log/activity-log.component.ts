@@ -316,11 +316,6 @@ export class AdminActivityLogComponent implements OnInit {
   }
 
   changes(row: ActivityLogEntry): FieldChange[] {
-    // Deleting a Ritual DNA draft only needs the version; older rows stored the whole draft.
-    if (row.action_type === 'ritual-dna.delete-draft' || row.action_type === 'ritual-dna.quiz-delete-draft') {
-      const old = row.old_value && typeof row.old_value === 'object' ? row.old_value as Record<string, unknown> : {};
-      return [{ key: 'version', before: String(old['version'] ?? row.target_id), after: 'deleted' }];
-    }
     return diffValues(row.old_value, row.new_value);
   }
 

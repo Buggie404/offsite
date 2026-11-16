@@ -186,6 +186,7 @@ async function addItemsForDeliveredOrder(order) {
       recipient_id: order.user_id,
       sender: null,
       type: 'PANTRY_ITEM_ADDED',
+      event_key: `pantry-added:${order.order_id}`,
       post_id: 'pantry',
       order_id: order.order_id,
       comment_content: message
@@ -1019,6 +1020,7 @@ async function sendPantryNotices(items, type, flag, messageFor, now) {
         sender: null,
         type,
         post_id: 'pantry',
+        event_key: `pantry:${type}:${rows.map(row => String(row._id)).sort().join(',')}`,
         comment_content: message
       });
       await PantryItem.updateMany(

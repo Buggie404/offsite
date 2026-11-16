@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, ViewChild, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   LucideArrowLeft,
@@ -24,10 +24,10 @@ interface RitualOption {
   option_id: string;
   text: string;
   hint: string;
-  icon: string;
+  icon?: string;
 }
 
-interface RitualQuestion {
+export interface RitualQuestion {
   question_id: string;
   code: string;
   question: string;
@@ -35,7 +35,7 @@ interface RitualQuestion {
   options: RitualOption[];
 }
 
-interface RitualResult {
+export interface RitualResult {
   is_estimated?: boolean;
   quiz_taken_at?: string | null;
   radar: Radar;
@@ -50,6 +50,13 @@ interface RitualResult {
   updated_at: string;
 }
 
+export interface RitualDnaPreviewConfig {
+  quizVersion: number;
+  archetypeVersion: number;
+  questions: RitualQuestion[];
+  submit: (answers: { question_id: string; option_ids: string[] }[]) => Promise<RitualResult>;
+}
+
 @Component({
   selector: 'app-ritual-dna-quiz',
   standalone: true,
@@ -58,7 +65,9 @@ interface RitualResult {
   templateUrl: './ritual-dna-quiz.component.html',
   styleUrl: './ritual-dna-quiz.component.scss'
 })
-export class RitualDnaQuizComponent implements OnInit {
+export class RitualDnaQuizComponent implements OnInit, OnChanges {
+  @Input() adminPreview: RitualDnaPreviewConfig | null = null;
+  @Output() previewClosed = new EventEmitter<void>();
   @ViewChild('quizQuestionStart') private quizQuestionStart?: ElementRef<HTMLElement>;
   @ViewChild('exportCardHost') private exportCardHost?: ElementRef<HTMLElement>;
   private readonly http = inject(HttpService);
@@ -85,6 +94,7 @@ export class RitualDnaQuizComponent implements OnInit {
   private readonly answers = new Map<string, string[]>();
 
   async ngOnInit(): Promise<void> {
+    if (this.adminPreview) { this.resetAdminPreview(); return; }
     const retakeRequested = this.route.snapshot.queryParamMap.get('retake') === '1';
     try {
       const profile = await this.http.get('/ritual-dna/me') as { result: RitualResult | null };
@@ -101,6 +111,29 @@ export class RitualDnaQuizComponent implements OnInit {
       this.cdr.markForCheck();
       if (retakeRequested && this.questions.length) this.scrollToQuestion();
     }
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['adminPreview'] && !changes['adminPreview'].firstChange && this.adminPreview) this.resetAdminPreview();
+  }
+
+  private resetAdminPreview(): void {
+    const config = this.adminPreview;
+    if (!config) return;
+    this.questions = config.questions;
+    this.quizVersion = String(config.quizVersion);
+    this.confirmationMode = false;
+    this.result = null;
+    this.loading = false;
+    this.saving = false;
+    this.completed = false;
+    this.currentIndex = 0;
+    this.furthestAnsweredIndex = -1;
+    this.reviewingAnswers = false;
+    this.errorMessage = '';
+    this.resultNotice = '';
+    this.answers.clear();
+    this.cdr.markForCheck();
   }
 
   get question(): RitualQuestion | null { return this.questions[this.currentIndex] || null; }
@@ -184,6 +217,15 @@ export class RitualDnaQuizComponent implements OnInit {
     }
     this.saving = true;
     try {
+      if (this.adminPreview) {
+        const preview = this.adminPreview;
+        const result = await preview.submit(answers);
+        if (this.adminPreview !== preview) return;
+        this.result = result;
+        this.completed = true;
+        this.reviewingAnswers = false;
+        return;
+      }
       const response = await this.http.post('/ritual-dna/quiz', {
         quiz_version: this.quizVersion, mode: this.confirmationMode ? 'confirmation' : 'full', answers
       }) as { result: RitualResult };
@@ -206,7 +248,7 @@ export class RitualDnaQuizComponent implements OnInit {
   }
 
   async restart(): Promise<void> {
-    if (this.confirmationMode) {
+    if (this.confirmationMode && !this.adminPreview) {
       this.loading = true;
       try {
         const quiz = await this.http.get('/ritual-dna/questions') as { quiz_version: string; questions: RitualQuestion[] };
@@ -223,10 +265,13 @@ export class RitualDnaQuizComponent implements OnInit {
     this.completed = false;
     this.errorMessage = '';
     this.resultNotice = '';
-    this.scrollToQuestion();
+    if (!this.adminPreview) this.scrollToQuestion();
   }
 
-  exit(): void { void this.router.navigate(['/']); }
+  exit(): void {
+    if (this.adminPreview) this.previewClosed.emit();
+    else void this.router.navigate(['/']);
+  }
 
   private async captureCard(): Promise<Blob> {
     const card = this.exportCardHost?.nativeElement.querySelector<HTMLElement>('.dna-card');

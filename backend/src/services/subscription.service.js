@@ -422,6 +422,10 @@ async function chargeSubscription(sub, { now = new Date() } = {}) {
   sub.next_retry_at = null;
   sub.consecutive_skips = 0;
   applyPendingAfterCharge(sub, now);
+  await notificationService.notifyEvent({ recipient_id: sub.user_id, type: 'SUBSCRIPTION_CHARGED',
+    subscription_id: sub.subscription_id, order_id: order.order_id,
+    event_key: `subscription-charged:${order.order_id}`,
+    message: `Your Ritual Box ${sub.subscription_id} payment succeeded. View your order and next delivery in Ritual Box.` });
   return { ok: true, order };
 }
 
@@ -569,6 +573,9 @@ async function createSubscriptionsFromOrder(order, { paymentMethodId = null } = 
       continue;
     }
     created.push(sub);
+    await notificationService.notifyEvent({ recipient_id: sub.user_id, type: 'SUBSCRIPTION_STARTED',
+      subscription_id: sub.subscription_id, event_key: `box-started:${sub.subscription_id}`,
+      message: 'Your Ritual Box is active. View your schedule and manage upcoming deliveries.' });
   }
   return created;
 }
@@ -1277,6 +1284,10 @@ async function applyAction(userIdStr, subscriptionId, action, payload = {}) {
   // Skip / pause / cancel / new date / new item: stock held for the old cycle goes back.
   await releaseStaleReservation(sub);
   await sub.save();
+  if (action !== 'dismiss_adjustment') await notificationService.notifyEvent({ recipient_id: sub.user_id,
+    type: 'SUBSCRIPTION_UPDATED', subscription_id: sub.subscription_id,
+    event_key: `box-update:${sub.subscription_id}:${action}:${new Date(sub.updated_at || now).getTime()}`,
+    message: `Your Ritual Box ${sub.subscription_id} changes have been saved. Review its status and upcoming schedule.` });
   return getRitualBox(userIdStr);
 }
 

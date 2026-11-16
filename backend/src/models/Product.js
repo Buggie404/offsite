@@ -12,6 +12,7 @@ const variantSchema = new mongoose.Schema({
   label: { type: String, default: '' },
   price: { type: Number, required: true },
   stock: { type: Number, required: true },
+  inventory_revision: { type: Number },
   sold_quantity: { type: Number, default: 0 },
   low_stock_threshold: { type: Number, default: 10, min: 0 },
   is_default: { type: Boolean, default: false },
@@ -100,7 +101,7 @@ const productSchema = new mongoose.Schema({
   sets_bundles: { type: setsBundlesDetailsSchema },
   tools: { type: toolsDetailsSchema }
 }, {
-  collection: 'Products'
+  collection: 'Products', optimisticConcurrency: true
 });
 
 productSchema.pre('validate', function preventUnavailableNewArrivals() {

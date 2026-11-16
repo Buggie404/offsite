@@ -4,6 +4,12 @@ const ProductIdSequence = require('../models/ProductIdSequence');
 const ProductBatch = require('../models/ProductBatch');
 const ActivityLog = require('../models/ActivityLog');
 const User = require('../models/User');
+const { nextBatchCode } = require('../services/batch-code.service');
+
+async function reserveBatchCode(_req, res) {
+  try { return res.json({ data: { batch_code: await nextBatchCode() } }); }
+  catch (error) { return res.status(503).json({ error: 'Could not generate a batch code. Please try again.' }); }
+}
 const { vnDateKey } = require('../services/pantry.logic');
 const { normalizeBatchChanges, presentBatch, applyBatchChanges } = require('../services/product-batch-changes');
 
@@ -62,7 +68,8 @@ function cleanVariant(variant, existingVariant) {
     sku,
     label: text(variant?.label, 120),
     price: finiteNumber(variant?.price, -1),
-    stock: Math.trunc(finiteNumber(variant?.stock, -1)),
+    stock: existingVariant?.stock ?? 0,
+    ...(existingVariant?.inventory_revision != null ? { inventory_revision: existingVariant.inventory_revision } : {}),
     low_stock_threshold: variant?.low_stock_threshold == null || variant.low_stock_threshold === ''
       ? (existingVariant?.low_stock_threshold ?? 10)
       : Math.trunc(finiteNumber(variant.low_stock_threshold, -1)),
@@ -89,6 +96,9 @@ function buildPayload(body, existing = null) {
   const variants = (Array.isArray(body?.variants) ? body.variants : [])
     .map((variant) => cleanVariant(variant, existingVariants.get(text(variant?.sku, 100))));
   const errors = [];
+  if ([...existingVariants.values()].some(variant => (variant.stock > 0 || variant.inventory_revision > 0) && !variants.some(row => row.sku === variant.sku))) {
+    errors.push('A SKU with stock or inventory activity cannot be removed or renamed.');
+  }
   if (!text(body?.name, 200)) errors.push('Product name is required.');
   if (!text(body?.slug, 220)) errors.push('Slug is required.');
   if (!CATEGORIES.includes(category)) errors.push('Choose a valid category.');
@@ -161,11 +171,10 @@ function buildPayload(body, existing = null) {
   } };
 }
 
-// Activity log for product.update: only the fields that actually changed, as short readable values,
-// so the log drawer can show Old / New instead of an empty diff.
+// Preserve complete editable values; the UI may abbreviate their display.
 const LOGGED_PRODUCT_FIELDS = ['name', 'slug', 'category', 'description', 'seo_title', 'product_tag', 'variant_type',
   'is_best_seller', 'is_new_arrival', 'is_subscribable', 'subscribe_discount_percent', 'quiz_eligible', 'is_active',
-  'matcha', 'coffee', 'drinkware', 'tools', 'sets_bundles'];
+  'matcha', 'coffee', 'drinkware', 'tools', 'sets_bundles', 'batch_expiry_date', 'batch_expiry_set_at', 'batch_changes'];
 
 function logShape(product) {
   const value = product ? (typeof product.toObject === 'function' ? product.toObject() : product) : {};
@@ -173,12 +182,13 @@ function logShape(product) {
   for (const field of LOGGED_PRODUCT_FIELDS) {
     let item = value[field];
     if (item && typeof item === 'object' && !Array.isArray(item)) item = JSON.parse(JSON.stringify(item));
-    if (field === 'description' && typeof item === 'string' && item.length > 160) item = `${item.slice(0, 157)}…`;
     shape[field] = item ?? null;
   }
-  shape.images = (value.images || []).length;
+  const images = rows => (rows || []).map(({ url, public_id, alt_text, sort_order }) => ({ url, public_id, alt_text, sort_order }));
+  shape.images = images(value.images);
   for (const variant of value.variants || []) {
-    shape[`variant ${variant.sku}`] = `${variant.label || 'Default'} · $${variant.price} · stock ${variant.stock}${variant.is_default ? ' · default' : ''}`;
+    shape[`variant ${variant.sku}`] = { sku: variant.sku, label: variant.label, price: variant.price, stock: variant.stock,
+      low_stock_threshold: variant.low_stock_threshold, is_default: variant.is_default, images: images(variant.images) };
   }
   return shape;
 }
@@ -236,6 +246,9 @@ function editorProduct(product, draft) {
   const value = product || { product_id: draft.product_id, createdAt: draft.created_at, updatedAt: draft.saved_at,
     total_sold_quantity: 0, rating_avg: null, review_count: 0 };
   return presentProduct({ ...value, ...(draft?.payload || {}), is_active: product?.is_active === true,
+    variants: (draft?.payload?.variants || value.variants || []).map(variant => ({ ...variant,
+      stock: product?.variants?.find(row => row.sku === variant.sku)?.stock ?? 0,
+      inventory_revision: product?.variants?.find(row => row.sku === variant.sku)?.inventory_revision })),
     is_new_product: !product, has_draft: !!draft, draft_saved_at: draft?.saved_at || null });
 }
 
@@ -314,7 +327,7 @@ async function discardDraft(req, res) {
     const draft = await ProductDraft.findOneAndDelete({ product_id: productId }).lean();
     if (!draft) return res.status(404).json({ error: 'Draft not found' });
     await req.writeActivityLog({ actionType: 'product.draft-discard', targetEntity: 'Products', targetId: String(productId),
-      oldValue: { name: draft.payload.name }, newValue: null });
+      oldValue: logShape(draft.payload), newValue: null });
     res.json({ data: { product_id: productId } });
   } catch (error) {
     console.error('Error discarding product draft:', error);
@@ -347,11 +360,13 @@ async function saveDraft(req, res) {
     // A draft has no authority to change the storefront visibility.
     delete built.payload.is_active;
     const productId = id ?? await nextProductId();
-    const draft = await ProductDraft.findOneAndUpdate({ product_id: productId },
+    const previousDraft = await ProductDraft.findOneAndUpdate({ product_id: productId },
       { $set: { payload: built.payload, saved_by: String(req.user.user_id), saved_at: new Date() } },
-      { upsert: true, new: true, runValidators: true }).lean();
+      { upsert: true, new: false, runValidators: true }).lean();
+    const draft = { product_id: productId, payload: built.payload, saved_by: String(req.user.user_id), saved_at: new Date(),
+      created_at: previousDraft?.created_at || new Date() };
     await req.writeActivityLog({ actionType: 'product.draft-save', targetEntity: 'Products', targetId: String(productId),
-      oldValue: null, newValue: { name: built.payload.name } });
+      oldValue: previousDraft ? logShape(previousDraft.payload) : null, newValue: logShape(built.payload) });
     res.json({ data: editorProduct(product, draft) });
   } catch (error) {
     const conflict = duplicateError(error);
@@ -365,7 +380,7 @@ async function listBatches(req, res) {
   try {
     const productId = Number(req.params.productId);
     if (!Number.isSafeInteger(productId) || productId <= 0) return res.status(400).json({ error: 'Invalid product id.' });
-    const rows = await ProductBatch.find({ product_id: productId }).sort({ received_at: -1, created_at: -1 }).lean();
+    const rows = await ProductBatch.find({ product_id: productId, removed_at: { $exists: false } }).sort({ received_at: -1, created_at: -1 }).lean();
     res.json({ data: rows.map(presentBatch) });
   } catch (error) {
     console.error('Error listing product batches:', error);
@@ -429,12 +444,12 @@ async function publishWithBatchChanges(req, res, productId, { createOnly = false
     const logged = previous ? productChanges(previous, published) : null;
     await req.writeActivityLog({ actionType: created ? 'product.create' : 'product.update', targetEntity: 'Products', targetId: String(productId),
       oldValue: logged ? logged.oldValue : null,
-      newValue: logged ? logged.newValue : { name: published.name, category: published.category, is_active: published.is_active } });
+      newValue: logged ? logged.newValue : logShape(published) });
     for (const event of events) await req.writeActivityLog({ ...event, targetEntity: 'Products', targetId: String(productId) });
     return res.status(createOnly ? 201 : 200).json({ data: presentProduct(published) });
   } catch (error) {
     const message = duplicateError(error) || validationError(error) || error.message;
-    const status = error.status || (error.code === 11000 ? 409 : error.name === 'ValidationError' ? 400 : 500);
+    const status = error.status || (error.code === 11000 || error.name === 'VersionError' ? 409 : error.name === 'ValidationError' ? 400 : 500);
     if (status === 500) console.error('Error publishing product and batches:', error);
     return res.status(status).json({ error: status === 500 ? 'Could not publish product and batches. No batch changes were applied.' : message });
   } finally { if (session) await session.endSession(); }
@@ -449,7 +464,7 @@ async function createProduct(req, res) {
     const product = await Product.create({ ...built.payload, product_id: await nextProductId(),
       total_sold_quantity: 0, rating_avg: null, review_count: 0, createdAt: now, updatedAt: now });
     await req.writeActivityLog({ actionType: 'product.create', targetEntity: 'Products', targetId: String(product.product_id),
-      oldValue: null, newValue: { name: product.name, category: product.category, is_active: product.is_active } });
+      oldValue: null, newValue: logShape(product) });
     res.status(201).json({ data: presentProduct(product) });
   } catch (error) {
     const conflict = duplicateError(error);
@@ -475,7 +490,7 @@ async function updateProduct(req, res) {
         total_sold_quantity: 0, rating_avg: null, review_count: 0, createdAt: now, updatedAt: now });
       await ProductDraft.deleteOne({ product_id: draft.product_id });
       await req.writeActivityLog({ actionType: 'product.create', targetEntity: 'Products', targetId: String(created.product_id),
-        oldValue: null, newValue: { name: created.name, is_active: true } });
+        oldValue: null, newValue: logShape(created) });
       return res.json({ data: presentProduct(created) });
     }
     const built = buildPayload(req.body, product);
@@ -497,6 +512,7 @@ async function updateProduct(req, res) {
     const invalid = validationError(error);
     if (invalid) return res.status(400).json({ error: invalid });
     console.error('Error updating product:', error);
+    if (error.name === 'VersionError') return res.status(409).json({ error: 'Inventory changed while publishing. Reload the product and try again.' });
     res.status(500).json({ error: 'Failed to update product' });
   }
 }
@@ -562,4 +578,4 @@ async function updateStatuses(req, res) {
 
 const updateBatchExpiry = batchWriteRequiresPublish;
 
-module.exports = { listProducts, searchCompositionProducts, listDrafts, discardDraft, publishDraft, getProduct, saveDraft, listBatches, addBatch, updateBatchBestBefore, productHistory, createProduct, updateProduct, updateStatus, updateStatuses, updateBatchExpiry };
+module.exports = { reserveBatchCode, listProducts, searchCompositionProducts, listDrafts, discardDraft, publishDraft, getProduct, saveDraft, listBatches, addBatch, updateBatchBestBefore, productHistory, createProduct, updateProduct, updateStatus, updateStatuses, updateBatchExpiry };

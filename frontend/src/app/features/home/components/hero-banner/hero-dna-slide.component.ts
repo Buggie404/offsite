@@ -4,7 +4,9 @@ import {
   computed, inject, output, signal,
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
+import { AuthService } from '../../../../core/auth.service';
+import { AuthPromptModalService } from '../../../../shared/components/auth-prompt-modal/auth-prompt-modal.service';
 
 type Axis = 'brightness' | 'boldness' | 'sweetness' | 'skill' | 'tempo';
 
@@ -35,7 +37,7 @@ const SHUFFLE_MS = 720;
 @Component({
   selector: 'app-hero-dna-slide',
   standalone: true,
-  imports: [RouterLink, LucideArrowRight, LucideAsterisk, LucideCoffee, LucideFlaskConical, LucideLeaf, LucideSparkle, LucideZap],
+  imports: [LucideArrowRight, LucideAsterisk, LucideCoffee, LucideFlaskConical, LucideLeaf, LucideSparkle, LucideZap],
   templateUrl: './hero-dna-slide.component.html',
   styleUrls: ['./hero-dna-slide.component.scss'],
 })
@@ -48,6 +50,9 @@ export class HeroDnaSlideComponent implements AfterViewInit, OnChanges, OnDestro
   @ViewChild('scene') private sceneRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild('stack') private stackRef?: ElementRef<HTMLElement>;
   private readonly hostRef = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly auth = inject(AuthService);
+  private readonly authPrompt = inject(AuthPromptModalService);
+  private readonly router = inject(Router);
 
   private readonly zone = inject(NgZone);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
@@ -105,6 +110,14 @@ export class HeroDnaSlideComponent implements AfterViewInit, OnChanges, OnDestro
     this.resizeObserver?.disconnect();
     clearTimeout(this.shuffleTimer);
     clearTimeout(this.dealTimer);
+  }
+
+  openRitualDna(): void {
+    if (!this.auth.isAuthenticated()) {
+      this.authPrompt.open();
+      return;
+    }
+    void this.router.navigate(['/ritual-dna']);
   }
 
   posOf(id: string): number { return this.order().indexOf(id); }

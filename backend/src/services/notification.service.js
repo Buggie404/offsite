@@ -1,16 +1,10 @@
 const Notification = require('../models/Notification');
+const { randomUUID } = require('crypto');
 
 async function createNotification(data) {
   try {
-    const lastNotification = await Notification.findOne({}, {}, { sort: { notification_id: -1 } });
-    let nextNum = 800001;
-    if (lastNotification && lastNotification.notification_id) {
-      const match = lastNotification.notification_id.match(/NTF(\d+)/);
-      if (match) {
-        nextNum = parseInt(match[1], 10) + 1;
-      }
-    }
-    const notification_id = `NTF${String(nextNum).padStart(6, '0')}`;
+    // UUIDs avoid collisions when independent jobs notify concurrently.
+    const notification_id = `NTF${randomUUID()}`;
 
     const newNotification = new Notification({
       notification_id,
@@ -22,16 +16,37 @@ async function createNotification(data) {
       order_id: data.order_id || null,
       recipe_slug: data.recipe_slug || null,
       message: data.message || null,
+      target_type: data.target_type || null,
+      target_id: data.target_id == null ? null : String(data.target_id),
+      ...(data.event_key ? { event_key: `${data.recipient_id}:${data.event_key}` } : {}),
       comment_id: data.comment_id || null,
       comment_content: data.comment_content || null,
       is_read: false
     });
 
-    return await newNotification.save();
+    try { return await newNotification.save(); }
+    catch (error) {
+      if (error.code === 11000 && data.event_key) return null;
+      throw error;
+    }
   } catch (error) {
     console.error('Error in createNotification service:', error);
     throw error;
   }
+}
+
+// Failure must not undo a completed business action. Jobs can retry the same event key.
+async function notifyEvent(data) {
+  if (!data.recipient_id || String(data.recipient_id).startsWith('guest:')) return false;
+  try {
+    if (/^[a-f0-9]{24}$/i.test(String(data.recipient_id))) {
+      const user = await require('../models/User').findById(data.recipient_id, 'user_id').lean();
+      if (!user) return false;
+      data = { ...data, recipient_id: user.user_id };
+    }
+    await createNotification(data); return true;
+  }
+  catch (error) { console.error(`Customer notification ${data.type} failed:`, error.message); return false; }
 }
 
 // Ritual Box notifications: never fail the caller's action.
@@ -52,9 +67,9 @@ async function notifySubscription(sub, type, message) {
 
 async function getNotificationsForUser(recipient_id) {
   try {
-    return await Notification.find({ recipient_id })
+    return await Notification.find({ recipient_id, is_deleted: { $ne: true } })
       .sort({ created_at: -1 })
-      .limit(50);
+      .limit(200);
   } catch (error) {
     console.error('Error in getNotificationsForUser service:', error);
     throw error;
@@ -64,7 +79,7 @@ async function getNotificationsForUser(recipient_id) {
 async function markAsRead(notification_id, recipient_id) {
   try {
     return await Notification.findOneAndUpdate(
-      { notification_id, recipient_id },
+      { notification_id, recipient_id, is_deleted: { $ne: true } },
       { $set: { is_read: true } },
       { new: true }
     );
@@ -77,7 +92,7 @@ async function markAsRead(notification_id, recipient_id) {
 async function markAllAsRead(recipient_id) {
   try {
     return await Notification.updateMany(
-      { recipient_id, is_read: false },
+      { recipient_id, is_read: false, is_deleted: { $ne: true } },
       { $set: { is_read: true } }
     );
   } catch (error) {
@@ -88,7 +103,8 @@ async function markAllAsRead(recipient_id) {
 
 async function deleteNotification(notification_id, recipient_id) {
   try {
-    return await Notification.findOneAndDelete({ notification_id, recipient_id });
+    return await Notification.findOneAndUpdate({ notification_id, recipient_id, is_deleted: { $ne: true } },
+      { $set: { is_deleted: true, is_read: true } }, { new: true });
   } catch (error) {
     console.error('Error in deleteNotification service:', error);
     throw error;
@@ -97,7 +113,8 @@ async function deleteNotification(notification_id, recipient_id) {
 
 async function deleteAllNotificationsForUser(recipient_id) {
   try {
-    return await Notification.deleteMany({ recipient_id });
+    return await Notification.updateMany({ recipient_id, is_deleted: { $ne: true } },
+      { $set: { is_deleted: true, is_read: true } });
   } catch (error) {
     console.error('Error in deleteAllNotificationsForUser service:', error);
     throw error;
@@ -106,6 +123,7 @@ async function deleteAllNotificationsForUser(recipient_id) {
 
 module.exports = {
   createNotification,
+  notifyEvent,
   notifySubscription,
   getNotificationsForUser,
   markAsRead,

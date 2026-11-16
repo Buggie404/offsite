@@ -291,6 +291,9 @@ async function setCustomerStatus(req, res) {
     customer.suspended_by = null;
     customer.suspended_at = null;
     await customer.save();
+    await require('../services/notification.service').notifyEvent({ recipient_id: customer.user_id,
+      type: 'COMMUNITY_MODERATION', event_key: `account-unlocked:${customer.user_id}:${customer.updatedAt?.getTime()}`,
+      message: 'Your account access has been restored.' });
 
     await req.writeActivityLog({
       actionType: 'user.unsuspend', targetEntity: 'user', targetId: customer.user_id,

@@ -19,6 +19,9 @@ async function closeResolvedChat(chat, { outcome = 'resolved', summary = '', act
       }], { session: transaction });
       if (closed.ai_session_id) await AiChatSession.updateOne({ session_id: closed.ai_session_id }, { $set: { status: 'ai_active', assigned_admin_id: null, support_reopen_until: new Date(now.getTime() + REOPEN_MS) } }, { session: transaction });
     });
+    await require('./notification.service').notifyEvent({ recipient_id: closed.customer_id,
+      type: 'SUPPORT_CLOSED', target_type: 'support', target_id: closed.ai_session_id || null,
+      event_key: `support-closed:${closed.conversation_id}`, message: 'Your support conversation has been closed. Open your chat history to review it.' });
     return closed;
   } finally { await transaction.endSession(); }
 }

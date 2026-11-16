@@ -174,11 +174,15 @@
 
           <!-- Filter tabs -->
           <div class="notification-tabs">
-            <button class="notif-tab" [class.active]="activeNotificationTab() === 'ALL'" (click)="setNotificationTab('ALL')">ALL</button>
-            <button class="notif-tab" [class.active]="activeNotificationTab() === 'ORDERS'" (click)="setNotificationTab('ORDERS')">ORDERS</button>
-            <button class="notif-tab" [class.active]="activeNotificationTab() === 'COMMUNITY'" (click)="setNotificationTab('COMMUNITY')">COMMUNITY</button>
-            <button class="notif-tab" [class.active]="activeNotificationTab() === 'RITUAL_BOX'" (click)="setNotificationTab('RITUAL_BOX')">RITUAL BOX</button>
-            <button class="notif-tab" [class.active]="activeNotificationTab() === 'PANTRY'" (click)="setNotificationTab('PANTRY')">PANTRY</button>
+            @for (tab of notificationTabs; track tab.key) {
+              <button type="button" class="notif-tab" [class.active]="activeNotificationTab() === tab.key"
+                      [attr.aria-pressed]="activeNotificationTab() === tab.key" (click)="setNotificationTab(tab.key)">
+                {{ tab.label }}
+                @if (getUnreadNotificationCount(tab.key); as count) {
+                  <span class="notif-tab__count" [attr.aria-label]="count + ' unread notifications'">{{ count }}</span>
+                }
+              </button>
+            }
           </div>
 
           <div class="notification-list">
@@ -187,43 +191,79 @@
                  [class.unread]="!item.is_read"
                  (click)="onNotificationClick(item, $event)">
 
-              <!-- Category icon (replaces sender avatar) -->
+              @if (usesSenderAvatar(item)) {
+                <div class="notification-avatar-wrapper">
+                  @if (notificationAvatarUrl(item); as avatarUrl) {
+                    <img class="notification-avatar" [src]="avatarUrl" [alt]="item.sender?.username || 'Member'"
+                         loading="lazy" (error)="onNotificationAvatarError(avatarUrl)">
+                  } @else {
+                    <span class="notification-avatar-default" [attr.aria-label]="item.sender?.username || 'Member'">
+                      {{ notificationSenderInitials(item) }}
+                    </span>
+                  }
+                </div>
+              } @else {
+              <!-- System notifications keep their event icon. -->
               <div class="notif-icon-circle" [ngClass]="getNotificationIconBgClass(item.type)">
                 <ng-container [ngSwitch]="item.type">
+                  <svg *ngSwitchCase="'FOLLOW_RECEIVED'" lucideUserPlus [size]="15"></svg>
+                  <svg *ngSwitchCase="'COMMUNITY_CONTENT_HIDDEN'" lucideFlag [size]="15"></svg>
+                  <svg *ngSwitchCase="'COMMUNITY_CONTENT_RESTORED'" lucideShieldCheck [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_STARTED'" lucideRepeat [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_UPDATED'" lucideFilePenLine [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_CHARGED'" lucideCreditCard [size]="15"></svg>
+                  <svg *ngSwitchCase="'CONSUMPTION_REMINDER'" lucidePackage [size]="15"></svg>
+                  <svg *ngSwitchCase="'POINTS_PENDING'" lucideHourglass [size]="15"></svg>
+                  <svg *ngSwitchCase="'POINTS_POSTED'" lucideAward [size]="15"></svg>
+                  <svg *ngSwitchCase="'POINTS_REVERSED'" lucideRefreshCw [size]="15"></svg>
+                  <svg *ngSwitchCase="'POINTS_USED'" lucideTicket [size]="15"></svg>
+                  <svg *ngSwitchCase="'MEMBERSHIP_CHANGED'" lucideAward [size]="15"></svg>
+                  <svg *ngSwitchCase="'VOUCHER_RECEIVED'" lucideTicket [size]="15"></svg>
+                  <svg *ngSwitchCase="'VOUCHER_EXPIRING'" lucideCalendarClock [size]="15"></svg>
+                  <svg *ngSwitchCase="'VOUCHER_EXPIRED'" lucideTicket [size]="15"></svg>
+                  <svg *ngSwitchCase="'VOUCHER_WITHDRAWN'" lucideTicket [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUPPORT_REPLY'" lucideMessageSquare [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUPPORT_CLOSED'" lucideCheckCheck [size]="15"></svg>
+                  <svg *ngSwitchCase="'CONTACT_STATUS'" lucideMessageSquare [size]="15"></svg>
+                  <svg *ngSwitchCase="'RITUAL_DNA_CHANGED'" lucideSparkles [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_DELIVERED'" lucidePackage [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_CONFIRMED'" lucideCheckCheck [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_PAYMENT_FAILED'" lucideCreditCard [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_CUSTOMER_CANCELED'" lucideX [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_PLACED'"    lucidePackage       [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_SHIPPING'"  lucideTruck         [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_CANCELED'"  lucideX             [size]="15"></svg>
-                  <svg *ngSwitchCase="'ORDER_DELIVERY_FAILED'" lucideTruck   [size]="15"></svg>
-                  <svg *ngSwitchCase="'ORDER_REDELIVERY_REMINDER'" lucideTruck [size]="15"></svg>
-                  <svg *ngSwitchCase="'ORDER_REDELIVERY_EXPIRED'" lucideTruck  [size]="15"></svg>
-                  <svg *ngSwitchCase="'ORDER_REFUND_PAID'" lucidePackage       [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_DELIVERY_FAILED'" lucideCircleAlert [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_REDELIVERY_REMINDER'" lucideCalendarClock [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_REDELIVERY_EXPIRED'" lucidePackageX [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_REFUND_PAID'" lucideBanknote [size]="15"></svg>
                   <svg *ngSwitchCase="'ORDER_CANCELED_BY_STORE'" lucideX     [size]="15"></svg>
-                  <svg *ngSwitchCase="'ORDER_ITEM_OUT_OF_STOCK'" lucidePackage [size]="15"></svg>
-                  <svg *ngSwitchCase="'ORDER_ITEMS_UPDATED'" lucidePackage   [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_ITEM_OUT_OF_STOCK'" lucidePackageX [size]="15"></svg>
+                  <svg *ngSwitchCase="'ORDER_ITEMS_UPDATED'" lucideFilePenLine [size]="15"></svg>
                   <svg *ngSwitchCase="'REFUND_REQUESTED'" lucideRefreshCw    [size]="15"></svg>
                   <svg *ngSwitchCase="'REFUND_APPROVED'" lucideCheckCheck    [size]="15"></svg>
                   <svg *ngSwitchCase="'REFUND_REJECTED'" lucideX             [size]="15"></svg>
-                  <svg *ngSwitchCase="'SUBSCRIPTION_PAUSED'"    lucideRepeat [size]="15"></svg>
-                  <svg *ngSwitchCase="'SUBSCRIPTION_RESUMED'"   lucideRepeat [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_PAUSED'"    lucidePause [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_RESUMED'"   lucidePlay [size]="15"></svg>
                   <svg *ngSwitchCase="'SUBSCRIPTION_CANCELLED'" lucideX      [size]="15"></svg>
-                  <svg *ngSwitchCase="'SUBSCRIPTION_UPCOMING'"       lucideRepeat [size]="15"></svg>
-                  <svg *ngSwitchCase="'SUBSCRIPTION_PAYMENT_FAILED'" lucideInfo   [size]="15"></svg>
-                  <svg *ngSwitchCase="'SUBSCRIPTION_SUSPENDED'"      lucideX      [size]="15"></svg>
-                  <svg *ngSwitchCase="'SUBSCRIPTION_OUT_OF_STOCK'"   lucideInfo   [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_UPCOMING'"       lucideCalendarClock [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_PAYMENT_FAILED'" lucideCreditCard [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_SUSPENDED'"      lucideCircleAlert [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_OUT_OF_STOCK'"   lucidePackageX [size]="15"></svg>
                   <svg *ngSwitchCase="'SUBSCRIPTION_SKIPPED'"        lucideArrowRight [size]="15"></svg>
-                  <svg *ngSwitchCase="'SUBSCRIPTION_PROPOSAL'"       lucideRepeat [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_PROPOSAL'"       lucideFilePenLine [size]="15"></svg>
                   <svg *ngSwitchCase="'SUBSCRIPTION_PROPOSAL_WITHDRAWN'" lucideX  [size]="15"></svg>
-                  <svg *ngSwitchCase="'SUBSCRIPTION_NOT_STARTED'"    lucideInfo   [size]="15"></svg>
-                  <svg *ngSwitchCase="'SUBSCRIPTION_ADJUSTED'"       lucideRepeat [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_NOT_STARTED'"    lucideCircleAlert [size]="15"></svg>
+                  <svg *ngSwitchCase="'SUBSCRIPTION_ADJUSTED'"       lucideCalendarClock [size]="15"></svg>
                   <svg *ngSwitchCase="'PANTRY_EXPIRY_SOON'" lucideHourglass [size]="15"></svg>
-                  <svg *ngSwitchCase="'PANTRY_EXPIRED'"     lucideHourglass [size]="15"></svg>
+                  <svg *ngSwitchCase="'PANTRY_EXPIRED'"     lucideCircleAlert [size]="15"></svg>
                   <svg *ngSwitchCase="'PANTRY_ITEM_ADDED'"  lucidePackage   [size]="15"></svg>
-                  <svg *ngSwitchCase="'COMMUNITY_MODERATION'" lucideInfo [size]="15"></svg>
-                  <svg *ngSwitchCase="'COMMUNITY_REPORT_RESOLVED'" lucideCheckCheck [size]="15"></svg>
-                  <svg *ngSwitchCase="'RECIPE_PUBLISHED'" lucideArrowRight [size]="15"></svg>
-                  <svg *ngSwitchCase="'RECIPE_MODERATION'" lucideInfo [size]="15"></svg>
+                  <svg *ngSwitchCase="'COMMUNITY_MODERATION'" lucideFlag [size]="15"></svg>
+                  <svg *ngSwitchCase="'COMMUNITY_REPORT_RESOLVED'" lucideShieldCheck [size]="15"></svg>
+                  <svg *ngSwitchCase="'RECIPE_PUBLISHED'" lucideChefHat [size]="15"></svg>
+                  <svg *ngSwitchCase="'RECIPE_MODERATION'" lucideFilePenLine [size]="15"></svg>
                   <svg *ngSwitchCase="'RECIPE_SAVED'" lucideHeart [size]="15"></svg>
-                  <svg *ngSwitchCase="'POST_CREATED'"    lucideArrowRight    [size]="15"></svg>
+                  <svg *ngSwitchCase="'POST_CREATED'"    lucideFilePenLine [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_LIKED'"      lucideHeart         [size]="15"></svg>
                   <svg *ngSwitchCase="'POST_COMMENTED'"  lucideMessageSquare [size]="15"></svg>
                   <svg *ngSwitchCase="'COMMENT_REPLIED'" lucideMessageSquare [size]="15"></svg>
@@ -231,7 +271,7 @@
                   <svg *ngSwitchDefault                  lucideBell          [size]="15"></svg>
                 </ng-container>
               </div>
-
+              }
               <div class="notification-content">
                 <p class="notification-message">
                   <span *ngIf="item.sender && item.type !== 'POST_CREATED'" class="sender-name">{{ item.sender?.username }} </span>
@@ -275,6 +315,7 @@
                       <span *ngSwitchCase="'RECIPE_PUBLISHED'">{{ item.message || 'Your recipe is now on the Recipes page.' }}</span>
                       <span *ngSwitchCase="'RECIPE_MODERATION'">{{ item.message || 'Update on your recipe on the Recipes page.' }}</span>
                       <span *ngSwitchCase="'RECIPE_SAVED'">saved your recipe.</span>
+                      <span *ngSwitchDefault>{{ item.message || item.comment_content || 'You have a new update from Offsite.' }}</span>
                     </ng-container>
                   </span>
                 </p>

@@ -210,6 +210,9 @@ async function applyCustomerTransition(order, action, changes, note) {
     }
   }
   if (updated && changes.order_status === 'processing' && updated.user_id) {
+    if (!updated.is_guest) await require('../services/notification.service').notifyEvent({ recipient_id: updated.user_id,
+      type: 'ORDER_CONFIRMED', event_key: `confirmed:${updated.order_id}`, target_type: 'order', target_id: updated.order_id,
+      message: `Order ${updated.order_id} has been confirmed and is being prepared.` });
     try {
       await pointsService.awardPurchasePoints(updated);
     } catch (err) {
@@ -890,6 +893,9 @@ async function cancelPendingOrder(req, res) {
     order._changedBy = order.is_guest ? 'guest' : order.user_id;
     order._statusChangeNote = 'Order canceled by customer';
     await order.save();
+    if (!order.is_guest) await require('../services/notification.service').notifyEvent({ recipient_id: order.user_id,
+      type: 'ORDER_CUSTOMER_CANCELED', event_key: `customer-canceled:${order.order_id}`,
+      target_type: 'order', target_id: order.order_id, message: `Order ${order.order_id} was canceled at your request.` });
     socketService.emitOrderUpdated(order, 'status_change');
 
     res.json({
@@ -943,6 +949,9 @@ async function failPayment(req, res) {
     }
     socketService.emitOrderUpdated(updated, 'status_change');
 
+    if (!updated.is_guest) await require('../services/notification.service').notifyEvent({ recipient_id: updated.user_id,
+      type: 'ORDER_PAYMENT_FAILED', event_key: `payment-failed:${updated.order_id}:${updated.updated_at?.getTime()}`,
+      target_type: 'order', target_id: updated.order_id, message: `Payment for order ${updated.order_id} failed. Open the order to check your payment options.` });
     res.json({
       message: 'Order payment status updated to failed',
       data: updated
@@ -960,7 +969,7 @@ async function subtractUnreservedStock(order) {
   for (const item of order.items) {
     await Product.updateOne(
       { _id: item.product_id, 'variants.sku': item.variant_id },
-      { $inc: { 'variants.$.stock': -item.quantity } }
+      { $inc: { 'variants.$.stock': -item.quantity, 'variants.$.inventory_revision': 1, __v: 1 } }
     );
   }
 }

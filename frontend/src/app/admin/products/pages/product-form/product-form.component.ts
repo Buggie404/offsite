@@ -82,6 +82,7 @@ export class ProductFormComponent implements OnInit {
   batchPendingDelete: ProductBatch | null = null;
   batchEditingId: string | null = null;
   private nextBatchKey = 0;
+  batchCodeLoading = false;
   history: ProductHistoryEntry[] = [];
   addingBatch = false;
   batchError = '';
@@ -341,14 +342,22 @@ export class ProductFormComponent implements OnInit {
   }
 
   addBatchRow(): void {
-    if (this.addingBatch || this.batchesLoading || this.batchesLoadFailed || this.saving) return;
+    if (this.batchCodeLoading || this.addingBatch || this.batchesLoading || this.batchesLoadFailed || this.saving) return;
     const variants = this.batchVariantOptions;
     if (!variants.length) { this.batchError = 'Enter a variant SKU before adding a batch.'; return; }
-    this.batchEditingId = null;
-    this.batchDraft = { batch_code: '', variant_sku: (variants.find(variant => variant.is_default) || variants[0])?.sku || '', quantity: 1,
-      received_at: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date()), best_before: null };
+    this.batchCodeLoading = true;
     this.batchError = '';
-    this.addingBatch = true;
+    this.productsApi.reserveBatchCode().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: ({ data }) => {
+        this.batchCodeLoading = false;
+        this.batchEditingId = null;
+        this.batchDraft = { batch_code: data.batch_code, variant_sku: (variants.find(variant => variant.is_default) || variants[0]).sku,
+          quantity: 1, received_at: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date()), best_before: null };
+        this.addingBatch = true;
+        this.cdr.markForCheck();
+      },
+      error: () => { this.batchCodeLoading = false; this.batchError = 'Could not generate a batch code. Please try Add batch again.'; this.cdr.markForCheck(); }
+    });
   }
   cancelBatchRow(): void { if (!this.saving) { this.addingBatch = false; this.batchEditingId = null; this.batchError = ''; } }
   get batchVariantOptions(): VariantForm[] { return this.form.variants.filter(variant => !!variant.sku.trim()); }
@@ -381,6 +390,12 @@ export class ProductFormComponent implements OnInit {
       const previous = this.batches.find(row => row._id === id);
       if (operation.id && operation.expected) rememberOriginal(operation.id, operation.expected);
       const row = { ...previous, ...this.batchValues(operation), _id: id, product_id: this.product?.product_id || 0, added_by_name: previous?.added_by_name || '—' };
+      if (!operation.id && !row.batch_code) {
+        this.productsApi.reserveBatchCode().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+          next: ({ data }) => { row.batch_code = data.batch_code; this.cdr.markForCheck(); },
+          error: () => { this.batchError = 'Could not generate the draft batch code. Reload before saving.'; this.cdr.markForCheck(); }
+        });
+      }
       const index = this.batches.findIndex(row => row._id === id);
       if (index >= 0) this.batches[index] = row;
       else this.batches.push(row);
@@ -398,6 +413,19 @@ export class ProductFormComponent implements OnInit {
     return { upserts, deletes: this.publishedBatches.filter(row => !ids.has(row._id)).map(row => ({ id: row._id, expected: this.batchValues(row) })) };
   }
   get pendingBatchCount(): number { const changes = this.pendingBatchChanges; return changes.upserts.length + changes.deletes.length; }
+  stockAfterPublish(variant: VariantForm): number {
+    let stock = variant.stock;
+    const changes = this.pendingBatchChanges;
+    for (const change of [...changes.upserts.filter(row => row.id), ...changes.deletes]) {
+      const original = this.publishedBatches.find(row => row._id === change.id);
+      if (original?.stock_applied && original.variant_sku === variant.sku) stock -= original.quantity;
+    }
+    for (const change of changes.upserts) {
+      const original = this.publishedBatches.find(row => row._id === change.id);
+      if ((!change.id || original?.stock_applied) && change.variant_sku === variant.sku) stock += change.quantity;
+    }
+    return stock;
+  }
   editBatch(row: ProductBatch): void {
     if (this.addingBatch || this.saving || this.batchesLoading) return;
     this.batchEditingId = row._id;
@@ -408,14 +436,14 @@ export class ProductFormComponent implements OnInit {
   confirmBatchRow(): boolean {
     if (!this.addingBatch || this.saving) return false;
     const draft = this.batchDraft;
-    if (!draft.batch_code.trim() || !this.hasBatchSku(draft.variant_sku)
+    if (!this.hasBatchSku(draft.variant_sku)
       || !Number.isSafeInteger(draft.quantity) || draft.quantity < 1 || !isProductDate(draft.received_at)
       || (draft.best_before && !isProductDate(draft.best_before))
       || (draft.best_before && draft.best_before < draft.received_at)) {
-      this.batchError = 'Enter a batch code, valid SKU, positive quantity and dates. Best before cannot precede received date.';
+      this.batchError = 'Enter a valid SKU, positive quantity and dates. Best before cannot precede received date.';
       return false;
     }
-    if (this.batches.some(row => row._id !== this.batchEditingId && row.batch_code === draft.batch_code.trim())) {
+    if (draft.batch_code && this.batches.some(row => row._id !== this.batchEditingId && row.batch_code === draft.batch_code.trim())) {
       this.batchError = 'Batch code already exists in this product.'; return false;
     }
     if (this.batchEditingId) {
@@ -593,6 +621,7 @@ export class ProductFormComponent implements OnInit {
   private validate(): string {
     if (!this.form.name.trim()) return 'Product name is required.';
     if (!this.form.slug.trim()) return 'Slug is required.';
+    if (this.batchCodeLoading || this.batches.some(row => !row.batch_code)) return 'Wait for batch codes to load before saving.';
     if (this.batchesLoading || this.batchesLoadFailed) return 'Wait for batch records to load, or reload the editor before saving.';
     if (this.batches.some(row => !this.hasBatchSku(row.variant_sku))) return 'A batch refers to a removed variant. Edit or remove that batch before saving.';
     if (this.form.category === 'sets_bundles' && !this.setBundle.is_exclusive && this.compositionEntries.some(entry => this.compositionQuantityError(entry))) return 'Composition quantities must be whole numbers of at least 1.';

@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import type { RitualResult } from '../../../features/ritual-dna/pages/ritual-dna-quiz/ritual-dna-quiz.component';
 
 export type DnaAxis = 'brightness' | 'boldness' | 'sweetness' | 'skill' | 'tempo';
 export type DnaRadar = Record<DnaAxis, number>;
@@ -48,15 +49,6 @@ export interface AdminRitualOverview {
   versions: { version: string; question_count: number; active_question_count: number; member_count: number }[];
   active_quiz: { version: string | null; questions: AdminRitualQuestion[] };
   archetypes: AdminRitualArchetype[];
-  behavior_rules: {
-    version: string;
-    evidence_target: number;
-    max_behavior_share: number;
-    archetype_margin: number;
-    archetype_cooldown_days: number;
-    save_daily_cap: number;
-    events: { key: string; label: string; weight: number; daily_cap: number | null }[];
-  };
 }
 
 export interface AdminQuizRelease {
@@ -149,6 +141,12 @@ export class AdminRitualDnaService {
 
   overview(): Observable<{ data: AdminRitualOverview }> {
     return this.http.get<{ data: AdminRitualOverview }>('/api/admin/ritual-dna/overview');
+  }
+
+  previewCustomerQuiz(quizVersion: number, archetypeVersion: number,
+    answers: { question_id: string; option_ids: string[] }[]): Observable<{ data: RitualResult }> {
+    return this.http.post<{ data: RitualResult }>('/api/admin/ritual-dna/customer-preview',
+      { quiz_version: quizVersion, archetype_version: archetypeVersion, answers });
   }
 
   createQuizDraft(sourceVersion?: number): Observable<{ data: AdminQuizRelease }> {

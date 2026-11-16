@@ -89,6 +89,11 @@ async function updateContactMessage(req, res) {
       oldValue: { status: before.status, internal_note: before.internal_note },
       newValue: { status: after.status, internal_note: after.internal_note }
     });
+    if (before.status !== after.status && after.user_id) await require('../services/notification.service').notifyEvent({
+      recipient_id: after.user_id, type: 'CONTACT_STATUS', event_key: `contact:${after.contact_id}:${after.status}`,
+      target_type: 'contact', target_id: after.contact_id,
+      message: `Your contact request status is now ${after.status.replace('_', ' ')}.`
+    });
     res.json({ data: snap(after) });
   } catch (error) {
     console.error('Error updating contact message:', error);

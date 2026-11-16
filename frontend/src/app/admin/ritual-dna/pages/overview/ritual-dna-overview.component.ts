@@ -2,17 +2,19 @@ import { LucideArrowDown, LucideArrowUp, LucideAsterisk, LucideSparkle, LucideTr
 import { Component, HostListener, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
 import {
   AdminArchetypeRelease, AdminRitualArchetype, AdminRitualDnaService, AdminRitualOverview, AdminSignatureImpact,
   AdminRitualOption, AdminRitualQuestion, AdminQuizRelease, AdminQuizSimulation, DnaAxis, DnaRadar
 } from '../../services/admin-ritual-dna.service';
 import { RitualDnaCustomersComponent } from '../customers/ritual-dna-customers.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { RitualDnaQuizComponent, RitualDnaPreviewConfig } from '../../../../features/ritual-dna/pages/ritual-dna-quiz/ritual-dna-quiz.component';
 
 @Component({
   selector: 'app-admin-ritual-dna-overview',
   standalone: true,
-  imports: [LucideArrowDown, LucideArrowUp, LucideAsterisk, LucideSparkle, LucideTriangleAlert, LucideX,NgTemplateOutlet, RitualDnaCustomersComponent],
+  imports: [LucideArrowDown, LucideArrowUp, LucideAsterisk, LucideSparkle, LucideTriangleAlert, LucideX, NgTemplateOutlet, RitualDnaCustomersComponent, RitualDnaQuizComponent],
   templateUrl: './ritual-dna-overview.component.html',
   styleUrl: './ritual-dna-overview.component.scss'
 })
@@ -23,10 +25,7 @@ export class RitualDnaOverviewComponent implements OnInit {
   readonly loading = signal(true);
   readonly error = signal('');
   readonly overview = signal<AdminRitualOverview | null>(null);
-  readonly tab = signal<'archetypes' | 'quiz' | 'evolution' | 'customers'>('archetypes');
-  readonly exampleEvent = signal('order');
-  readonly exampleBaseline = signal(40);
-  readonly exampleTarget = signal(80);
+  readonly tab = signal<'archetypes' | 'quiz' | 'customers'>('archetypes');
   readonly selectedArchetypeId = signal<string | null>(null);
   readonly archetypeModalOpen = signal(false);
   readonly archetypeDraft = signal<AdminRitualArchetype[] | null>(null);
@@ -45,6 +44,10 @@ export class RitualDnaOverviewComponent implements OnInit {
   readonly quizBusy = signal(false);
   readonly quizTestAnswers = signal<Record<string, string[]>>({});
   readonly quizSimulation = signal<AdminQuizSimulation | null>(null);
+  readonly previewOpen = signal(false);
+  readonly previewQuizVersion = signal<number | null>(null);
+  readonly previewArchetypeVersion = signal<number | null>(null);
+  readonly previewConfig = signal<RitualDnaPreviewConfig | null>(null);
   readonly axes: { key: DnaAxis; label: string; short: string }[] = [
     { key: 'brightness', label: 'Brightness', short: 'BRI' },
     { key: 'boldness', label: 'Boldness', short: 'BOL' },
@@ -122,7 +125,57 @@ export class RitualDnaOverviewComponent implements OnInit {
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    if (this.archetypeModalOpen()) this.closeArchetypeModal();
+    if (this.previewOpen()) this.closeCustomerPreview();
+    else if (this.archetypeModalOpen()) this.closeArchetypeModal();
+  }
+
+  openCustomerPreview(): void {
+    const data = this.overview();
+    if (!data) return;
+    const activeQuiz = data.quiz_releases.find(row => row.status === 'active');
+    const activeArchetypes = data.archetype_releases.find(row => row.status === 'active');
+    const quizVersion = this.tab() === 'quiz' ? this.selectedQuizVersion() : activeQuiz?.version;
+    const archetypeVersion = this.tab() === 'archetypes' ? this.selectedReleaseVersion() : activeArchetypes?.version;
+    if (!quizVersion || !archetypeVersion) return;
+    this.previewQuizVersion.set(quizVersion);
+    this.previewArchetypeVersion.set(archetypeVersion);
+    this.updatePreviewConfig();
+    this.previewOpen.set(true);
+  }
+
+  changePreviewVersion(kind: 'quiz' | 'archetypes', event: Event): void {
+    const version = Number((event.target as HTMLSelectElement).value);
+    if (!Number.isSafeInteger(version)) return;
+    if (kind === 'quiz') this.previewQuizVersion.set(version);
+    else this.previewArchetypeVersion.set(version);
+    this.updatePreviewConfig();
+  }
+
+  closeCustomerPreview(): void {
+    this.previewOpen.set(false);
+    this.previewConfig.set(null);
+    this.load(this.selectedReleaseVersion() || undefined, this.selectedQuizVersion() || undefined);
+  }
+
+  private updatePreviewConfig(): void {
+    const data = this.overview();
+    const quizVersion = this.previewQuizVersion();
+    const archetypeVersion = this.previewArchetypeVersion();
+    const quiz = data?.quiz_releases.find(row => row.version === quizVersion);
+    const archetype = data?.archetype_releases.find(row => row.version === archetypeVersion);
+    if (!quiz || !archetype) { this.previewConfig.set(null); return; }
+    this.previewConfig.set({
+      quizVersion: quiz.version,
+      archetypeVersion: archetype.version,
+      questions: quiz.questions.map(row => ({
+        question_id: row.question_id, code: row.code, question: row.question,
+        selection_limit: row.selection_limit,
+        options: row.options.map(option => ({ option_id: option.option_id, text: option.text,
+          hint: option.hint, icon: '' }))
+      })),
+      submit: answers => firstValueFrom(this.api.previewCustomerQuiz(quiz.version, archetype.version, answers))
+        .then(response => response.data)
+    });
   }
 
   private releaseAction(request: import('rxjs').Observable<unknown>, success: string): void {
@@ -484,26 +537,6 @@ export class RitualDnaOverviewComponent implements OnInit {
   get completionPercent(): number {
     const summary = this.overview()?.summary;
     return summary?.total_customers ? Math.round(summary.profiles / summary.total_customers * 100) : 0;
-  }
-
-  setExampleScore(field: 'baseline' | 'target', event: Event): void {
-    const value = Number((event.target as HTMLInputElement).value);
-    const score = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
-    if (field === 'baseline') this.exampleBaseline.set(score);
-    else this.exampleTarget.set(score);
-  }
-
-  get exampleWeight(): number {
-    return this.overview()?.behavior_rules.events.find(row => row.key === this.exampleEvent())?.weight || 0;
-  }
-
-  get exampleShare(): number {
-    const rules = this.overview()?.behavior_rules;
-    return rules ? rules.max_behavior_share * Math.min(this.exampleWeight / rules.evidence_target, 1) : 0;
-  }
-
-  get exampleResult(): number {
-    return Math.round(this.exampleBaseline() * (1 - this.exampleShare) + this.exampleTarget() * this.exampleShare);
   }
 
   radarPoints(radar: DnaRadar | null | undefined): string {

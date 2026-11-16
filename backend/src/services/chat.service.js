@@ -62,6 +62,11 @@ async function appendMessage(conversation, { sender_type, sender_id = null, cont
       }
     });
   } finally { await session.endSession(); }
+  if (sender_type === 'agent') await require('./notification.service').notifyEvent({
+    recipient_id: conversation.customer_id, type: 'SUPPORT_REPLY',
+    event_key: `support:${message._id}`, target_type: 'support', target_id: conversation.ai_session_id || null,
+    message: 'Our support team replied to your conversation.'
+  });
   return message;
 }
 

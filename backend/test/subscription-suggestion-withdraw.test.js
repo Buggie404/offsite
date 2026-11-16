@@ -65,7 +65,7 @@ function fixture() {
   const service = load('../src/services/subscription.service.js', {
     '../models/Subscription': Subscription,
     '../models/User': { findOne: () => ({ lean: async () => ({ payment_methods: [] }) }) },
-    './notification.service': { notifySubscription: async (sub, type, message) => notifications.push({ type, sub: sub.subscription_id, message }) }
+    './notification.service': { notifyEvent: async () => true, notifySubscription: async (sub, type, message) => notifications.push({ type, sub: sub.subscription_id, message }) }
   });
 
   const now = Date.now();
