@@ -1,0 +1,20 @@
+ :host { display: contents; }
+dialog { box-sizing: border-box; position: fixed; inset: 0; margin: auto; width: min(420px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--divider-color); border-radius: 16px; background: var(--color-cream); color: var(--color-near-black); font-family: var(--font-body); overflow-y: auto; box-shadow: 0 24px 80px #1a1a1a33; }
+dialog::backdrop { background: #1a1a1a80; backdrop-filter: blur(3px); }
+.close { position: absolute; z-index: 1; right: 14px; top: 14px; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--divider-color); border-radius: 50%; color: var(--color-forest-green); background: var(--color-cream); cursor: pointer; }
+.illustration { position: relative; height: 160px; overflow: hidden; background: var(--color-sage); background-image: radial-gradient(#3755341a 1px, transparent 1px); background-size: 16px 16px; }
+.orbit { position: absolute; width: 142px; height: 142px; border: 1px solid #37553430; border-radius: 50%; left: 50%; top: 7px; transform: translateX(-50%); background: #faf0eb55; }
+.product { position: absolute; object-fit: contain; filter: drop-shadow(0 8px 8px #37553422); }
+.product--matcha { height: 112px; width: 98px; left: calc(50% - 100px); top: 17px; transform: rotate(-12deg); }
+.product--cup { height: 94px; width: 94px; left: calc(50% - 4px); top: 44px; transform: rotate(10deg); }
+.spark { position: absolute; left: calc(50% + 76px); top: 34px; color: var(--color-forest-green); }
+.art-caption { position: absolute; bottom: 15px; width: 100%; text-align: center; font-family: var(--font-mono); font-size: 9px; letter-spacing: .09em; color: var(--color-forest-green); }
+.content { padding: 24px 28px 20px; text-align: center; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; color: var(--color-forest-green); }
+h2 { margin: 12px 0 16px; font-family: var(--font-display); font-size: 30px; font-weight: 400; line-height: 1.15; letter-spacing: -.02em; }
+p { margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: var(--color-warm-brown); }
+.quiz-cta { display: flex; justify-content: center; align-items: center; gap: 12px; min-height: 48px; border-radius: 4px; background: var(--color-forest-green); color: var(--color-cream); text-decoration: none; font-size: 14px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
+.quiz-cta:hover { background: var(--color-forest-green-hover); }
+.keep-exploring { margin-top: 12px; padding: 8px 16px; border: 0; background: transparent; font: inherit; font-size: 13px; color: var(--color-warm-brown); text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+:where(button,a):focus-visible { outline: 2px solid var(--color-forest-green); outline-offset: 4px; }
+@media(max-width: 480px) { .content { padding: 24px; } h2 { font-size: 30px; } .illustration { height: 150px; } }

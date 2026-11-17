@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnInit, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
+import { BundleQuizPromptComponent } from './bundle-quiz-prompt.component';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { PLATFORM_ID } from '@angular/core';
 import { LucideChevronDown, LucidePlus, LucideX, LucideShoppingCart } from '@lucide/angular';
@@ -83,12 +84,12 @@ const DRINKWARE_PLACEHOLDER = 'assets/images/build-bundle/drinkware.png';
 @Component({
   selector: 'app-build-your-bundle',
   standalone: true,
-  imports: [CommonModule, LucideChevronDown, LucidePlus, LucideX, LucideShoppingCart, ProductCardComponent],
+  imports: [CommonModule, LucideChevronDown, LucidePlus, LucideX, LucideShoppingCart, ProductCardComponent, BundleQuizPromptComponent],
   templateUrl: './build-your-bundle.component.html',
   styleUrl: './build-your-bundle.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class BuildYourBundleComponent implements OnInit {
+export class BuildYourBundleComponent implements OnInit, OnDestroy {
   private readonly productService = inject(ProductService);
   private readonly cartService = inject(CartService);
   private readonly authService = inject(AuthService);
@@ -100,6 +101,10 @@ export class BuildYourBundleComponent implements OnInit {
   @ViewChild('productBrowser') productBrowserRef?: ElementRef<HTMLElement>;
 
   private pendingSlotRestore: Partial<Record<SlotKey, PersistedSlotSelection>> | null = null;
+
+  readonly showQuizPrompt = signal(false);
+  private quizPromptTimer: ReturnType<typeof setTimeout> | undefined;
+  private hasChosenProduct = false;
 
   savedProductIds = new Set<number>();
 
@@ -224,7 +229,17 @@ export class BuildYourBundleComponent implements OnInit {
       this.restoreBuilderState();
       this.loadProducts();
       void this.loadSavedProducts();
+      this.quizPromptTimer = setTimeout(() => {
+        if (!this.hasChosenProduct && !Object.values(this.slotSelections()).some(Boolean)
+            && !Object.values(this.pendingSlotRestore ?? {}).some(Boolean)) {
+          this.showQuizPrompt.set(true);
+        }
+      }, 15_000);
     }
+  }
+
+  ngOnDestroy(): void {
+    clearTimeout(this.quizPromptTimer);
   }
 
   isProductSaved(product: Product): boolean {
@@ -661,6 +676,11 @@ export class BuildYourBundleComponent implements OnInit {
     updater: (selections: Partial<Record<SlotKey, SlotSelection>>) => Partial<Record<SlotKey, SlotSelection>>
   ): void {
     this.slotSelections.update(updater);
+    if (Object.values(this.slotSelections()).some(Boolean)) {
+      this.hasChosenProduct = true;
+      clearTimeout(this.quizPromptTimer);
+      this.showQuizPrompt.set(false);
+    }
     this.persistBuilderState();
     this.cdr.markForCheck();
   }

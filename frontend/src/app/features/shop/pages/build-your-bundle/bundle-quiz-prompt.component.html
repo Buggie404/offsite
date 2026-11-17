@@ -1,0 +1,18 @@
+<dialog #dialog aria-labelledby="bundle-quiz-title" aria-describedby="bundle-quiz-description"
+  (cancel)="$event.preventDefault(); close()" (click)="onBackdrop($event)">
+  <button class="close" type="button" aria-label="Close quiz suggestion" (click)="close()"><svg lucideX [size]="20"></svg></button>
+  <div class="illustration" aria-hidden="true">
+    <span class="orbit"></span>
+    <img class="product product--matcha" src="assets/images/build-bundle/package.png" alt="" />
+    <img class="product product--cup" src="assets/images/build-bundle/drinkware.png" alt="" />
+    <span class="spark"><svg lucideSparkles [size]="22"></svg></span>
+    <span class="art-caption">A LITTLE GUIDANCE. YOUR KIND OF RITUAL.</span>
+  </div>
+  <div class="content">
+    <span class="eyebrow">LET’S FIND YOUR MATCH</span>
+    <h2 id="bundle-quiz-title">Not sure where<br />to start?</h2>
+    <p id="bundle-quiz-description">Your next favorite ritual is out there. Take our starter quiz to discover products that fit your taste and routine.</p>
+    <a class="quiz-cta" routerLink="/starter-quiz">Take the quiz <svg lucideArrowRight [size]="18" aria-hidden="true"></svg></a>
+    <button class="keep-exploring" type="button" (click)="close()">Keep exploring</button>
+  </div>
+</dialog>

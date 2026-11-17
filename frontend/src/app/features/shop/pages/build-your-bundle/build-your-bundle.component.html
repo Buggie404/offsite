@@ -290,3 +290,7 @@
     </section>
   </div>
 </div>
+
+@if (showQuizPrompt()) {
+  <app-bundle-quiz-prompt (dismiss)="showQuizPrompt.set(false)" />
+}
