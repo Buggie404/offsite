@@ -51,7 +51,56 @@
   min-height: 210px;
   padding: 24px 28px;
   border-radius: 12px;
-  border: none;
+  border: 1px solid var(--tier-edge);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28),
+    0 12px 30px var(--tier-shadow);
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  &::before {
+    inset: -55% -10% -65% 36%;
+    border-radius: 50%;
+    background:
+      radial-gradient(ellipse at 72% 28%, var(--tier-glow) 0%, transparent 48%),
+      radial-gradient(ellipse at 40% 75%, var(--tier-haze) 0%, transparent 52%);
+    filter: blur(32px);
+    transform: rotate(-18deg);
+    opacity: .85;
+  }
+
+  &::after {
+    inset: 0;
+    background:
+      radial-gradient(circle at 72% 24%, var(--tier-star) 0 1px, transparent 2px),
+      radial-gradient(circle at 88% 58%, var(--tier-star) 0 1px, transparent 2px),
+      radial-gradient(circle at 62% 67%, var(--tier-star) 0 .7px, transparent 1.6px),
+      radial-gradient(circle at 94% 18%, var(--tier-star) 0 .7px, transparent 1.6px),
+      radial-gradient(circle at 80% 81%, var(--tier-star) 0 .6px, transparent 1.5px),
+      linear-gradient(115deg, rgba(255,255,255,.06), transparent 46%);
+    opacity: .65;
+  }
+
+  .tier-badge,
+  .tier-info-btn {
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.22);
+  }
+
+  .tier-progress__track {
+    background: var(--tier-track);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.06);
+  }
+
+  .tier-progress__fill {
+    background: linear-gradient(90deg, var(--tier-progress-start), var(--tier-progress-end));
+    box-shadow: 0 0 10px var(--tier-haze);
+  }
 }
 
 .tier-card__content {
@@ -201,17 +250,45 @@
   width: 260px;
   height: 260px;
   pointer-events: none;
+  opacity: .55;
+  transform: rotate(-22deg);
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 30px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--tier-glow), transparent 70%);
+    filter: blur(18px);
+  }
 }
 
 .tier-card__ellipse-svg {
   display: block;
   width: 100%;
   height: 100%;
+  position: relative;
+  filter: drop-shadow(0 0 7px var(--tier-haze));
+
+  circle {
+    stroke: var(--tier-orbit);
+    stroke-width: 1;
+    stroke-opacity: .65;
+  }
 }
 
 /* Tier=Seed — champagne gold gradient + dual ellipse stroke */
 .tier-card--seed {
-  background: linear-gradient(90deg, #c4a574 0%, #d4bc94 26%, #e6d5bc 54%, #f2e8d8 78%, #faf4ec 100%);
+  --tier-edge: #c4a88266;
+  --tier-shadow: #9b77421a;
+  --tier-glow: #fff6df;
+  --tier-haze: #d4ad6d;
+  --tier-star: #fffdf4;
+  --tier-orbit: #8c7048;
+  --tier-track: #8c704833;
+  --tier-progress-start: #947341;
+  --tier-progress-end: #fff3d9;
+  background: linear-gradient(115deg, #dbc39d 0%, #e9d8bd 46%, #f5ecdf 100%);
   color: #1a1a1a;
 
   .tier-card__eyebrow {
@@ -241,19 +318,20 @@
   .tier-progress__next {
     color: #1a1a1a;
   }
-
-  .tier-progress__track {
-    background: rgba(26, 26, 26, 0.2);
-  }
-
-  .tier-progress__fill {
-    background: #faf0eb;
-  }
 }
 
 /* Tier=Leaf — forest → sage gradient */
 .tier-card--leaf {
-  background: linear-gradient(90deg, #2e4a2f 0%, #3f5a3f 28%, #567456 55%, #6d8864 78%, #96b08e 100%);
+  --tier-edge: #8ba77c66;
+  --tier-shadow: #37553424;
+  --tier-glow: #b1cf8b;
+  --tier-haze: #629b82;
+  --tier-star: #edf5d8;
+  --tier-orbit: #deedc7;
+  --tier-track: #f0f5e326;
+  --tier-progress-start: #8eb477;
+  --tier-progress-end: #e2efca;
+  background: linear-gradient(115deg, #293e2c 0%, #38573c 48%, #627e58 100%);
   color: #faf0eb;
 
   .tier-card__eyebrow {
@@ -281,22 +359,23 @@
   }
 
   .tier-progress__next {
-    color: #1a1a1a;
-  }
-
-  .tier-progress__track {
-    background: rgba(31, 35, 40, 0.12);
-  }
-
-  .tier-progress__fill {
-    background: #faf0eb;
+    color: #faf0eb;
   }
 
 }
 
 /* Tier=Bloom — burgundy → rose gradient */
 .tier-card--bloom {
-  background: linear-gradient(90deg, #5c253c 0%, #7a3550 30%, #a85872 62%, #c992a5 84%, #d1a1b3 100%);
+  --tier-edge: #c992a566;
+  --tier-shadow: #7a355024;
+  --tier-glow: #f1b8d5;
+  --tier-haze: #b983ad;
+  --tier-star: #ffe8f2;
+  --tier-orbit: #f9d4e5;
+  --tier-track: #ffe8f226;
+  --tier-progress-start: #d698b4;
+  --tier-progress-end: #ffe0eb;
+  background: linear-gradient(115deg, #512c40 0%, #753c57 48%, #a76e86 100%);
   color: #faf0eb;
 
   .tier-card__eyebrow {
@@ -327,27 +406,20 @@
     color: #faf0eb;
   }
 
-  .tier-progress__track {
-    background: rgba(31, 35, 40, 0.12);
-  }
-
-  .tier-progress__fill {
-    background: #faf0eb;
-  }
-
 }
 
 /* Tier=Zen — charcoal → champagne gradient + triple ring */
 .tier-card--zen {
-  background: linear-gradient(
-    90deg,
-    #050505 0%,
-    #101010 16%,
-    #1f2328 34%,
-    #4a4743 62%,
-    #9a9288 80%,
-    #ebe3d9 100%
-  );
+  --tier-edge: #c4a88266;
+  --tier-shadow: #2728202b;
+  --tier-glow: #c9ba97;
+  --tier-haze: #758b81;
+  --tier-star: #fff1d1;
+  --tier-orbit: #e8d5b0;
+  --tier-track: #eee7d829;
+  --tier-progress-start: #a58e66;
+  --tier-progress-end: #f2e5ca;
+  background: linear-gradient(115deg, #1a1c1b 0%, #2b302c 48%, #57584a 100%);
   color: #ffffff;
 
   .tier-card__eyebrow {
@@ -375,15 +447,7 @@
   }
 
   .tier-progress__next {
-    color: #1a1a1a;
-  }
-
-  .tier-progress__track {
-    background: rgba(31, 35, 40, 0.12);
-  }
-
-  .tier-progress__fill {
-    background: #faf0eb;
+    color: #faf0eb;
   }
 
 }
