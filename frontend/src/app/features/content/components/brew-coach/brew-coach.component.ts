@@ -73,6 +73,23 @@ interface PantryChoice {
 interface StashedBrewReview {
   keys: string[];
   review: SavedBrewReview;
+  progress?: Partial<BrewProgressSnapshot>;
+}
+
+interface BrewProgressSnapshot {
+  startedAt: string;
+  elapsed: number;
+  stepIndex: number;
+  completedUntil: number;
+  timerLeft: number;
+  timerTotal: number;
+  reviewOpen: boolean;
+  rating: number;
+  intensity: number;
+  adjustRecipe: boolean;
+  reviewNote: string;
+  reviewRows: ReviewRow[];
+  pantrySelections: { name: string; id: string }[];
 }
 
 @Component({
@@ -194,7 +211,7 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
       const authUiOpen = promptOpen || modalOpen || successOpen;
       const review = this.pendingReview ?? this.readStashedReview();
       if (authed && !promptOpen && !modalOpen && !successOpen && review) {
-        void this.commitReview(review, { returnToRecipe: true });
+        void this.commitReview(review);
         return;
       }
       if (!authed && !authUiOpen && !this.authPrompt.shouldStayOnPage()) {
@@ -312,6 +329,7 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     }
     this.steps = buildCoachSteps(this.recipe);
     this.restoreProgress();
+    this.restoreStashedProgress();
     this.applyIncomingSelections();
     this.brewFinished = this.reviewOpen || this.completedUntil >= this.steps.length;
     this.restoreTimer();
@@ -1049,11 +1067,16 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
 
   private stashPendingReview(review: SavedBrewReview): void {
     if (!isPlatformBrowser(this.platformId)) return;
-    const payload: StashedBrewReview = { keys: this.recipeKeys(), review };
+    const payload: StashedBrewReview = { keys: this.recipeKeys(), review, progress: this.progressSnapshot() };
     sessionStorage.setItem(this.pendingReviewKey, JSON.stringify(payload));
   }
 
   private readStashedReview(): SavedBrewReview | null {
+    const parsed = this.readStash();
+    return parsed?.review ? this.normalizeReview(parsed.review) : null;
+  }
+
+  private readStash(): Partial<StashedBrewReview> | null {
     if (!isPlatformBrowser(this.platformId)) return null;
     try {
       const raw = sessionStorage.getItem(this.pendingReviewKey);
@@ -1062,10 +1085,22 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
       if (!parsed.review || !Array.isArray(parsed.keys) || !parsed.keys.some(key => this.recipeKeys().includes(key))) {
         return null;
       }
-      return this.normalizeReview(parsed.review);
+      return parsed;
     } catch {
       return null;
     }
+  }
+
+  // After a guest signs in to save (e.g. OAuth redirect reloads the page), bring back the
+  // finished session they were reviewing instead of reopening the coach at step 1.
+  private restoreStashedProgress(): void {
+    if (!this.auth.isAuthenticated()) return;
+    const resume = this.authPrompt.peek();
+    if (!resume || resume.action !== 'save-brew' || !this.recipeKeys().includes(resume.slug)) return;
+    const progress = this.readStash()?.progress;
+    if (!progress) return;
+    this.applyProgress(progress);
+    this.reviewOpen = true;
   }
 
   private clearStashedReview(): void {
@@ -1266,25 +1301,26 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
       return;
     }
     if (this.savedToServer || this.discardProgress) return;
-    const progress = {
+    localStorage.setItem(this.progressStorageKey(), JSON.stringify(this.progressSnapshot()));
+    if (this.progressLegacyKey()) localStorage.removeItem(this.progressLegacyKey() as string);
+  }
+
+  private progressSnapshot(): BrewProgressSnapshot {
+    return {
       startedAt: this.sessionStartedAt.toISOString(),
       elapsed: this.elapsed,
       stepIndex: this.stepIndex,
       completedUntil: this.completedUntil,
       timerLeft: this.currentRemainingMs() / 1000,
       timerTotal: this.timerTotal,
-      reviewOpen: this.keepsPersonalRecipe() ? this.reviewOpen : false,
-      rating: this.keepsPersonalRecipe() ? this.rating : 0,
-      intensity: this.keepsPersonalRecipe() ? this.intensity : 1,
-      adjustRecipe: this.keepsPersonalRecipe() ? this.adjustRecipe : false,
-      reviewNote: this.keepsPersonalRecipe() ? this.reviewNote : '',
-      reviewRows: this.keepsPersonalRecipe() ? this.reviewRows : [],
-      pantrySelections: this.keepsPersonalRecipe()
-        ? [...this.pantrySelection.entries()].map(([name, id]) => ({ name, id }))
-        : [],
+      reviewOpen: this.reviewOpen,
+      rating: this.rating,
+      intensity: this.intensity,
+      adjustRecipe: this.adjustRecipe,
+      reviewNote: this.reviewNote,
+      reviewRows: this.reviewRows,
+      pantrySelections: [...this.pantrySelection.entries()].map(([name, id]) => ({ name, id })),
     };
-    localStorage.setItem(this.progressStorageKey(), JSON.stringify(progress));
-    if (this.progressLegacyKey()) localStorage.removeItem(this.progressLegacyKey() as string);
   }
 
   private clearProgress(): void {
@@ -1301,86 +1337,75 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
     try {
       const raw = readScopedItem(this.progressStorageKey(), this.progressLegacyKey());
       if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<{
-        startedAt: string;
-        elapsed: number;
-        stepIndex: number;
-        completedUntil: number;
-        timerLeft: number;
-        timerTotal: number;
-        reviewOpen: boolean;
-        rating: number;
-        intensity: number;
-        adjustRecipe: boolean;
-        reviewNote: string;
-        reviewRows: ReviewRow[];
-        pantrySelections: { name: string; id: string }[];
-      }>;
-      const started = new Date(parsed.startedAt ?? '');
-      if (!Number.isNaN(started.getTime())) this.sessionStartedAt = started;
-      const elapsed = Number(parsed.elapsed);
-      if (Number.isFinite(elapsed) && elapsed >= 0) this.elapsed = Math.round(elapsed);
-      const stepIndex = Number(parsed.stepIndex);
-      if (Number.isInteger(stepIndex) && stepIndex >= 0 && stepIndex < this.steps.length) {
-        this.stepIndex = stepIndex;
-      }
-      const completedUntil = Number(parsed.completedUntil);
-      if (Number.isInteger(completedUntil) && completedUntil >= 0) {
-        this.completedUntil = Math.min(completedUntil, this.steps.length);
-      }
-      const timerLeft = Number(parsed.timerLeft);
-      const timerTotal = Number(parsed.timerTotal);
-      if (Number.isFinite(timerLeft) && timerLeft >= 0) {
-        this.restoredTimerLeft = timerLeft;
-        this.restoredTimerTotal = Number.isFinite(timerTotal) && timerTotal >= 0
-          ? Math.round(timerTotal)
-          : Math.ceil(timerLeft);
-      }
-      if (this.keepsPersonalRecipe()) {
-        if (typeof parsed.adjustRecipe === 'boolean') this.adjustRecipe = parsed.adjustRecipe;
-        if (typeof parsed.reviewNote === 'string') this.reviewNote = parsed.reviewNote;
-        if (parsed.rating) this.rating = this.clampScore(parsed.rating);
-        if (parsed.intensity) this.intensity = this.clampScore(parsed.intensity);
-      }
-      if (this.keepsPersonalRecipe() && Array.isArray(parsed.reviewRows)) {
-        const rows = parsed.reviewRows.flatMap(row => {
-          const ingredientIndex = Number(row?.ingredientIndex);
-          const amount = Number(row?.amount);
-          const id = Number(row?.id);
-          if (!Number.isInteger(ingredientIndex) || ingredientIndex < 0 || ingredientIndex >= this.recipe.ingredients.length) return [];
-          if (!Number.isFinite(amount) || !Number.isInteger(id)) return [];
-          const powderGrams = this.readPowder(row?.powderGrams);
-          return [{
-            id,
-            ingredientIndex,
-            amount,
-            powderGrams,
-            powderFollowsAmount: powderGrams == null ? true : row?.powderFollowsAmount !== false,
-          }];
-        });
-        if (rows.length) {
-          this.reviewRows = rows.map(row => {
-            if (!this.tracksPowder(row.ingredientIndex) || row.powderGrams != null) return row;
-            return {
-              ...row,
-              powderGrams: this.derivedPowder(row.amount, this.unitOf(row)),
-              powderFollowsAmount: true,
-            };
-          });
-          this.nextReviewRowId = Math.max(...rows.map(row => row.id)) + 1;
-        }
-      }
-      if (this.keepsPersonalRecipe() && Array.isArray(parsed.pantrySelections)) {
-        for (const row of parsed.pantrySelections) {
-          if (typeof row?.name === 'string' && typeof row?.id === 'string' && row.id) {
-            this.pantrySelection.set(row.name, row.id);
-          }
-        }
-      }
-      if (this.keepsPersonalRecipe()) this.reviewOpen = !!parsed.reviewOpen;
+      this.applyProgress(JSON.parse(raw) as Partial<BrewProgressSnapshot>);
     } catch {
       this.clearProgress();
     }
+  }
+
+  private applyProgress(parsed: Partial<BrewProgressSnapshot>): void {
+    const started = new Date(parsed.startedAt ?? '');
+    if (!Number.isNaN(started.getTime())) this.sessionStartedAt = started;
+    const elapsed = Number(parsed.elapsed);
+    if (Number.isFinite(elapsed) && elapsed >= 0) this.elapsed = Math.round(elapsed);
+    const stepIndex = Number(parsed.stepIndex);
+    if (Number.isInteger(stepIndex) && stepIndex >= 0 && stepIndex < this.steps.length) {
+      this.stepIndex = stepIndex;
+    }
+    const completedUntil = Number(parsed.completedUntil);
+    if (Number.isInteger(completedUntil) && completedUntil >= 0) {
+      this.completedUntil = Math.min(completedUntil, this.steps.length);
+    }
+    const timerLeft = Number(parsed.timerLeft);
+    const timerTotal = Number(parsed.timerTotal);
+    if (Number.isFinite(timerLeft) && timerLeft >= 0) {
+      this.restoredTimerLeft = timerLeft;
+      this.restoredTimerTotal = Number.isFinite(timerTotal) && timerTotal >= 0
+        ? Math.round(timerTotal)
+        : Math.ceil(timerLeft);
+    }
+    if (this.keepsPersonalRecipe()) {
+      if (typeof parsed.adjustRecipe === 'boolean') this.adjustRecipe = parsed.adjustRecipe;
+      if (typeof parsed.reviewNote === 'string') this.reviewNote = parsed.reviewNote;
+      if (parsed.rating) this.rating = this.clampScore(parsed.rating);
+      if (parsed.intensity) this.intensity = this.clampScore(parsed.intensity);
+    }
+    if (this.keepsPersonalRecipe() && Array.isArray(parsed.reviewRows)) {
+      const rows = parsed.reviewRows.flatMap(row => {
+        const ingredientIndex = Number(row?.ingredientIndex);
+        const amount = Number(row?.amount);
+        const id = Number(row?.id);
+        if (!Number.isInteger(ingredientIndex) || ingredientIndex < 0 || ingredientIndex >= this.recipe.ingredients.length) return [];
+        if (!Number.isFinite(amount) || !Number.isInteger(id)) return [];
+        const powderGrams = this.readPowder(row?.powderGrams);
+        return [{
+          id,
+          ingredientIndex,
+          amount,
+          powderGrams,
+          powderFollowsAmount: powderGrams == null ? true : row?.powderFollowsAmount !== false,
+        }];
+      });
+      if (rows.length) {
+        this.reviewRows = rows.map(row => {
+          if (!this.tracksPowder(row.ingredientIndex) || row.powderGrams != null) return row;
+          return {
+            ...row,
+            powderGrams: this.derivedPowder(row.amount, this.unitOf(row)),
+            powderFollowsAmount: true,
+          };
+        });
+        this.nextReviewRowId = Math.max(...rows.map(row => row.id)) + 1;
+      }
+    }
+    if (this.keepsPersonalRecipe() && Array.isArray(parsed.pantrySelections)) {
+      for (const row of parsed.pantrySelections) {
+        if (typeof row?.name === 'string' && typeof row?.id === 'string' && row.id) {
+          this.pantrySelection.set(row.name, row.id);
+        }
+      }
+    }
+    if (this.keepsPersonalRecipe()) this.reviewOpen = !!parsed.reviewOpen;
   }
 
   private buildReview(): SavedBrewReview {
@@ -1423,10 +1448,10 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
       queueMicrotask(() => this.exit());
       return;
     }
-    void this.commitReview(review, { returnToRecipe: true });
+    void this.commitReview(review);
   }
 
-  private async commitReview(review: SavedBrewReview, options?: { returnToRecipe?: boolean }): Promise<void> {
+  private async commitReview(review: SavedBrewReview): Promise<void> {
     if (this.saving) return;
     this.saving = true;
     this.authPrompt.clearResume('save-brew');
@@ -1465,11 +1490,6 @@ export class BrewCoachComponent implements OnInit, OnDestroy {
       if (this.destroyed) return;
       this.zone.run(() => {
         if (this.destroyed) return;
-        if (options?.returnToRecipe) {
-          this.toast.success('Brew saved');
-          this.exit();
-          return;
-        }
         this.brewSaved.emit(this.savedCoverage);
         this.savedOpen = true;
         this.reviewOpen = false;

@@ -185,14 +185,25 @@ async function getPostById(req, res) {
     if (post.post_type === 'recipe' && post.recipe_id) {
       const origin = await Recipe.findOne({ recipe_id: post.recipe_id });
       if (origin) {
+        // Only trust a catalog copy that really came from this post's recipe:
+        // a stale catalog_recipe_id can point at an unrelated recipe.
+        const belongsToPost = (r) => Boolean(r)
+          && r.lifecycle === 'catalog'
+          && !r.deletedAt
+          && (r.origin?.communityRecipeId === post.recipe_id || r.recipe_id === post.recipe_id);
         const catalogId = post.catalog_recipe_id || null;
-        const catalog = catalogId
+        let catalog = catalogId
           ? await Recipe.findOne({ recipe_id: catalogId, deletedAt: null })
-          : await Recipe.findOne({
-            'origin.communityRecipeId': post.recipe_id,
-            lifecycle: 'catalog',
-            deletedAt: null
-          });
+          : null;
+        if (!belongsToPost(catalog)) {
+          catalog = belongsToPost(origin)
+            ? origin
+            : await Recipe.findOne({
+              'origin.communityRecipeId': post.recipe_id,
+              lifecycle: 'catalog',
+              deletedAt: null
+            });
+        }
         recipeDetails = origin.toObject ? origin.toObject() : { ...origin };
         // CTA "View in recipes" points at the catalog fork when it is live.
         if (catalog && catalog.published !== false && !catalog.hiddenByAdmin && !catalog.deletedAt) {
