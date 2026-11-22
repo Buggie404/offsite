@@ -37,8 +37,7 @@ export class CustomersListingComponent implements OnInit {
   readonly statuses: { value: CustomerStatusFilter; label: string }[] = [
     { value: '', label: 'All' },
     { value: 'active', label: 'Active' },
-    { value: 'restricted', label: 'Restricted' },
-    { value: 'suspended', label: 'Suspended' }
+    { value: 'restricted', label: 'Restricted' }
   ];
 
   q = '';
@@ -58,7 +57,7 @@ export class CustomersListingComponent implements OnInit {
     this.assignment = this.isCskh && params.get('assignment') !== 'all' ? 'mine' : 'all';
     this.q = params.get('q') || '';
     this.tier = (this.tiers.includes(params.get('tier') as CustomerTier) ? params.get('tier') : '') as CustomerTier | '';
-    this.status = (['active', 'restricted', 'suspended'].includes(params.get('status') || '') ? params.get('status') : '') as CustomerStatusFilter;
+    this.status = (['active', 'restricted'].includes(params.get('status') || '') ? params.get('status') : '') as CustomerStatusFilter;
     this.page = Math.max(Number(params.get('page')) || 1, 1);
 
     this.load();

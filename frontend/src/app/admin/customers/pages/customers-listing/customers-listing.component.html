@@ -75,9 +75,7 @@
                 <td class="col-tier"><span class="chip" [ngClass]="'chip--tier-' + row.membership_tier.toLowerCase()">{{ row.membership_tier }}</span></td>
                 @if (!serviceCustomers) { <td class="col-points">{{ row.points | number }}</td> }
                 <td class="col-status">
-                  @if (row.status === 'suspended') {
-                    <span class="chip chip--suspended" [attr.title]="row.restricted_reason || row.suspended_reason || null">Suspended</span>
-                  } @else if (row.restricted_until) {
+                  @if (row.restricted_until) {
                     <span class="chip chip--restricted" [attr.title]="row.restricted_reason">Restricted · {{ shortDate(row.restricted_until) }}</span>
                   } @else {
                     <span class="chip chip--active">Active</span>

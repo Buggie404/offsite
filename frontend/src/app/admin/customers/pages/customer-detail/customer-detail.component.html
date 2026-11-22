@@ -15,7 +15,7 @@
       }
       <div class="page-header__left">
         <h1>{{ customer.profile_name }}</h1>
-        <p>{{ subtitle }} @if (serviceCustomers) { <span class="chip" [ngClass]="'chip--tier-' + customer.membership_tier.toLowerCase()">{{ customer.membership_tier }}</span> <span class="chip" [class.chip--active]="!isLocked && !customer.restricted_until" [class.chip--restricted]="customer.restricted_until" [class.chip--suspended]="isLocked">{{ isLocked ? 'Suspended' : customer.restricted_until ? 'Restricted' : 'Active' }}</span> }</p>
+        <p>{{ subtitle }} @if (serviceCustomers) { <span class="chip" [ngClass]="'chip--tier-' + customer.membership_tier.toLowerCase()">{{ customer.membership_tier }}</span> <span class="chip" [class.chip--active]="!customer.restricted_until" [class.chip--restricted]="customer.restricted_until">{{ customer.restricted_until ? 'Restricted' : 'Active' }}</span> }</p>
       </div>
       @if (serviceCustomers) {
         <div class="page-actions">
@@ -46,7 +46,7 @@
       <div class="locked-banner" role="status">
         <svg lucideLock [size]="16"></svg>
         <p>
-          <strong>Suspended from Community until {{ shortDate(customer.restricted_until) }}.</strong>
+          <strong>Restricted from Community until {{ shortDate(customer.restricted_until) }}.</strong>
           The customer can still sign in and shop.
           @if (customer.restricted_reason) { Reason: {{ customer.restricted_reason }} }
         </p>

@@ -5,7 +5,7 @@ import { AdminRole } from '../../../shared/models/admin-role.model';
 
 export type CustomerTier = 'Seed' | 'Leaf' | 'Bloom' | 'Zen';
 export type CustomerStatus = 'active' | 'suspended';
-export type CustomerStatusFilter = CustomerStatus | 'restricted' | '';
+export type CustomerStatusFilter = 'active' | 'restricted' | '';
 
 export interface CustomerRow {
   can_view_detail?: boolean;
