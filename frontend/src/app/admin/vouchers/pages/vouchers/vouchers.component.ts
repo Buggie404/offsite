@@ -1,3 +1,4 @@
+import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ChangeDetectorRef, Component, DestroyRef, EventEmitter, HostListener, Input, OnInit, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -86,7 +87,7 @@ const EMPTY_FORM: VoucherForm = {
 @Component({
   selector: 'app-admin-vouchers',
   standalone: true,
-  imports: [EmptyStateComponent, CommonModule, FormsModule, LucideSearch, LucidePlus, LucidePencil, LucideX, LucideChevronDown, LucideTriangleAlert, LucideInfo, LucideCheck, LucideLock, LucideCircleAlert, LucideCalendar],
+  imports: [ConfirmationModalComponent, EmptyStateComponent, CommonModule, FormsModule, LucideSearch, LucidePlus, LucidePencil, LucideX, LucideChevronDown, LucideTriangleAlert, LucideInfo, LucideCheck, LucideLock, LucideCircleAlert, LucideCalendar],
   templateUrl: './vouchers.component.html',
   styleUrl: './vouchers.component.scss'
 })
@@ -179,6 +180,7 @@ export class VouchersComponent implements OnInit {
   performanceError = '';
 
   modalOpen = false;
+  stopConfirmationOpen = false;
   modalMode: 'create' | 'edit' = 'create';
   editing: AdminVoucher | null = null;
   form: VoucherForm = { ...EMPTY_FORM };
@@ -226,8 +228,13 @@ export class VouchersComponent implements OnInit {
     }
   }
 
-  @HostListener('document:keydown.escape')
-  onEscape(): void {
+  @HostListener('document:keydown.escape', ['$event'])
+  onEscape(event: Event): void {
+    if (event.defaultPrevented) return;
+    if (this.stopConfirmationOpen) {
+      this.stopConfirmationOpen = false;
+      return;
+    }
     if (this.modalOpen && !this.saving) this.closeModal();
   }
 
@@ -536,6 +543,7 @@ export class VouchersComponent implements OnInit {
 
   closeModal(): void {
     if (this.saving) return;
+    this.stopConfirmationOpen = false;
     this.modalOpen = false;
     this.dismissed.emit();
   }
@@ -732,12 +740,17 @@ export class VouchersComponent implements OnInit {
 
   stop(): void {
     if (!this.editing || !this.canStop || this.saving) return;
-    const code = this.editing.code;
-    if (!window.confirm(`Stop ${code}? Customers will no longer be able to use it. Past orders keep their discount.`)) return;
+    this.stopConfirmationOpen = true;
+  }
+
+  confirmStop(): void {
+    if (!this.stopConfirmationOpen || !this.editing || !this.canStop || this.saving) return;
+    const voucher = this.editing;
+    this.stopConfirmationOpen = false;
     this.saving = true;
     this.saveError = '';
-    this.vouchersService.stop(this.editing._id).subscribe({
-      next: (res) => this.applyRow(this.withNames(res.data, this.editing!), 'Voucher stopped.'),
+    this.vouchersService.stop(voucher._id).subscribe({
+      next: (res) => this.applyRow(this.withNames(res.data, voucher), 'Voucher stopped.'),
       error: (err) => {
         this.saving = false;
         this.saveError = err?.error?.error || 'The voucher could not be stopped.';

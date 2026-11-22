@@ -182,7 +182,7 @@
 }
 
 @if (modalOpen) {
-  <div class="overlay" (click)="closeModal()">
+  <div class="overlay" [attr.inert]="stopConfirmationOpen ? '' : null" [attr.aria-hidden]="stopConfirmationOpen ? 'true' : null" (click)="closeModal()">
     <div
       class="modal modal--wide"
       role="dialog"
@@ -614,3 +614,16 @@
     </div>
   </div>
 }
+
+<app-confirmation-modal
+  [isOpen]="stopConfirmationOpen"
+  appearance="admin"
+  type="info"
+  title="Stop this voucher?"
+  [message]="'Are you sure you want to stop ' + (editing?.code || 'this voucher') + '? Customers will no longer be able to use this code.'"
+  warningMessage="Past orders will keep their discount. Unsaved changes will not be saved."
+  confirmText="Stop voucher"
+  cancelText="Keep voucher"
+  (confirm)="confirmStop()"
+  (cancel)="stopConfirmationOpen = false"
+></app-confirmation-modal>
