@@ -1,10 +1,10 @@
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ChangeDetectorRef, Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { Subject, debounceTime } from 'rxjs';
 import {
   LucideArrowRight,
   LucideCalendar,
@@ -93,6 +93,7 @@ export class AdminActivityLogComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private search$ = new Subject<string>();
   private requestVersion = 0;
 
@@ -134,7 +135,7 @@ export class AdminActivityLogComponent implements OnInit {
 
   ngOnInit(): void {
     this.search$
-      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.applyFilters());
     // The search box lives in the admin header and writes ?search= on this page.
     this.q = this.route.snapshot.queryParamMap.get('search') || '';
@@ -267,6 +268,8 @@ export class AdminActivityLogComponent implements OnInit {
 
   clearFilters(): void {
     this.q = '';
+    // The header box mirrors the URL, so clear it there too.
+    void this.router.navigate([], { relativeTo: this.route, queryParams: { search: null }, queryParamsHandling: 'merge', replaceUrl: true });
     this.adminRole = '';
     this.actionType = '';
     this.period = '7';

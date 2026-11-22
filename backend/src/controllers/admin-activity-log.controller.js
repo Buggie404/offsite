@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const ActivityLog = require('../models/ActivityLog');
 const User = require('../models/User');
 const { unsavedActivityLogCount, actionTypeQuery, targetEntityQuery, presentActivityLog } = require('../services/activity-log.service');
+const { searchPattern } = require('../utils/search');
 const { ACTION_TYPES, actionLabel } = require('../constants/action-types');
 
 // Activity log (Admin CC only, read-only): filter by role, action and time; search names and target.
@@ -10,8 +11,6 @@ const { ACTION_TYPES, actionLabel } = require('../constants/action-types');
 const ADMIN_ROLES = ['admin_cc', 'cskh', 'qlsp'];
 const MAX_EXPORT_ROWS = 5000;
 const MAX_SEARCH_USERS = 200;
-
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function asDate(value) {
   if (!value) return null;
@@ -22,9 +21,9 @@ function asDate(value) {
 // The By and Target columns show names, which live on Users: turn a search into the matching ids.
 // admin_id is whatever the admin's JWT carried: usually the Mongo _id, sometimes a user_id (USR...).
 async function usersMatching(text) {
-  const pattern = new RegExp(escapeRegex(text.replace(/^@/, '')), 'i');
+  const pattern = searchPattern(text.replace(/^@/, ''));
   const users = await User.find(
-    { $or: [{ profile_name: pattern }, { community_name: pattern }, { email: pattern }] },
+    { $or: [{ profile_name: pattern }, { community_name: pattern }, { email: pattern }, { user_id: pattern }] },
     '_id user_id',
     { limit: MAX_SEARCH_USERS }
   ).lean();
@@ -47,7 +46,7 @@ async function buildFilter(query) {
 
   const q = String(query.q || '').trim().slice(0, 80);
   if (q) {
-    const pattern = new RegExp(escapeRegex(q), 'i');
+    const pattern = searchPattern(q);
     filter.$or = [{ target_id: pattern }, { target_entity: pattern }, { reason: pattern }, { ticket_id: pattern }];
     const { userIds, actorIds } = await usersMatching(q);
     if (userIds.length) filter.$or.push({ target_id: { $in: userIds } });

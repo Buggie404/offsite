@@ -112,6 +112,8 @@ export class CustomersListingComponent implements OnInit {
   }
 
   applyFilters(): void {
+    // A filter clicked before the search debounce ends must keep what was typed.
+    this.q = this.route.snapshot.queryParamMap.get('q') || '';
     this.page = 1;
     this.syncUrl();
     this.load();

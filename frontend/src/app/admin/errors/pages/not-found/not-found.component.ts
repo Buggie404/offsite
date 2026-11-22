@@ -41,7 +41,7 @@ export class AdminNotFoundComponent implements OnInit {
   onSearch(query: string): void {
     if (!query.trim()) return;
     void this.router.navigate(['/admin/orders'], {
-      queryParams: { search: query.trim() }
+      queryParams: { search: query.trim(), date: '90' }
     });
   }
 

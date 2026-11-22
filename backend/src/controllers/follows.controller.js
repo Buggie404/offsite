@@ -1,3 +1,4 @@
+const { searchPattern } = require('../utils/search');
 const Follow = require('../models/Follow');
 const User = require('../models/User');
 const followService = require('../services/follow.service');
@@ -101,12 +102,12 @@ async function getFollowList(req, res) {
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = 20;
     const me = await followService.resolveCommunityUserId(req);
-    const search = String(req.query.q || '').trim().slice(0, 80);
-    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // The list shows @username, so people type the @ too.
+    const search = String(req.query.q || '').trim().replace(/^@/, '').slice(0, 80);
     const result = await Follow.aggregate([
       ...visibleFollowStages(userId, type),
       { $project: { _id: 0, user_id: '$person.user_id', username: { $cond: ['$person.community_name', '$person.community_name', '$person.profile_name'] }, avatar_url: '$person.avatar_url', membership_tier: '$person.membership_tier' } },
-      ...(search ? [{ $match: { username: { $regex: escaped, $options: 'i' } } }] : []),
+      ...(search ? [{ $match: { username: searchPattern(search) } }] : []),
       { $facet: { data: [{ $skip: (page - 1) * limit }, { $limit: limit + 1 }], count: [{ $count: 'total' }] } }
     ]);
     const rows = result[0]?.data || [];

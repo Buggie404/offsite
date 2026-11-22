@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Order = require('../models/Order');
 const Subscription = require('../models/Subscription');
 const CustomerNote = require('../models/CustomerNote');
+const { searchPattern } = require('../utils/search');
 const { activeRestriction } = require('../services/community-restriction.service');
 const Voucher = require('../models/Voucher');
 const ChatConversation = require('../models/ChatConversation');
@@ -107,8 +108,9 @@ async function listCustomers(req, res) {
 
     const q = String(req.query.q || '').trim().replace(/^@/, '').slice(0, 80);
     if (q) {
-      const pattern = new RegExp(escapeRegex(q), 'i');
-      const digits = q.replace(/\D/g, '');
+      const pattern = searchPattern(q);
+      // Only a phone-like search matches phones: the digits of "USR00012" are not a phone number.
+      const digits = /^[+\d\s().-]+$/.test(q) ? q.replace(/\D/g, '') : '';
       query.$or = [
         { profile_name: pattern }, { community_name: pattern }, { email: pattern }, { user_id: pattern },
         ...(digits.length >= 3 ? [{ phone: new RegExp(escapeRegex(digits)) }] : [])

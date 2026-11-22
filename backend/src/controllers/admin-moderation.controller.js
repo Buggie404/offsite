@@ -10,6 +10,7 @@ const { warnReportAbusers } = require('../services/report-abuse.service');
 const {
   PENALTIES, activeRestriction, nextRestriction, reasonLevel, recommendedAction, formatDate, sendSimulatedNotice
 } = require('../services/community-restriction.service');
+const { searchPattern } = require('../utils/search');
 
 // Community reports queue (3.3) for CSKH and Admin CC: posts, comments and accounts with
 // pending reports, the penalty levels (warn, suspend 3 days, suspend 7 days), hide / restore and dismiss.
@@ -22,6 +23,7 @@ const TYPES = ['post', 'comment', 'account'];
 const ACTIONS = ['hide', 'restore', ...Object.keys(PENALTIES), 'dismiss'];
 const TARGET_FIELD = { post: 'post_id', comment: 'comment_id', account: 'reported_user_id' };
 const HANDLED_PAGE_SIZE = 20;
+const REASON_LABELS = { spam: 'Spam', inappropriate: 'Inappropriate', off_topic: 'Off topic', misleading: 'Misleading', other: 'Other' };
 
 class ModerationError extends Error {
   constructor(status, message) {
@@ -38,14 +40,22 @@ function topReason(reasons) {
   return Object.entries(reasonCounts(reasons)).sort((a, b) => b[1] - a[1])[0]?.[0] || 'other';
 }
 
+function readSearch(value) {
+  const text = String(value || '').trim().replace(/^@/, '').slice(0, 80);
+  if (!text) return null;
+  const pattern = searchPattern(text);
+  return { pattern, reasons: Object.keys(REASON_LABELS).filter((key) => pattern.test(key) || pattern.test(REASON_LABELS[key])) };
+}
+
 function publicName(user) {
   return user?.community_name || user?.profile_name || null;
 }
 
-// GET /api/admin/community/queue?type=all|post|comment|account
+// GET /api/admin/community/queue?type=all|post|comment|account&q=
 async function listQueue(req, res) {
   try {
     const types = TYPES.includes(req.query.type) ? [req.query.type] : TYPES;
+    const search = readSearch(req.query.q);
     const groups = await Report.aggregate([
       { $match: { status: 'pending', target_type: { $in: types } } },
       {
@@ -79,7 +89,7 @@ async function listQueue(req, res) {
 
     // Owners of posts / comments: current status and earlier warnings help the decision.
     const ownerIds = [...new Set([...posts.map((p) => p.user_id), ...comments.map((c) => c.user_id), ...accounts.map((u) => u.user_id)])];
-    const owners = await User.find({ user_id: { $in: ownerIds } }, 'user_id profile_name community_name avatar_url status community_warnings community_restriction').lean();
+    const owners = await User.find({ user_id: { $in: ownerIds } }, 'user_id profile_name community_name email avatar_url status community_warnings community_restriction').lean();
     const ownerById = new Map(owners.map((u) => [u.user_id, u]));
 
     const data = [];
@@ -103,6 +113,11 @@ async function listQueue(req, res) {
       const owner = ownerById.get(item.owner_id);
       const restriction = activeRestriction(owner);
       const lastWarning = owner?.community_warnings?.at(-1);
+      if (search) {
+        const searchable = [item.content, item.owner_name, owner?.profile_name, owner?.community_name, owner?.email, item.owner_id, target, ...g.notes];
+        const found = searchable.some((value) => value && search.pattern.test(value)) || g.reasons.some((reason) => search.reasons.includes(reason));
+        if (!found) continue;
+      }
       const mainReason = topReason(g.reasons);
       data.push({
         key: `${type}:${target}`,
@@ -274,10 +289,30 @@ async function moderate(req, res) {
 }
 
 // GET /api/admin/community/handled?type=&page=
+async function handledSearchCondition({ pattern, reasons }) {
+  // A decision stores neither the content nor the report reason, so look those up first.
+  const [userIds, postIds, commentIds, reports] = await Promise.all([
+    User.distinct('user_id', { $or: [{ profile_name: pattern }, { community_name: pattern }, { email: pattern }] }),
+    Post.distinct('post_id', { content: pattern }),
+    Comment.distinct('comment_id', { content: pattern }),
+    Report.find({ status: { $ne: 'pending' }, $or: [{ note: pattern }, { reason: { $in: reasons } }] },
+      'target_type post_id comment_id reported_user_id').lean()
+  ]);
+  const targets = { post: postIds, comment: commentIds, account: [] };
+  for (const report of reports) targets[report.target_type]?.push(report[TARGET_FIELD[report.target_type]]);
+  return [
+    { owner_name: pattern }, { owner_id: pattern }, { target_id: pattern }, { message: pattern }, { admin_name: pattern },
+    { owner_id: { $in: userIds } },
+    ...TYPES.filter((type) => targets[type].length).map((type) => ({ target_type: type, target_id: { $in: targets[type] } }))
+  ];
+}
+
 async function listHandled(req, res) {
   try {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const filter = TYPES.includes(req.query.type) ? { target_type: req.query.type } : {};
+    const search = readSearch(req.query.q);
+    if (search) filter.$or = await handledSearchCondition(search);
     const [total, rows] = await Promise.all([
       ModerationAction.countDocuments(filter),
       ModerationAction.find(filter).sort({ created_at: -1 }).skip((page - 1) * HANDLED_PAGE_SIZE).limit(HANDLED_PAGE_SIZE).lean()

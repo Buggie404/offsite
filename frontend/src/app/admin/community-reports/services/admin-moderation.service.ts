@@ -71,13 +71,17 @@ export class AdminModerationService {
   private http = inject(HttpClient);
   private readonly api = '/api/admin/community';
 
-  queue(type: ReportTargetType | '' = ''): Observable<{ data: QueueItem[]; total: number }> {
-    return this.http.get<{ data: QueueItem[]; total: number }>(`${this.api}/queue`, { params: type ? { type } : {} });
+  queue(type: ReportTargetType | '' = '', q = ''): Observable<{ data: QueueItem[]; total: number }> {
+    const params: Record<string, string> = {};
+    if (type) params['type'] = type;
+    if (q) params['q'] = q;
+    return this.http.get<{ data: QueueItem[]; total: number }>(`${this.api}/queue`, { params });
   }
 
-  handled(type: ReportTargetType | '' = '', page = 1): Observable<{ data: HandledItem[]; total: number; page: number; limit: number }> {
+  handled(type: ReportTargetType | '' = '', page = 1, q = ''): Observable<{ data: HandledItem[]; total: number; page: number; limit: number }> {
     const params: Record<string, string> = { page: String(page) };
     if (type) params['type'] = type;
+    if (q) params['q'] = q;
     return this.http.get<{ data: HandledItem[]; total: number; page: number; limit: number }>(`${this.api}/handled`, { params });
   }
 

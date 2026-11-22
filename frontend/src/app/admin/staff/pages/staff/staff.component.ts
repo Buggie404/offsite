@@ -1,3 +1,5 @@
+import { ActivatedRoute } from '@angular/router';
+import { matchesSearch } from '../../../../shared/utils/search';
 import { ChangeDetectorRef, Component, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -80,10 +82,12 @@ export class AdminStaffComponent implements OnInit {
   private adminAuth = inject(AdminAuthService);
   private toast = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
+  private route = inject(ActivatedRoute);
 
   readonly roleOptions = STAFF_ROLE_OPTIONS;
 
   staff: StaffMember[] = [];
+  search = '';
   loading = true;
   error = '';
   busyUserId: string | null = null;
@@ -123,6 +127,11 @@ export class AdminStaffComponent implements OnInit {
   confirmError = '';
 
   constructor() {
+    // The search box lives in the admin header and writes ?search= on this page.
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      this.search = (params.get('search') || '').trim();
+      this.cdr.markForCheck();
+    });
     this.emailCheck$.pipe(
       debounceTime(300),
       switchMap((email) => this.staffService.checkEmail(email).pipe(
@@ -161,6 +170,12 @@ export class AdminStaffComponent implements OnInit {
   }
 
   // ── Row helpers ──
+
+  /** Filtered here, not on the server: the last-Senior-Admin check needs the full list. */
+  get visibleStaff(): StaffMember[] {
+    if (!this.search) return this.staff;
+    return this.staff.filter((s) => [s.profile_name, s.email, s.user_id].some((value) => matchesSearch(value, this.search)));
+  }
 
   get activeCount(): number {
     return this.staff.filter((s) => s.status === 'active').length;

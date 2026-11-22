@@ -228,7 +228,9 @@ test('follow search uses literal text, correct relationship direction and pagina
   await api.getFollowList({ params: { userId: 'U1', type: 'followers' }, query: { q: 'a.b', page: 2 } }, res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(pipeline[0], { $match: { following_id: 'U1' } });
-  assert.equal(pipeline.find(stage => stage.$match?.username).$match.username.$regex, 'a\\.b');
+  const username = pipeline.find(stage => stage.$match?.username).$match.username;
+  assert.ok(username.test('A.b'));
+  assert.ok(!username.test('aXb'));
   assert.equal(pipeline.at(-1).$facet.data[0].$skip, 20);
   assert.equal(res.body.total, 1);
   assert.equal(res.body.data[0].is_self, false);

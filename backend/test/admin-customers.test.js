@@ -113,7 +113,9 @@ test('list filters by tier and status and searches name, @handle, email or phone
   assert.equal(seen.listQuery.role, 'customer');
   assert.equal(seen.listQuery.membership_tier, 'Bloom');
   assert.equal(seen.listQuery.status, 'suspended');
-  assert.equal(seen.listQuery.$or[1].community_name.source, 'mai\\.matcha');
+  const handle = seen.listQuery.$or[1].community_name;
+  assert.ok(handle.test('Mai.Matcha') && handle.test('mái.matcha'));
+  assert.ok(!handle.test('maiXmatcha'));
 });
 
 test('active filter excludes current community restrictions and expired restrictions are cleared in rows', async () => {
@@ -162,7 +164,9 @@ test('CSKH Seed filtering includes default tiers without overwriting the name se
   await api.listCustomers(request, res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(seen.listQuery.$and[0].$or, [{ membership_tier: 'Seed' }, { membership_tier: null }, { membership_tier: '' }]);
-  assert.equal(seen.listQuery.$or[1].community_name.source, 'mai');
+  const name = seen.listQuery.$or[1].community_name;
+  assert.ok(name.test('Mai'));
+  assert.ok(!name.test('Lan'));
   assert.deepEqual(seen.listQuery.status, { $ne: 'suspended' });
   const otherRole = loadApi();
   await otherRole.api.listCustomers(otherRole.req({}, { tier: 'Seed' }), response());

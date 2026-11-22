@@ -424,7 +424,9 @@ export class AdminLayoutComponent implements OnInit, AfterViewInit {
     const section = this.searchSection;
     const value = this.searchQuery.trim();
     if (!section || this.isOnSearchList(section) || !value) return;
-    void this.router.navigate([section.listPath], { queryParams: { [section.param]: value } });
+    // Orders opens on the last 30 days; a lookup from another page uses its widest range.
+    const range = section.listPath === '/admin/orders' ? { date: '90' } : {};
+    void this.router.navigate([section.listPath], { queryParams: { [section.param]: value, ...range } });
   }
 
   onNavigationClick(event: MouseEvent, item: AdminNavItem): void {

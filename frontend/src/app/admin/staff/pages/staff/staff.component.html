@@ -27,7 +27,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (member of staff; track member.user_id) {
+          @for (member of visibleStaff; track member.user_id) {
             <tr [class.is-disabled]="member.status === 'disabled'">
               <td>
                 <div class="person">
@@ -85,7 +85,7 @@
               </td>
             </tr>
           } @empty {
-            <tr><td colspan="5" class="empty">No staff accounts yet.</td></tr>
+            <tr><td colspan="5" class="empty">{{ search ? 'No staff match your search.' : 'No staff accounts yet.' }}</td></tr>
           }
         </tbody>
       </table>

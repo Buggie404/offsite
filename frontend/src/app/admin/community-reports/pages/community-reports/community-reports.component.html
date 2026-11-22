@@ -3,7 +3,7 @@
     <div class="page-header__left">
       <h1>Community reports</h1>
       <p>
-        @if (tab === 'waiting') { {{ waitingCount }} waiting · sorted by report count }
+        @if (tab === 'waiting') { {{ waitingCount }} {{ search ? 'matching' : 'waiting' }} · sorted by report count }
         @else { Handled · hidden content and restrictions can be undone from here }
       </p>
     </div>
@@ -32,7 +32,11 @@
     <div class="state state--error">{{ error }} <button type="button" (click)="load()">Try again</button></div>
   } @else if (tab === 'waiting') {
     @if (!queue.length) {
-      <app-empty-state [compact]="true" eyebrow="Community reports" title="No reports waiting" text="The community is in good shape."></app-empty-state>
+      @if (search) {
+        <app-empty-state [compact]="true" eyebrow="Community reports" title="No matching reports" text="Try another keyword or type, or look in the Handled tab."></app-empty-state>
+      } @else {
+        <app-empty-state [compact]="true" eyebrow="Community reports" title="No reports waiting" text="The community is in good shape."></app-empty-state>
+      }
     }
     <div class="queue" [class.is-loading]="loading">
       @for (item of queue; track item.key) {
@@ -144,7 +148,11 @@
     </div>
   } @else {
     @if (!handled.length) {
-      <app-empty-state [compact]="true" eyebrow="Community reports" title="Nothing handled yet" text="Reports you resolve will be listed here."></app-empty-state>
+      @if (search) {
+        <app-empty-state [compact]="true" eyebrow="Community reports" title="No matching reports" text="Try another keyword or type, or look in the Waiting tab."></app-empty-state>
+      } @else {
+        <app-empty-state [compact]="true" eyebrow="Community reports" title="Nothing handled yet" text="Reports you resolve will be listed here."></app-empty-state>
+      }
     } @else {
       <div class="handled-card" [class.is-loading]="loading">
         @for (row of handled; track row.action_id) {

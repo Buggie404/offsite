@@ -49,7 +49,9 @@ test('filters by role, action, time and a literal search', async () => {
   assert.equal(seen.filter.action_type, 'staff.change_role');
   assert.equal(seen.filter.created_at.$gte.toISOString(), '2026-10-01T00:00:00.000Z');
   assert.equal(seen.filter.created_at.$lte.toISOString(), '2026-10-07T23:59:59.999Z');
-  assert.equal(seen.filter.$or[0].target_id.source, 'COF\\.HB');
+  const target = seen.filter.$or[0].target_id;
+  assert.ok(target.test('cof.hb-250'));
+  assert.ok(!target.test('COFXHB'));
   assert.equal(seen.skip, 40);
 });
 

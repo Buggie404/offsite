@@ -1,8 +1,10 @@
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
-import { ChangeDetectorRef, Component, HostListener, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { debounceTime, map } from 'rxjs';
 import {
   LucideBan,
   LucideCheck,
@@ -92,11 +94,15 @@ export class AdminCommunityReportsComponent implements OnInit {
   private moderation = inject(AdminModerationService);
   private toast = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
+  private route = inject(ActivatedRoute);
+  private destroyRef = inject(DestroyRef);
+  private requestVersion = 0;
 
   readonly penalties = PENALTIES;
   readonly ladder = LADDER;
 
   tab: Tab = 'waiting';
+  search = '';
   type: ReportTargetType | '' = '';
   readonly typeOptions: { value: ReportTargetType | ''; label: string }[] = [
     { value: '', label: 'All' },
@@ -121,37 +127,51 @@ export class AdminCommunityReportsComponent implements OnInit {
   modalError = '';
 
   ngOnInit(): void {
+    // The search box lives in the admin header and writes ?search= on this page.
+    this.search = (this.route.snapshot.queryParamMap.get('search') || '').trim();
+    this.route.queryParamMap
+      .pipe(map((params) => (params.get('search') || '').trim()), debounceTime(300), takeUntilDestroyed(this.destroyRef))
+      .subscribe((search) => {
+        if (search === this.search) return;
+        this.search = search;
+        this.handledPage = 1;
+        this.load();
+      });
     this.load();
   }
 
   // ── Loading ──
 
   load(): void {
+    const version = ++this.requestVersion;
     this.loading = true;
     this.error = '';
     if (this.tab === 'waiting') {
-      this.moderation.queue(this.type).subscribe({
-        next: (res) => this.done(() => (this.queue = res.data)),
-        error: (err) => this.fail(err)
+      this.moderation.queue(this.type, this.search).subscribe({
+        next: (res) => this.done(version, () => (this.queue = res.data)),
+        error: (err) => this.fail(version, err)
       });
     } else {
-      this.moderation.handled(this.type, this.handledPage).subscribe({
-        next: (res) => this.done(() => {
+      this.moderation.handled(this.type, this.handledPage, this.search).subscribe({
+        next: (res) => this.done(version, () => {
           this.handled = res.data;
           this.handledTotal = res.total;
         }),
-        error: (err) => this.fail(err)
+        error: (err) => this.fail(version, err)
       });
     }
   }
 
-  private done(apply: () => void): void {
+  private done(version: number, apply: () => void): void {
+    // A slower, older search must not replace the newer result.
+    if (version !== this.requestVersion) return;
     apply();
     this.loading = false;
     this.cdr.markForCheck();
   }
 
-  private fail(err: any): void {
+  private fail(version: number, err: any): void {
+    if (version !== this.requestVersion) return;
     this.loading = false;
     this.error = err?.error?.error || 'Reports could not be loaded.';
     this.cdr.markForCheck();
