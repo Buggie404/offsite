@@ -258,7 +258,7 @@
           class="btn btn--outline"
           [disabled]="!canAdd(product)"
           (click)="addMissing(product, $event)"
-        >{{ canAdd(product) ? 'Add' : 'Sold out' }}</button>
+        >{{ canAdd(product) ? 'Add' : 'Out of stock' }}</button>
       </article>
     </div>
   </section>

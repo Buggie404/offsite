@@ -213,9 +213,9 @@
                         class="product-add-btn"
                         [disabled]="prod.inStock === false"
                         (click)="onAddToCart(prod, $event)"
-                        [title]="prod.inStock === false ? 'Sold out' : 'Add to Cart'"
+                        [title]="prod.inStock === false ? 'Out of stock' : 'Add to Cart'"
                       >
-                        {{ prod.inStock === false ? 'SOLD OUT' : 'ADD' }}
+                        {{ prod.inStock === false ? 'OUT OF STOCK' : 'ADD' }}
                       </button>
                     </div>
                   }
@@ -247,9 +247,9 @@
                     class="product-add-btn"
                     [disabled]="msg.productCard.inStock === false"
                     (click)="onAddToCart(msg.productCard, $event)"
-                    [title]="msg.productCard.inStock === false ? 'Sold out' : 'Add to Cart'"
+                    [title]="msg.productCard.inStock === false ? 'Out of stock' : 'Add to Cart'"
                   >
-                    {{ msg.productCard.inStock === false ? 'SOLD OUT' : 'ADD' }}
+                    {{ msg.productCard.inStock === false ? 'OUT OF STOCK' : 'ADD' }}
                   </button>
                 </div>
               }

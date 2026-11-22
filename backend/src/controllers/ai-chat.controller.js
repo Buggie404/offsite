@@ -327,7 +327,7 @@ function toChatProductCard(product, { sku = null } = {}) {
     defaultSku: chosen?.sku,
     quantity: 1,
     inStock,
-    actionText: inStock ? 'ADD' : 'SOLD OUT'
+    actionText: inStock ? 'ADD' : 'OUT OF STOCK'
   };
 }
 
@@ -395,7 +395,7 @@ async function cardsForConversation(existingCards, userText, replyText) {
       || fromReply.find(entry => entry.product.product_id === card.id);
     pushCard(mention
       ? toChatProductCard(mention.product, { sku: mention.sku || card.defaultSku })
-      : { ...card, quantity: 1, actionText: card.inStock === false ? 'SOLD OUT' : 'ADD' });
+      : { ...card, quantity: 1, actionText: card.inStock === false ? 'OUT OF STOCK' : 'ADD' });
   }
   fromReply.forEach(pushMention);
 

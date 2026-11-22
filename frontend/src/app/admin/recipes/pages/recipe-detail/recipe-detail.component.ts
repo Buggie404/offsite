@@ -513,7 +513,7 @@ export class AdminRecipeDetailComponent implements OnInit {
   get selectionNote(): string {
     const names = this.linkedProducts.map((product) => product.name).filter(Boolean);
     const included = names.length ? ` (incl. ${names.join(', ')})` : '';
-    return `Selected ${this.selectedTotal} of 3${included}. Out-of-stock products can be linked but show “Sold out” on the recipe.`;
+    return `Selected ${this.selectedTotal} of 3${included}. Out-of-stock products can be linked but stay hidden on the recipe until restocked.`;
   }
 
   get addLabel(): string {

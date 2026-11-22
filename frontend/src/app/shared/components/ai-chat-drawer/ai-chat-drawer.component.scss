@@ -546,6 +546,8 @@
       border-radius: 4px;
       cursor: pointer;
       letter-spacing: 0.04em;
+      white-space: nowrap;
+      flex-shrink: 0;
       transition: background-color 0.15s ease;
 
       &:hover:not(:disabled) {
