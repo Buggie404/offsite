@@ -1044,10 +1044,16 @@ fieldset.main {
   gap: 16px;
   padding: 24px;
   overflow: auto;
+
+  // A scrolling flex column would otherwise squeeze its rows, the search field first.
+  > * {
+    flex-shrink: 0;
+  }
 }
 
 .picker__search {
   display: flex;
+  box-sizing: border-box;
   align-items: center;
   gap: 10px;
   height: 42px;
