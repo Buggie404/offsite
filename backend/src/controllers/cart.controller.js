@@ -31,7 +31,7 @@ async function mergeCart(req, res) {
   try {
     const userIdStr = await resolveUserIdString(req.user);
     if (!userIdStr) {
-      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+      return res.status(404).json({ error: 'User not found.' });
     }
 
     const guestItems = req.body.items || req.body.guestCart || [];
@@ -48,7 +48,7 @@ async function getCart(req, res) {
   try {
     const userIdStr = await resolveUserIdString(req.user);
     if (!userIdStr) {
-      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+      return res.status(404).json({ error: 'User not found.' });
     }
     const cart = await getUserCart(userIdStr);
     return res.json({ cart });
@@ -63,7 +63,7 @@ async function replaceCart(req, res) {
   try {
     const userIdStr = await resolveUserIdString(req.user);
     if (!userIdStr) {
-      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+      return res.status(404).json({ error: 'User not found.' });
     }
     const items = req.body.items || [];
     const cart = await replaceUserCart(userIdStr, items);

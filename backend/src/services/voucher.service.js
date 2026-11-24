@@ -26,7 +26,7 @@ function needsRedeem(voucher) {
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 const SCOPE_ERRORS = {
-  none: 'Mã này không áp dụng cho sản phẩm trong giỏ.'
+  none: "This code doesn't apply to any item in your cart."
 };
 
 function businessToday(now = new Date()) {
@@ -153,7 +153,7 @@ function scopeSnapshot(voucher) {
  */
 async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod = 'standard', userId = null, userTier = null, lines = null }) {
   if (!code || typeof code !== 'string' || !code.trim()) {
-    return { isValid: false, voucher: null, discountAmount: 0, error: 'Mã giảm giá không hợp lệ.' };
+    return { isValid: false, voucher: null, discountAmount: 0, error: 'Invalid discount code.' };
   }
 
   const codeUpper = code.trim().toUpperCase();
@@ -164,7 +164,7 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
       isValid: false, 
       voucher: null, 
       discountAmount: 0, 
-      error: `Mã giảm giá "${codeUpper}" không tồn tại hoặc đã bị ngưng áp dụng.` 
+      error: `Discount code "${codeUpper}" doesn't exist or is no longer active.` 
     };
   }
 
@@ -173,7 +173,7 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
       isValid: false,
       voucher: null,
       discountAmount: 0,
-      error: `Mã giảm giá "${codeUpper}" không tồn tại hoặc đã bị ngưng áp dụng.`
+      error: `Discount code "${codeUpper}" doesn't exist or is no longer active.`
     };
   }
 
@@ -183,7 +183,7 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
       voucher,
       discountAmount: 0,
       code: 'REDEEM_REQUIRED',
-      error: `Mã "${codeUpper}" cần đổi ${voucher.points_cost} điểm trong mục Rewards trước khi dùng.`
+      error: `Redeem code "${codeUpper}" for ${voucher.points_cost} points in Rewards before using it.`
     };
   }
 
@@ -193,7 +193,7 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
       isValid: false,
       voucher,
       discountAmount: 0,
-      error: `Mã giảm giá "${codeUpper}" chỉ áp dụng cho hạng ${voucher.target_tier}.`
+      error: `Discount code "${codeUpper}" is only for ${voucher.target_tier} members.`
     };
   }
 
@@ -205,7 +205,7 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
       isValid: false, 
       voucher, 
       discountAmount: 0, 
-      error: `Mã giảm giá "${codeUpper}" chưa đến thời gian áp dụng.` 
+      error: `Discount code "${codeUpper}" isn't active yet.` 
     };
   }
   if (to && today > to) {
@@ -213,7 +213,7 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
       isValid: false, 
       voucher, 
       discountAmount: 0, 
-      error: `Mã giảm giá "${codeUpper}" đã hết hạn.` 
+      error: `Discount code "${codeUpper}" has expired.` 
     };
   }
   if (voucher.usage_limit != null && voucher.used_count >= voucher.usage_limit) {
@@ -221,7 +221,7 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
       isValid: false, 
       voucher, 
       discountAmount: 0, 
-      error: `Mã giảm giá "${codeUpper}" đã hết lượt sử dụng.` 
+      error: `Discount code "${codeUpper}" has reached its usage limit.` 
     };
   }
 
@@ -233,7 +233,7 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
         isValid: false,
         voucher,
         discountAmount: 0,
-        error: `Mã giảm giá "${codeUpper}" đã hết lượt dùng cho tài khoản này.`
+        error: `You've already used discount code "${codeUpper}" the maximum number of times.`
       };
     }
   }
@@ -250,7 +250,7 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
   }
   if (voucher.min_order_amount && base < voucher.min_order_amount) {
     const missing = round2(voucher.min_order_amount - base).toFixed(2);
-    const onEligible = eligibility && (voucher.applies_to || 'all') !== 'all' ? ' sản phẩm được áp dụng' : '';
+    const onEligible = eligibility && (voucher.applies_to || 'all') !== 'all' ? ' of eligible items' : '';
     return {
       isValid: false,
       voucher,
@@ -258,7 +258,7 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
       ...extra,
       code: 'MIN_ORDER',
       missing: Number(missing),
-      error: `Mua thêm $${missing}${onEligible} để dùng mã "${codeUpper}" (tối thiểu $${voucher.min_order_amount}).`
+      error: `Add $${missing} more${onEligible} to use code "${codeUpper}" (minimum $${voucher.min_order_amount}).`
     };
   }
 
@@ -278,7 +278,7 @@ async function validateAndCalculateVoucher({ code, subtotal = 0, shippingMethod 
         voucher, 
         discountAmount: 0, 
         ...extra,
-        error: `Mã giảm giá vận chuyển "${codeUpper}" chỉ áp dụng cho phương thức Giao hàng Hỏa tốc.` 
+        error: `Shipping code "${codeUpper}" only applies to Express Delivery.` 
       };
     }
     if (voucher.discount_type === 'percentage') {

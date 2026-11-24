@@ -581,7 +581,7 @@ async function createOrder(req, res) {
         session = null;
         useTransaction = false;
         return res.status(400).json({ 
-          error: `Mã giảm giá "${vResult.voucher.code}" vừa hết lượt sử dụng. Vui lòng kiểm tra lại.` 
+          error: `Discount code "${vResult.voucher.code}" just reached its usage limit. Please check your discount and try again.` 
         });
       }
 

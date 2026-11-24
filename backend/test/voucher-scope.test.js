@@ -64,7 +64,7 @@ test('cart with only out-of-scope items is rejected', async () => {
   const result = await service.validateAndCalculateVoucher({ code: 'MATCHA15', lines: [CHASEN] });
   assert.equal(result.isValid, false);
   assert.equal(result.code, 'NO_ELIGIBLE_ITEMS');
-  assert.equal(result.error, 'Mã này không áp dụng cho sản phẩm trong giỏ.');
+  assert.equal(result.error, "This code doesn't apply to any item in your cart.");
 });
 
 test('Ritual Box and Starter Quiz kit lines are excluded even for a whole-order voucher', () => {

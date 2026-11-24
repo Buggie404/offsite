@@ -2430,7 +2430,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       }
       const errMsg = err.error?.error || 'Failed to place order. Please try again.';
       alert(errMsg);
-      if (typeof errMsg === 'string' && (errMsg.toLowerCase().includes('mã giảm giá') || errMsg.toLowerCase().includes('voucher') || errMsg.toLowerCase().includes('coupon'))) {
+      if (typeof errMsg === 'string' && (errMsg.toLowerCase().includes('discount code') || errMsg.toLowerCase().includes('shipping code') || errMsg.toLowerCase().includes('voucher') || errMsg.toLowerCase().includes('coupon'))) {
         this.voucherError.set(errMsg);
         this.appliedVoucher.set(null);
       }

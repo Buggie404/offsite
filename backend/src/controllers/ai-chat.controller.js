@@ -1364,7 +1364,7 @@ exports.handleChatMessage = async (req, res) => {
           isHandover = true;
           handoverReason = parsed.handover_reason || 'user_request';
           summary = parsed.summary || '';
-          aiAnswer = parsed.reply || 'Tôi đang kết nối bạn với nhân viên CSKH của Offsite...';
+          aiAnswer = parsed.reply || 'Connecting you with an Offsite support agent...';
         }
         if (parsed.unavailable || parsed.showContactForm || parsed.show_contact_form) {
           showContactForm = true;

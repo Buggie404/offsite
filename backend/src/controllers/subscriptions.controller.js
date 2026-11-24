@@ -6,7 +6,7 @@ async function getMySubscriptions(req, res) {
   try {
     const userIdStr = await resolveUserIdString(req.user);
     if (!userIdStr) {
-      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+      return res.status(404).json({ error: 'User not found.' });
     }
     return res.json(await getRitualBox(userIdStr));
   } catch (error) {
@@ -20,7 +20,7 @@ async function updateSubscription(req, res) {
   try {
     const userIdStr = await resolveUserIdString(req.user);
     if (!userIdStr) {
-      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+      return res.status(404).json({ error: 'User not found.' });
     }
     const { action, ...payload } = req.body || {};
     return res.json(await applyAction(userIdStr, req.params.id, action, payload));
@@ -38,7 +38,7 @@ async function startSubscriptionsFromOrder(req, res) {
   try {
     const userIdStr = await resolveUserIdString(req.user);
     if (!userIdStr) {
-      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+      return res.status(404).json({ error: 'User not found.' });
     }
     return res.json(await startFromOrder(userIdStr, req.params.orderId, req.body?.payment_method_id));
   } catch (error) {
