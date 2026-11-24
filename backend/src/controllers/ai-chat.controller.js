@@ -542,6 +542,31 @@ exports.getInitParameters = async (req, res) => {
   }
 };
 
+// Filler words in a shopper's request that never name a product.
+const CATALOG_STOPWORDS = new Set([
+  'a', 'an', 'the', 'for', 'to', 'of', 'and', 'or', 'with', 'in', 'on', 'my', 'me', 'i', 'is', 'it',
+  'some', 'any', 'good', 'best', 'recommend', 'recommendation', 'suggest', 'product', 'products',
+  'want', 'need', 'like', 'looking', 'please', 'can', 'you', 'what', 'which', 'something'
+]);
+
+function catalogSearchTerms(query) {
+  if (typeof query !== 'string') return [];
+  const words = query.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(w => w.length > 1 && !CATALOG_STOPWORDS.has(w));
+  return [...new Set(words)].slice(0, 8);
+}
+
+function catalogTermConditions(term) {
+  const rx = new RegExp(escapeRegExp(term), 'i');
+  return [
+    { name: rx },
+    { category: rx },
+    { product_tag: rx },
+    { description: rx },
+    { 'matcha.product_grade': rx },
+    { 'coffee.roast_level': rx }
+  ];
+}
+
 /**
  * 1. GET /api/ai-chat/products-catalog
  * Endpoint for Dify HTTP Request tool to search active products.
@@ -552,28 +577,31 @@ exports.getProductsCatalog = async (req, res) => {
   try {
     const { query, category, limit } = req.query;
 
-    const filter = { is_active: true };
+    const baseFilter = { is_active: true };
     if (category) {
-      filter.category = category;
+      baseFilter.category = category;
     }
 
-    if (query && typeof query === 'string' && query.trim()) {
-      filter.$or = [
-        { name: { $regex: query.trim(), $options: 'i' } },
-        { product_tag: { $in: [new RegExp(query.trim(), 'i')] } },
-        { 'matcha.product_grade': { $regex: query.trim(), $options: 'i' } },
-        { 'coffee.roast_level': { $regex: query.trim(), $options: 'i' } }
-      ];
+    const parsedLimit = parseInt(limit, 10);
+    const maxResults = Number.isNaN(parsedLimit) || parsedLimit <= 0 ? null : parsedLimit;
+    const fields = 'product_id name slug category description is_best_seller is_new_arrival rating_avg variants matcha coffee drinkware tools';
+    const run = (filter) => {
+      let q = Product.find(filter).select(fields).sort({ is_best_seller: -1, rating_avg: -1 });
+      if (maxResults) q = q.limit(maxResults);
+      return q.lean();
+    };
+
+    // The model often sends a whole phrase ("matcha for a beginner"). Matching that phrase as one
+    // regex found nothing, so the assistant was told there were no products. Match any meaningful
+    // word instead, and if nothing matches still return the best sellers so it can recommend.
+    const terms = catalogSearchTerms(query);
+    let products = [];
+    if (terms.length) {
+      products = await run({ ...baseFilter, $or: terms.flatMap(catalogTermConditions) });
     }
-
-    let productQuery = Product.find(filter)
-      .select('product_id name slug category description is_best_seller is_new_arrival rating_avg variants matcha coffee drinkware tools');
-
-    if (limit && !isNaN(parseInt(limit, 10))) {
-      productQuery = productQuery.limit(parseInt(limit, 10));
+    if (!products.length) {
+      products = await run(baseFilter);
     }
-
-    const products = await productQuery.lean();
 
     // Map into clean, token-efficient structure
     const results = products.map(p => {
