@@ -46,8 +46,8 @@ function buildCreatedAtFilter(dateRange, dateFrom, dateTo) {
 }
 
 function mapStatusFilter(orderStatus) {
-  // Cancelled orders are left out of the admin listing entirely.
-  if (!orderStatus || orderStatus === 'all' || orderStatus === 'cancelled') return null;
+  if (!orderStatus || orderStatus === 'all') return null;
+  if (orderStatus === 'cancelled') return 'canceled';
   if (orderStatus === 'processing') return ['pending', 'processing'];
   if (orderStatus === 'pending_refund') return 'pending_refund';
   if (orderStatus === 'refund_rejected') return 'refund_rejected';
@@ -395,11 +395,8 @@ async function buildOrderDetail(order) {
   };
 }
 
-// Admin listing never shows cancelled orders (nothing left to do on them).
-const LISTED_STATUS = { $ne: 'canceled' };
-
 async function computeStats(createdAtFilter, orderScope = {}, typeFilter = null) {
-  const baseFilter = { ...orderScope, created_at: createdAtFilter, order_status: LISTED_STATUS };
+  const baseFilter = { ...orderScope, created_at: createdAtFilter };
   if (typeFilter) baseFilter.$and = [typeFilter];
 
   const [total, processing, shipped, needsAttention] = await Promise.all([
@@ -436,10 +433,11 @@ async function getAllOrders(req, res) {
     const createdAtFilter = buildCreatedAtFilter(date_range, date_from, date_to);
     const customerIds = await supportOrderCustomerIds(req.user);
     const orderScope = customerIds ? { user_id: { $in: customerIds } } : {};
+    // Cancelled orders are listed too, inside the same role scope (cskh: only their own
+    // customers). They stay read-only: no admin status change starts from 'canceled'.
     const filter = {
       ...orderScope,
-      created_at: createdAtFilter,
-      order_status: LISTED_STATUS
+      created_at: createdAtFilter
     };
 
     const statusFilter = mapStatusFilter(order_status);

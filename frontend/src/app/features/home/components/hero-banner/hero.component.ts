@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 //  components/hero/hero.component.ts
-//  Hero carousel: 3 banners in one frame, auto-advances every 5s,
+//  Hero carousel: 3 banners in one frame, auto-advances every 3s,
 //  swipe / scroll horizontally, or use the arrows and dots.
 // ─────────────────────────────────────────────────────────────
 
@@ -10,7 +10,7 @@ import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HeroDnaSlideComponent } from './hero-dna-slide.component';
 
-const AUTOPLAY_MS = 5000;
+const AUTOPLAY_MS = 3000;
 
 @Component({
   selector: 'app-hero',
@@ -40,8 +40,8 @@ export class HeroComponent implements AfterViewInit, OnDestroy {
   holidayImage = 'assets/images/homepage-hero-holiday.webp';
 
   private timer?: ReturnType<typeof setTimeout>;
-  private hovering = false;
-  private focused = false;
+  /** Set once the visitor navigates themselves (arrow, dot, swipe): autoplay stops for good. */
+  private userNavigated = false;
   private readonly onVisibility = () => this.updatePaused();
 
   ngAfterViewInit(): void {
@@ -55,6 +55,18 @@ export class HeroComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     clearTimeout(this.timer);
     if (this.isBrowser) document.removeEventListener('visibilitychange', this.onVisibility);
+  }
+
+  /** Visitor-driven navigation (arrows / dots): stop autoplay, then move. */
+  navigate(index: number): void {
+    this.stopAutoplay();
+    this.go(index);
+  }
+
+  /** A swipe or horizontal wheel/trackpad scroll on the track counts as the visitor taking over. */
+  onUserScrollIntent(event?: WheelEvent): void {
+    if (event && Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+    this.stopAutoplay();
   }
 
   go(index: number): void {
@@ -76,18 +88,21 @@ export class HeroComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  setHover(value: boolean): void { this.hovering = value; this.updatePaused(); }
-  setFocus(value: boolean): void { this.focused = value; this.updatePaused(); }
-
-  /** Restart the 5s countdown (also used when the visitor interacts inside a slide). */
+  /** Restart the 3s countdown (also used when the visitor interacts inside a slide). */
   schedule(): void {
     clearTimeout(this.timer);
-    if (!this.isBrowser || !this.autoplay() || this.paused()) return;
+    if (!this.isBrowser || !this.autoplay() || this.paused() || this.userNavigated) return;
     this.timer = setTimeout(() => this.go(this.active() + 1), AUTOPLAY_MS);
   }
 
+  private stopAutoplay(): void {
+    this.userNavigated = true;
+    this.paused.set(true);
+    clearTimeout(this.timer);
+  }
+
   private updatePaused(): void {
-    this.paused.set(this.hovering || this.focused || document.hidden);
+    this.paused.set(this.userNavigated || document.hidden);
     this.schedule();
   }
 }

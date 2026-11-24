@@ -1,7 +1,6 @@
-<section class="hero" aria-roledescription="carousel" aria-label="Featured"
-         (mouseenter)="setHover(true)" (mouseleave)="setHover(false)"
-         (focusin)="setFocus(true)" (focusout)="setFocus(false)">
-  <div #track class="hero__track" (scroll)="onScroll()">
+<section class="hero" aria-roledescription="carousel" aria-label="Featured">
+  <div #track class="hero__track" (scroll)="onScroll()"
+       (touchmove)="onUserScrollIntent()" (wheel)="onUserScrollIntent($event)">
 
     <!-- Banner 1 · Brand -->
     <div class="hero__slide slide-home" [class.is-active]="active() === 0" role="group" aria-roledescription="slide" aria-label="1 of 3"
@@ -59,15 +58,15 @@
   </div>
 
   <div class="hero__controls">
-    <button type="button" class="hero__arrow" aria-label="Previous banner" (click)="go(active() - 1)"><svg lucideChevronLeft [size]="18" aria-hidden="true"></svg></button>
+    <button type="button" class="hero__arrow" aria-label="Previous banner" (click)="navigate(active() - 1)"><svg lucideChevronLeft [size]="18" aria-hidden="true"></svg></button>
     <div class="hero__dots">
       @for (label of slides; track label; let i = $index) {
         <button type="button" class="hero__dot" [class.hero__dot--active]="i === active()"
                 [class.hero__dot--running]="i === active() && autoplay() && !paused()"
                 [attr.aria-label]="'Banner ' + (i + 1) + ': ' + label" [attr.aria-current]="i === active() ? 'true' : null"
-                (click)="go(i)"><span></span></button>
+                (click)="navigate(i)"><span></span></button>
       }
     </div>
-    <button type="button" class="hero__arrow" aria-label="Next banner" (click)="go(active() + 1)"><svg lucideChevronRight [size]="18" aria-hidden="true"></svg></button>
+    <button type="button" class="hero__arrow" aria-label="Next banner" (click)="navigate(active() + 1)"><svg lucideChevronRight [size]="18" aria-hidden="true"></svg></button>
   </div>
 </section>

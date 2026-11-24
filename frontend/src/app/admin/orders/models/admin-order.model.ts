@@ -20,6 +20,7 @@ export type AdminOrderStatusFilter =
   | 'redelivery_awaiting'
   | 'redelivery_confirmed'
   | 'delivered'
+  | 'cancelled'
   | 'refund'
   | 'pending_refund'
   | 'refund_rejected';

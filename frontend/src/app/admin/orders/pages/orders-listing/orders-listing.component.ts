@@ -103,7 +103,8 @@ export class OrdersListingComponent implements OnInit {
     { value: 'delivered', label: 'Delivered' },
     { value: 'pending_refund', label: 'Pending Refund' },
     { value: 'refund', label: 'Refund' },
-    { value: 'refund_rejected', label: 'Refund Rejected' }
+    { value: 'refund_rejected', label: 'Refund Rejected' },
+    { value: 'cancelled', label: 'Cancelled' }
   ];
 
   readonly orderTypeOptions: { value: AdminOrderTypeFilter; label: string }[] = [
@@ -127,7 +128,7 @@ export class OrdersListingComponent implements OnInit {
     return this.orderTypeOptions.find(o => o.value === value)?.value ?? 'all';
   }
 
-  /** Unknown or removed filters (e.g. an old ?status=cancelled link) fall back to All. */
+  /** Unknown filters in the URL fall back to All. */
   private toStatusFilter(value: unknown): AdminOrderStatusFilter {
     return this.statusFilters.find(f => f.value === value)?.value ?? 'all';
   }
@@ -272,7 +273,7 @@ export class OrdersListingComponent implements OnInit {
     };
   }
 
-  /** Unknown values (e.g. an old ?status=cancelled link) fall back to the defaults. */
+  /** Unknown values in the URL fall back to the defaults. */
   private readFilters(params: Record<string, unknown>): ListFilters {
     const from = ISO_DATE.test(String(params['from'] ?? '')) ? String(params['from']) : '';
     const to = ISO_DATE.test(String(params['to'] ?? '')) ? String(params['to']) : '';

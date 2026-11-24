@@ -58,7 +58,7 @@ test('default listing pages urgent orders first in the database', async () => {
   await call(api, { page: '2', limit: '20' });
   assert.equal(seen.find, null);
   const [match, addFields, sort, skip, limit, project] = seen.aggregate;
-  assert.deepEqual(match.$match.order_status, { $ne: 'canceled' }); // cancelled orders stay hidden
+  assert.equal(match.$match.order_status, undefined); // cancelled orders are listed too
   assert.ok(addFields.$addFields._urgent);
   assert.deepEqual(sort, { $sort: { _urgent: -1, created_at: -1, _id: -1 } });
   assert.deepEqual(skip, { $skip: 20 });
@@ -113,8 +113,14 @@ test('Needs attention filter, stat card and sort share one definition', async ()
     assert.ok(Math.abs(ageDays - 3) < 0.01, `processing cutoff is 3 days, got ${ageDays}`);
   };
   check(seen.aggregate[0].$match.$or);
-  assert.deepEqual(seen.aggregate[0].$match.order_status, { $ne: 'canceled' });
+  assert.equal(seen.aggregate[0].$match.order_status, undefined);
   check(seen.counts.find(f => f.$or).$or);
+});
+
+test('the Cancelled filter lists only cancelled orders', async () => {
+  const { api, seen } = fixture([]);
+  await call(api, { order_status: 'cancelled' });
+  assert.equal(seen.aggregate[0].$match.order_status, 'canceled');
 });
 
 test('the Ritual Box-only filter used by dashboard links still works', async () => {

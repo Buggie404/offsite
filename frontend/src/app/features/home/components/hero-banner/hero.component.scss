@@ -210,9 +210,28 @@
   .btn--dark, .btn--outline { min-width: 0; }
 }
 
+// Desktop: the banner takes the artwork's own 1670×941 ratio, so `cover` shows the
+// whole image — nothing zoomed in, nothing trimmed at the edges. 660px stays the floor
+// for narrow desktops, where only the plain cream left side of the art is trimmed.
+@media (min-width: 901px) {
+  .hero { min-height: max(660px, calc(100vw * 941 / 1670)); }
+
+  .slide-home .hero__image,
+  .slide-holiday .hero__image { object-position: right center; }
+}
+
+// From 1172px (where 660px × 1670/941 fits) the whole 1672px-wide artwork is scaled
+// down to the banner width — `contain` never crops, even when a page scrollbar makes
+// the banner a few px narrower than 100vw. Any sliver left over shows the art's own paper colour.
+@media (min-width: 1172px) {
+  .slide-home { background: #fbe6c8; }
+  .slide-holiday { background: #fdeee1; }
+
+  .slide-home .hero__image,
+  .slide-holiday .hero__image { object-fit: contain; }
+}
+
 // Same loading as banner 1: a full-bleed .hero__image with object-fit: cover.
-// Anchored top-right so the Santa hat stays in frame; any trimming happens at the bottom.
-.slide-holiday .hero__image { object-position: right top; }
 
 // Decoration layer over the image (badge + stars), sized from the banner itself.
 .holiday__art {
@@ -383,8 +402,8 @@
   span { width: calc(100% - 8px); }
 }
 
-// Fills over the 5s the banner stays on screen.
-.hero__dot--running span { animation: hero-dot-fill 5s linear both; }
+// Fills over the 3s the banner stays on screen.
+.hero__dot--running span { animation: hero-dot-fill 3s linear both; }
 
 @keyframes hero-dot-fill {
   from { width: 6px; }
