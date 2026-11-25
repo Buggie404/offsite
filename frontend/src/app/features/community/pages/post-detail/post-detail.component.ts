@@ -5,6 +5,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CreatePostModalComponent } from '../../components/create-post-modal/create-post-modal.component';
+import { EditRecipePostComponent } from '../../components/edit-recipe-post/edit-recipe-post.component';
 import { Post, PostProductCard, postProductLink } from '../../models/post.model';
 import { CommunityService } from '../../services/community.service';
 import { CommentSectionComponent } from '../../components/comment-section/comment-section.component';
@@ -25,7 +26,7 @@ import { RestrictionBannerComponent } from '../../components/restriction-banner/
   standalone: true,
   imports: [
     CommonModule, FormsModule, RouterModule, RitualQuizInviteComponent, RestrictionBannerComponent, CommentSectionComponent, ShareModalComponent, ConfirmationModalComponent,
-    ReportPostModalComponent, CreatePostModalComponent, LucideArrowLeft, LucideArrowRight, LucideBookmark, LucideClock,
+    ReportPostModalComponent, CreatePostModalComponent, EditRecipePostComponent, LucideArrowLeft, LucideArrowRight, LucideBookmark, LucideClock,
     LucideEllipsis, LucideFlag, LucideHeart, LucideMessageCircle, LucidePencil, LucidePlay, LucideShare2, LucideStar,
     LucideTrash2, LucideUser
   ],
@@ -60,6 +61,7 @@ export class PostDetailComponent implements OnInit, OnDestroy {
   showReportModal = false;
   reportSubmitting = false;
   showEditModal = false;
+  showRecipeEditModal = false;
 
   private static readonly TAG_LABELS: Record<string, string> = {
     HOT: 'Hot', COLD: 'Iced', DESSERT: 'Dessert', COCKTAIL: 'Cocktail'
@@ -69,8 +71,13 @@ export class PostDetailComponent implements OnInit, OnDestroy {
     return this.post?.post_type === 'recipe' && !!this.post.recipe;
   }
 
+  // Up to five tags per post (manual first, then AI), so show them all here.
   get productCards(): PostProductCard[] {
-    return (this.post?.products || []).slice(0, 3);
+    return (this.post?.products || []).slice(0, 5);
+  }
+
+  isAiProduct(product: PostProductCard): boolean {
+    return !!this.post?.ai_product_ids?.includes(product.product_id);
   }
 
   productLink(product: PostProductCard): string[] {
@@ -156,18 +163,20 @@ export class PostDetailComponent implements OnInit, OnDestroy {
     if (!this.reportSubmitting) this.showReportModal = false;
   }
 
-    get canEditPost(): boolean {
-    return this.isPostAuthor && this.post?.post_type !== 'recipe';
+  get canEditPost(): boolean {
+    return this.isPostAuthor;
   }
 
   openEdit(): void {
     this.showPostOptions = false;
     if (!this.allowed('write')) return;
-    this.showEditModal = true;
+    if (this.post?.post_type === 'recipe') this.showRecipeEditModal = true;
+    else this.showEditModal = true;
   }
 
   closeEdit(): void {
     this.showEditModal = false;
+    this.showRecipeEditModal = false;
   }
 
   onPostEdited(): void {

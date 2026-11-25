@@ -155,20 +155,28 @@
   transform: translate3d(var(--px, 0px), var(--py, 0px), 0);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  // the stack hovers gently; content and cards arrive when the banner comes on screen
-  .dna__stack { animation: stack-float 7s ease-in-out infinite; }
-  .dna__content > * { opacity: 0; }
-  .dna.is-active .dna__content > * { animation: dna-rise .7s cubic-bezier(.2, .8, .2, 1) both; }
-  .dna.is-active .dna__content > :nth-child(2) { animation-delay: .08s; }
-  .dna.is-active .dna__content > :nth-child(3) { animation-delay: .16s; }
-  .dna.is-active .dna__content > :nth-child(4) { animation-delay: .24s; }
-  .dna-card { opacity: 0; }
-  .dna.is-active .dna-card { opacity: 1; }
-  .dna.is-dealing .dna-card:not(.is-leaving):not(.is-entering) { animation: card-deal .8s cubic-bezier(.2, .8, .2, 1) backwards; }
-  .dna.is-dealing .dna-card[data-pos='0']:not(.is-leaving):not(.is-entering) { animation-delay: .34s; }
-  .dna.is-dealing .dna-card[data-pos='1']:not(.is-leaving):not(.is-entering) { animation-delay: .24s; }
-  .dna.is-dealing .dna-card[data-pos='2']:not(.is-leaving):not(.is-entering) { animation-delay: .14s; }
+// the stack hovers gently; content and cards arrive when the banner comes on screen
+// Animation names stay outside @media: the production build renames each component's @keyframes
+// but not names used inside @media/@supports, so those animations never ran and the copy stayed hidden.
+.dna__stack { animation: stack-float 7s ease-in-out infinite; }
+.dna__content > * { opacity: 0; }
+.dna.is-active .dna__content > * { animation: dna-rise .7s cubic-bezier(.2, .8, .2, 1) both; }
+.dna.is-active .dna__content > :nth-child(2) { animation-delay: .08s; }
+.dna.is-active .dna__content > :nth-child(3) { animation-delay: .16s; }
+.dna.is-active .dna__content > :nth-child(4) { animation-delay: .24s; }
+.dna-card { opacity: 0; }
+.dna.is-active .dna-card { opacity: 1; }
+.dna.is-dealing .dna-card:not(.is-leaving):not(.is-entering) { animation: card-deal .8s cubic-bezier(.2, .8, .2, 1) backwards; }
+.dna.is-dealing .dna-card[data-pos='0']:not(.is-leaving):not(.is-entering) { animation-delay: .34s; }
+.dna.is-dealing .dna-card[data-pos='1']:not(.is-leaving):not(.is-entering) { animation-delay: .24s; }
+.dna.is-dealing .dna-card[data-pos='2']:not(.is-leaving):not(.is-entering) { animation-delay: .14s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dna__content > *,
+  .dna-card { opacity: 1; }
+  .dna__stack,
+  .dna.is-active .dna__content > *,
+  .dna.is-dealing .dna-card:not(.is-leaving):not(.is-entering) { animation: none; }
 }
 
 @keyframes stack-float {

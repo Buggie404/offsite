@@ -172,13 +172,18 @@
 }
 
 // Copy rises in each time a banner comes on screen.
-@media (prefers-reduced-motion: no-preference) {
-  .hero__slide .hero__content > * { opacity: 0; }
-  .hero__slide.is-active .hero__content > * { animation: hero-rise .7s cubic-bezier(.2, .8, .2, 1) both; }
-  .hero__slide.is-active .hero__content > :nth-child(2) { animation-delay: .08s; }
-  .hero__slide.is-active .hero__content > :nth-child(3) { animation-delay: .16s; }
-  .hero__slide.is-active .hero__content > :nth-child(4) { animation-delay: .24s; }
-  .hero__slide.is-active .hero__content > :nth-child(5) { animation-delay: .32s; }
+// Animation names stay outside @media: the production build renames each component's @keyframes
+// but not names used inside @media/@supports, so those animations never ran and the copy stayed hidden.
+.hero__slide .hero__content > * { opacity: 0; }
+.hero__slide.is-active .hero__content > * { animation: hero-rise .7s cubic-bezier(.2, .8, .2, 1) both; }
+.hero__slide.is-active .hero__content > :nth-child(2) { animation-delay: .08s; }
+.hero__slide.is-active .hero__content > :nth-child(3) { animation-delay: .16s; }
+.hero__slide.is-active .hero__content > :nth-child(4) { animation-delay: .24s; }
+.hero__slide.is-active .hero__content > :nth-child(5) { animation-delay: .32s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__slide .hero__content > * { opacity: 1; }
+  .hero__slide.is-active .hero__content > * { animation: none; }
 }
 
 @keyframes hero-rise {
@@ -278,11 +283,14 @@
   &--3 { top: 88cqh; left: 6cqw; width: 2.8cqh; height: 2.8cqh; }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .holiday__badge { animation: holiday-sway 5s ease-in-out infinite; }
-  .holiday__star { animation: holiday-twinkle 3.2s ease-in-out infinite; }
-  .holiday__star--2 { animation-delay: 1.1s; }
-  .holiday__star--3 { animation-delay: 2s; }
+.holiday__badge { animation: holiday-sway 5s ease-in-out infinite; }
+.holiday__star { animation: holiday-twinkle 3.2s ease-in-out infinite; }
+.holiday__star--2 { animation-delay: 1.1s; }
+.holiday__star--3 { animation-delay: 2s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .holiday__badge,
+  .holiday__star { animation: none; }
 }
 
 @keyframes holiday-sway {

@@ -352,15 +352,8 @@
 }
 
 // === Scroll Parallax Animation Keyframes ===
-@keyframes scroll-parallax-kf {
-    from {
-        transform: translateY(0) rotate(0deg);
-    }
-
-    to {
-        transform: translateY(var(--scroll-dist, 100px)) rotate(var(--scroll-rot, 20deg));
-    }
-}
+// scroll-parallax-kf lives in src/styles.scss: it is used inside @supports below, and the production
+// build renames a component's @keyframes without renaming names used inside @supports/@media.
 
 // === Custom background graphic elements ===
 .decor-custom {

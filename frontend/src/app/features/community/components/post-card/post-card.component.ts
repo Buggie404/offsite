@@ -104,7 +104,7 @@ export class PostCardComponent {
   }
 
   get canEdit(): boolean {
-    return this.isOwner && this.post.post_type !== 'recipe';
+    return this.isOwner;
   }
 
   onMenuEdit(event: Event): void {

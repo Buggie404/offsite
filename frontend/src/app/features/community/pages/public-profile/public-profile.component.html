@@ -22,9 +22,9 @@
       <div class="profile-info">
         <div class="identity">
           <h1 class="username">&#64;{{ profile.username }}</h1>
-          <span class="badge badge--tier">{{ profile.membership_tier }}</span>
+          <span class="badge badge--tier" [attr.data-tier]="(profile.membership_tier || 'Seed').toLowerCase()">{{ profile.membership_tier }}</span>
           @if (profile.ritual_dna_badge) {
-            <span class="badge badge--dna">{{ profile.ritual_dna_badge.name }}</span>
+            <span class="badge badge--dna" [attr.data-archetype]="profile.ritual_dna_badge.id">{{ profile.ritual_dna_badge.name }}</span>
           }
         </div>
 
@@ -198,6 +198,14 @@
     (saved)="onPostEdited($event)"
     (close)="closeEdit()"
   ></app-create-post-modal>
+}
+
+@if (editingRecipePostId) {
+  <app-edit-recipe-post
+    [postId]="editingRecipePostId"
+    (saved)="onRecipePostEdited($event)"
+    (closed)="editingRecipePostId = null"
+  ></app-edit-recipe-post>
 }
 
 @if (shareOpen) {

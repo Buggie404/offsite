@@ -184,6 +184,8 @@
 <app-create-post-modal *ngIf="showCreatePost" [post]="editingPost"
   (saved)="onPostEdited($event)" (close)="closeCreatePost()"></app-create-post-modal>
 <app-create-recipe-modal *ngIf="showCreateRecipe" (close)="closeCreateRecipe()"></app-create-recipe-modal>
+<app-edit-recipe-post *ngIf="editingRecipePostId" [postId]="editingRecipePostId"
+  (saved)="onRecipePostEdited($event)" (closed)="editingRecipePostId = null"></app-edit-recipe-post>
 
 <app-share-modal *ngIf="showShareModal" [shareUrl]="shareUrl" (close)="closeShareModal()"></app-share-modal>
 

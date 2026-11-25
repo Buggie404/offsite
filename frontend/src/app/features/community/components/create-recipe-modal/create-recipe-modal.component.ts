@@ -227,9 +227,16 @@ export class CreateRecipeModalComponent implements AfterViewInit, OnDestroy {
   // Nội dung dùng để gợi ý sản phẩm: tiêu đề + mô tả + nguyên liệu + dụng cụ
   get suggestContent(): string {
     return [
+      this.title,
+      this.description,
       ...this.ingredients.map(i => i.name),
       ...this.tools.map(t => t.name),
     ].filter(s => s && s.trim()).join(' ');
+  }
+
+  // Matcha/Coffee giúp gợi ý đúng nhóm sản phẩm; Others thì để nội dung tự quyết
+  get suggestBase(): 'COFFEE' | 'MATCHA' | null {
+    return this.base === 'MATCHA' || this.base === 'COFFEE' ? this.base : null;
   }
 
   // ----- Serve style (multi select) -----

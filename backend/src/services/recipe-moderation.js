@@ -129,6 +129,13 @@ function ownerCanEdit(recipe, userId) {
   return true;
 }
 
+// The recipe behind a community recipe post (lifecycle community_origin): its author edits it from the post.
+function ownerCanEditCommunityRecipe(recipe, userId) {
+  if (!recipe || !userId || isDeleted(recipe)) return false;
+  if (String(recipe.owner_user_id || '') !== String(userId)) return false;
+  return recipe.lifecycle === 'community_origin';
+}
+
 function ownerCanSubmitReview(recipe, userId) {
   if (!isOwnerCatalogRecipe(recipe, userId)) return false;
   if (recipe.moderation_status !== 'hidden') return false;
@@ -154,6 +161,7 @@ module.exports = {
   notifySavers,
   isOwnerCatalogRecipe,
   ownerCanEdit,
+  ownerCanEditCommunityRecipe,
   ownerCanSubmitReview,
   ownerCanDelete
 };

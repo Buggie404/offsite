@@ -188,6 +188,9 @@
         <a class="product-row" *ngFor="let product of productCards" [routerLink]="productLink(product)">
           <img *ngIf="product.image_url" [src]="product.image_url" [alt]="product.name">
           <span class="product-row__name">{{ product.name }}</span>
+          <span class="product-row__badge" [class.product-row__badge--ai]="isAiProduct(product)">
+            {{ isAiProduct(product) ? 'Suggested by AI' : 'Tagged by author' }}
+          </span>
           <svg lucideArrowRight [size]="14"></svg>
         </a>
       </section>
@@ -204,6 +207,8 @@
 
 <app-create-post-modal *ngIf="showEditModal" [post]="post"
   (saved)="onPostEdited()" (close)="closeEdit()"></app-create-post-modal>
+<app-edit-recipe-post *ngIf="showRecipeEditModal && post" [postId]="post.post_id"
+  (saved)="closeEdit(); onPostEdited()" (closed)="closeEdit()"></app-edit-recipe-post>
 
 <app-report-post-modal
   *ngIf="showReportModal && post"

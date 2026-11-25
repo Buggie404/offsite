@@ -17,3 +17,15 @@
   height: 1em;
   vertical-align: -0.125em;
 }
+
+// Community feed scroll parallax (feed.component.scss uses it inside @supports, where the production
+// build would not follow a component-scoped @keyframes rename).
+@keyframes scroll-parallax-kf {
+  from {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  to {
+    transform: translateY(var(--scroll-dist, 100px)) rotate(var(--scroll-rot, 20deg));
+  }
+}

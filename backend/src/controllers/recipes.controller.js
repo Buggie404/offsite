@@ -14,6 +14,7 @@ const {
   isDeleted,
   softDeleteRecipe,
   ownerCanEdit,
+  ownerCanEditCommunityRecipe,
   ownerCanSubmitReview,
   ownerCanDelete,
   MAX_REVIEW_ROUNDS
@@ -440,8 +441,11 @@ async function updateOwnRecipe(req, res) {
     const recipe = await Recipe.findOne({ recipe_id: req.params.recipeId });
     if (!recipe || isDeleted(recipe)) return res.status(404).json({ error: 'Recipe not found' });
     const userId = await requesterId(req);
-    if (!ownerCanEdit(recipe, userId)) {
-      return res.status(403).json({ error: 'You can only edit your own Recipes-page recipe.' });
+    // A community recipe post edits its own origin recipe; the Recipes page edits catalog recipes.
+    const isCommunityOrigin = recipe.lifecycle === 'community_origin';
+    const allowed = isCommunityOrigin ? ownerCanEditCommunityRecipe(recipe, userId) : ownerCanEdit(recipe, userId);
+    if (!allowed) {
+      return res.status(403).json({ error: 'You can only edit your own recipe.' });
     }
 
     const parsed = parseRecipeBody(req.body);
@@ -451,13 +455,16 @@ async function updateOwnRecipe(req, res) {
     if (!hero.hero && !recipe.heroImage?.url) return res.status(400).json({ error: 'Add a cover image.' });
 
     recipe.title = parsed.value.title;
-    const baseSlug = slugify(parsed.value.title) || recipe.recipe_id.toLowerCase();
-    let slug = baseSlug;
-    let suffix = 1;
-    while (await Recipe.exists({ slug, recipe_id: { $ne: recipe.recipe_id } })) {
-      slug = `${baseSlug}-${suffix++}`;
+    // Origin recipes have no public URL, so only catalog recipes follow the title with their slug.
+    if (!isCommunityOrigin) {
+      const baseSlug = slugify(parsed.value.title) || recipe.recipe_id.toLowerCase();
+      let slug = baseSlug;
+      let suffix = 1;
+      while (await Recipe.exists({ slug, recipe_id: { $ne: recipe.recipe_id } })) {
+        slug = `${baseSlug}-${suffix++}`;
+      }
+      recipe.slug = slug;
     }
-    recipe.slug = slug;
     recipe.description = parsed.value.description;
     if (hero.hero) recipe.heroImage = hero.hero;
     const nextBase = resolveStoredBase(parsed.value.base, parsed.value.title);
@@ -483,6 +490,15 @@ async function updateOwnRecipe(req, res) {
       recipe.relatedProducts = linked;
       recipe.markModified('relatedProducts');
       postUpdate.linked_products = linked.map(Number).filter(Number.isInteger);
+    }
+    if (isCommunityOrigin) {
+      // The community post shows the recipe's description (or title) and its cover.
+      postUpdate.content = parsed.value.description || parsed.value.title;
+      if (hero.hero) postUpdate.media = [{ url: hero.hero.url, public_id: hero.hero.public_id, type: 'image' }];
+      if (recipe.source) {
+        recipe.source.communityPostTitle = parsed.value.title;
+        recipe.markModified('source');
+      }
     }
     if (postId) {
       await Post.updateOne({ post_id: postId }, { $set: postUpdate });

@@ -572,6 +572,25 @@ $step-num: #7a5a1e;
     white-space: nowrap;
   }
 
+  // Same purple as the "Suggested by AI" chip in the composer; author tags stay neutral.
+  &__badge {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #eef2e6;
+    color: #5c6b45;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+
+    &--ai {
+      background: #F1E6FB;
+      color: #5B2E91;
+    }
+  }
+
   &:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   }

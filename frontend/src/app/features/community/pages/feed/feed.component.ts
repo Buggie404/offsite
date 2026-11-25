@@ -13,6 +13,7 @@ import { FeedToolbarComponent } from '../../components/feed-toolbar/feed-toolbar
 import { PostCardComponent } from '../../components/post-card/post-card.component';
 import { CreatePostModalComponent } from '../../components/create-post-modal/create-post-modal.component';
 import { CreateRecipeModalComponent } from '../../components/create-recipe-modal/create-recipe-modal.component';
+import { EditRecipePostComponent } from '../../components/edit-recipe-post/edit-recipe-post.component';
 import { AuthService } from '../../../../core/auth.service';
 import { AuthModalService } from '../../../../core/auth-modal.service';
 import { BackToTopComponent } from '../../../../shared/components/back-to-top/back-to-top.component';
@@ -34,6 +35,7 @@ import { RestrictionBannerComponent } from '../../components/restriction-banner/
     PostCardComponent,
     CreatePostModalComponent,
     CreateRecipeModalComponent,
+    EditRecipePostComponent,
     BackToTopComponent,
     ShareModalComponent,
     ReportPostModalComponent,
@@ -74,6 +76,7 @@ export class FeedComponent implements OnInit, OnDestroy {
   showCreatePost = false;
   showCreateRecipe = false;
   editingPost: Post | null = null;
+  editingRecipePostId: string | null = null;
 
   showShareModal = false;
   shareUrl = '';
@@ -384,8 +387,17 @@ export class FeedComponent implements OnInit, OnDestroy {
   openEdit(post: Post): void {
     if (!this.isLoggedIn()) return this.openLoginModal();
     if (!this.allowed('write')) return;
+    if (post.post_type === 'recipe') {
+      this.editingRecipePostId = post.post_id;
+      return;
+    }
     this.editingPost = post;
     this.showCreatePost = true;
+  }
+
+  onRecipePostEdited(postId: string): void {
+    this.editingRecipePostId = null;
+    this.onPostEdited(postId);
   }
 
   onPostEdited(postId: string): void {

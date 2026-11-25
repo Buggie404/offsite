@@ -101,6 +101,8 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
   suggestMessage = '';
   private shownSuggestionIds = new Set<number>();
   private autoSuggest$ = new Subject<void>();
+  // Lần tự gợi ý trước không ra gì: chỉ thử lại khi đổi coffee/matcha, không phải mỗi lần gõ
+  private autoSuggestTried = false;
 
   private initialSnapshot = '';
 
@@ -138,7 +140,8 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     this.autoSuggest$
       .pipe(debounceTime(1000), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        if (!this.isEdit && !this.hasSuggested && !this.suggestLoading && (this.selectedBase || this.content.trim().length >= 8)) {
+        if (!this.isEdit && !this.hasSuggested && !this.suggestLoading && !this.autoSuggestTried
+          && (this.selectedBase || this.content.trim().length >= 8)) {
           this.requestSuggestions(false);
         }
       });
@@ -262,6 +265,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     // Bấm lại vào base đang chọn -> bỏ chọn; ngược lại -> thay thế base cũ
     this.tags = this.tags.filter(t => !t.isBase);
     if (!already) this.tags.unshift({ label, isBase: true });
+    this.autoSuggestTried = false;
     this.autoSuggest$.next();
   }
 
@@ -442,8 +446,10 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
           if (fresh.length === 0) {
             this.suggestMessage = this.shownSuggestionIds.size
               ? 'No other matches for this post.'
-              : 'No matching products found. Try adding more detail or search manually.';
-            this.hasSuggested = true;
+              : 'No matching products found. Try adding more detail, picking coffee/matcha, or search manually.';
+            // Chưa gợi ý được gì: giữ nút "Suggest" để thử lại sau khi viết thêm hoặc chọn base
+            if (this.shownSuggestionIds.size) this.hasSuggested = true;
+            else this.autoSuggestTried = true;
             return;
           }
 
@@ -517,6 +523,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     this.shownSuggestionIds.clear();
     this.suggestionSessionId = undefined;
     this.hasSuggested = false;
+    this.autoSuggestTried = false;
     this.regenCount = 0;
     this.suggestMessage = '';
   }

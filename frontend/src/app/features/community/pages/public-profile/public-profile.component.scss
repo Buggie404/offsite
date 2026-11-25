@@ -100,14 +100,40 @@ $ease: cubic-bezier(0.16, 1, 0.3, 1);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 
+  // Same colours as the member badges on the Account page (account.component.scss).
+  // Seed doubles as the fallback for an unknown tier.
   &--tier {
     background: var(--color-wheat);
     color: var(--color-warm-brown);
+
+    &[data-tier='leaf'] {
+      background: var(--color-sage);
+      color: var(--color-forest-green);
+    }
+
+    &[data-tier='bloom'] {
+      background: var(--color-blush-pink);
+      color: var(--color-near-black);
+    }
+
+    &[data-tier='zen'] {
+      background: var(--color-forest-green);
+      color: var(--color-cream);
+    }
   }
 
+  // Each archetype has its own gradient; Zen Purist (ARC0001) is the default.
   &--dna {
-    background: var(--color-sage);
-    color: var(--color-forest-green);
+    --badge-ink: #254e30;
+    --badge-start: #e5eed8;
+    --badge-end: #b9d799;
+    border: 1px solid color-mix(in srgb, var(--badge-ink) 16%, transparent);
+    background: linear-gradient(110deg, var(--badge-start), var(--badge-end));
+    color: var(--badge-ink);
+
+    &[data-archetype='ARC0002'] { --badge-ink: #642e52; --badge-start: #f5e5ef; --badge-end: #e7b2d2; }
+    &[data-archetype='ARC0003'] { --badge-ink: #764315; --badge-start: #f7e7ca; --badge-end: #edbd6b; }
+    &[data-archetype='ARC0004'] { --badge-ink: #773c36; --badge-start: #f7e3de; --badge-end: #efaaa0; }
   }
 }
 

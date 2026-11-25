@@ -42,6 +42,7 @@ import {
 import { CloudinaryService } from '../../services/cloudinary.service';
 import { PostCardComponent } from '../../components/post-card/post-card.component';
 import { CreatePostModalComponent } from '../../components/create-post-modal/create-post-modal.component';
+import { EditRecipePostComponent } from '../../components/edit-recipe-post/edit-recipe-post.component';
 import { ConfirmationModalComponent } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { FollowModalComponent } from '../../components/follow-modal/follow-modal.component';
 import { RestrictionBannerComponent } from '../../components/restriction-banner/restriction-banner.component';
@@ -85,6 +86,7 @@ interface ContactChange {
     ShareModalComponent,
     ReportPostModalComponent,
     PostCardComponent,
+    EditRecipePostComponent,
     CreatePostModalComponent,
     ConfirmationModalComponent,
     FollowModalComponent,
@@ -149,6 +151,7 @@ export class PublicProfileComponent implements OnInit {
   pendingDeletePost: Post | null = null;
   editingPost: Post | null = null;
   editPostOpen = false;
+  editingRecipePostId: string | null = null;
 
   constructor() {
     this.destroyRef.onDestroy(() => this.stopOtpTimer());
@@ -418,8 +421,17 @@ export class PublicProfileComponent implements OnInit {
 
   openEdit(post: Post): void {
     if (!this.allowed('write')) return;
+    if (post.post_type === 'recipe') {
+      this.editingRecipePostId = post.post_id;
+      return;
+    }
     this.editingPost = post;
     this.editPostOpen = true;
+  }
+
+  onRecipePostEdited(postId: string): void {
+    this.editingRecipePostId = null;
+    this.onPostEdited(postId);
   }
 
   closeEdit(): void {
