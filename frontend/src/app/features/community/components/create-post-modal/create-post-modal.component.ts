@@ -134,11 +134,11 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
         this.searching = false;
       });
 
-    // Tự gợi ý một lần sau khi người dùng dừng gõ ~1.5s (chỉ lần đầu, chỉ khi tạo bài mới)
+    // Tự gợi ý một lần khi người dùng dừng gõ hoặc chọn chủ đề cho bài mới.
     this.autoSuggest$
-      .pipe(debounceTime(1500), takeUntilDestroyed(this.destroyRef))
+      .pipe(debounceTime(1000), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        if (!this.isEdit && !this.hasSuggested && !this.suggestLoading && this.content.trim().length >= 8) {
+        if (!this.isEdit && !this.hasSuggested && !this.suggestLoading && (this.selectedBase || this.content.trim().length >= 8)) {
           this.requestSuggestions(false);
         }
       });
@@ -262,6 +262,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
     // Bấm lại vào base đang chọn -> bỏ chọn; ngược lại -> thay thế base cũ
     this.tags = this.tags.filter(t => !t.isBase);
     if (!already) this.tags.unshift({ label, isBase: true });
+    this.autoSuggest$.next();
   }
 
   // ================== Photo & Media ==================
@@ -439,8 +440,7 @@ export class CreatePostModalComponent implements OnInit, OnDestroy {
           const fresh = (response.data as ProductOption[]).filter(p => !exclude.includes(p.product_id)).slice(0, slots);
 
           if (fresh.length === 0) {
-            // Không còn gì mới: giữ nguyên kết quả cũ và KHÔNG tính vào lượt gợi ý lại
-            this.suggestMessage = this.hasSuggested
+            this.suggestMessage = this.shownSuggestionIds.size
               ? 'No other matches for this post.'
               : 'No matching products found. Try adding more detail or search manually.';
             this.hasSuggested = true;

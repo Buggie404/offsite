@@ -139,8 +139,7 @@ export class ProductPickerComponent {
           this.regenCount = this.maxRegenerate - response.remaining;
           const fresh = response.data.filter(p => !exclude.includes(p.product_id)).slice(0, this.maxProducts);
           if (fresh.length === 0) {
-            // Không còn gợi ý mới: giữ kết quả cũ, không trừ lượt "Gợi ý lại"
-            this.suggestMessage = this.hasSuggested
+            this.suggestMessage = this.shownIds.size
               ? 'No other matches.'
               : 'No matching products found. Try searching manually.';
             this.hasSuggested = true;

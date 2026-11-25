@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ChangeDetectorRef } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AdminChatComponent } from './chat.component';
@@ -17,6 +17,7 @@ afterEach(() => { TestBed.resetTestingModule(); vi.useRealTimers(); vi.restoreAl
 
 function setup(status: string | null = null, conversation: string | null = null) {
   vi.useFakeTimers();
+  const queryParamMap = convertToParamMap({ status, conversation });
   const rows = [row('WAIT', 'waiting', null), row('OWN', 'open', 'STAFF1'),
     row('LEGACY', 'open', 'mongo-staff'), row('OTHER', 'open', 'STAFF2'),
     row('CLOSED', 'closed', 'STAFF1', 'OWN')];
@@ -33,7 +34,7 @@ function setup(status: string | null = null, conversation: string | null = null)
     { provide: ChatService, useValue: chat },
     { provide: AdminCustomersService, useValue: { get: () => of({ data: null }), orders: () => of({ data: [], total: 0, page: 1, limit: 20 }) } },
     { provide: AdminAuthService, useValue: { getUser: () => ({ user_id: 'STAFF1', _id: 'mongo-staff', role: 'cskh' }) } },
-    { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: (key: string) => key === 'status' ? status : conversation } } } },
+    { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap }, queryParamMap: of(queryParamMap) } },
     { provide: ChangeDetectorRef, useValue: { markForCheck: vi.fn() } }
   ] });
   const fixture = TestBed.createComponent(AdminChatComponent);
@@ -201,13 +202,42 @@ it('can cancel closing and prevents transferring to an unavailable colleague', (
 });
 
 it('shares the selected order as a card and blocks sharing after the chat closes', () => {
-  const { component, rows } = setup();
+  const { component, fixture, rows } = setup();
   const share = vi.fn(() => of({ data: { _id: 'CARD1', conversation_id: 'OWN', sender_type: 'agent', content: 'Order #OF1029', metadata: { orderCard: { order_id: 'OF1029' } } } }));
   (TestBed.inject(ChatService) as any).shareOrder = share;
-  component.select(rows[1]); component.orderShareId = 'OF1029'; component.shareOrder();
+  component.select(rows[1]);
+  const order = { order_id: 'OF1029', status: 'processing', created_at: '2026-11-08', item_count: 3, total: 74.8 };
+  component.customerDetails = { user_id: 'OTHER', recent_orders: [order], violations: [] } as unknown as NonNullable<typeof component.customerDetails>;
+  component.orderShareId = order.order_id;
+  expect(component.shareableOrders).toEqual([]);
+  fixture.componentRef.changeDetectorRef.markForCheck();
+  fixture.detectChanges();
+  const dialog = fixture.nativeElement.querySelector('.order-picker-dialog') as HTMLDialogElement;
+  expect(dialog.querySelector('.order-picker-row')).toBeNull();
+  component.shareOrder();
+  expect(share).not.toHaveBeenCalled();
+
+  component.customerDetails = { ...component.customerDetails, user_id: 'OWN' };
+  component.orderShareId = 'FOREIGN-ORDER';
+  component.shareOrder();
+  expect(share).not.toHaveBeenCalled();
+  fixture.componentRef.changeDetectorRef.markForCheck();
+  fixture.detectChanges();
+  const showModal = vi.fn();
+  Object.defineProperty(dialog, 'showModal', { value: showModal });
+  fixture.nativeElement.querySelector('[aria-haspopup="dialog"]').click();
+  expect(showModal).toHaveBeenCalledTimes(1);
+  const search = dialog.querySelector<HTMLInputElement>('input[type="search"]')!;
+  search.value = '#of1029';
+  search.dispatchEvent(new Event('input'));
+  expect(component.shareableOrders).toEqual([order]);
+  dialog.querySelector<HTMLInputElement>('input[type="radio"]')!.click();
+  fixture.detectChanges();
+  dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
   expect(share).toHaveBeenCalledWith('OWN', 'OF1029');
   expect(component.messages.at(-1)?.metadata?.orderCard?.order_id).toBe('OF1029');
   component.active = { ...component.active!, status: 'closed' };
+  component.orderShareId = order.order_id;
   component.shareOrder();
   expect(share).toHaveBeenCalledTimes(1);
 });

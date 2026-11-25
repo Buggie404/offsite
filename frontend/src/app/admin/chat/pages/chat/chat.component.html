@@ -139,16 +139,15 @@
           [disabled]="!canReply"
           [placeholder]="canReply ? 'Type a reply — Enter to send' : (active.status === 'closed' ? 'Conversation closed' : 'Take over this chat to reply')"></textarea>
           <div class="compose-order-tools">
-            @if (customerDetails?.recent_orders?.length) { <button type="button" class="btn" [disabled]="actionPending" (click)="orderShareOpen = !orderShareOpen"><img src="/assets/icons/chat/share-order.svg" alt="">Share order</button> }
+            @if (shareCustomerOrders.length) {
+              <button type="button" class="btn" aria-haspopup="dialog"
+                [disabled]="actionPending" (click)="openOrderShare()">
+                <img src="/assets/icons/chat/share-order.svg" alt="">Share order
+              </button>
+            }
             @if (customerDetails) { <button type="button" class="btn" (click)="openVoucher()"><img src="/assets/icons/chat/add-voucher.svg" alt="">Add voucher</button> }
             <button type="button" class="btn btn-primary compose-send" (click)="send()" [disabled]="!canReply || !draft.trim()"><img src="/assets/icons/chat/send.svg" alt="">Send</button>
           </div>
-            @if (orderShareOpen) {
-              <div class="compose-order-picker">
-              <label>Order <select aria-label="Customer order to share" [value]="orderShareId" (change)="orderShareId = $any($event.target).value"><option value="">Choose an order</option>@for (order of customerDetails?.recent_orders; track order.order_id) { <option [value]="order.order_id">#{{ order.order_id }} · {{ order.status }}</option> }</select></label>
-              <button type="button" class="btn" [disabled]="!orderShareId || actionPending" (click)="shareOrder()">Send order</button>
-              </div>
-            }
         </div>
         } @else if (canClaim) {
           <p>You are viewing only. Claim this conversation to reply.</p>
@@ -246,6 +245,50 @@
       @if (actionError) { <p class="dialog-error" role="alert">{{ actionError }}</p> }
     </div>
     <footer><button type="button" class="btn" (click)="dismissDialogs()" [disabled]="actionPending">Cancel</button><button type="submit" class="btn dialog-close" [disabled]="actionPending">{{ actionPending ? 'Closing...' : 'Close conversation' }}</button></footer>
+  </form>
+</dialog>
+
+<dialog #orderShareDialog class="support-dialog order-picker-dialog" aria-labelledby="share-order-title"
+  (cancel)="$event.preventDefault(); cancelOrderShare()">
+  <form (submit)="$event.preventDefault(); shareOrder()">
+    <header>
+      <span class="order-picker-icon"><img src="/assets/icons/chat/share-order.svg" alt=""></span>
+      <div class="order-picker-heading">
+        <h2 id="share-order-title">Share order</h2>
+        @if (active; as conversation) { <p>{{ customerName(conversation) }}</p> }
+      </div>
+      <button type="button" class="dialog-x" aria-label="Close order picker" [disabled]="actionPending" (click)="cancelOrderShare()">
+        <img src="/assets/icons/chat/close.svg" alt="">
+      </button>
+    </header>
+    <div class="support-dialog__body">
+      <input type="search" class="order-picker-search" aria-label="Search by order ID" autofocus
+        placeholder="Search by order ID" [value]="orderShareQuery" [disabled]="actionPending"
+        (input)="searchShareOrders($any($event.target).value)">
+      <fieldset class="order-picker-list" aria-label="Customer orders" [disabled]="actionPending">
+        @for (order of shareableOrders; track order.order_id) {
+          <label class="order-picker-row" [class.order-picker-row--selected]="orderShareId === order.order_id">
+            <input type="radio" name="chat-share-order" [checked]="orderShareId === order.order_id"
+              (change)="orderShareId = order.order_id">
+            <span class="order-picker-details">
+              <strong>#{{ order.order_id }}</strong>
+              <small>{{ order.created_at | date:'dd/MM/yyyy':'+0700' }} &middot; {{ order.item_count }} {{ order.item_count === 1 ? 'item' : 'items' }}</small>
+            </span>
+            <span class="status" [class.status--open]="order.status === 'delivered'"
+              [class.status--info]="order.status === 'processing'">{{ order.status.replaceAll('_', ' ') }}</span>
+          </label>
+        } @empty {
+          <p class="order-picker-empty" role="status">No matching orders.</p>
+        }
+      </fieldset>
+      @if (orderShareError) { <p class="dialog-error" role="alert">{{ orderShareError }}</p> }
+    </div>
+    <footer>
+      <button type="button" class="btn" [disabled]="actionPending" (click)="cancelOrderShare()">Cancel</button>
+      <button type="submit" class="btn btn-primary" [disabled]="!orderShareId || actionPending || !canReply">
+        {{ actionPending ? 'Sending…' : 'Send order' }}
+      </button>
+    </footer>
   </form>
 </dialog>
 

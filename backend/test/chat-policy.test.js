@@ -10,10 +10,21 @@ test('legacy support notifications display in English without translating custom
   assert.equal(messages[1].text, original);
 });
 
-test('support hours use Vietnam 08:00 inclusive to 22:00 exclusive', () => {
+test('production support hours use Vietnam 08:00 inclusive to 22:00 exclusive', (t) => {
+  const previous = process.env.NODE_ENV;
+  t.after(() => {
+    if (previous === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previous;
+  });
+  process.env.NODE_ENV = 'production';
   for (const [utc, expected] of [['00:59', false], ['01:00', true], ['14:59', true], ['15:00', false]]) {
     assert.equal(policy.supportOpen(new Date(`2026-11-08T${utc}:00Z`)), expected);
   }
+  const afterHours = new Date('2026-11-08T15:00:00Z');
+  process.env.NODE_ENV = 'development';
+  assert.equal(policy.supportOpen(afterHours), true);
+  delete process.env.NODE_ENV;
+  assert.equal(policy.supportOpen(afterHours), false);
 });
 test('reopen is limited to resolved chats within three hours; return-to-bot never reopens', () => {
   const closed_at = '2026-11-08T01:00:00Z';

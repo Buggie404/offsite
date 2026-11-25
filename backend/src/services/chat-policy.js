@@ -2,6 +2,7 @@ const MAX_AGENT_CHATS = 5;
 const REOPEN_MS = 3 * 60 * 60 * 1000;
 const IDLE_CLOSE_MS = REOPEN_MS;
 function supportOpen(now = new Date()) {
+  if (process.env.NODE_ENV === 'development') return true;
   const hour = (now.getUTCHours() + 7) % 24;
   return hour >= 8 && hour < 22;
 }

@@ -201,17 +201,25 @@ test('community point reversal/restoration is idempotent for pending and posted 
   assert.equal(rows[1].status, 'pending');
 });
 
-test('suggestions enforce 0.6 and reuse catalog cache', async () => {
+test('specific caption matches rank first and broad matcha captions use in-stock category suggestions', async () => {
   let reads = 0;
   const catalog = [
     { product_id: 1, name: 'Ceremonial Uji Matcha', category: 'matcha', variants: [{ stock: 2, price: 20 }], product_tag: [] },
-    { product_id: 2, name: 'Matcha Everyday Blend', category: 'matcha', variants: [{ stock: 2, price: 10 }], product_tag: [] }
+    { product_id: 2, name: 'Matcha Everyday Blend', category: 'matcha', variants: [{ stock: 2, price: 10 }], product_tag: [] },
+    { product_id: 3, name: 'Matcha Reserve', category: 'matcha', variants: [{ stock: 0, price: 30 }] },
+    { product_id: 4, name: 'House Coffee', category: 'coffee', variants: [{ stock: 3, price: 15 }] }
   ];
   const tags = load('../src/services/product-tag.service.js', { '../models/Product': { find: () => {
     reads++;
     return { limit: () => ({ lean: async () => catalog }) };
-  } } });
-  assert.equal((await tags.suggestProductTags({ content: 'matcha', base: 'MATCHA' })).length, 0);
+  } }, './llm.service': { completeJson: async () => assert.fail('Clear categories should skip the AI provider') } });
+  const broad = await tags.suggestProductTags({ content: 'Preparing my morning matcha', base: 'MATCHA', userId: 'USR1' });
+  assert.deepEqual(broad.map(row => row.product_id), [1, 2]);
+  assert.ok(broad.every(row => row.confidence === null));
+  const fresh = await tags.suggestProductTags({ content: 'Preparing my morning matcha', exclude: [1], userId: 'USR1' });
+  assert.deepEqual(fresh.map(row => row.product_id), [2]);
+  const byBase = await tags.suggestProductTags({ base: 'COFFEE', userId: 'USR1' });
+  assert.deepEqual(byBase.map(row => row.product_id), [4]);
   const results = await tags.suggestProductTags({ content: 'Ceremonial Uji Matcha', base: 'MATCHA' });
   assert.deepEqual(results.map(row => row.product_id), [1]);
   assert.ok(results.every(row => row.confidence >= 0.6 && row.source === 'ai'));

@@ -85,9 +85,47 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   @ViewChild('thread') private thread?: ElementRef<HTMLElement>;
   @ViewChild('transferDialog') private transferDialog?: ElementRef<HTMLDialogElement>;
   @ViewChild('closeDialog') private closeDialog?: ElementRef<HTMLDialogElement>;
+  @ViewChild('orderShareDialog') private orderShareDialog?: ElementRef<HTMLDialogElement>;
   closeOpen = false;
-  orderShareOpen = false;
   orderShareId = '';
+  orderShareQuery = '';
+  orderShareError = '';
+
+  get shareCustomerOrders(): CustomerOrder[] {
+    return this.active && this.canReply && this.customerDetails?.user_id === customerKey(this.active)
+      ? this.customerDetails.recent_orders
+      : [];
+  }
+
+  get shareableOrders(): CustomerOrder[] {
+    const orders = this.shareCustomerOrders;
+    const query = this.orderShareQuery.trim().replace(/^#/, '').toLowerCase();
+    return query ? orders.filter(order => order.order_id.toLowerCase().includes(query)) : orders;
+  }
+
+  openOrderShare(): void {
+    if (this.actionPending || !this.shareCustomerOrders.length) return;
+    this.orderShareDialog?.nativeElement.showModal?.();
+  }
+
+  cancelOrderShare(): void {
+    if (!this.actionPending) this.closeOrderShare();
+  }
+
+  private closeOrderShare(): void {
+    const dialog = this.orderShareDialog?.nativeElement;
+    if (dialog?.open) dialog.close();
+    this.orderShareQuery = '';
+    this.orderShareId = '';
+    this.orderShareError = '';
+  }
+
+  searchShareOrders(query: string): void {
+    this.orderShareQuery = query;
+    if (!this.shareableOrders.some(order => order.order_id === this.orderShareId)) {
+      this.orderShareId = '';
+    }
+  }
   closeOutcome = 'resolved';
   closeSummary = '';
   sendClosingMessage = true;
@@ -193,6 +231,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   }
 
   setFilter(filter: StatusFilter): void {
+    this.closeOrderShare();
     this.customerRequest?.unsubscribe();
     this.customerDetails = null;
     this.customerDetailsLoading = false;
@@ -237,6 +276,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
       this.upsert(c);
       if (this.active?.conversation_id === c.conversation_id) {
         this.active = { ...this.active, ...c, customer: this.active.customer };
+        if (!this.canReply) this.closeOrderShare();
         this.refreshMessages(c.conversation_id);
       }
       this.cdr.markForCheck();
@@ -295,8 +335,11 @@ export class AdminChatComponent implements OnInit, OnDestroy {
           const fresh = res.data.find(c => c.conversation_id === this.active!.conversation_id);
           if (fresh) {
             this.active = fresh;
+            if (!this.canReply) this.closeOrderShare();
             this.refreshMessages(fresh.conversation_id);
           } else {
+            this.closeOrderShare();
+            this.customerRequest?.unsubscribe();
             this.active = null;
             this.messages = [];
             this.customerDetails = null;
@@ -319,7 +362,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
 
   select(c: ChatConversation): void {
     this.reportOpen = false;
-    this.orderShareOpen = false; this.orderShareId = '';
+    this.closeOrderShare();
     this.customerRequest?.unsubscribe();
     this.customerDetails = null;
     this.customerDetailsLoading = false;
@@ -337,7 +380,7 @@ export class AdminChatComponent implements OnInit, OnDestroy {
     this.customerRequest?.unsubscribe();
     if (!c.customer_id.startsWith('guest:')) {
       this.customerDetailsLoading = true;
-      const customerId = c.customer?.user_id || c.customer_id;
+      const customerId = customerKey(c);
       this.customerRequest = forkJoin({ profile: this.customers.get(customerId), orders: this.customers.orders(customerId, 1) }).subscribe({
         next: response => { this.customerDetails = response.profile.data ? { ...response.profile.data, recent_orders: response.orders.data } : null; this.customerDetailsLoading = false; this.cdr.markForCheck(); },
         error: () => { this.customerDetailsLoading = false; this.cdr.markForCheck(); }
@@ -476,16 +519,23 @@ export class AdminChatComponent implements OnInit, OnDestroy {
   }
 
   shareOrder(): void {
-    if (!this.active || !this.canReply || !this.orderShareId || this.actionPending) return;
+    if (!this.active || this.actionPending || !this.shareableOrders.some(order => order.order_id === this.orderShareId)) return;
     const id = this.active.conversation_id;
-    this.actionPending = true; this.actionError = '';
+    this.actionPending = true; this.orderShareError = '';
     this.chat.shareOrder(id, this.orderShareId).subscribe({
       next: response => {
-        this.actionPending = false; this.orderShareOpen = false;
+        this.actionPending = false;
+        if (this.active?.conversation_id === id) {
+          this.closeOrderShare();
+        }
         if (this.active?.conversation_id === id && response.data && !this.messages.some(message => message._id === response.data?._id)) { this.messages = [...this.messages, response.data]; this.scrollSoon(true); }
         this.cdr.markForCheck();
       },
-      error: error => { this.actionPending = false; this.actionError = error?.error?.error || 'Could not share this order.'; this.cdr.markForCheck(); }
+      error: error => {
+        this.actionPending = false;
+        if (this.active?.conversation_id === id) this.orderShareError = error?.error?.error || 'Could not share this order.';
+        this.cdr.markForCheck();
+      }
     });
   }
 
