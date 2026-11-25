@@ -10,6 +10,7 @@ const User = require('../models/User');
 const { simulateSignatureImpact } = require('../services/ritual-dna.impact');
 const { scoreQuiz } = require('../services/ritual-dna.scoring');
 const { previewResult } = require('../services/ritual-dna.admin-preview');
+const { rewindCounterToLatest } = require('../services/ritual-dna-versioning');
 
 const pageNumber = value => Math.max(1, Math.min(100000, Number.parseInt(value, 10) || 1));
 const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -262,6 +263,8 @@ async function deleteDraft(req, res) {
     if (!Number.isSafeInteger(version) || version < 1) return res.status(400).json({ error: 'Invalid version.' });
     const release = await Release.findOneAndDelete({ version, status: { $in: ['draft', 'archived'] }, published_at: null });
     if (!release) return res.status(409).json({ error: 'Only an unpublished draft can be deleted. Reopen a testing version first.' });
+    try { await rewindCounterToLatest(VersionCounter, 'archetype', Release); }
+    catch (error) { console.warn('Could not rewind Ritual DNA archetype version counter:', error.message); }
     await req.writeActivityLog({ actionType: 'ritual-dna.delete-draft', targetEntity: 'ritual_archetype_release',
       targetId: String(version), oldValue: { version, status: release.status, source_version: release.source_version, archetypes: release.archetypes }, newValue: { deleted: true } });
     res.json({ data: { version, deleted: true } });
@@ -359,6 +362,8 @@ async function deleteQuizDraft(req, res) {
     if (!Number.isSafeInteger(version) || version < 1) return res.status(400).json({ error: 'Invalid version.' });
     const release = await QuizRelease.findOneAndDelete({ version, status: 'draft', published_at: null });
     if (!release) return res.status(409).json({ error: 'Only an unpublished quiz draft can be deleted. Reopen a testing version first.' });
+    try { await rewindCounterToLatest(QuizVersionCounter, 'quiz', QuizRelease); }
+    catch (error) { console.warn('Could not rewind Ritual DNA quiz version counter:', error.message); }
     await req.writeActivityLog({ actionType: 'ritual-dna.quiz-delete-draft', targetEntity: 'ritual_quiz_release', targetId: String(version), oldValue: { version, status: release.status, source_version: release.source_version, questions: release.questions }, newValue: { deleted: true } });
     res.json({ data: { version, deleted: true } });
   } catch (error) {

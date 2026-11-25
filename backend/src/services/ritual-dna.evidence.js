@@ -24,7 +24,9 @@ function productProfile(product) {
   if (!product) return {};
   const category = normalize(product.category);
   if (category === 'matcha') {
+    const tags = (product.product_tag || []).map(normalize).map(tag => tag.replace(/[-_]/g, ' '));
     const grade = normalize(product.matcha?.product_grade);
+    if (tags.includes('related tea') || grade === 'related tea') return leafTeaProfile(product);
     if (grade.includes('ceremonial')) return { brightness: 72, boldness: 30 };
     if (grade.includes('premium')) return { brightness: 58, boldness: 45 };
     if (grade.includes('barista')) return { brightness: 35, boldness: 65 };
@@ -60,6 +62,27 @@ function productProfile(product) {
   }
   // Drinkware and bundles without composition do not imply taste or brewing skill.
   return {};
+}
+
+// Leaf teas share Ritual DNA's existing taste axes. Use explicit tasting language
+// from the product copy and leave an axis out when the catalog gives no evidence.
+function leafTeaProfile(product) {
+  const evidence = `${product.name || ''} ${product.description || ''}`.toLowerCase();
+  const profile = {};
+  if (/floral|flower|jasmine|orchid|rose|lychee|citrus|orange|bergamot|earl grey|fruit|fruity|vibrant|fresh|bright|fragrant|aromatic|magnolia|mango/.test(evidence)) {
+    profile.brightness = 72;
+  } else if (/gentle|smooth|mellow|subdued|light-bodied|delicate|soft/.test(evidence)) {
+    profile.brightness = 58;
+  }
+  if (/smoky|roast|roasted|toast(?:ed|y)|nutty|robust|intense|bold|full-bodied|mineral|rock tea/.test(evidence)) {
+    profile.boldness = 68;
+  } else if (/light-bodied|subdued|gentle|delicate/.test(evidence)) {
+    profile.boldness = 35;
+  }
+  if (/sweet|honey|caramel|lychee|fruity|mango|chocolate|creamy/.test(evidence)) {
+    profile.sweetness = 68;
+  }
+  return profile;
 }
 
 function recipeProfile(recipe, relatedProducts = []) {

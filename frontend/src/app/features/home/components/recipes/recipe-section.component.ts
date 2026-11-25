@@ -2,7 +2,7 @@
 //  components/recipe-section/recipe-section.component.ts
 // ─────────────────────────────────────────────────────────────
 
-import { Component, Input, OnChanges, OnInit, SimpleChanges, inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, OnChanges, OnInit, SimpleChanges, inject, PLATFORM_ID, ChangeDetectorRef, effect } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Recipe } from '../../models/recipe.model';
 import { RecipeService } from '../../services/recipe.service';
@@ -15,6 +15,7 @@ import { DragScrollDirective } from '../../../../shared/directives/drag-scroll.d
 import { AnimateInViewDirective } from '../../../../shared/directives/animate-in-view.directive';
 import { ParallaxDirective } from '../../../../shared/directives/parallax.directive';
 import { RitualFitComponent } from '../../../../shared/components/ritual-fit/ritual-fit.component';
+import { RitualFitService } from '../../../../shared/components/ritual-fit/ritual-fit.service';
 
 @Component({
   selector: 'app-recipe-section',
@@ -52,12 +53,20 @@ export class RecipeSectionComponent implements OnInit, OnChanges {
 
   private platformId = inject(PLATFORM_ID);
   private cdr = inject(ChangeDetectorRef);
+  private ritualFits = inject(RitualFitService);
 
   constructor(
     private recipeService: RecipeService,
     private authService: AuthService,
     private authPromptService: AuthPromptModalService
-  ) {}
+  ) {
+    effect(() => {
+      const hasRitualDna = Boolean(this.ritualFits.fitData()?.archetype);
+      if (!this.baseFilter || !this.recipes.length) return;
+      this.recipes = this.rankRecipes(this.recipes, hasRitualDna);
+      this.cdr.markForCheck();
+    });
+  }
 
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
@@ -145,16 +154,13 @@ export class RecipeSectionComponent implements OnInit, OnChanges {
     this.error     = null;
 
     const request$ = this.baseFilter
-      ? this.recipeService.getRecipes(24)
+      ? this.recipeService.getRecipes(100)
       : this.recipeService.getFeaturedRecipes();
 
     request$.subscribe({
       next: (data) => {
         this.recipes = this.baseFilter
-          ? data
-              .filter(recipe => this.matchesBaseFilter(recipe))
-              .sort((a, b) => (b.saves || 0) - (a.saves || 0))
-              .slice(0, 10)
+          ? this.rankRecipes(data.filter(recipe => this.matchesBaseFilter(recipe)), Boolean(this.ritualFits.fitData()?.archetype))
           : data;
         this.isLoading = false;
         this.cdr.detectChanges();
@@ -166,6 +172,19 @@ export class RecipeSectionComponent implements OnInit, OnChanges {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  private rankRecipes(recipes: Recipe[], hasRitualDna: boolean): Recipe[] {
+    return [...recipes]
+      .sort((a, b) => {
+        if (hasRitualDna) {
+          const aFit = this.ritualFits.forRecipe(a.recipe_id)?.percent ?? -1;
+          const bFit = this.ritualFits.forRecipe(b.recipe_id)?.percent ?? -1;
+          if (aFit !== bFit) return bFit - aFit;
+        }
+        return (b.saves || 0) - (a.saves || 0);
+      })
+      .slice(0, 10);
   }
 
   private matchesBaseFilter(recipe: Recipe): boolean {

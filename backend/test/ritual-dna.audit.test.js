@@ -13,6 +13,7 @@ function setup(status = 'testing', conflict = false) {
   const archetypes = { version: 9, status: 'active', archetypes: structuredClone(ARCHETYPES).map(row => ({ ...row, is_active: true })) };
   const logs = []; let updates = 0;
   const models = {
+    '../services/ritual-dna-versioning': { rewindCounterToLatest: async () => {} },
     '../models/RitualQuizRelease': {
       findOne: () => ({ lean: async () => quiz }),
       findOneAndUpdate: (query, update, options) => ({ lean: async () => {

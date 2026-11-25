@@ -17,7 +17,9 @@ function profileFit(radar, target) {
 }
 
 function productDetailScore(candidate, dna, viewedProfile) {
-  const dnaFit = profileFit(dna.taste_radar, candidate.profile);
+  const dnaFit = fitPercent(dna.taste_radar, candidate.profile, {
+    kind: beverageKind(candidate), drinkLean: dna.drink_lean, leanConfirmed: dna.lean_confirmed
+  }) ?? profileFit(dna.taste_radar, candidate.profile);
   const commonAxes = AXES.filter(axis => Number.isFinite(viewedProfile?.[axis]) && Number.isFinite(candidate.profile?.[axis]));
   if (!commonAxes.length) return dnaFit;
   const contextFit = 100 - commonAxes.reduce((sum, axis) => sum + Math.abs(viewedProfile[axis] - candidate.profile[axis]), 0) / commonAxes.length;
@@ -29,16 +31,28 @@ function productCandidate(row, dna) {
   if (!row.is_active || !available.length) return null;
   const profile = productProfile(row);
   const lean = Number(dna.drink_lean);
+  const kind = beverageKind(row);
   const categoryBonus = dna.lean_confirmed && Number.isFinite(lean)
-    ? (row.category === 'matcha' ? (lean - 50) / 5 : row.category === 'coffee' ? (50 - lean) / 5 : 0)
+    ? (kind === 'matcha' ? (lean - 50) / 5 : kind === 'coffee' ? (50 - lean) / 5 : 0)
     : 0;
   return {
     id: String(row.product_id), name: row.name, slug: row.slug, category: row.category,
     image: row.images?.[0]?.url || available[0]?.images?.[0]?.url || '',
     price: Math.min(...available.map(variant => Number(variant.price))),
-    profile, fit_percent: Math.round(Math.max(0, Math.min(100, profileFit(dna.taste_radar, profile)))),
+    profile, fit_percent: fitPercent(dna.taste_radar, profile, {
+      kind, drinkLean: dna.drink_lean, leanConfirmed: dna.lean_confirmed
+    }),
     score: profileFit(dna.taste_radar, profile) + categoryBonus
   };
+}
+
+function beverageKind(item) {
+  const category = String(item?.category || '').trim().toLowerCase();
+  if (category === 'coffee') return 'coffee';
+  if (category !== 'matcha') return null;
+  const tags = (item.product_tag || []).map(tag => String(tag).trim().toLowerCase().replace(/[-_]/g, ' '));
+  return tags.includes('related tea') || String(item?.matcha?.product_grade || '').trim().toLowerCase() === 'related tea'
+    ? null : 'matcha';
 }
 
 function recipeCandidate(row, dna, products) {
@@ -48,7 +62,11 @@ function recipeCandidate(row, dna, products) {
     id: String(row.recipe_id), name: row.title, slug: row.slug,
     image: row.heroImage?.url || '', difficulty: row.metadata?.difficulty || '',
     minutes: Number(row.metadata?.prepTime || 0) + Number(row.metadata?.cookTime || 0),
-    profile, score: profileFit(dna.taste_radar, profile)
+    profile, score: fitPercent(dna.taste_radar, profile, {
+      kind: ['MATCHA', 'COFFEE'].includes(String(row.metadata?.base || '').toUpperCase())
+        ? String(row.metadata.base).toLowerCase() : null,
+      drinkLean: dna.drink_lean, leanConfirmed: dna.lean_confirmed
+    }) ?? profileFit(dna.taste_radar, profile)
   };
 }
 
@@ -189,7 +207,7 @@ async function recommendationsFor(user, { surface = 'account' } = {}) {
   const dna = user.ritual_dna;
   const [productRows, recipeRows] = await Promise.all([
     Product.find({ is_active: true, 'variants.stock': { $gt: 0 } })
-      .select('product_id name slug category images variants is_active matcha coffee tools').limit(200).lean(),
+      .select('product_id name slug description product_tag category images variants is_active matcha coffee tools').limit(200).lean(),
     Recipe.find({ published: true })
       .select('recipe_id title slug heroImage metadata relatedProducts').limit(100).lean()
   ]);
@@ -248,7 +266,7 @@ async function recommendationsForProduct(user, viewedProduct) {
   const rows = await Product.find({
     category: viewedProduct.category, is_active: true,
     product_id: { $ne: viewedProduct.product_id }, 'variants.stock': { $gt: 0 }
-  }).select('product_id name slug category images variants is_active matcha coffee tools').limit(200).lean();
+  }).select('product_id name slug description product_tag category images variants is_active matcha coffee tools').limit(200).lean();
   const viewedProfile = productProfile(viewedProduct);
   const candidates = rows.map(row => productCandidate(row, dna))
     .filter(item => item && AXES.some(axis => Number.isFinite(item.profile[axis])))
@@ -283,17 +301,24 @@ async function recommendationsForProduct(user, viewedProduct) {
   try { return await work; } finally { pending.delete(fingerprint); }
 }
 
-function fitPercent(radar, profile) {
+function fitPercent(radar, profile, preference = {}) {
   // Items with no taste signal (drinkware, bundles) have no honest fit to show.
   if (!AXES.some(axis => Number.isFinite(profile?.[axis]))) return null;
-  return Math.round(Math.max(0, Math.min(100, profileFit(radar, profile))));
+  const tasteFit = profileFit(radar, profile);
+  const lean = Number(preference.drinkLean);
+  if (!preference.leanConfirmed || !Number.isFinite(lean) || !['matcha', 'coffee'].includes(preference.kind)) {
+    return Math.round(Math.max(0, Math.min(100, tasteFit)));
+  }
+  const preferenceFit = preference.kind === 'matcha' ? lean : 100 - lean;
+  // Keep measured taste as the main signal; D1 contributes a lighter category preference.
+  return Math.round(Math.max(0, Math.min(100, tasteFit * 0.8 + preferenceFit * 0.2)));
 }
 
 async function fitsFor(user) {
   const radar = user.ritual_dna.taste_radar;
   const [productRows, recipeRows] = await Promise.all([
     Product.find({ is_active: true })
-      .select('product_id name category matcha coffee tools').lean(),
+      .select('product_id name description product_tag category matcha coffee tools').lean(),
     Recipe.find({ published: true })
       .select('recipe_id metadata relatedProducts').lean()
   ]);
@@ -302,13 +327,20 @@ async function fitsFor(user) {
   for (const row of productRows) {
     productsById.set(String(row.product_id), row);
     productsById.set(String(row._id), row);
-    const fit = fitPercent(radar, productProfile(row));
+    const fit = fitPercent(radar, productProfile(row), {
+      kind: beverageKind(row), drinkLean: user.ritual_dna.drink_lean,
+      leanConfirmed: user.ritual_dna.lean_confirmed
+    });
     if (fit !== null) products[row.product_id] = fit;
   }
   const recipes = {};
   for (const row of recipeRows) {
     const related = (row.relatedProducts || []).map(id => productsById.get(String(id))).filter(Boolean);
-    const fit = fitPercent(radar, recipeProfile(row, related));
+    const base = String(row.metadata?.base || '').toLowerCase();
+    const fit = fitPercent(radar, recipeProfile(row, related), {
+      kind: base === 'matcha' || base === 'coffee' ? base : null,
+      drinkLean: user.ritual_dna.drink_lean, leanConfirmed: user.ritual_dna.lean_confirmed
+    });
     if (fit !== null) recipes[row.recipe_id] = fit;
   }
   return { products, recipes };

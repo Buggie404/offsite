@@ -24,6 +24,7 @@ export class RitualFitService {
   private readonly http = inject(HttpService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly fits = signal<RitualFitsResponse['data']>(null);
+  readonly fitData = this.fits.asReadonly();
   private loadedFor: string | null = null;
   private revision = 0;
 

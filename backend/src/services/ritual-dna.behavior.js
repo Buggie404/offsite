@@ -25,7 +25,7 @@ function productQuery(ids) {
 
 async function productsFor(ids) {
   const query = productQuery(ids);
-  return query ? Product.find(query).select('_id product_id name category matcha coffee tools').lean() : [];
+  return query ? Product.find(query).select('_id product_id name description product_tag category matcha coffee tools').lean() : [];
 }
 
 async function updateBehavior(userId, eventId, event = null, replacement = null) {
