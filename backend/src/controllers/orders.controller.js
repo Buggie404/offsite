@@ -1391,7 +1391,7 @@ async function requestRefund(req, res) {
       query = { order_id: id };
     }
 
-    const order = await Order.findOne(query);
+    let order = await Order.findOne(query);
     if (!order) {
       return res.status(404).json({ error: 'Order not found.' });
     }
@@ -1428,7 +1428,7 @@ async function requestRefund(req, res) {
     const windowDays = pointsService.REFUND_WINDOW_DAYS;
     const deliveredAt = order.delivered_at
       || [...(order.status_history || [])].reverse().find(h => h.status === 'delivered')?.changed_at;
-    if (deliveredAt && Date.now() - new Date(deliveredAt).getTime() > windowDays * 24 * 60 * 60 * 1000) {
+    if (deliveredAt && Date.now() - new Date(deliveredAt).getTime() >= windowDays * 24 * 60 * 60 * 1000) {
       return res.status(400).json({ error: `Refunds can only be requested within ${windowDays} days of delivery.` });
     }
 
@@ -1512,12 +1512,16 @@ async function requestRefund(req, res) {
       refund_item: refundItems
     });
 
-    await refundRequest.save();
-
-    order.order_status = 'pending_refund';
-    order._changedBy = userId || sessionId || 'customer';
-    order._statusChangeNote = 'Refund request submitted by customer';
-    await order.save();
+    order = await require('../services/refund-submission.service').submitRefund(
+      order.order_id, refundRequest, userId || sessionId || 'customer',
+      { windowDays: pointsService.REFUND_WINDOW_DAYS }
+    );
+    // Query updates skip save hooks; run the pending-refund side effect after commit.
+    try {
+      await subscriptionService.withdrawSuggestionsForOrder(order.order_id);
+    } catch (error) {
+      console.error('Withdrawing Ritual Box suggestions after refund request failed:', error);
+    }
     socketService.emitOrderUpdated(order, 'refund_request');
 
     // Trigger REFUND_REQUESTED notification if registered customer
@@ -1544,7 +1548,7 @@ async function requestRefund(req, res) {
     });
   } catch (error) {
     console.error('Error requesting refund:', error);
-    res.status(500).json({ error: error.message || 'Failed to submit refund request.' });
+    res.status(error.status || 500).json({ error: error.message || 'Failed to submit refund request.' });
   }
 }
 

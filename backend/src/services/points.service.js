@@ -140,11 +140,11 @@ async function getOrderPoints(order) {
   if (!order || order.is_guest || !order.user_id) return null;
   const txn = await PointTransaction.findOne({ type: 'purchase', ref_type: 'order', ref_id: order.order_id }).lean();
   if (txn) {
-    return { amount: txn.amount, status: txn.status, posted_at: txn.posted_at, estimated: false, hold_days: HOLD_DAYS };
+    return { amount: txn.amount, status: txn.status, posted_at: txn.posted_at, estimated: false, hold_days: Math.max(HOLD_DAYS, REFUND_WINDOW_DAYS) };
   }
   if (['canceled', 'refund'].includes(order.order_status)) return null;
   const amount = calcPoints(order.pricing?.subtotal || 0, await getTier(order.user_id));
-  return amount > 0 ? { amount, status: 'pending', posted_at: null, estimated: true, hold_days: HOLD_DAYS } : null;
+  return amount > 0 ? { amount, status: 'pending', posted_at: null, estimated: true, hold_days: Math.max(HOLD_DAYS, REFUND_WINDOW_DAYS) } : null;
 }
 
 // ─── Review ─────────────────────────────────────────────────────
@@ -257,37 +257,11 @@ async function postPendingByType(types, holdMs, now, validateTxn, onPosted) {
 async function postDuePoints(now = new Date()) {
   let posted = 0;
 
-  // Points are pending from processing; they post only once the order was delivered and the
-  // refund window after delivery has passed.
-  posted += await postPendingByType(['purchase'], HOLD_DAYS * DAY_MS, now, async (txn) => {
-    const order = await Order.findOne({ order_id: txn.ref_id }, { order_status: 1, delivered_at: 1, status_history: 1 }).lean();
-    if (!order) return 'post';
-    if (['refund', 'canceled'].includes(order.order_status)) return 'reverse';
-    if (!['delivered', 'refund_rejected'].includes(order.order_status)) return 'skip';
-    const deliveredAt = order.delivered_at
-      || [...(order.status_history || [])].reverse().find(h => h.status === 'delivered')?.changed_at;
-    if (!deliveredAt || now.getTime() - new Date(deliveredAt).getTime() < HOLD_DAYS * DAY_MS) return 'skip';
-    return 'post';
+  // Order state, point status and balance are settled together, against the same
+  // Orders write boundary used by refund submission.
+  posted += await require('./order-point-settlement.service').postDueOrderPoints(now, {
+    holdDays: HOLD_DAYS, refundWindowDays: REFUND_WINDOW_DAYS
   });
-
-  const Referral = require('../models/Referral');
-  posted += await postPendingByType(
-    ['referral_order'],
-    HOLD_DAYS * DAY_MS,
-    now,
-    async (txn) => {
-      const order = await Order.findOne({ order_id: txn.ref_id }, { order_status: 1 }).lean();
-      if (!order || order.order_status !== 'delivered') return 'skip';
-      if (order.order_status === 'refund' || order.order_status === 'pending_refund') return 'reverse';
-      return 'post';
-    },
-    async (txn) => {
-      await Referral.updateOne(
-        { first_order_id: txn.ref_id, order_reward_status: 'awaiting_post' },
-        { $set: { order_reward_status: 'posted' } }
-      );
-    }
-  );
 
   posted += await postPendingByType(
     ['post_approved', 'recipe_approved', 'recipe_curated'],

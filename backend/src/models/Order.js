@@ -235,6 +235,8 @@ const orderSchema = new mongoose.Schema({
   internal_notes: { type: String, default: "" },
 
   // ─── Key timestamps ──────────────────────────────────────
+  // Transactional write barrier shared by point settlement and refund submission.
+  points_settlement_revision: { type: Number, default: 0 },
   delivered_at: { type: Date, default: null },
   canceled_at:  { type: Date, default: null },
   // Set when a guest order was moved to the account registered with the same verified email / phone.
