@@ -132,13 +132,13 @@ export class RewardsReferralComponent implements OnInit {
 
   referralStatusChipClass(status: string): string {
     const normalized = status.trim().toLowerCase();
-    if (normalized.includes('ordered')) return 'status-chip--posted';
-    if (normalized.includes('order') || normalized.includes('completed') || normalized.includes('rewarded')) {
+    if (normalized.includes('pending')) return 'status-chip--pending';
+    if (normalized.includes('ineligible') || normalized.includes('reversed')) return 'status-chip--reversed';
+    if (normalized.includes('posted') || normalized.includes('order')
+      || normalized.includes('completed') || normalized.includes('rewarded')) {
       return 'status-chip--posted';
     }
     if (normalized.includes('signed') || normalized.includes('register')) return 'status-chip--used';
-    if (normalized.includes('ineligible') || normalized.includes('reversed')) return 'status-chip--reversed';
-    if (normalized.includes('pending')) return 'status-chip--pending';
     return 'status-chip--neutral';
   }
 

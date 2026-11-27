@@ -268,18 +268,17 @@ async function verifyRegistrationOtp(req, res) {
     if (pending.email) newUser.email = pending.email;
     if (pending.phone) newUser.phone = pending.phone;
 
+    // Persist referral provenance before deleting OTP, so a failed reward can be retried.
+    if (pending.referral_code) {
+      newUser.referred_by = pending.referral_code;
+      newUser.referral_registration_pending = true;
+    }
     const result = await userCollection.insertOne(newUser);
     await otpCollection.deleteOne({ _id: pending._id });
 
     try {
       const loyaltyService = require('../services/loyalty.service');
       await loyaltyService.handleReferralRegistration(newUser, pending.referral_code);
-      if (pending.referral_code) {
-        await userCollection.updateOne(
-          { user_id: newUser.user_id },
-          { $set: { referred_by: pending.referral_code } }
-        );
-      }
     } catch (referralErr) {
       console.error('Referral registration reward failed:', referralErr);
     }

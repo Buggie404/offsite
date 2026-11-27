@@ -123,6 +123,7 @@ const userSchema = new mongoose.Schema({
   points: { type: Number, default: 0 },
   referral_code: { type: String, unique: true, sparse: true, default: null },
   referred_by: { type: String, default: null },
+  referral_registration_pending: { type: Boolean, default: false },
   welcome_voucher_code: { type: String, default: null },
   ritual_dna_quiz_completed: { type: Boolean, default: false },
   chat_assignment_version: { type: Number, default: 0 },

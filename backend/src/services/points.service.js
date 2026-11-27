@@ -71,14 +71,43 @@ async function awardPurchasePoints(order) {
   const amount = await earnedAmount(order.pricing?.subtotal || 0, order.user_id);
   if (amount <= 0) return null;
 
-  return PointTransaction.create({
-    user_id: order.user_id,
-    type: 'purchase',
-    amount,
-    status: 'pending',
-    ref_type: 'order',
-    ref_id: order.order_id
+  // Stable unique ID makes concurrent confirmation/delivery/recovery safe.
+  const confirmedAt = (order.status_history || []).find(item => item.status === 'processing')?.changed_at
+    || order.created_at || order.delivered_at || new Date();
+  try {
+    return await PointTransaction.create({
+      transaction_id: `PTXPUR_${order.order_id}`,
+      user_id: order.user_id,
+      type: 'purchase',
+      amount,
+      status: 'pending',
+      ref_type: 'order',
+      ref_id: order.order_id,
+      created_at: confirmedAt
+    });
+  } catch (error) {
+    if (error.code !== 11000) throw error;
+    const winner = await PointTransaction.findOne({ type: 'purchase', ref_type: 'order', ref_id: order.order_id });
+    if (!winner) throw error;
+    return winner;
+  }
+}
+
+// A failed order callback must not permanently erase the customer's purchase history.
+// Include reversed entries in the known set so canceled/refunded points cannot be re-awarded.
+async function reconcilePurchasePoints(userId) {
+  const recorded = await PointTransaction.distinct('ref_id', {
+    user_id: userId, type: 'purchase', ref_type: 'order'
   });
+  const orders = await Order.find({
+    user_id: userId, is_guest: { $ne: true },
+    order_status: { $in: ['processing', 'shipping', 'delivered', 'refund_rejected', 'pending_refund'] },
+    order_id: { $nin: recorded }, 'pricing.subtotal': { $gt: 0 }
+  }).select('order_id user_id is_guest pricing created_at delivered_at status_history').limit(100).lean();
+  for (const order of orders) {
+    await awardPurchasePoints(order);
+  }
+  return orders.length;
 }
 
 // A line was removed or swapped for a cheaper one while processing: the pending points follow
@@ -298,6 +327,7 @@ module.exports = {
   tierMultiplier,
   calcPoints,
   awardPurchasePoints,
+  reconcilePurchasePoints,
   reversePurchasePoints,
   updatePurchasePoints,
   getOrderPoints,

@@ -629,6 +629,8 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
       if (this.signupPhoneInput?.nativeElement) this.signupPhone = this.signupPhoneInput.nativeElement.value;
       if (this.signupPasswordInput?.nativeElement) this.signupPassword = this.signupPasswordInput.nativeElement.value;
       if (this.signupConfirmPasswordInput?.nativeElement) this.signupConfirmPassword = this.signupConfirmPasswordInput.nativeElement.value;
+      // Include pasted/autofilled referral values, just like the other validated inputs.
+      if (this.signupReferralInput?.nativeElement) this.signupReferralCode = this.signupReferralInput.nativeElement.value;
 
       this.signupNameTouched = true;
       this.signupEmailTouched = true;
@@ -660,7 +662,7 @@ export class AuthModalComponent implements AfterViewInit, OnDestroy {
       try {
         const submitEmail = this.signupEmail ? this.signupEmail.trim() : '';
         const submitPhone = this.signupPhone ? this.signupPhone.trim().replace(/\s+/g, '') : '';
-        const referralInput = this.signupReferralCode.trim();
+        const referralInput = this.signupReferralCode.trim().toUpperCase();
         const response = await this.authService.register({
           name: this.signupName,
           email: submitEmail,

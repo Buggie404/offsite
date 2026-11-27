@@ -144,7 +144,8 @@ async function computeLifetimePoints(userId) {
       $match: {
         user_id: userId,
         amount: { $gt: 0 },
-        status: { $in: ['posted', 'pending', 'used'] },
+        // Only settled earnings count toward tier qualification.
+        status: 'posted',
         type: { $ne: 'redeem_voucher' }
       }
     },
@@ -432,6 +433,9 @@ async function getDashboard(jwtUserId) {
   const appUserId = await resolveAppUserId(jwtUserId);
   if (!appUserId) return null;
 
+  await retryPendingReferralRegistrations(appUserId);
+  await require('./points.service').reconcilePurchasePoints(appUserId);
+
   const loaded = await loadUserProfile(appUserId);
   if (!loaded) return null;
 
@@ -474,26 +478,10 @@ async function getDashboard(jwtUserId) {
       points: txn.amount,
       status: formatStatusLabel(txn.status)
     })),
-    referralActivity: referrals.map((row) => ({
-      id: row.referral_id,
-      friend: row.referee_display || 'Friend',
-      status: formatReferralStatus(row),
-      points:
-        (row.register_reward_status === 'posted' ? row.register_points : 0) +
-        (row.order_reward_status === 'posted' ? row.order_points : 0)
-    })),
+    referralActivity: require('./referral-activity').referralActivityRows(referrals),
     welcomeVoucherCode: profile.welcome_voucher_code || null,
     myVouchers
   };
-}
-
-function formatReferralStatus(row) {
-  if (row.order_reward_status === 'posted') return 'First order rewarded';
-  if (row.order_reward_status === 'awaiting_post') return 'First order · points pending';
-  if (row.order_reward_status === 'ineligible') return 'Ineligible';
-  if (row.register_reward_status === 'posted') return 'Signed up';
-  if (row.register_reward_status === 'skipped') return 'Signed up · no bonus';
-  return 'Pending';
 }
 
 function personalCode(templateCode) {
@@ -627,47 +615,7 @@ async function creditPostedPoints(userId, amount) {
 }
 
 async function ensurePersonalWelcomeVoucher(refereeUserId) {
-  const user = await User.findOne({ user_id: refereeUserId }, { welcome_voucher_code: 1 }).lean();
-  if (user?.welcome_voucher_code) return user.welcome_voucher_code;
-
-  const code = `WELCOME5_${refereeUserId.replace(/^USR/i, '')}`;
-  const now = new Date();
-  const validFrom = now.toISOString().slice(0, 10);
-  const validTo = new Date(now.getTime() + 180 * DAY_MS).toISOString().slice(0, 10);
-
-  await Voucher.findOneAndUpdate(
-    { code },
-    {
-      $set: {
-        purpose: 'referral',
-        assigned_user_id: refereeUserId
-      },
-      $setOnInsert: {
-        code,
-        voucher_type: 'discount',
-        discount_type: 'fixed',
-        discount_value: 5,
-        is_active: true,
-        usage_limit: 1,
-        used_count: 0,
-        min_order_amount: 0,
-        max_discount_value: 5,
-        valid_from: validFrom,
-        valid_to: validTo,
-        createdAt: now.toISOString(),
-        usage_limit_per_user: 1,
-        target_tier: null
-      }
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
-
-  await User.updateOne({ user_id: refereeUserId }, { $set: { welcome_voucher_code: code } });
-  const { getCollections } = require('../config/db');
-  const { userCollection } = await getCollections();
-  await userCollection.updateOne({ user_id: refereeUserId }, { $set: { welcome_voucher_code: code } });
-
-  return code;
+  return require('./referral-registration.service').ensureWelcomeVoucher(refereeUserId);
 }
 
 async function isFirstDeliveredOrder(userId, orderId) {
@@ -688,7 +636,9 @@ async function handleOrderDelivered(order) {
 
   if (!referral) return null;
 
-  const firstOrder = await isFirstDeliveredOrder(order.user_id, order.order_id);
+  const firstOrder = referral.first_order_id
+    ? referral.first_order_id === order.order_id
+    : await isFirstDeliveredOrder(order.user_id, order.order_id);
   if (!firstOrder) {
     if (referral.order_reward_status === 'pending') {
       referral.order_reward_status = 'ineligible';
@@ -716,7 +666,12 @@ async function handleOrderDelivered(order) {
   referral.welcome_voucher_code = welcomeCode;
   referral.first_order_id = order.order_id;
   referral.order_reward_status = 'awaiting_post';
-  referral.order_reward_due_at = new Date(Date.now() + HOLD_DAYS * DAY_MS);
+  const deliveredAt = order.delivered_at
+    || [...(order.status_history || [])].reverse().find(item => item.status === 'delivered')?.changed_at
+    || new Date();
+  // Retrying a missing transaction must not restart the holding period.
+  referral.order_reward_due_at = referral.order_reward_due_at
+    || new Date(new Date(deliveredAt).getTime() + HOLD_DAYS * DAY_MS);
   await referral.save();
 
   const existingTxn = await PointTransaction.findOne({
@@ -726,14 +681,22 @@ async function handleOrderDelivered(order) {
   }).lean();
 
   if (!existingTxn) {
-    await PointTransaction.create({
-      user_id: referral.referrer_id,
-      type: 'referral_order',
-      amount: referral.order_points || 20,
-      status: 'pending',
-      ref_type: 'order',
-      ref_id: order.order_id
-    });
+    try {
+      await PointTransaction.create({
+        transaction_id: `PTXREFORDER_${order.order_id}`,
+        user_id: referral.referrer_id,
+        type: 'referral_order',
+        amount: referral.order_points || 20,
+        status: 'pending',
+        ref_type: 'order',
+        ref_id: order.order_id,
+        created_at: deliveredAt
+      });
+    } catch (error) {
+      if (error.code !== 11000 || !await PointTransaction.findOne({
+        type: 'referral_order', ref_type: 'order', ref_id: order.order_id
+      })) throw error;
+    }
   }
 
   return referral;
@@ -754,8 +717,9 @@ async function finalizeReferralOrderRewards(now = new Date()) {
     });
 
     if (!txn) {
-      referral.order_reward_status = 'posted';
-      await referral.save();
+      // Never report a reward as posted when its point transaction was not created.
+      const order = await Order.findOne({ order_id: referral.first_order_id }).lean();
+      if (order?.order_status === 'delivered') await handleOrderDelivered(order);
       continue;
     }
 
@@ -890,53 +854,33 @@ async function awardRitualDnaQuizPoints(jwtUserId) {
 
 async function handleReferralRegistration(referee, referralCode) {
   if (!referralCode || !referee?.user_id) return null;
-
   const validation = await validateReferralCode(referralCode);
   if (!validation.ok || validation.referrerId === referee.user_id) return null;
-
-  const existing = await Referral.findOne({ referee_id: referee.user_id }).lean();
-  if (existing) return existing;
-
-  const yearlyCount = await countReferralsThisYear(validation.referrerId);
-  if (yearlyCount >= REFERRALS_PER_YEAR_LIMIT) {
-    return Referral.create({
-      referrer_id: validation.referrerId,
-      referee_id: referee.user_id,
-      referral_code: String(referralCode).trim().toUpperCase(),
-      referee_display: referee.profile_name || 'Friend',
-      register_reward_status: 'skipped',
-      order_reward_status: 'ineligible',
-      ineligible_reason: 'yearly_limit',
-      register_points: 0,
-      order_points: 0
-    });
+  const referral = await require('./referral-registration.service').completeRegistration(
+    referee.user_id, validation.referrerId,
+    String(referralCode).trim().toUpperCase(), REFERRALS_PER_YEAR_LIMIT
+  );
+  if (referral?.register_reward_status === 'posted') {
+    await syncMembershipTier(validation.referrerId, await computeLifetimePoints(validation.referrerId));
   }
+  return referral;
+}
 
-  const referral = await Referral.create({
-    referrer_id: validation.referrerId,
-    referee_id: referee.user_id,
-    referral_code: String(referralCode).trim().toUpperCase(),
-    referee_display: referee.profile_name || 'Friend',
-    register_reward_status: 'posted',
-    order_reward_status: 'pending'
-  });
-
-  const txn = await PointTransaction.create({
-    user_id: validation.referrerId,
-    type: 'referral_register',
-    amount: 20,
-    status: 'posted',
-    ref_type: 'referral',
-    ref_id: referral.referral_id,
-    posted_at: new Date()
-  });
-
-  await adjustBalance(validation.referrerId, 20);
-
-  const lifetime = await computeLifetimePoints(validation.referrerId);
-  await syncMembershipTier(validation.referrerId, lifetime);
-
-  return { referral, txn };
+// Recover only referrals explicitly saved during registration, never arbitrary account codes.
+async function retryPendingReferralRegistrations(appUserId) {
+  const owner = await User.findOne({ user_id: appUserId }, { referral_code: 1 }).lean();
+  const filters = [{ user_id: appUserId }];
+  if (owner?.referral_code) filters.push({ referred_by: owner.referral_code });
+  const pending = await User.find({
+    referral_registration_pending: true, $or: filters
+  }).limit(25).lean();
+  for (const referee of pending) {
+    try {
+      await handleReferralRegistration(referee, referee.referred_by);
+    } catch (error) {
+      console.error('Pending referral reward retry failed:', error);
+    }
+  }
 }
 
 module.exports = {
