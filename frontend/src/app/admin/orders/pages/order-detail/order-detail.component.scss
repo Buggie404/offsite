@@ -1320,7 +1320,8 @@
 
 /* Failed delivery: the customer's redelivery answer, and a refund payout after a cancel. */
 .redelivery-panel {
-  margin-top: 12px;
+  // Same bottom rhythm as .timeline__alert so stacked exception boxes never touch.
+  margin: 0 0 var(--admin-detail-section-gap);
   padding: 12px 14px;
   border: 1px solid #f3d29b;
   border-radius: var(--radius-input, 8px);
