@@ -40,6 +40,7 @@ async function submitRefund(orderId, refundRequest, actorId, { windowDays = 3, c
 
     // Repair early postings from older/demo configurations if a valid refund is accepted.
     // This is NOT a reversal: the admin still decides whether points post or reverse.
+    // Preserve posted_at: holding available points must not erase earned Lifetime credit.
     const early = await PointTransaction.find({
       ref_type: 'order', ref_id: orderId, status: 'posted',
       type: { $in: ['purchase', 'referral_order'] }
@@ -47,7 +48,7 @@ async function submitRefund(orderId, refundRequest, actorId, { windowDays = 3, c
     for (const txn of early) {
       const held = await PointTransaction.updateOne(
         { _id: txn._id, status: 'posted' },
-        { $set: { status: 'pending', posted_at: null } }, { session }
+        { $set: { status: 'pending', posted_at: txn.posted_at || txn.created_at || new Date() } }, { session }
       );
       if (!held.modifiedCount) continue;
       await User.updateOne({ user_id: txn.user_id }, { $inc: { points: -txn.amount } }, { session });

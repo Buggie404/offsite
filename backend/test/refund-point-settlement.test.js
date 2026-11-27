@@ -102,7 +102,7 @@ test('accepted refund holds legacy prematurely posted points instead of reversin
   });
   await f.submission.submitRefund('ORDER1', f.requestDocument(), 'USR1', { clock: () => NOW });
   assert.equal(f.txns[0].status, 'pending');
-  assert.equal(f.txns[0].posted_at, null);
+  assert.ok(f.txns[0].posted_at instanceof Date);
   assert.equal(f.balance.USR1, 0);
 });
 

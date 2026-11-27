@@ -144,8 +144,12 @@ async function computeLifetimePoints(userId) {
       $match: {
         user_id: userId,
         amount: { $gt: 0 },
-        // Only settled earnings count toward tier qualification.
-        status: 'posted',
+        // Once earned and posted, points remain part of lifetime tier progress
+        // even when their available balance is later reversed.
+        $or: [
+          { status: 'posted' },
+          { posted_at: { $type: 'date' } }
+        ],
         type: { $ne: 'redeem_voucher' }
       }
     },

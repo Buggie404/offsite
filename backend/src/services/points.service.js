@@ -193,7 +193,11 @@ async function changeCommunityPoints(postId, restore = false, existingSession = 
       const wasPosted = restore ? Boolean(txn.posted_at) : txn.status === 'posted';
       const status = restore ? (wasPosted ? 'posted' : 'pending') : 'reversed';
       const claimed = await PointTransaction.updateOne({ _id: txn._id, status: txn.status }, {
-        $set: { status, reversed_at: restore ? null : new Date() }
+        $set: {
+          status, reversed_at: restore ? null : new Date(),
+          // Preserve evidence that legacy posted rewards already qualified for Lifetime.
+          ...(wasPosted && !txn.posted_at ? { posted_at: txn.created_at || new Date() } : {})
+        }
       }, { session });
       if (claimed.modifiedCount && wasPosted) {
         await User.updateOne({ user_id: txn.user_id }, { $inc: { points: restore ? txn.amount : -txn.amount } }, { session });
@@ -212,6 +216,8 @@ const restoreCommunityPoints = (postId, session) => changeCommunityPoints(postId
 
 async function reverseTransaction(txn) {
   const wasPosted = txn.status === 'posted';
+  // Some legacy posted rows have no timestamp. Record their earned status before reversal.
+  if (wasPosted && !txn.posted_at) txn.posted_at = txn.created_at || new Date();
   txn.status = 'reversed';
   txn.reversed_at = new Date();
   await txn.save();
